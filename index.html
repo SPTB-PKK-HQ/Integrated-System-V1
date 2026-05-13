@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, shrink-to-fit=no">
+    <title>Sistem Bersepadu SPTB(HQ)</title>
+
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://accounts.google.com https://www.gstatic.com; object-src 'self'; media-src 'self' https:; connect-src 'self' https:;">
+
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" id="loading-text">Memuatkan data...</div>
+            <div class="loading-subtext" id="loading-subtext">Sistem Bersepadu SPTB (HQ)</div>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <div class="loading-progress-container">
+                <div class="loading-progress-info">
+                    <div class="loading-progress-label" id="loading-progress-label">Memulakan...</div>
+                    <div class="loading-progress-percent" id="loading-progress-percent">0%</div>
+                </div>
+                <div class="loading-progress-bar-container">
+                    <div class="loading-progress-bar-fill" id="loading-progress-bar"></div>
+                </div>
+                <div class="loading-progress-steps" id="loading-progress-steps">
+                    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORM CHECKER LOADING SPINNER -->
+    <div class="form-checker-loading-spinner" id="formCheckerLoadingSpinner">
+        <div class="form-checker-spinner"></div>
+        <div class="form-checker-loading-text">Memproses Borang Semakan...</div>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="login-screen">
+        <div class="login-card">
+            <img src="jata.svg" alt="Jata Negara" style="width: 100px; margin-bottom: 15px;">
+            <h2 class="login-title">SISTEM BERSEPADU SPTB (HQ)</h2>
+            <p style="color:#666; margin-bottom:10px;">Log Masuk Menggunakan Akaun Google</p>
+            <div class="auth-status" id="authStatus">
+                <p style="color:#64748b; font-size:0.9rem; margin-bottom:15px;">Sila klik butang di bawah untuk log masuk secara automatik.</p>
+                <div id="googleButton" style="margin-top: 20px; min-height: 50px; display: flex; justify-content: center; align-items: center;"></div>
+                <div class="auth-error" id="authError"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP CONTAINER -->
+    <div id="app-container" style="display:none;">
+
+        <!-- MOBILE HEADER -->
+        <div class="mobile-header">
+            <button id="mobileMenuBtn">☰ MENU</button>
+        </div>
+
+        <!-- MENU OVERLAY -->
+        <div id="menuOverlay" class="menu-overlay"></div>
+
+        <!-- TOP RIGHT: USER BADGE & FULL VIEW BUTTON -->
+        <div class="top-controls" style="flex-direction: column; align-items: flex-end; gap: 0; top: 12px; right: 15px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 2px solid white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 8px 12px; z-index: 100;">
+            
+            <div class="user-badge" id="userBadge" title="Profil Pengguna" style="box-shadow: none; border: none; background: transparent; padding: 2px 5px; margin-bottom: 4px; font-size: 0.9rem;">👤 User</div>
+            
+            <div style="width: 100%; height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); margin-bottom: 6px;"></div>
+            
+            <div id="digitalClock" style="font-size: 0.75rem; font-weight: 800; color: var(--theme-color); display: flex; align-items: center; justify-content: center; letter-spacing: 0.3px;">
+                ⏳ Memuatkan...
+            </div>
+            
+        </div>
+        <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar">🚪 Log Keluar</button>
+        <button id="btnQueueSPI" class="btn-top-fullview" style="color: #0ea5e9; border-color: #0ea5e9; top: 45px;" title="Lihat Queue SPI">📋 Lihat Queue SPI</button>
+        
+       <div id="customModalOverlay" class="custom-modal-overlay">
+        <div class="custom-modal-card" id="customModalCard">
+            <div class="custom-modal-icon-container" id="customModalIconBox">
+                <span id="customModalIcon"></span>
+            </div>
+            <h3 class="custom-modal-title" id="customModalTitle">Makluman</h3>
+            <p class="custom-modal-message" id="customModalMessage">Mesej di sini</p>
+            <div class="custom-modal-actions" id="customModalActions">
+                </div>
+        </div>
+    </div>
+        
+
+        <!-- NAVIGATION TABS -->
+        <div class="tabs no-print" id="tabs-container">
+            <button class="tab-btn" data-target="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-target="tab-tapisan">📄 Tapisan Excel</button>
+            <button class="tab-btn" data-target="tab-bakul">🛒 Bakul Permohonan</button>
+            <button class="tab-btn active" data-tab="tab-checker">✓ Borang Semakan</button>
+            <button class="tab-btn" data-tab="tab-database">📂 Input Database</button>
+            <button class="tab-btn" data-tab="tab-list">📋 Senarai</button>
+            <button class="tab-btn" data-tab="tab-pelulus-view">👁️ Paparan Pelulus</button>
+            <button class="tab-btn" data-tab="tab-pelulus-action">⚖️ Keputusan</button>
+            <button class="tab-btn" data-tab="tab-admin-dashboard" id="tabAdminBtn" style="display:none;">👑 Admin Dashboard</button>
+            <button class="tab-btn" data-tab="tab-history" id="tabHistoryBtn" style="display:none;">📜 Sejarah</button>
+        </div>
+
+        <!-- TAB 1: BORANG SEMAKAN -->
+        <div id="tab-checker" class="tab-content active no-print">
+
+            <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <h2>🚀 Auto-Ekstrak Borang (AI)</h2>
+                
+                <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
+                    <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model AI:</label>
+                    <select id="aiModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
+                        <option value="auto">Auto (Disyorkan)</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="gemini">Gemini</option>
+                        <option value="openrouter">OpenRouter</option>
+                    </select>
+                </div>
+
+                <div id="pdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+                    <div id="status-box-main" class="morph-box morph-circle">
+                        <svg class="morph-ring">
+                            <circle id="progress-ring-main" class="morph-ring-circle" stroke="white" stroke-width="5" fill="transparent" r="70" cx="75" cy="75"/>
+                        </svg>
+                        <div id="percentage-main" class="morph-percentage">📄<br><span>Pilih PDF</span></div>
+                    </div>
+                    
+                    <label class="custom-upload-btn">
+                        <input id="pdfFileInput" type="file" accept=".pdf" hidden />
+                        Klik / Seret Dokumen
+                    </label>
+                    <span id="pdfFileName" style="margin-top: 15px; font-weight: bold; color: #3b82f6; font-size: 0.9rem;">Sedia untuk menerima fail...</span>
+                    <span id="pdfProgressMsg" style="margin-top: 5px; color: #64748b; font-size: 0.85rem; display: none;">Memproses...</span>
+                </div>
+
+                <div class="pdf-result" id="pdfResult" style="display:none; animation: fadeIn 0.6s ease-out; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 2px solid #10b981; margin-top:20px;">
+                    <h3 style="margin-top:0; color:#059669; display: flex; align-items: center; gap: 8px;">✨ Maklumat Berjaya Diekstrak!</h3>
+                    <div class="pdf-extracted-data" id="pdfExtractedData" style="border: none; background: #f8fafc;"></div>
+                    <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
+                        <button class="btn btn-green" id="btnApplyPdfData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Gunakan Data Ini</button>
+                        <button class="btn btn-white" id="btnClearPdfData">Batal</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🏢 Maklumat Asas & Jenis Permohonan</h2>
+                <label>Jenis Permohonan:</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="jenisApp" value="baru"> BARU</label>
+                    <label><input type="radio" name="jenisApp" value="pembaharuan"> PEMBAHARUAN</label>
+                    <label><input type="radio" name="jenisApp" value="ubah_maklumat"> UBAH MAKLUMAT</label>
+                    <label><input type="radio" name="jenisApp" value="ubah_gred"> UBAH GRED</label>
+                </div>
+                <div class="grid-equal" style="margin-bottom:10px;">
+                    <div><label>Tarikh Mohon</label><input type="date" id="borang_tarikh_mohon"></div>
+                    <div><label>Semakan Tatatertib</label><select id="borang_tatatertib"><option value="">- PILIH -</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select></div>
+                </div>
+                <div style="margin-bottom:10px;"><label>Justifikasi Lawatan</label><input type="text" id="borang_justifikasi" placeholder="Nyatakan justifikasi lawatan jika perlu..."></div>
+                <input type="hidden" id="input_justifikasi"><input type="hidden" id="input_pautan">
+                <input type="text" id="input_ubah_maklumat" class="conditional-input" placeholder="Nyatakan Perubahan Maklumat...">
+                <input type="text" id="input_ubah_gred" class="conditional-input" placeholder="Nyatakan Perubahan Gred...">
+                <div style="margin-bottom:10px;"><label>No. Telefon (Pejabat / Individu)</label><input type="text" id="borang_no_telefon" placeholder="Contoh: 03-1234567, 012-3456789"></div>
+                <div class="grid-2"><div><label>Nama Syarikat</label><input type="text" id="borang_syarikat"></div><div><label>No. CIDB</label><input type="text" id="borang_cidb"></div></div>
+                <div style="margin-top:10px; margin-bottom:10px;"><label>Gred Permohonan</label><select id="borang_gred"><option value="">- Pilih Gred -</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="G4">G4</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option></select></div>
+                <div class="grid-equal"><div><label>Tempoh SPKK</label><input type="text" id="spkkDuration"></div><div><label>Tempoh STB</label><input type="text" id="stbDuration"></div></div>
+                <div class="grid-equal">
+                    <div><label>Tarikh e-Info SSM</label><input type="date" id="ssm_date_input"></div>
+                    <div><label>Status Semakan SSM</label><div class="status-input-container"><input type="text" id="ssm_status" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+                </div>
+                <div class="grid-2">
+                    <div><label>Tarikh Bank</label><input type="date" id="bank_date_input"></div>
+                    <div><div style="display: flex; gap: 10px; flex-wrap: wrap;"><div style="flex: 1;"><label>Syarat Bank</label><input type="text" id="bank_sign_input"></div><div style="flex: 1;"><label>Status Semakan Bank</label><div class="status-input-container"><input type="text" id="bank_status_input" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div></div></div>
+                </div>
+            </div>
+
+             <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(0,0,0,0.05); margin-bottom: 15px; padding-bottom: 8px;">
+                    <h2 style="border: none; margin-bottom: 0; padding-bottom: 0;">👤 Personel</h2>
+                    <button id="btnSemakCepat" class="btn btn-orange" style="box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3); border: 2px solid white; font-size: 0.85rem; border-radius: 30px; padding: 8px 16px;">
+                        ⚡ Semak Cepat
+                    </button>
+                </div>
+                <div id="personnelList"></div>
+                <button id="addPersonBtn" class="btn btn-add">+ Tambah Personel</button>
+            </div>
+
+            <div class="card">
+                <h2>📁 Dokumen & KWSP</h2>
+                <div class="grid-2">
+                    <div><label>Carta</label><div class="status-input-container"><input type="text" id="doc_carta_status" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+                    <div><label>Peta</label><div class="status-input-container"><input type="text" id="doc_peta_status" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+                    <div><label>Gambar</label><div class="status-input-container"><input type="text" id="doc_gambar_status" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+                    <div><label>Sewa</label><div class="status-input-container"><input type="text" id="doc_sewa_status" class="status-input" maxlength="10" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+                </div>
+                <label style="margin-top:10px;">KWSP (3 Bulan)</label>
+                <div class="kwsp-row" style="margin-bottom:5px;"><div style="display:flex; gap:5px; flex-wrap: wrap;"><input type="month" id="kwsp_date_1" style="flex: 2;"><div class="status-input-container" style="flex: 1;"><input type="text" id="kwsp_s1" class="status-input" maxlength="10" placeholder="Status"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div></div>
+                <div class="kwsp-row" style="margin-bottom:5px;"><div style="display:flex; gap:5px; flex-wrap: wrap;"><input type="month" id="kwsp_date_2" style="flex: 2;"><div class="status-input-container" style="flex: 1;"><input type="text" id="kwsp_s2" class="status-input" maxlength="10" placeholder="Status"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div></div>
+                <div class="kwsp-row"><div style="display:flex; gap:5px; flex-wrap: wrap;"><input type="month" id="kwsp_date_3" style="flex: 2;"><div class="status-input-container" style="flex: 1;"><input type="text" id="kwsp_s3" class="status-input" maxlength="10" placeholder="Status"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div></div>
+            </div>
+            <div class="card">
+                <h2>📝 Maklumat Proses & Syor</h2>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom:10px;">
+                    <div><label>Tarikh Dokumen Lengkap</label><input type="date" id="borang_tarikh_lengkap"></div>
+                    <div><label>Tarikh Siasatan</label><input type="date" id="borang_tarikh_siasatan"></div>
+                    <div><label>Tarikh Proses</label><input type="date" id="borang_tarikh_proses"></div>
+                    <div><label>Keputusan Syor</label><select id="borang_syor_status" style="border-color: #3b82f6; font-weight: bold;"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="SIASAT">SIASAT</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-reset" id="btnResetTab2">RESET BORANG</button>
+                <div style="flex-grow:1;"></div>
+                <button id="triggerPrintBtn" class="btn btn-print">🖨️ Cetak</button>
+                <button class="btn btn-blue" id="btnSyncToDb" style="display:none;">Simpan & Ke Input Database »</button>
+            </div>
+        </div>
+
+        <!-- TAB 2: INPUT DATABASE -->
+        <div id="tab-database" class="tab-content no-print">
+            <div class="card">
+                <h2>📂 Input Database</h2>
+                <div style="margin-bottom: 20px; text-align: right;"><button id="btnPergiCiptaProfile" class="btn btn-orange" style="padding: 12px 24px; font-size: 1rem;">🏢 Cipta Profile Syarikat</button></div>
+                <div class="drive-section" id="driveSection">
+                    <h3 style="margin-top: 0; display: flex; align-items: center;">📁 Google Drive (User Folder System)<span id="driveStatus" class="drive-status drive-creating" style="display: none;">Mencipta...</span></h3>
+                    <div style="margin-bottom: 10px;"><label><input type="checkbox" id="cbCreateDriveFolder" checked>Cipta folder dalam User Folder untuk syarikat ini</label></div>
+                    <div id="driveFolderInfo" style="display: block;"><div id="driveResult" style="margin-top: 10px;"></div></div>
+                    <div class="btn-drive-container"><button class="btn btn-orange" id="btnCreateDriveFolder" style="margin-top: 10px;">📁 Cipta Folder Drive</button><button class="btn btn-drive" id="btnOpenMyDriveFolder" style="margin-top: 10px;">📂 Buka Folder Saya</button></div>
+                </div>
+                <div class="grid-2"><div><label>Nama Syarikat</label><input type="text" id="db_syarikat"></div><div><label>No. CIDB</label><input type="text" id="db_cidb"></div></div>
+                <div class="grid-equal"><div><label>Gred</label><select id="db_gred"><option value="">Pilih</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="G4">G4</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option></select></div><div><label>Jenis</label><select id="db_jenis"><option value="">Pilih</option><option value="BARU">BARU</option><option value="PEMBAHARUAN">PEMBAHARUAN</option><option value="UBAH MAKLUMAT">UBAH MAKLUMAT</option><option value="UBAH GRED">UBAH GRED</option></select></div></div>
+                <div id="db_perubahan_container" style="display:none; margin-top:10px;"><label id="db_perubahan_label">Nyatakan Perubahan:</label><input type="text" id="db_perubahan_input" class="conditional-input" style="display:block; border: 2px solid #f59e0b !important; background-color: #fffbeb !important;"></div>
+                <label>Negeri Alamat Operasi</label><select id="db_negeri"><option value="">Pilih Negeri</option><option value="JOHOR">JOHOR</option><option value="KEDAH">KEDAH</option><option value="KELANTAN">KELANTAN</option><option value="MELAKA">MELAKA</option><option value="NEGERI SEMBILAN">NEGERI SEMBILAN</option><option value="PAHANG">PAHANG</option><option value="PERAK">PERAK</option><option value="PERLIS">PERLIS</option><option value="PULAU PINANG">PULAU PINANG</option><option value="SABAH">SABAH</option><option value="SARAWAK">SARAWAK</option><option value="SELANGOR">SELANGOR</option><option value="TERENGGANU">TERENGGANU</option><option value="W.P. KUALA LUMPUR">W.P. KUALA LUMPUR</option><option value="W.P. LABUAN">W.P. LABUAN</option><option value="W.P. PUTRAJAYA">W.P. PUTRAJAYA</option></select>
+                <div class="grid-equal"><div><label>Tarikh Surat</label><input type="date" id="db_tarikh_surat"></div><div><label>Start Date</label><input type="date" id="db_start_date"></div></div>
+                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">
+                    <label style="font-weight:800; color:#1e40af;">📞 Jenis Konsultansi (Kolum V)</label>
+                    <div style="display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap;">
+                        <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_emel" class="konsultansi-checkbox">Emel</label><input type="date" id="date_konsultansi_emel" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
+                        <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_whatsapp" class="konsultansi-checkbox">WhatsApp</label><input type="date" id="date_konsultansi_whatsapp" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
+                        <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_call" class="konsultansi-checkbox">Panggilan Telefon</label><input type="date" id="date_konsultansi_call" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
+                    </div>
+                </div>
+                <div style="margin-top:15px; margin-bottom:15px;"><button type="button" id="btnToggleAlamat" class="btn btn-white" style="width:100%; text-align:left; padding:10px;">🏢 Papar/Sembunyi Alamat Perniagaan</button><textarea id="db_alamat_perniagaan" style="display:none; margin-top:10px; min-height:80px;" placeholder="Masukkan Alamat Perniagaan Syarikat..."></textarea></div>
+                <label>Tatatertib STB</label><select id="db_tatatertib"><option value="">Pilih</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select>
+                <label>Syor Lawatan</label><select id="db_syor"><option value="">Pilih</option><option value="YA">YA</option><option value="TIDAK">TIDAK</option><option value="PEMUTIHAN">PEMUTIHAN</option></select>
+                <div id="pautanDriveContainer" class="pautan-required" style="margin-top: 10px;"><label>Pautan Google Drive</label><input type="text" id="db_pautan_drive" placeholder="https://drive.google.com/..."></div>
+                <label>Date Submit to SPI</label>
+                <div style="display:flex; align-items:center; gap: 10px;">
+                    <input type="date" id="db_submit_date" style="flex:1;">
+                    <span id="db_status_hantar_display" style="font-weight:bold; font-size:0.8rem; border-radius:12px; padding:6px 12px; display:none; border: 1px solid;"></span>
+                </div>
+                <input type="hidden" id="db_status_hantar_spi">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="cb_selesai_lawatan"><span style="font-weight: 600;">Telah Selesai Lawatan</span></label>
+                    <div id="container_lawatan" style="display:none; margin-top:10px; padding:10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">
+                        <div style="margin-bottom: 10px;"><label>TARIKH LAWATAN</label><input type="date" id="db_lawatan_tarikh"></div>
+                        <div style="margin-bottom: 10px;"><label>DATE SUBMIT TO SPTB</label><input type="date" id="db_lawatan_submit_sptb"></div>
+                        <div><label>SYOR SPI</label><select id="db_lawatan_syor"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
+                    </div>
+                <label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-drive" id="btnOpenDriveFolder" style="padding: 8px 12px; font-size: 0.8rem;" title="Buka Folder Drive">📂 Drive</button></div>
+                <label>Justifikasi Lawatan</label><input type="text" id="db_justifikasi">
+                <div style="margin-top:15px; border-top: 2px dashed #ccc; padding-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
+                    <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
+                    <div class="grid-equal"><div><label>Syor</label><select id="db_syor_status"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div></div>
+                    <label id="label_db_sah_syor" style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;"><input type="checkbox" id="db_sah_syor" style="width:auto;">Dengan ini saya mengesahkan bahawa permohonan diatas adalah benar dan tepat.</label>
+                    <label style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;" id="label_notify_whatsapp"><input type="checkbox" id="cb_notify_whatsapp" style="width:auto;">Hantar Notifikasi WhatsApp kepada Pelulus</label>
+                </div>
+                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1;">Pilih Pelulus (Untuk Notifikasi WhatsApp jika SOKONG)</label><select id="db_pelulus_whatsapp"><option value="">- Tiada Notifikasi / Pilih Pelulus -</option></select></div>
+                <div class="actions"><button class="btn btn-white" id="btnBackToForm">« Kembali ke Borang</button><button class="btn btn-green" id="btnSendToSheet">Simpan & Hantar ke Sheet</button></div>
+                <p id="statusMsg" style="margin-top:10px; font-weight:bold; text-align:center;"></p>
+                <input type="hidden" id="db_row_index">
+            </div>
+        </div>
+
+        <!-- TAB PROFILE -->
+        <div id="tab-profile" class="tab-content no-print">
+    <div style="margin-bottom: 15px;">
+        <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
+    </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2>🚀 Auto-Ekstrak Profil (AI)</h2>
+        
+        <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
+            <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model AI:</label>
+            <select id="aiProfileModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
+                <option value="auto">Auto (Disyorkan)</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="gemini">Gemini</option>
+                <option value="openrouter">OpenRouter</option>
+            </select>
+        </div>
+
+                <div id="profilePdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+                    <div id="status-box-profile" class="morph-box morph-circle">
+                        <svg class="morph-ring">
+                            <circle id="progress-ring-profile" class="morph-ring-circle" stroke="white" stroke-width="5" fill="transparent" r="70" cx="75" cy="75"/>
+                        </svg>
+                        <div id="percentage-profile" class="morph-percentage">🏢<br><span>Pilih Profil</span></div>
+                    </div>
+                    <label class="custom-upload-btn">
+                        <input id="profilePdfInput" type="file" accept=".pdf" hidden />
+                        Klik / Seret Dokumen
+                    </label>
+                    <span id="profilePdfFileName" style="margin-top: 15px; font-weight: bold; color: #3b82f6; font-size: 0.9rem;">Sedia untuk menerima fail...</span>
+                    <span id="profilePdfProgressMsg" style="margin-top: 5px; color: #64748b; font-size: 0.85rem; display: none;">Memproses...</span>
+                </div>
+
+                <div class="pdf-result" id="profilePdfResult" style="display:none; animation: fadeIn 0.6s ease-out; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 2px solid #10b981; margin-top: 20px;">
+                    <h3 style="margin-top:0; color:#059669; display: flex; align-items: center; gap: 8px;">✨ Profil Berjaya Diekstrak!</h3>
+                    <div class="pdf-extracted-data" id="profilePdfExtractedData" style="border: none; background: #f8fafc;"></div>
+                    <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
+                        <button class="btn btn-green" id="btnApplyProfileData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Isi Ke Borang Profil</button>
+                        <button class="btn btn-white" id="btnClearProfileData">Batal</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🏢 Cipta Profile Syarikat</h2>
+                <div class="grid-equal" style="margin-bottom: 20px;"><div><label>Nama Syarikat</label><input type="text" id="profile_syarikat" placeholder="Nama Syarikat"></div><div><label>No. CIDB</label><input type="text" id="profile_cidb" placeholder="No. CIDB"></div></div>
+                <div style="margin-bottom: 20px;"><label>Gred Syarikat</label><select id="profile_gred"><option value="">Pilih Gred</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="G4">G4</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option></select></div>
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 12px; margin-bottom: 20px; border-left: 6px solid #22c55e;"><h3 style="margin-top: 0; color: #166534;">👤 Maklumat Pemohon</h3><div class="grid-equal"><div><label>Nama Pemohon</label><input type="text" id="profile_nama_pemohon" placeholder="Nama Pemohon"></div><div><label>Jawatan (Designation)</label><input type="text" id="profile_jawatan_pemohon" placeholder="Jawatan"></div><div><label>No. IC / Pasport</label><input type="text" id="profile_ic_pemohon" placeholder="No. IC / Pasport"></div><div><label>No. Telefon (HP)</label><input type="text" id="profile_telefon_pemohon" placeholder="No. Telefon"></div><div><label>Emel Pemohon</label><input type="email" id="profile_email_pemohon" placeholder="Emel"></div></div></div>
+                <div style="background: #eff6ff; padding: 15px; border-radius: 12px; margin-bottom: 20px; border-left: 6px solid #3b82f6;"><h3 style="margin-top: 0; color: #1e40af;">🏢 Maklumat Syarikat</h3><div class="grid-equal"><div><label>Jenis Pendaftaran (ROC/ROB)</label><input type="text" id="profile_jenis_pendaftaran" placeholder="ROC / ROB"></div><div><label>Tarikh Daftar</label><input type="date" id="profile_tarikh_daftar"></div></div><div style="margin-bottom: 10px;"><label id="label_alamat_berdaftar">Alamat Berdaftar</label><textarea id="profile_alamat_berdaftar" rows="2" placeholder="Alamat Berdaftar"></textarea><label style="display: flex; align-items: center; gap: 8px; margin-top: 5px;"><input type="checkbox" id="cb_ssm_berdaftar">Sama dengan e-Info SSM (SSM)</label></div><div style="margin-bottom: 10px;"><label>Alamat Surat-menyurat</label><textarea id="profile_alamat_surat" rows="2" placeholder="Alamat Surat-menyurat"></textarea><label style="display: flex; align-items: center; gap: 8px; margin-top: 5px;"><input type="checkbox" id="cb_ssm_surat">Sama dengan e-Info SSM (SSM)</label></div><div class="grid-equal"><div><label>No. Telefon Syarikat</label><input type="text" id="profile_no_telefon_syarikat" placeholder="No. Telefon Syarikat"></div><div><label>No. Fax</label><input type="text" id="profile_no_fax" placeholder="No. Fax"></div><div><label>Emel Syarikat</label><input type="email" id="profile_email_syarikat" placeholder="Emel Syarikat"></div><div><label>Web Address</label><input type="text" id="profile_web" placeholder="Web Address"></div></div></div>
+                <div style="margin-bottom: 15px;"><div style="margin-bottom: 15px;"><label>Jenis Perubahan</label><input type="text" id="profile_jenis_perubahan" placeholder="Contoh: Penambahan gred, ubah alamat, dll."></div><label>Pautan Drive (Untuk QR Code)</label><div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;"><input type="text" id="profile_pautan_drive" placeholder="https://drive.google.com/..." style="flex: 1;"><button class="btn btn-drive" id="btnPreviewQR" style="padding: 8px 12px;">📱 Previu QR</button></div><div style="margin-top: 10px; text-align: center;"><img id="previewQrCode" style="display: none; width: 120px; height: 120px; border: 1px solid #ccc; padding: 5px;"></div></div>
+                <div class="actions"><button class="btn btn-reset" id="btnResetProfile">RESET BORANG</button><button class="btn btn-print" id="btnCetakProfile">🖨️ Cetak Profile</button></div>
+            </div>
+        </div>
+
+        <!-- TAB LIST -->
+        <div id="tab-list" class="tab-content no-print">
+            <div class="card">
+                <h2 id="listTitle">📋 Senarai</h2>
+                <div id="submittedFiltersContainer" style="display: none; margin-bottom: 20px; background: #f1f5f9; border-radius: 12px; padding: 12px; border: 1px solid #cbd5e1;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #1e40af;">✅ Telah Syor (Dihantar)</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        <button id="filterSubmittedAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA <span id="badgeSubmittedAll" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedLulus" class="btn-sm" style="background: #22c55e; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">LULUS <span id="badgeSubmittedLulus" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedTolak" class="btn-sm" style="background: #ef4444; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">TOLAK <span id="badgeSubmittedTolak" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedPending" class="btn-sm" style="background: #f59e0b; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PENDING <span id="badgeSubmittedPending" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button id="filterSubmittedJenisBaru" class="btn-sm" style="background: #2563eb; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">BARU <span id="badgeSubmittedJenisBaru" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedJenisPembaharuan" class="btn-sm" style="background: #059669; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PEMBAHARUAN <span id="badgeSubmittedJenisPembaharuan" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedJenisUbahMaklumat" class="btn-sm" style="background: #d97706; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH MAKLUMAT <span id="badgeSubmittedJenisUbahMaklumat" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                        <button id="filterSubmittedJenisUbahGred" class="btn-sm" style="background: #db2777; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH GRED <span id="badgeSubmittedJenisUbahGred" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.7rem;">0</span></button>
+                    </div>
+                </div>
+                <div class="filter-section" id="filterSection" style="display: none;"><label>Filter Pengesyor:</label><div id="pengesyorFilterButtonsContainer" style="display: flex; flex-wrap: wrap; gap: 8px; flex: 1;"></div><button class="btn btn-white" id="btnClearFilter">Kosongkan</button></div>
+                <div class="filter-section" style="margin-bottom: 10px;"><label>Bulan:</label><select id="listFilterMonth"><option value="">Semua Bulan</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="listFilterYear"><option value="">Semua Tahun</option></select></div>
+                <div id="draftFiltersContainer" style="display: none; margin-bottom: 15px; gap: 8px; flex-wrap: wrap;">
+                    <button id="filterBtnAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA <span id="badgeAll" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                    <button id="filterBtnBaru" class="btn-sm" style="background: #2563eb; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">BARU <span id="badgeBaru" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                    <button id="filterBtnPembaharuan" class="btn-sm" style="background: #059669; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PEMBAHARUAN <span id="badgePembaharuan" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                    <button id="filterBtnUbahMaklumat" class="btn-sm" style="background: #d97706; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH MAKLUMAT <span id="badgeUbahMaklumat" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                    <button id="filterBtnUbahGred" class="btn-sm" style="background: #db2777; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH GRED <span id="badgeUbahGred" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                    <button id="filterBtnSpi" class="btn-sm" style="background: #7c3aed; color: white; border: 2px solid transparent; display: inline-flex; align-items: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">HANTAR KE SPI <span id="badgeSpi" style="background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; margin-left: 5px; font-size: 0.75rem;">0</span></button>
+                </div>
+                <div class="search-box" style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="searchListInput" placeholder="Cari..." style="flex:1;"><button class="btn btn-blue" id="btnRefreshList">🔄</button></div>
+                <div id="listStatus" style="text-align:center; color:#666; font-size:0.8rem; margin-bottom:5px;">...</div>
+                <div id="applicationsList" class="app-list"></div>
+            </div>
+        </div>
+
+        <!-- TAB PELULUS VIEW -->
+        <div id="tab-pelulus-view" class="tab-content no-print">
+            <div class="card" style="border-top-color: #000;"><h2>🔍 Ringkasan Permohonan</h2><div id="pelulus_view_content"></div><div class="actions"><button class="btn btn-white" id="btnViewBack" style="display:none;">Kembali</button><div style="flex-grow:1;"></div><button id="openFullBtnPelulus" class="btn btn-white">Buka Paparan Penuh</button><button class="btn btn-blue" id="btnToApproval">Ke Keputusan »</button></div></div>
+        </div>
+
+        <!-- TAB PELULUS ACTION -->
+        <div id="tab-pelulus-action" class="tab-content no-print">
+            <div class="card" style="border-top-color: #000;">
+                <h2>⚖️ Keputusan Pelulus</h2>
+                <div style="background:#fefce8; padding:10px; margin-bottom:15px; border:1px solid #fde047; border-radius:8px;"><h3 style="margin:0; font-size:1rem;" id="pelulus_action_summary"></h3></div>
+                <label>Keputusan</label><select id="pelulus_keputusan" style="font-weight:bold; font-size:1.1rem; padding:12px;"><option value="">- SILA PILIH -</option><option value="LULUS">LULUS</option><option value="LULUS BERSYARAT">LULUS BERSYARAT</option><option value="PEMUTIHAN">PEMUTIHAN</option><option value="TOLAK">TOLAK</option><option value="TOLAK & BEKU 3 BULAN">TOLAK & BEKU 3 BULAN</option><option value="TOLAK & BEKU 6 BULAN">TOLAK & BEKU 6 BULAN</option></select>
+                <div id="div_alasan" style="display:none; margin-top:10px;"><label>Alasan</label><select id="pelulus_alasan"><option value="">- Pilih Alasan -</option><option value="Dokumen tidak lengkap">Dokumen tidak lengkap</option><option value="Tidak memenuhi PK1.5">Tidak memenuhi PK1.5</option><option value="Gagal lawatan premis">Gagal lawatan premis</option><option value="Pemalsuan Dokumen">Pemalsuan Dokumen</option></select></div>
+                <div style="margin-top:15px; padding:10px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px;"><h4 style="margin-top:0; color:#0369a1; margin-bottom:10px;">Kemaskini Syor Lawatan (Pilihan)</h4><label>Tukar Syor Lawatan (Jika Perlu):</label><select id="pelulus_tukar_syor_lawatan" style="margin-bottom:10px;"><option value="">- KEKALKAN SYOR ASAL -</option><option value="YA">YA</option><option value="PEMUTIHAN">PEMUTIHAN</option></select><div id="div_pelulus_justifikasi" style="display:none;"><label>Justifikasi Perubahan Lawatan:</label><input type="text" id="pelulus_justifikasi_lawatan" placeholder="Sila nyatakan justifikasi..."></div><div id="div_pelulus_date_spi" style="display:none; margin-top:10px;"><label style="color:#1d4ed8;">Date Submit to SPI:</label><input type="date" id="pelulus_date_submit_spi" style="border-color:#3b82f6; border-width:2px;"><small style="color:#64748b; font-size:0.75rem;">(Wajib diisi jika Syor Lawatan ditukar kepada YA)</small></div></div>
+                <div class="grid-equal" style="margin-top:10px;"><div><label id="label_pelulus_sah_lulus" style="display: none; font-weight:bold; color:#1e40af;"><input type="checkbox" id="pelulus_sah_lulus" style="width:auto;">Dengan ini saya mengesahkan bahawa permohonan diatas adalah benar dan tepat.</label></div><div><label>Nama Pelulus</label><input type="text" id="pelulus_nama" readonly style="background:#eee;"></div></div>
+                <div class="actions"><button class="btn btn-white" id="btnPelulusBack">Kembali</button><button class="btn btn-green" id="btnPelulusSubmit">Hantar Keputusan</button></div>
+            </div>
+        </div>
+
+        <!-- TAB DASHBOARD -->
+        <div id="tab-dashboard" class="tab-content">
+            <div class="dashboard-container">
+                <div class="dashboard-loading" id="dashboardLoading"><div class="dashboard-spinner"></div><div class="dashboard-loading-text">Memuatkan data dashboard...</div></div>
+                <div class="card">
+                    <div class="dashboard-header"><h2>📊 Dashboard Analisis Permohonan</h2><div class="dashboard-filter"><label>Tempoh:</label><select id="dashboardPeriod"><option value="daily">Harian</option><option value="monthly">Bulanan</option><option value="yearly">Tahunan</option></select><select id="dashboardYear"><option value="">Semua Tahun</option></select><select id="dashboardMonth" style="display: none;"><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><select id="dashboardDay" style="display: none;"></select><button id="btnDashboardCsv" class="btn" style="background-color: #10b981; color: white;">⬇️ Muat Turun CSV</button></div></div>
+                    <div id="dashboardUserInfo" style="background: #f0f9ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2563eb;"><p style="margin: 0; font-weight: 600; color: #1e40af;">👤 Anda melihat dashboard sebagai: <span id="dashboardUserRole">Pengesyor</span></p><p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #64748b;"><span id="dashboardUserSpecificInfo">Statistik berdasarkan syor anda (SOKONG/TIDAK DISOKONG)</span></p></div>
+                    <div class="dashboard-stats"><div class="stat-card" id="card_total"><div class="stat-value" id="total-count">0</div><div class="stat-label" id="label-total">JUMLAH</div></div><div class="stat-card" id="card_success"><div class="stat-value" id="success-count">0</div><div class="stat-label" id="label-success">-</div></div><div class="stat-card" id="card_reject"><div class="stat-value" id="reject-count">0</div><div class="stat-label" id="label-reject">-</div></div><div class="stat-card" id="card_status"><div class="stat-value" id="process-count">0</div><div class="stat-label" id="label-status">-</div></div></div>
+                    <div class="dashboard-charts">
+                        <div class="chart-container"><div class="chart-title">📈 Trend Bulanan</div><div class="chart-canvas-container"><canvas id="chartMonthlyTrend"></canvas></div></div>
+                        <div class="chart-container"><div class="chart-title">🍩 Status</div><div class="chart-canvas-container"><canvas id="chartStatus"></canvas></div></div>
+                        <div class="chart-container" id="chartTypeDistContainer"><div class="chart-title">📊 Taburan Jenis Permohonan</div><div class="chart-canvas-container"><canvas id="chartTypeDist"></canvas></div></div>
+                        <div class="chart-container" id="chartKonsultansiContainer"><div class="chart-title">📞 Taburan Jenis Konsultansi</div><div class="chart-canvas-container"><canvas id="chartKonsultansi"></canvas></div></div>
+                        <div class="chart-container" id="chartReasonDistContainer" style="display: none;"><div class="chart-title">📊 Taburan Alasan Penolakan</div><div class="chart-canvas-container"><canvas id="chartReasonDist"></canvas></div></div>
+                        <div class="chart-container" id="chartTypeMonthlyContainer" style="display: none;"><div class="chart-title">📋 Jenis Permohonan (Bulanan)</div><div class="chart-canvas-container"><canvas id="chartTypeMonthly"></canvas></div></div>
+                        <div class="chart-container" id="chartTypeYearlyContainer" style="display: none;"><div class="chart-title">📊 Jenis Permohonan (Tahunan)</div><div class="chart-canvas-container"><canvas id="chartTypeYearly"></canvas></div></div>
+                        <div class="chart-container" id="reasonStatsContainer" style="display: none;"><div class="chart-title">📊 Statistik Alasan Penolakan</div><div id="reasonAnalysis"><div class="reason-stats" id="reasonStats"></div></div></div>
+                        <div class="chart-container" style="grid-column: span 2;"><div class="chart-title">📋 Analisis Terperinci</div><div id="detailedAnalysis"><table class="monthly-table" id="detailedTable"><thead><tr><th>BULAN</th><th>JUMLAH</th><th id="detailCol1">SOKONG</th><th id="detailCol2">TIDAK DISOKONG</th><th id="detailCol3">DALAM PROSES</th><th id="detailCol4">KADAR SOKONGAN</th></tr></thead><tbody id="detailedTableBody"><tr><td colspan="6" style="text-align:center;">Tiada data</td></tr></tbody></table></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tapisan Permohonan Excel -->
+        <div id="tab-tapisan" class="tab-content no-print" style="display:none;">
+            <div class="card">
+                <h2>📄 Tapisan Permohonan Excel</h2>
+                <div style="border: 2px dashed #3b82f6; border-radius: 12px; padding: 40px; text-align: center; background: #f8fafc;">
+                    <div style="font-size: 48px; color: #10b981; margin-bottom: 15px;">📊</div>
+                    <label for="excelFileInput" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; transition: transform 0.2s;">
+                        Pilih Fail Excel
+                    </label>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none;">
+                    <p id="excelFileName" style="margin-top: 20px; font-weight: bold; color: #3b82f6;">Tiada fail dipilih</p>
+                </div>
+
+                <div id="districtFilterContainer" style="display: none; margin-top: 25px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <h3 style="margin-top: 0; color: #1e40af;">Tapis Daerah:</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+                        <button id="btnSelectAllDistricts" class="btn btn-green">✓ Pilih Semua</button>
+                    </div>
+                    <div id="districtGrid" style="display: flex; gap: 10px; flex-wrap: wrap;"></div>
+                </div>
+
+                <div id="excelResultsContainer" style="display: none; margin-top: 20px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <p style="margin: 0; font-size: 1.1rem;"><strong id="excelRowCount" style="color: #2563eb; font-size: 1.2rem;">0</strong> rekod dipaparkan untuk anda.</p>
+                        <button id="btnSaveToBasket" class="btn btn-blue" style="font-size: 1rem; padding: 10px 20px;">🛒 Simpan Ke Bakul</button>
+                    </div>
+                    
+                    <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <table class="monthly-table" style="width: 100%; margin-top: 0;">
+                            <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
+                                <tr>
+                                    <th><input type="checkbox" id="selectAllExcelRows" style="transform: scale(1.2);"></th>
+                                    <th>Syarikat</th>
+                                    <th>CIDB</th>
+                                    <th>Daerah</th>
+                                    <th>Gred</th>
+                                    <th>Tarikh Excel</th>
+                                    <th>Update Type</th>
+                                    <th>Status Semasa</th> 
+                                </tr>
+                            </thead>
+                            <tbody id="excelTableBody"></tbody>
+                        </table>
+                    </div>
+                    </div>
+            </div>
+        </div>
+        
+        <!-- TAB Bakul -->
+        <div id="tab-bakul" class="tab-content no-print" style="display:none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(0,0,0,0.05); padding-bottom: 10px;">
+                    <h2 style="margin: 0; border: none;">🛒 Bakul Permohonan</h2>
+                    <span id="bakulCountBadge" style="background: #ef4444; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">0</span>
+                </div>
+                <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <table class="monthly-table" style="width: 100%; margin-top: 0;">
+                        <thead style="background: #f8fafc;">
+                            <tr>
+                                <th>Syarikat</th>
+                                <th>Gred & CIDB</th>
+                                <th>Daerah</th>
+                                <th>Jenis Asal Excel</th>
+                                <th>Tarikh</th> <th>Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bakulTableBody">
+                            <tr><td colspan="6" style="text-align:center; padding: 20px; color:#64748b;">Memuatkan bakul...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB ADMIN DASHBOARD -->
+        <div id="tab-admin-dashboard" class="tab-content">
+            <div class="dashboard-container">
+                <div class="card">
+                    <div class="dashboard-header"><h2>👑 Admin Dashboard - Statistik Keseluruhan</h2><div class="dashboard-filter"><label>Bulan:</label><select id="adminFilterMonth"><option value="">Semua</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="adminFilterYear"><option value="">Semua</option></select><button id="btnAdminCsv" class="btn" style="background-color: #10b981; color: white;">⬇️ Muat Turun CSV</button><button id="btnPrintAdminStats" class="btn" style="background-color: #f59e0b; color: white;">🖨️ Cetak Laporan</button><button id="btnAdminFullView" class="btn" style="background-color: #3b82f6; color: white;">🖥️ Paparan Penuh</button></div></div>
+                    <div class="dashboard-stats"><div class="stat-card" id="admin-card-total"><div class="stat-value" id="admin-total-count">0</div><div class="stat-label">JUMLAH KESELURUHAN</div></div><div class="stat-card" style="border-top-color: #22c55e;"><div class="stat-value" id="admin-approved-count">0</div><div class="stat-label">LULUS</div></div><div class="stat-card" style="border-top-color: #ef4444;"><div class="stat-value" id="admin-rejected-count">0</div><div class="stat-label">TOLAK</div></div><div class="stat-card" style="border-top-color: #f59e0b;"><div class="stat-value" id="admin-pending-count">0</div><div class="stat-label">DALAM PROSES</div></div></div>
+                    <div class="admin-stats-section" id="admin-pengesyor-stats"><h3>📋 Statistik Mengikut Pengesyor</h3><table class="admin-stats-table" id="admin-pengesyor-table"><thead><tr><th>Pengesyor</th><th>Jumlah Syor</th><th>SOKONG</th><th>TIDAK DISOKONG</th><th>Kadar Sokongan</th></tr></thead><tbody id="admin-pengesyor-tbody"><tr><td colspan="5" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
+                    <div class="admin-stats-section" id="admin-pelulus-stats"><h3>⚖️ Statistik Mengikut Pelulus</h3><table class="admin-stats-table" id="admin-pelulus-table"><thead><tr><th>Pelulus</th><th>Jumlah Diproses</th><th>LULUS</th><th>TOLAK</th><th>Kadar Kelulusan</th></tr></thead><tbody id="admin-pelulus-tbody"><tr><td colspan="5" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
+                    <div id="adminStatsJenisPermohonan" style="margin-top: 20px;"><h3 style="color: #1e40af;">📊 Analisis Mengikut Jenis Permohonan</h3><table class="admin-stats-table" id="adminJenisTable"><thead><tr><th>Jenis Permohonan</th><th>Jumlah</th><th>Peratusan</th></tr></thead><tbody id="adminJenisTbody"><tr><td colspan="3" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
+                    <div id="adminRejectionReasonStats" style="margin-top: 20px;"><h3 style="color: #1e40af;">❌ Analisis Penolakan Mengikut Alasan Penolakan</h3><table class="admin-stats-table" id="adminRejectionReasonTable"><thead><tr><th>Alasan Penolakan</th><th>Jumlah</th><th>Peratusan</th></tr></thead><tbody id="adminRejectionReasonTbody"><tr><td colspan="3" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB HISTORY -->
+        <div id="tab-history" class="tab-content no-print" style="display: none;">
+            <div class="card">
+                <h2>📜 Sejarah Keputusan Pelulus</h2>
+                <div id="historyFiltersContainer" style="margin-bottom: 20px; background: #f1f5f9; border-radius: 12px; padding: 12px; border: 1px solid #cbd5e1;"><h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #1e40af;">📜 Tapisan Sejarah</h3><div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"><button id="filterHistoryStatusAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA STATUS <span id="badgeHistoryStatusAll" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button><button id="filterHistoryStatusLulus" class="btn-sm" style="background: #22c55e; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">LULUS <span id="badgeHistoryStatusLulus" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button><button id="filterHistoryStatusTolak" class="btn-sm" style="background: #ef4444; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">TOLAK/SIASAT <span id="badgeHistoryStatusTolak" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button></div><div style="display: flex; flex-wrap: wrap; gap: 8px;"><button id="filterHistoryJenisAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA JENIS</button><button id="filterHistoryJenisBaru" class="btn-sm" style="background: #2563eb; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">BARU</button><button id="filterHistoryJenisPembaharuan" class="btn-sm" style="background: #059669; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PEMBAHARUAN</button><button id="filterHistoryJenisUbahMaklumat" class="btn-sm" style="background: #d97706; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH MAKLUMAT</button><button id="filterHistoryJenisUbahGred" class="btn-sm" style="background: #db2777; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH GRED</button></div></div>
+                <div class="filter-section" style="margin-bottom: 15px;"><label>Nama Pelulus:</label><select id="historyPelulusFilter"><option value="">Semua Pelulus</option></select><label>Bulan:</label><select id="historyMonthFilter"><option value="">Semua Bulan</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="historyYearFilter"><option value="">Semua Tahun</option></select><button class="btn btn-blue" id="btnRefreshHistory">Refresh</button></div>
+<div class="search-box" style="display:flex; gap:5px; margin-bottom:10px;">
+    <input type="text" id="searchHistoryInput" placeholder="Cari Nama Syarikat atau No CIDB..." style="flex:1;">
+</div>
+                <div id="historyList" class="app-list" style="max-height: 500px;"></div>
+            </div>
+        </div>
+
+        <!-- ADMIN STATS MODAL -->
+        <div class="admin-stats-modal" id="adminStatsModal" style="display: none;"><div class="admin-stats-content"><span class="admin-stats-close" id="adminStatsClose">×</span><h2 style="color: #1e40af; text-align: center;">👑 LAPORAN STATISTIK ADMIN</h2><p style="text-align: center; color: #64748b;" id="adminStatsDate"></p><div id="adminStatsPrintContent"></div><div id="adminStatsJenisPermohonan" style="margin-top: 20px;"><h3 style="color: #1e40af;">📊 Analisis Mengikut Jenis Permohonan</h3><table class="admin-stats-table" id="adminJenisTablePrint"><thead><tr><th>Jenis Permohonan</th><th>Jumlah</th><th>Peratusan</th></tr></thead><tbody id="adminJenisTbodyPrint"><tr><td colspan="3" style="text-align:center;">Tiada data</td></tr></tbody></table></div><div style="text-align: center; margin-top: 20px;"><button class="btn btn-print" id="btnPrintStatsModal">🖨️ Cetak Laporan</button></div></div></div>
+
+        <!-- PRINT LAYOUTS -->
+        <div id="printLayout" class="print-only-container">
+            <div class="print-header-strip"></div>
+            <div class="jenis-permohonan-bar"><div class="jenis-permohonan-row-1"><span style="margin-right:10px;">PERMOHONAN:</span><span><input type="checkbox" id="print_type_baru" class="checkbox-large">BARU</span><span><input type="checkbox" id="print_type_pembaharuan" class="checkbox-large">PEMBAHARUAN</span><span><input type="checkbox" id="print_type_ubah_maklumat" class="checkbox-large">UBAH MAKLUMAT</span><span><input type="checkbox" id="print_type_ubah_gred" class="checkbox-large">UBAH GRED</span></div><div class="jenis-permohonan-row-2"><span>NYATAKAN PERUBAHAN:</span><span id="print_text_ubah_maklumat" class="print-fill-text"></span><span id="print_text_ubah_gred" class="print-fill-text"></span></div><div class="jenis-permohonan-row-3" style="flex-direction: column; gap: 2px;"><div class="info-field"><span class="info-label">SEMAKAN TATATERTIB:</span><span id="print_tatatertib" class="print-fill-text"></span></div><div class="info-field"><span class="info-label">JUSTIFIKASI LAWATAN:</span><span id="print_justifikasi" class="print-fill-text"></span></div><div class="info-field"><span class="info-label">NO. TELEFON:</span><span id="print_no_telefon" class="print-fill-text"></span></div></div></div>
+            <div class="border-box themed-box" style="margin-bottom:5px; padding: 4px;"><span style="font-size:12pt; color:white; display:block;">Nama Syarikat & No CIDB:</span><span id="print_companyDetails" class="font-large-nobold" style="color:white;"></span></div>
+            <div class="grade-bar"><span style="margin-right: 10px;">GRED SYARIKAT:</span><span id="print_grade_display" style="font-weight:900; font-size:16pt;"></span></div>
+            <table class="print-table layout-table" style="margin-bottom: 5px; border: none;"><tr><td width="33%"><div class="border-box"><span style="font-size:12pt; color:#666; font-weight:600;">Tempoh SPKK:</span><br><span id="print_spkkDuration"></span></div></td><td width="33%"><div class="border-box"><span style="font-size:12pt; color:#666; font-weight:600;">Tempoh STB:</span><br><span id="print_stbDuration"></span></div></td><td width="33%"><div class="border-box"><span style="font-size:12pt; font-weight:600;">Tarikh e-Info SSM:</span><br><div style="display:flex; justify-content:space-between; align-items:center;"><span id="print_ssm_date" style="font-weight:bold; font-size:12pt;"></span><span id="print_ssm_status_display" style="font-weight:900; font-size:12pt; border:1px solid #000; padding:2px 5px;"></span></div></div></td></tr></table>
+            <h2 style="margin-bottom: 3px;">SENARAI PERSONEL</h2>
+            <table class="print-table" id="print_personnel_table" style="margin-bottom: 0;"><thead class="themed-box"><tr><th rowspan="2" style="text-align:left; color:white;">NAMA</th><th colspan="4" style="text-align:center; color:white;">JAWATAN</th><th colspan="3" style="text-align:center; color:white;">SEMAKAN DOKUMEN</th></tr><tr><th class="col-tick" style="color:white;">ALP</th><th class="col-tick" style="color:white;">PE</th><th class="col-tick" style="color:white;">TT</th><th class="col-tick" style="color:white;">PDS</th><th class="col-tick" style="color:white;">IC</th><th class="col-tick" style="color:white;">SB</th><th class="col-tick" style="color:white;">EPF</th></tr></thead><tbody id="print_personnel_page1"></tbody></table>
+            <h2 style="margin-top: 5px; margin-bottom: 3px;">SURAT PENGESAHAN BANK</h2>
+            <table class="print-table layout-table" style="margin-bottom: 5px; border:none;"><tr><td width="30%"><div class="border-box" style="height:28px;"><span style="font-size:12pt; font-weight:700;">TARIKH SURAT:</span><span id="print_bank_date" style="font-weight:bold; margin-left:10px;"></span></div></td><td width="70%"><div class="border-box" style="height:28px;"><span style="font-size:12pt; font-weight:700;">SYARAT PENANDATANGAN:</span><span id="print_bank_sign" style="font-weight:bold; margin-left:10px;"></span><span id="print_bank_status" style="font-weight:bold; margin-left:5px;"></span></div></td></tr></table>
+            <h2 style="margin-bottom: 3px;">DOKUMEN UMUM & KWSP</h2>
+            <table class="print-table" style="font-size:13pt; margin-bottom: 5px;"><tr><td style="border:none; padding-bottom: 5px; font-weight:700;">CARTA ORGANISASI: <span id="print_doc_carta" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">PETA LAKARAN: <span id="print_doc_peta" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">GAMBAR PREMIS: <span id="print_doc_gambar" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">PERJANJIAN SEWA: <span id="print_doc_sewa" class="print-result"></span></td></tr><tr style="height: 30px;"><td colspan="4" style="border:none;"></td></tr><tr><td colspan="4" style="padding-top:5px; border-top: 1px dotted #ccc;"><strong style="font-size:13pt;">KWSP (3 BULAN):</strong><span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_1"></span>,<span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_2"></span>,<span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_3"></span></td></tr></table>
+            <div class="verification-box" style="height: 150px;">
+                <div class="ver-title">BAHAGIAN PENGESYOR</div>
+                <div class="options-text-center" id="print_syor_container">
+                    <span id="print_syor_sokong">SOKONG</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_siasat">SIASAT</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_tidak_sokong">TIDAK DISOKONG</span>
+                </div>
+                <div class="pengesyor-grid-new">
+                    <div class="pengesyor-dates">
+                        <div>Tarikh Mohon: <span id="print_tarikh_mohon" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
+                        <div>Dokumen Lengkap: <span id="print_tarikh_lengkap" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
+                        <div>Tarikh Siasatan: <span id="print_tarikh_siasatan" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
+                        <div>Tarikh Proses: <span id="print_tarikh_proses" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
+                    </div>
+                    
+                    <div class="pengesyor-sign-box" style="position: relative; height: 90px; width: 45%;">
+                        <img id="print_pengesyor_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
+                        <img id="print_pengesyor_sign" src="" style="display: none; position: absolute; bottom: 62px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="verification-separator"></div>
+            
+            <div class="verification-box" style="margin-bottom: 0; height: 150px;">
+                <div>
+                    <div class="ver-title">BAHAGIAN PELULUS</div>
+                    <div style="border-bottom: 1px dotted #000; height: 18px; margin-bottom: 8px; font-size:11pt; color:#666;">Catatan: <span id="print_catatan_pelulus" style="color: black; font-weight: bold; padding-left: 10px;"></span></div>
+                    <div class="options-text-center" style="border-bottom: none; padding-bottom: 0;" id="print_kelulusan_container">
+                        <span id="print_lulus">LULUS</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_lulus_syarat">LULUS BERSYARAT</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_pemutihan">PEMUTIHAN</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_tolak">TOLAK</span>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="font-weight:700;">Tarikh: <span id="print_tarikh_lulus">________________</span></div>
+                    
+                    <div style="text-align: center; width: 50%; position: relative; height: 90px;">
+                        <img id="print_pelulus_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
+                        <img id="print_pelulus_sign" src="" style="display: none; position: absolute; bottom: 62px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
+                    </div>
+                </div>
+            </div>
+
+            </div>
+
+        <div id="printProfileLayout" class="print-only-container" style="display:none;">
+            <div class="profile-company-header profile-theme-bg"><div class="profile-company-name" id="printProfile_syarikat_header"></div><div class="profile-company-cidb" id="printProfile_cidb_header"></div><div class="profile-company-grade" id="printProfile_gred_header"></div></div>
+            <div class="section-title profile-theme-border">👤 MAKLUMAT PEMOHON</div>
+            <div class="info-grid"><div class="info-row"><span class="info-label">Nama Pemohon:</span><span class="info-value" id="printProfile_nama_pemohon"></span></div><div class="info-row"><span class="info-label">Jawatan:</span><span class="info-value" id="printProfile_jawatan_pemohon"></span></div><div class="info-row"><span class="info-label">No. IC / Pasport:</span><span class="info-value" id="printProfile_ic_pemohon"></span></div><div class="info-row"><span class="info-label">No. Telefon (HP):</span><span class="info-value" id="printProfile_telefon_pemohon"></span></div><div class="info-row"><span class="info-label">Emel Pemohon:</span><span class="info-value" id="printProfile_email_pemohon"></span></div></div>
+            <div class="section-title profile-theme-border">🏢 MAKLUMAT SYARIKAT</div>
+            <div class="info-grid"><div class="info-row"><span class="info-label">Jenis Pendaftaran:</span><span class="info-value" id="printProfile_jenis_pendaftaran"></span></div><div class="info-row"><span class="info-label">Tarikh Daftar:</span><span class="info-value" id="printProfile_tarikh_daftar"></span></div><div class="info-row full-width"><span class="info-label">Alamat Berdaftar:</span><span class="info-value" id="printProfile_alamat_berdaftar"></span></div><div class="info-row full-width"><span class="info-label">Alamat Surat-menyurat:</span><span class="info-value" id="printProfile_alamat_surat"></span></div><div class="info-row"><span class="info-label">No. Telefon Syarikat:</span><span class="info-value" id="printProfile_no_telefon_syarikat"></span></div><div class="info-row"><span class="info-label">No. Fax:</span><span class="info-value" id="printProfile_no_fax"></span></div><div class="info-row"><span class="info-label">Emel Syarikat:</span><span class="info-value" id="printProfile_email_syarikat"></span></div><div class="info-row"><span class="info-label">Web Address:</span><span class="info-value" id="printProfile_web"></span></div></div>
+            <div class="footer"><div class="footer-info-group"><div class="date-generated">Tarikh Jana: <span id="printProfile_date"></span></div><div class="jenis-perubahan-info" style="font-size: 11pt; font-weight: bold; margin-top: 8px;">Jenis Perubahan: <span id="printProfile_jenis_perubahan"></span></div></div><div class="qr-code"><img id="printProfileQrCode" src="" alt="QR Code" style="width:80px; height:80px;"></div></div>
+        </div>
+
+        <div class="admin-stats-modal" id="quickCheckModal" style="display: none; z-index: 10002;">
+            <div class="admin-stats-content" style="max-width: 650px; width: 95%; padding: 20px; border-top: 5px solid #f97316;">
+                <span class="admin-stats-close" id="quickCheckClose">&times;</span>
+                <h2 style="color: #ea580c; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                    ⚡ Semakan Pantas Personel
+                </h2>
+                <div id="quickCheckContent" style="margin-top: 15px; max-height: 60vh; overflow-y: auto; padding-right: 5px;"></div>
+                <div style="text-align: right; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+                    <button class="btn btn-green" id="btnSelesaiQuickCheck" style="font-size: 1rem; padding: 10px 30px;">Tutup & Simpan</button>
+                </div>
+            </div>
+        </div>
+        <div class="custom-modal-overlay" id="queueSpiModal">
+            <div class="custom-modal-card" style="max-width: 950px; width: 95%; text-align: left; position: relative; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px;">
+                <span class="admin-stats-close" id="queueSpiClose" style="top: 15px; right: 20px;">×</span>
+                <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                    📋 Senarai Queue SPI
+                </h2>
+                
+                <h3 style="color: #0ea5e9; margin-top: 15px; font-size: 1.1rem;">🔍 Siasatan Biasa</h3>
+                <div style="max-height: 25vh; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.9rem;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                            <tr><th width="8%">Bil</th><th width="47%">Syarikat</th><th width="20%">CIDB</th><th width="25%">Pengesyor</th></tr>
+                        </thead>
+                        <tbody id="tbodyQueueSiasat"><tr><td colspan="4" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
+                    </table>
+                </div>
+
+                <h3 style="color: #e74c3c; margin-top: 10px; font-size: 1.1rem;">⚠️ Pemutihan</h3>
+                <div style="max-height: 25vh; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.9rem;">
+                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                            <tr><th width="8%">Bil</th><th width="47%">Syarikat</th><th width="20%">CIDB</th><th width="25%">Pengesyor</th></tr>
+                        </thead>
+                        <tbody id="tbodyQueuePemutihan"><tr><td colspan="4" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn btn-blue" id="btnTutupQueueSPI" style="padding: 8px 20px;">Tutup</button>
+                </div>
+            </div>
+        </div>
+        <div id="tab-youtube" class="tab-content no-print" style="display: none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h2 style="color: #ef4444; margin: 0; border: none;">▶️ Portal Video & Muzik YouTube</h2>
+                    <button id="btnTutupYoutube" class="btn" style="background-color: #1e293b; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali Bekerja (Muzik Terus Dimainkan)</button>
+                </div>
+
+                <div id="sfx-control-panel" style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px dashed #cbd5e1; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <label for="sfxVolumeSlider" style="margin: 0; font-weight: bold; color: #1e40af;">🔊 Volume Kesan Bunyi Sistem (SFX):</label>
+                    <input type="range" id="sfxVolumeSlider" class="sfx-slider" min="0" max="1" step="0.1" value="0.7" style="flex: 1; max-width: 300px; accent-color: #f97316;">
+                    <span class="audio-value-badge" id="sfxVolumeValue" style="background: #f97316; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold;">70%</span>
+                </div>
+
+                <div class="search-box" style="display:flex; gap:10px; margin-bottom:20px;">
+                    <input type="text" id="youtubeSearchInput" placeholder="Cari tajuk lagu atau video..." style="flex:1; border: 2px solid #ef4444;">
+                    <button class="btn" id="btnSearchYoutube" style="background-color: #ef4444; color: white;">Cari Video</button>
+                </div>
+                
+                <div id="youtubePlayerContainer" style="margin-bottom: 25px; display:none; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <iframe id="youtubeMainPlayer" width="100%" height="450" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                
+                <div id="youtubeResults" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
+            </div>
+        </div>
+        <div class="admin-stats-modal" id="type-modal-bakul" style="display: none; z-index: 10002;">
+            <div class="admin-stats-content" style="max-width: 400px; width: 90%; padding: 25px; text-align: center; border-top: 5px solid #2563eb;">
+                <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px; font-size: 1.3rem;">🛒 Simpan ke Bakul</h3>
+                <p style="color: #64748b; margin-bottom: 15px;"><span id="modal-bakul-count" style="font-weight: bold; color: #ef4444; font-size: 1.1rem;">0</span> permohonan dipilih.</p>
+                
+                <div style="text-align: left; margin-bottom: 25px;">
+                    <label style="font-weight: bold; color: #374151; display: block; margin-bottom: 8px;">Pilih Jenis Permohonan:</label>
+                    <select id="modal-bakul-type-select" style="width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-weight: bold; color: #1e40af; cursor: pointer;">
+                        <option value="BARU">BARU</option>
+                        <option value="PEMBAHARUAN">PEMBAHARUAN</option>
+                        <option value="UBAH MAKLUMAT">UBAH MAKLUMAT</option>
+                        <option value="UBAH GRED">UBAH GRED</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btnCancelBakulModal" class="btn btn-white" style="flex: 1; padding: 12px; font-size: 1rem;">Batal</button>
+                    <button id="btnConfirmBakulModal" class="btn btn-blue" style="flex: 1; padding: 12px; font-size: 1rem;">Simpan</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>
