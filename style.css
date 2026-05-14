@@ -892,6 +892,8 @@
 
         .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 15px; }
         .grid-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
 
         .btn {
             padding: 10px 24px;
@@ -1150,7 +1152,7 @@
                 padding-top: 10px;
             }
 
-            .grid-2, .grid-equal, .person-row {
+            .grid-2, .grid-equal, .grid-3, .grid-4, .person-row {
                 grid-template-columns: 1fr;
             }
 

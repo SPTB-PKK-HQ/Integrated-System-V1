@@ -1129,7 +1129,9 @@ async function handleCredentialResponse(response) {
         roles: roles,
         s_ic: card.querySelector('.status-ic')?.value || '',
         s_sb: card.querySelector('.status-sb')?.value || '',
-        s_epf: card.querySelector('.status-epf')?.value || ''
+        s_epf: card.querySelector('.status-epf')?.value || '',
+        c_date: card.querySelector('.comp-date')?.value || '',
+        c_status: card.querySelector('.status-comp')?.value || ''
       });
     });
     
@@ -5511,12 +5513,27 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const name = card.querySelector('.p-name')?.value.toUpperCase() || '';
       const roles = [];
       card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
+      const isCompany = card.querySelector('.is-company')?.checked || false;
       const s_ic = card.querySelector('.status-ic')?.value.toUpperCase() || '';
       const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
       
       const tick = (role) => roles.includes(role) ? '✓' : '';
       
+      if (isCompany) {
+        const cDate = card.querySelector('.comp-date')?.value || '';
+        const cStatus = card.querySelector('.status-comp')?.value.toUpperCase() || '';
+        const displayDate = cDate ? formatDateDisplay(cDate) : '';
+        const combinedText = `Tarikh: ${displayDate} | Status: ${cStatus}`;
+        
+        <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+          <td class="col-tick">${tick('PENGARAH')}</td>
+          <td class="col-tick">${tick('P.EKUITI')}</td>
+          <td class="col-tick">${tick('T.T CEK')}</td>
+          <td class="col-tick">${tick('P.SPKK')}</td>
+          <td colspan="3" style="text-align:center; font-size:9pt; font-weight:bold;">${combinedText}</td>
+        </tr>`;
+    } else {
       rowsHtml += `<tr>
         <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
         <td class="col-tick">${tick('PENGARAH')}</td>
@@ -7312,7 +7329,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         roles: roles,
         s_ic: card.querySelector('.status-ic')?.value.toUpperCase() || '',
         s_sb: card.querySelector('.status-sb')?.value.toUpperCase() || '',
-        s_epf: card.querySelector('.status-epf')?.value.toUpperCase() || ''
+        s_epf: card.querySelector('.status-epf')?.value.toUpperCase() || '',
+        c_date: card.querySelector('.comp-date')?.value || '',
+        c_status: card.querySelector('.status-comp')?.value.toUpperCase() || ''
       });
     });
     formData.personnel = personnel;
@@ -9026,7 +9045,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           roles: roles,
           s_ic: card.querySelector('.status-ic')?.value || '',
           s_sb: card.querySelector('.status-sb')?.value || '',
-          s_epf: card.querySelector('.status-epf')?.value || ''
+          s_epf: card.querySelector('.status-epf')?.value || '',
+          c_date: card.querySelector('.comp-date')?.value || '',
+          c_status: card.querySelector('.status-comp')?.value || ''
         });
       });
       borangJsonData['personnel'] = personnelListObj;
@@ -9359,25 +9380,35 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         </div>
       </div>
       <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
-        <div class="grid-equal">
+        <div class="person-fields grid-3">
           <div>
             <label>IC</label>
             <div class="status-input-container">
-              <input type="text" class="status-ic status-input" maxlength="10" placeholder="-">
+              <input type="text" class="status-ic status-input" maxlength="20" placeholder="-">
             </div>
           </div>
           <div>
             <label>SB</label>
             <div class="status-input-container">
-              <input type="text" class="status-sb status-input" maxlength="10" placeholder="-">
+              <input type="text" class="status-sb status-input" maxlength="20" placeholder="-">
             </div>
           </div>
-        </div>
-        <div class="grid-equal" style="margin-top:5px;">
           <div>
             <label>EPF</label>
             <div class="status-input-container">
-              <input type="text" class="status-epf status-input" maxlength="10" placeholder="-">
+              <input type="text" class="status-epf status-input" maxlength="20" placeholder="-">
+            </div>
+          </div>
+        </div>
+        <div class="company-fields grid-equal" style="display:none;">
+          <div>
+            <label>Tarikh Semakan</label>
+            <input type="date" class="comp-date" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.95rem; text-transform:uppercase;">
+          </div>
+          <div>
+            <label>Status Semakan</label>
+            <div class="status-input-container">
+              <input type="text" class="status-comp status-input" maxlength="20" placeholder="-">
             </div>
           </div>
         </div>
@@ -9385,7 +9416,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     `;
     personnelList.appendChild(div);
 
-    const docTypes = ['ic', 'sb', 'epf'];
+    const docTypes = ['ic', 'sb', 'epf', 'comp'];
     
     docTypes.forEach(type => {
       const input = div.querySelector(`.status-${type}`);
@@ -9444,13 +9475,49 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     div.querySelectorAll('.role-cb, .is-company').forEach(cb => {
       cb.addEventListener('change', saveFormData);
     });
+    
+    const isCompCb = div.querySelector('.is-company');
+    if (isCompCb) {
+      isCompCb.addEventListener('change', (e) => {
+        const pFields = div.querySelector('.person-fields');
+        const cFields = div.querySelector('.company-fields');
+        if (e.target.checked) {
+          if (pFields) pFields.style.display = 'none';
+          if (cFields) cFields.style.display = 'grid';
+        } else {
+          if (pFields) pFields.style.display = 'grid';
+          if (cFields) cFields.style.display = 'none';
+        }
+      });
+    }
+    
+    const compDateInput = div.querySelector('.comp-date');
+    if (compDateInput) compDateInput.addEventListener('change', saveFormData);
 
     if(data) {
       if (nameInput) nameInput.value = data.name || '';
       
       const isCompanyCheckbox = div.querySelector('.is-company');
-      if (isCompanyCheckbox) isCompanyCheckbox.checked = data.isCompany || false;
+      const personFields = div.querySelector('.person-fields');
+      const companyFields = div.querySelector('.company-fields');
       
+      if (isCompanyCheckbox && data.isCompany) {
+        isCompanyCheckbox.checked = true;
+        if(personFields) personFields.style.display = 'none';
+        if(companyFields) companyFields.style.display = 'grid';
+      }
+      
+      const compDate = div.querySelector('.comp-date');
+      const statusComp = div.querySelector('.status-comp');
+      if (compDate && data.c_date) compDate.value = data.c_date;
+      if (statusComp && data.c_status) {
+        statusComp.value = data.c_status;
+        if (data.c_status === '✓') {
+          statusComp.style.backgroundColor = '#dcfce7'; statusComp.style.color = '#166534';
+        } else if (data.c_status === 'X') {
+          statusComp.style.backgroundColor = '#fee2e2'; statusComp.style.color = '#991b1b';
+        }
+      }
       if(data.roles) {
         div.querySelectorAll('.role-cb').forEach(cb => {
           if(data.roles.includes(cb.value)) cb.checked = true;
