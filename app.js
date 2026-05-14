@@ -9680,18 +9680,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  const dbSyorStatus = document.getElementById('db_syor_status');
-  if (dbSyorStatus) {
-    dbSyorStatus.addEventListener('change', (e) => {
+  // LOGIK AUTO-FILL TARIKH PROSES BERDASARKAN KEPUTUSAN SYOR
+  const borangSyorStatus = document.getElementById('borang_syor_status');
+  const borangTarikhProses = document.getElementById('borang_tarikh_proses');
+
+  if (borangSyorStatus && borangTarikhProses) {
+    borangSyorStatus.addEventListener('change', (e) => {
       const val = e.target.value;
-      if (labelDbSahSyor) {
-        if (val !== '') {
-          labelDbSahSyor.style.display = 'block';
-        } else {
-          labelDbSahSyor.style.display = 'none';
-          if (dbSahSyor) dbSahSyor.checked = false;
-        }
+      // Jika pilih SOKONG atau TIDAK DISOKONG sahaja
+      if (val === 'SOKONG' || val === 'TIDAK DISOKONG') {
+        const today = new Date().toISOString().split('T')[0];
+        borangTarikhProses.value = today;
+      } else {
+        // Jika pilih SIASAT atau kosong, kosongkan tarikh proses
+        borangTarikhProses.value = '';
       }
+      
+      // Simpan perubahan ke memori (Auto-save)
+      saveFormData();
+      console.log(`V6.5.2 Auto-filled Tarikh Proses: ${borangTarikhProses.value}`);
     });
   }
 
