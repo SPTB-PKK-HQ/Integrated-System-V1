@@ -5230,13 +5230,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return;
         }
         
-        const applicationTypeRadio = document.querySelector('input[name="jenisApp"]:checked');
+        const selectedAppType = document.getElementById('borang_jenis_app_val')?.value;
         let applicationType = '';
-        if (applicationTypeRadio) {
-          if (applicationTypeRadio.value === 'baru') applicationType = 'BARU';
-          else if (applicationTypeRadio.value === 'pembaharuan') applicationType = 'PEMBAHARUAN';
-          else if (applicationTypeRadio.value === 'ubah_maklumat') applicationType = 'UBAH MAKLUMAT';
-          else if (applicationTypeRadio.value === 'ubah_gred') applicationType = 'UBAH GRED';
+        if (selectedAppType) {
+          if (selectedAppType === 'baru') applicationType = 'BARU';
+          else if (selectedAppType === 'pembaharuan') applicationType = 'PEMBAHARUAN';
+          else if (selectedAppType === 'ubah_maklumat') applicationType = 'UBAH MAKLUMAT';
+          else if (selectedAppType === 'ubah_gred') applicationType = 'UBAH GRED';
         }
         
         if (!applicationType) {
@@ -5430,7 +5430,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     };
 
     // Kemaskini Checkbox untuk PDF
-    const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
+    const selectedType = document.getElementById('borang_jenis_app_val')?.value;
     ['baru', 'pembaharuan', 'ubah_maklumat', 'ubah_gred'].forEach(type => {
       const cb = document.getElementById(`print_type_${type}`);
       if(cb) {
@@ -7388,11 +7388,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       if(data.jenisApp) {
-        const radio = document.querySelector(`input[name="jenisApp"][value="${data.jenisApp}"]`);
-        if(radio) {
-          radio.checked = true;
-          radio.dispatchEvent(new Event('change'));
-        }
+        const val = data.jenisApp;
+        const hiddenInput = document.getElementById('borang_jenis_app_val');
+        if (hiddenInput) hiddenInput.value = val;
+
+        document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
+        const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
+        if (targetBtn) targetBtn.classList.add('active');
+
+        const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+        const ubahGredInput = document.getElementById('input_ubah_gred');
+        if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
+        if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
       }
 
       if(data.personnel && data.personnel.length > 0) {
@@ -7463,7 +7470,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (dbGred) dbGred.value = gred;
       if (dbJustifikasi) dbJustifikasi.value = justifikasi;
 
-      const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
+      const selectedType = document.getElementById('borang_jenis_app_val')?.value;
       if(selectedType) {
         const dropdown = document.getElementById('db_jenis');
         let dbVal = "";
@@ -7706,9 +7713,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (el) el.value = '';
     });
 
-    document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
-      radio.checked = false;
-    });
+    const hiddenJenisApp = document.getElementById('borang_jenis_app_val');
+    if (hiddenJenisApp) hiddenJenisApp.value = '';
+    document.querySelectorAll('.type-select-btn').forEach(btn => btn.classList.remove('active'));
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
@@ -8576,13 +8583,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
             });
 
-            // 2. Set Radio Button jenisApp
+            // 2. Set Butang Jenis Permohonan jenisApp
             if (parsedData.jenisApp) {
-                const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
-                if (radio) {
-                    radio.checked = true;
-                    radio.dispatchEvent(new Event('change', { bubbles: true }));
-                }
+                const val = parsedData.jenisApp;
+                const hiddenInput = document.getElementById('borang_jenis_app_val');
+                if (hiddenInput) hiddenInput.value = val;
+
+                // Kemaskini warna butang supaya yang dipilih sahaja menyala
+                document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
+                const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
+                if (targetBtn) targetBtn.classList.add('active');
+
+                // Paparkan form tambahan Ubah Maklumat/Gred jika jenis itu dipilih
+                const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+                const ubahGredInput = document.getElementById('input_ubah_gred');
+                if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
+                if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
             }
 
             // 3. Set Senarai Personel
@@ -9205,9 +9221,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const dbPerubahanContainer = document.getElementById('db_perubahan_container');
     if (dbPerubahanContainer) dbPerubahanContainer.style.display = 'none';
 
-    document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
-      radio.checked = false;
-    });
+    const hiddenJenisApp = document.getElementById('borang_jenis_app_val');
+    if (hiddenJenisApp) hiddenJenisApp.value = '';
+    document.querySelectorAll('.type-select-btn').forEach(btn => btn.classList.remove('active'));
 
     const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
     const ubahGredInput = document.getElementById('input_ubah_gred');
@@ -11017,8 +11033,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           if (parsedData.jenisApp) {
-              const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
-              if (radio) radio.checked = true;
+              const hiddenInput = document.getElementById('borang_jenis_app_val');
+              if (hiddenInput) hiddenInput.value = parsedData.jenisApp;
           }
           const personnelListEl = document.getElementById('personnelList');
           if (personnelListEl) {
@@ -11199,8 +11215,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           if (parsedData.jenisApp) {
-              const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
-              if (radio) radio.checked = true;
+              const hiddenInput = document.getElementById('borang_jenis_app_val');
+              if (hiddenInput) hiddenInput.value = parsedData.jenisApp;
           }
           const personnelListEl = document.getElementById('personnelList');
           if (personnelListEl) {
