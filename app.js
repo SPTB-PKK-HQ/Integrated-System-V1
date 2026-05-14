@@ -1220,14 +1220,20 @@ async function handleCredentialResponse(response) {
           
           if (fields.jenisApp) {
             const val = fields.jenisApp;
-            document.getElementById('borang_jenis_app_val').value = val;
+            // Set nilai ke input tersembunyi
+            const hiddenInput = document.getElementById('borang_jenis_app_val');
+            if (hiddenInput) hiddenInput.value = val;
+
+            // Aktifkan butang yang sepadan
+            document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
             const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
-            if (targetBtn) {
-              targetBtn.classList.add('active');
-              // Trigger paparan input tambahan jika perlu
-              if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
-              if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
-            }
+            if (targetBtn) targetBtn.classList.add('active');
+
+            // Trigger paparan input tambahan jika perlu
+            const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+            const ubahGredInput = document.getElementById('input_ubah_gred');
+            if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
+            if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
           }
           
           const personnelListEl = document.getElementById('personnelList');
@@ -10647,23 +10653,28 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
               
               const tLower = type.toLowerCase();
-              let radioVal = 'baru';
-              if(tLower.includes('pembaharuan') || tLower.includes('renewal')) radioVal = 'pembaharuan';
-              else if(tLower.includes('maklumat') || tLower.includes('info')) radioVal = 'ubah_maklumat';
-              else if(tLower.includes('gred') || tLower.includes('grade')) radioVal = 'ubah_gred';
+              let targetVal = 'baru';
+              if(tLower.includes('pembaharuan') || tLower.includes('renewal')) targetVal = 'pembaharuan';
+              else if(tLower.includes('maklumat') || tLower.includes('info')) targetVal = 'ubah_maklumat';
+              else if(tLower.includes('gred') || tLower.includes('grade')) targetVal = 'ubah_gred';
               
-              const radios = document.getElementsByName('jenisApp');
-              for(let r of radios) {
-                  r.checked = (r.value === radioVal);
-              }
+              // Set nilai ke input tersembunyi
+              const hiddenInput = document.getElementById('borang_jenis_app_val');
+              if (hiddenInput) hiddenInput.value = targetVal;
 
-              if(radioVal === 'ubah_maklumat') {
+              // Kemaskini UI Butang
+              document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
+              const targetBtn = document.querySelector(`.type-select-btn[data-value="${targetVal}"]`);
+              if (targetBtn) targetBtn.classList.add('active');
+
+              // Kawalan paparan input tambahan
+              if(targetVal === 'ubah_maklumat') {
                   document.getElementById('input_ubah_maklumat').style.display = 'block';
                   let specInfo = type;
                   if (type.includes('(')) specInfo = type.split('(')[1].replace(')', '').trim();
                   document.getElementById('input_ubah_maklumat').value = specInfo;
               }
-              if(radioVal === 'ubah_gred') {
+              if(targetVal === 'ubah_gred') {
                   document.getElementById('input_ubah_gred').style.display = 'block';
                   let specInfo = type;
                   if (type.includes('(')) specInfo = type.split('(')[1].replace(')', '').trim();
