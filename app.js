@@ -612,6 +612,7 @@ async function handleCredentialResponse(response) {
     
     return '#2563eb';
   }
+  
 
   // --- FUNGSI BANTUAN DESTROY CHART ---
   function safeDestroyChart(chartInstance, canvasId) {
@@ -1113,9 +1114,9 @@ async function handleCredentialResponse(response) {
       }
     });
     
-    const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
-    if (selectedRadio) {
-      fields['jenisApp'] = selectedRadio.value;
+    const jenisVal = document.getElementById('borang_jenis_app_val').value;
+    if (jenisVal) {
+      fields['jenisApp'] = jenisVal;
     }
     
     const personnel = [];
@@ -1218,10 +1219,14 @@ async function handleCredentialResponse(response) {
           });
           
           if (fields.jenisApp) {
-            const radio = document.querySelector(`input[name="jenisApp"][value="${fields.jenisApp}"]`);
-            if (radio) {
-              radio.checked = true;
-              radio.dispatchEvent(new Event('change'));
+            const val = fields.jenisApp;
+            document.getElementById('borang_jenis_app_val').value = val;
+            const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
+            if (targetBtn) {
+              targetBtn.classList.add('active');
+              // Trigger paparan input tambahan jika perlu
+              if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
+              if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
             }
           }
           
@@ -6214,15 +6219,31 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  const radioInputs = document.querySelectorAll('input[name="jenisApp"]');
-  radioInputs.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const val = e.target.value;
-      const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
-      const ubahGredInput = document.getElementById('input_ubah_gred');
+  // LOGIK PEMILIHAN JENIS PERMOHONAN MELALUI BUTANG
+  const typeButtons = document.querySelectorAll('.type-select-btn');
+  const hiddenJenisInput = document.getElementById('borang_jenis_app_val');
+  const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+  const ubahGredInput = document.getElementById('input_ubah_gred');
+
+  typeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // 1. Buang class active dari semua butang
+      typeButtons.forEach(b => b.classList.remove('active'));
+      
+      // 2. Tambah active pada butang diklik
+      btn.classList.add('active');
+      
+      // 3. Set nilai ke hidden input
+      const val = btn.getAttribute('data-value');
+      hiddenJenisInput.value = val;
+
+      // 4. Kawalan paparan input tambahan (Ubah Maklumat/Gred)
       if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
       if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
+
+      // 5. Simpan data (Auto-save)
       saveFormData();
+      savePengesyorState();
     });
   });
 
@@ -7318,8 +7339,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
 
-    const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
-    if(selectedRadio) formData['jenisApp'] = selectedRadio.value;
+    const jenisVal = document.getElementById('borang_jenis_app_val').value;
+    if (jenisVal) {
+      fields['jenisApp'] = jenisVal;
+    }
 
     const personnel = [];
     document.querySelectorAll('.person-card').forEach(card => {
@@ -9031,9 +9054,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
       
       // Ambil nilai radio button jenis permohonan secara manual
-      const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
-      if (selectedRadio) {
-        borangJsonData['jenisApp'] = selectedRadio.value;
+      const jenisVal = document.getElementById('borang_jenis_app_val').value;
+      if (jenisVal) {
+        fields['jenisApp'] = jenisVal;
       }
       
       // Ambil maklumat personel dinamik
