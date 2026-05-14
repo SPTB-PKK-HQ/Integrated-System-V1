@@ -5517,16 +5517,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const s_ic = card.querySelector('.status-ic')?.value.toUpperCase() || '';
       const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
-      
-      const tick = (role) => roles.includes(role) ? '✓' : '';
-      
-      if (isCompany) {
+    
+    const tick = (role) => roles.includes(role) ? '✓' : '';
+    
+    if (isCompany) {
         const cDate = card.querySelector('.comp-date')?.value || '';
         const cStatus = card.querySelector('.status-comp')?.value.toUpperCase() || '';
         const displayDate = cDate ? formatDateDisplay(cDate) : '';
         const combinedText = `Tarikh: ${displayDate} | Status: ${cStatus}`;
         
-        <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+        rowsHtml += `<tr>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
           <td class="col-tick">${tick('PENGARAH')}</td>
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
@@ -5534,16 +5535,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           <td colspan="3" style="text-align:center; font-size:9pt; font-weight:bold;">${combinedText}</td>
         </tr>`;
     } else {
-      rowsHtml += `<tr>
-        <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
-        <td class="col-tick">${tick('PENGARAH')}</td>
-        <td class="col-tick">${tick('P.EKUITI')}</td>
-        <td class="col-tick">${tick('T.T CEK')}</td>
-        <td class="col-tick">${tick('P.SPKK')}</td>
-        <td class="col-tick">${s_ic}</td>
-        <td class="col-tick">${s_sb}</td>
-        <td class="col-tick">${s_epf}</td>
-      </tr>`;
+        rowsHtml += `<tr>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+          <td class="col-tick">${tick('PENGARAH')}</td>
+          <td class="col-tick">${tick('P.EKUITI')}</td>
+          <td class="col-tick">${tick('T.T CEK')}</td>
+          <td class="col-tick">${tick('P.SPKK')}</td>
+          <td class="col-tick">${s_ic}</td>
+          <td class="col-tick">${s_sb}</td>
+          <td class="col-tick">${s_epf}</td>
+        </tr>`;
+    }
     });
 
     for(let i = cards.length; i < 6; i++) {
