@@ -612,7 +612,6 @@ async function handleCredentialResponse(response) {
     
     return '#2563eb';
   }
-  
 
   // --- FUNGSI BANTUAN DESTROY CHART ---
   function safeDestroyChart(chartInstance, canvasId) {
@@ -1114,9 +1113,9 @@ async function handleCredentialResponse(response) {
       }
     });
     
-    const jenisVal = document.getElementById('borang_jenis_app_val').value;
-    if (jenisVal) {
-      fields['jenisApp'] = jenisVal;
+    const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
+    if (selectedRadio) {
+      fields['jenisApp'] = selectedRadio.value;
     }
     
     const personnel = [];
@@ -1219,21 +1218,11 @@ async function handleCredentialResponse(response) {
           });
           
           if (fields.jenisApp) {
-            const val = fields.jenisApp;
-            // Set nilai ke input tersembunyi
-            const hiddenInput = document.getElementById('borang_jenis_app_val');
-            if (hiddenInput) hiddenInput.value = val;
-
-            // Aktifkan butang yang sepadan
-            document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
-            const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
-            if (targetBtn) targetBtn.classList.add('active');
-
-            // Trigger paparan input tambahan jika perlu
-            const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
-            const ubahGredInput = document.getElementById('input_ubah_gred');
-            if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
-            if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
+            const radio = document.querySelector(`input[name="jenisApp"][value="${fields.jenisApp}"]`);
+            if (radio) {
+              radio.checked = true;
+              radio.dispatchEvent(new Event('change'));
+            }
           }
           
           const personnelListEl = document.getElementById('personnelList');
@@ -5230,13 +5219,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return;
         }
         
-        const selectedAppType = document.getElementById('borang_jenis_app_val')?.value;
+        const applicationTypeRadio = document.querySelector('input[name="jenisApp"]:checked');
         let applicationType = '';
-        if (selectedAppType) {
-          if (selectedAppType === 'baru') applicationType = 'BARU';
-          else if (selectedAppType === 'pembaharuan') applicationType = 'PEMBAHARUAN';
-          else if (selectedAppType === 'ubah_maklumat') applicationType = 'UBAH MAKLUMAT';
-          else if (selectedAppType === 'ubah_gred') applicationType = 'UBAH GRED';
+        if (applicationTypeRadio) {
+          if (applicationTypeRadio.value === 'baru') applicationType = 'BARU';
+          else if (applicationTypeRadio.value === 'pembaharuan') applicationType = 'PEMBAHARUAN';
+          else if (applicationTypeRadio.value === 'ubah_maklumat') applicationType = 'UBAH MAKLUMAT';
+          else if (applicationTypeRadio.value === 'ubah_gred') applicationType = 'UBAH GRED';
         }
         
         if (!applicationType) {
@@ -5430,7 +5419,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     };
 
     // Kemaskini Checkbox untuk PDF
-    const selectedType = document.getElementById('borang_jenis_app_val')?.value;
+    const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
     ['baru', 'pembaharuan', 'ubah_maklumat', 'ubah_gred'].forEach(type => {
       const cb = document.getElementById(`print_type_${type}`);
       if(cb) {
@@ -6225,31 +6214,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  // LOGIK PEMILIHAN JENIS PERMOHONAN MELALUI BUTANG
-  const typeButtons = document.querySelectorAll('.type-select-btn');
-  const hiddenJenisInput = document.getElementById('borang_jenis_app_val');
-  const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
-  const ubahGredInput = document.getElementById('input_ubah_gred');
-
-  typeButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      // 1. Buang class active dari semua butang
-      typeButtons.forEach(b => b.classList.remove('active'));
-      
-      // 2. Tambah active pada butang diklik
-      btn.classList.add('active');
-      
-      // 3. Set nilai ke hidden input
-      const val = btn.getAttribute('data-value');
-      hiddenJenisInput.value = val;
-
-      // 4. Kawalan paparan input tambahan (Ubah Maklumat/Gred)
+  const radioInputs = document.querySelectorAll('input[name="jenisApp"]');
+  radioInputs.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const val = e.target.value;
+      const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+      const ubahGredInput = document.getElementById('input_ubah_gred');
       if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
       if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
-
-      // 5. Simpan data (Auto-save)
       saveFormData();
-      savePengesyorState();
     });
   });
 
@@ -7345,10 +7318,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
 
-    const jenisVal = document.getElementById('borang_jenis_app_val').value;
-    if (jenisVal) {
-      fields['jenisApp'] = jenisVal;
-    }
+    const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
+    if(selectedRadio) formData['jenisApp'] = selectedRadio.value;
 
     const personnel = [];
     document.querySelectorAll('.person-card').forEach(card => {
@@ -7388,18 +7359,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       if(data.jenisApp) {
-        const val = data.jenisApp;
-        const hiddenInput = document.getElementById('borang_jenis_app_val');
-        if (hiddenInput) hiddenInput.value = val;
-
-        document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
-        const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
-        if (targetBtn) targetBtn.classList.add('active');
-
-        const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
-        const ubahGredInput = document.getElementById('input_ubah_gred');
-        if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
-        if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
+        const radio = document.querySelector(`input[name="jenisApp"][value="${data.jenisApp}"]`);
+        if(radio) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event('change'));
+        }
       }
 
       if(data.personnel && data.personnel.length > 0) {
@@ -7470,7 +7434,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (dbGred) dbGred.value = gred;
       if (dbJustifikasi) dbJustifikasi.value = justifikasi;
 
-      const selectedType = document.getElementById('borang_jenis_app_val')?.value;
+      const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
       if(selectedType) {
         const dropdown = document.getElementById('db_jenis');
         let dbVal = "";
@@ -7713,9 +7677,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (el) el.value = '';
     });
 
-    const hiddenJenisApp = document.getElementById('borang_jenis_app_val');
-    if (hiddenJenisApp) hiddenJenisApp.value = '';
-    document.querySelectorAll('.type-select-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
+      radio.checked = false;
+    });
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
@@ -8583,22 +8547,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
             });
 
-            // 2. Set Butang Jenis Permohonan jenisApp
+            // 2. Set Radio Button jenisApp
             if (parsedData.jenisApp) {
-                const val = parsedData.jenisApp;
-                const hiddenInput = document.getElementById('borang_jenis_app_val');
-                if (hiddenInput) hiddenInput.value = val;
-
-                // Kemaskini warna butang supaya yang dipilih sahaja menyala
-                document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
-                const targetBtn = document.querySelector(`.type-select-btn[data-value="${val}"]`);
-                if (targetBtn) targetBtn.classList.add('active');
-
-                // Paparkan form tambahan Ubah Maklumat/Gred jika jenis itu dipilih
-                const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
-                const ubahGredInput = document.getElementById('input_ubah_gred');
-                if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
-                if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
+                const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
+                if (radio) {
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             }
 
             // 3. Set Senarai Personel
@@ -9076,9 +9031,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
       
       // Ambil nilai radio button jenis permohonan secara manual
-      const jenisVal = document.getElementById('borang_jenis_app_val').value;
-      if (jenisVal) {
-        fields['jenisApp'] = jenisVal;
+      const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
+      if (selectedRadio) {
+        borangJsonData['jenisApp'] = selectedRadio.value;
       }
       
       // Ambil maklumat personel dinamik
@@ -9221,9 +9176,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const dbPerubahanContainer = document.getElementById('db_perubahan_container');
     if (dbPerubahanContainer) dbPerubahanContainer.style.display = 'none';
 
-    const hiddenJenisApp = document.getElementById('borang_jenis_app_val');
-    if (hiddenJenisApp) hiddenJenisApp.value = '';
-    document.querySelectorAll('.type-select-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
+      radio.checked = false;
+    });
 
     const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
     const ubahGredInput = document.getElementById('input_ubah_gred');
@@ -10669,28 +10624,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
               
               const tLower = type.toLowerCase();
-              let targetVal = 'baru';
-              if(tLower.includes('pembaharuan') || tLower.includes('renewal')) targetVal = 'pembaharuan';
-              else if(tLower.includes('maklumat') || tLower.includes('info')) targetVal = 'ubah_maklumat';
-              else if(tLower.includes('gred') || tLower.includes('grade')) targetVal = 'ubah_gred';
+              let radioVal = 'baru';
+              if(tLower.includes('pembaharuan') || tLower.includes('renewal')) radioVal = 'pembaharuan';
+              else if(tLower.includes('maklumat') || tLower.includes('info')) radioVal = 'ubah_maklumat';
+              else if(tLower.includes('gred') || tLower.includes('grade')) radioVal = 'ubah_gred';
               
-              // Set nilai ke input tersembunyi
-              const hiddenInput = document.getElementById('borang_jenis_app_val');
-              if (hiddenInput) hiddenInput.value = targetVal;
+              const radios = document.getElementsByName('jenisApp');
+              for(let r of radios) {
+                  r.checked = (r.value === radioVal);
+              }
 
-              // Kemaskini UI Butang
-              document.querySelectorAll('.type-select-btn').forEach(b => b.classList.remove('active'));
-              const targetBtn = document.querySelector(`.type-select-btn[data-value="${targetVal}"]`);
-              if (targetBtn) targetBtn.classList.add('active');
-
-              // Kawalan paparan input tambahan
-              if(targetVal === 'ubah_maklumat') {
+              if(radioVal === 'ubah_maklumat') {
                   document.getElementById('input_ubah_maklumat').style.display = 'block';
                   let specInfo = type;
                   if (type.includes('(')) specInfo = type.split('(')[1].replace(')', '').trim();
                   document.getElementById('input_ubah_maklumat').value = specInfo;
               }
-              if(targetVal === 'ubah_gred') {
+              if(radioVal === 'ubah_gred') {
                   document.getElementById('input_ubah_gred').style.display = 'block';
                   let specInfo = type;
                   if (type.includes('(')) specInfo = type.split('(')[1].replace(')', '').trim();
@@ -11033,8 +10983,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           if (parsedData.jenisApp) {
-              const hiddenInput = document.getElementById('borang_jenis_app_val');
-              if (hiddenInput) hiddenInput.value = parsedData.jenisApp;
+              const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
+              if (radio) radio.checked = true;
           }
           const personnelListEl = document.getElementById('personnelList');
           if (personnelListEl) {
@@ -11215,8 +11165,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           if (parsedData.jenisApp) {
-              const hiddenInput = document.getElementById('borang_jenis_app_val');
-              if (hiddenInput) hiddenInput.value = parsedData.jenisApp;
+              const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
+              if (radio) radio.checked = true;
           }
           const personnelListEl = document.getElementById('personnelList');
           if (personnelListEl) {
