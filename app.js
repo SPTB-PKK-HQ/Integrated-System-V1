@@ -6267,6 +6267,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
+  const dbSyorStatusDropdown = document.getElementById('db_syor_status');
+  if (dbSyorStatusDropdown) {
+    dbSyorStatusDropdown.addEventListener('change', () => {
+      // Panggil fungsi paparkan checkbox pengesahan
+      updateValidationCheckboxDisplay(); 
+      // Auto-save data setiap kali syor ditukar
+      saveDatabaseFormData(); 
+    });
+  }
+  // ====================================================================
+
   if (dbSahSyor) {
     dbSahSyor.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
