@@ -8631,7 +8631,36 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   function loadRecordToPelulus(item) {
     pelulusActiveItem = item;
-    savePelulusState(); 
+    
+    // === KOD KEMASKINI: Reset input keputusan pelulus untuk mengelakkan 'ghosting' data lama ===
+    const elKeputusan = document.getElementById('pelulus_keputusan');
+    const elAlasan = document.getElementById('pelulus_alasan');
+    const elCatatan = document.getElementById('pelulus_catatan');
+    const elSah = document.getElementById('pelulus_sah_lulus');
+    const elTukarSyor = document.getElementById('pelulus_tukar_syor_lawatan');
+    
+    // Kosongkan semua nilai input keputusan
+    if (elKeputusan) elKeputusan.value = '';
+    if (elAlasan) elAlasan.value = '';
+    if (elCatatan) elCatatan.value = '';
+    if (elSah) elSah.checked = false;
+    if (elTukarSyor) elTukarSyor.value = '';
+
+    // Sembunyikan elemen-elemen UI bersyarat
+    const divAlasan = document.getElementById('div_alasan');
+    if (divAlasan) divAlasan.style.display = 'none';
+    
+    const labelSah = document.getElementById('label_pelulus_sah_lulus');
+    if (labelSah) labelSah.style.display = 'none';
+
+    const divJustifikasi = document.getElementById('div_pelulus_justifikasi');
+    if (divJustifikasi) divJustifikasi.style.display = 'none';
+    
+    const divDateSpi = document.getElementById('div_pelulus_date_spi');
+    if (divDateSpi) divDateSpi.style.display = 'none';
+    // ======================================================================================
+
+    savePelulusState(); // Simpan keadaan kosong ini ke memori sistem
     renderPelulusView(false); 
     switchTab('pelulus-view');
   }
