@@ -5560,8 +5560,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     // Dapatkan nama pegawai
     const namaPengesyor = val('db_pengesyor') || val('pengesyor') || (currentUser && currentUser.role === 'PENGESYOR' ? currentUser.name : '');
-    const namaPelulus = document.getElementById('pelulus_nama')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.pelulus : '');
-    const keputusanPelulus = document.getElementById('pelulus_keputusan')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.kelulusan : '');
+    
+    // KOD KEMASKINI: Pastikan data Pelulus HANYA dipanggil jika borang sudah diluluskan/dipreviu 
+    // (Elakkan 'ghosting' data pada borang draf Pengesyor di tab Borang Semakan)
+    let namaPelulus = '';
+    let keputusanPelulus = '';
+    
+    if (lastActiveTab === 'pelulus-action' || lastActiveTab === 'pelulus-view' || lastActiveTab === 'history' || lastActiveTab === 'submitted' || lastActiveTab === 'youtube') {
+        namaPelulus = document.getElementById('pelulus_nama')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.pelulus : '');
+        keputusanPelulus = document.getElementById('pelulus_keputusan')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.kelulusan : '');
+    }
 
     // Dapatkan elemen gambar
     const imgSignPengesyor = document.getElementById('print_pengesyor_sign');
@@ -5569,12 +5577,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const imgSignPelulus = document.getElementById('print_pelulus_sign');
     const imgCopPelulus = document.getElementById('print_pelulus_cop');
     
-    // RESET PENTING: Sembunyikan & BUANG atribut 'src' supaya tak keluar ikon 'broken image' di PDF Drive
+    // RESET PENTING 1: Sembunyikan & BUANG atribut 'src' gambar
     [imgSignPengesyor, imgCopPengesyor, imgSignPelulus, imgCopPelulus].forEach(img => { 
         if (img) {
             img.style.display = 'none'; 
             img.removeAttribute('src'); 
         }
+    });
+
+    // RESET PENTING 2: Kosongkan Teks, Tarikh & Highlight Pelulus kepada format asal (kosong)
+    setTxt('print_tarikh_lulus', '________________');
+    setTxt('print_catatan_pelulus', '');
+    
+    const elLulus = document.getElementById('print_lulus');
+    const elLulusSyarat = document.getElementById('print_lulus_syarat');
+    const elPemutihan = document.getElementById('print_pemutihan');
+    const elTolak = document.getElementById('print_tolak');
+    
+    [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
+        if (el) el.setAttribute('class', ''); // Buang sebarang highlight sedia ada
     });
 
     if (typeof usersList !== 'undefined' && usersList.length > 0) {
@@ -11012,6 +11033,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           const elNama = document.getElementById('pelulus_nama');
           if(elNama) elNama.value = item.pelulus || '';
           
+          // KOD KEMASKINI: Set nama Pengesyor secara manual supaya Cop & Sign muncul
+          const elPengesyor = document.getElementById('db_pengesyor');
+          if (elPengesyor) elPengesyor.value = item.pengesyor || '';
+          
           // --- 3. JANA REKAAN CETAKAN ---
           preparePrintView(); 
           
@@ -11189,10 +11214,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }
           
           pelulusActiveItem = item;
+          
+          // Set maklumat Keputusan & Nama Pelulus
           const elKeputusan = document.getElementById('pelulus_keputusan');
           if(elKeputusan) elKeputusan.value = item.kelulusan || '';
           const elNama = document.getElementById('pelulus_nama');
           if(elNama) elNama.value = item.pelulus || '';
+          
+          // === KOD KEMASKINI: Paksa nama Pengesyor asal masuk ke input supaya Cop & Sign muncul ===
+          const elPengesyor = document.getElementById('db_pengesyor');
+          if (elPengesyor) {
+              elPengesyor.value = item.pengesyor || '';
+          }
           
           // --- 3. JANA REKAAN CETAKAN ---
           preparePrintView();
