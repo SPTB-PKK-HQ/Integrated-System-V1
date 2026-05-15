@@ -11282,7 +11282,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 
                 /* KAWALAN SAIZ & KEDUDUKAN COP / SIGN */
                 #print_pengesyor_sign, #print_pelulus_sign {
-                  bottom: 60px !important; /* Naikkan sign supaya berada di atas nama cop */
+                  bottom: 75px !important; /* Naikkan sign supaya berada di atas nama cop */
                   position: absolute !important;
                   height: 45px !important; /* Kecilkan saiz sign */
                   z-index: 2 !important; /* Pastikan sign berada di lapisan paling atas */
