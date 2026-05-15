@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymhb1CUzUC5WPRt4YJjOT2lNFZtKYk0wpsQaWUVQtnYsueGVcNDUx2Vg1vtriSw3kk/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTDtqZJsgoibGLO164cdf1GhC-rYO1TDZ0pncX71AM1nxMzVWv_IjHpm0wnPd4GHLY/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -10831,14 +10831,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return;
       }
       
-      tbody.innerHTML = dataArray.map((item, index) => `
+      tbody.innerHTML = dataArray.map((item, index) => {
+          // KOD BARU: Gunakan pelulus jika ada (untuk pemutihan), jika tiada kekalkan pengesyor (untuk siasatan biasa)
+          const pegawai = item.pelulus || item.pengesyor || '-';
+          
+          return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
               <td style="text-align:center;">${index + 1}</td>
               <td style="font-weight:bold; color: #1e293b;">${item.syarikat}</td>
               <td style="text-align:center; color: #475569;">${item.cidb}</td>
-              <td style="text-align:center; font-size: 0.85rem;">${item.pengesyor}</td>
+              <td style="text-align:center; font-size: 0.85rem;">${pegawai}</td>
           </tr>
-      `).join('');
+          `;
+      }).join('');
   }
   // =========================================================================
   // KAWALAN KEMBALI KE DB DARI PROFILE

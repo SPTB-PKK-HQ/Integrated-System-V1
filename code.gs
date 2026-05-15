@@ -1471,6 +1471,7 @@ function handleUpdateRecord(data, sheet) {
         jenis: data.jenis !== undefined ? data.jenis : existingData[3],
         alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
         pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
+        pelulus: data.pelulus !== undefined ? data.pelulus : existingData[25], // KOD BARU DITAMBAH
         justifikasi: data.justifikasi_baru !== undefined ? data.justifikasi_baru : (data.justifikasi !== undefined ? data.justifikasi : existingData[11]),
         pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
         date_submit: dateSubmitValue,
@@ -2198,11 +2199,11 @@ function processPemutihanQueue() {
         <td style="padding:10px; border:1px solid #ddd; text-align:center;">${data.gred}</td>
         <td style="padding:10px; border:1px solid #ddd;">${data.alamat_perniagaan || 'Tiada'}</td>
         <td style="padding:10px; border:1px solid #ddd;">${data.justifikasi || 'Tiada'}</td>
-        <td style="padding:10px; border:1px solid #ddd; text-align:center;">${data.pengesyor}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:center;">${data.pelulus || 'Tiada'}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="${data.pautan}" style="color:#1a73e8; font-weight:bold;">Buka Drive</a></td>
       </tr>
     `;
-    textList += `${index + 1}. ${data.syarikat}\n   CIDB: ${data.cidb} | Gred: ${data.gred} | Pengesyor: ${data.pengesyor}\n   Alamat Perniagaan: ${data.alamat_perniagaan || 'Tiada'}\n   Justifikasi: ${data.justifikasi || 'Tiada'}\n\n`;
+    textList += `${index + 1}. ${data.syarikat}\n   CIDB: ${data.cidb} | Gred: ${data.gred} | Pelulus: ${data.pelulus || 'Tiada'}\n   Alamat Perniagaan: ${data.alamat_perniagaan || 'Tiada'}\n   Justifikasi: ${data.justifikasi || 'Tiada'}\n\n`;
   });
 
   const subject = `Makluman Dwi-Mingguan: ${queue.length} Permohonan Lawatan Premis (PEMUTIHAN)`;
@@ -2236,7 +2237,7 @@ function processPemutihanQueue() {
             <th style="padding:10px; border:1px solid #ddd;">Gred</th>
             <th style="padding:10px; border:1px solid #ddd;">Alamat Perniagaan</th>
             <th style="padding:10px; border:1px solid #ddd;">Justifikasi Lawatan</th>
-            <th style="padding:10px; border:1px solid #ddd;">Pengesyor</th>
+            <th style="padding:10px; border:1px solid #ddd;">Penlulus</th>
             <th style="padding:10px; border:1px solid #ddd;">Pautan Drive</th>
           </tr>
         </thead>
