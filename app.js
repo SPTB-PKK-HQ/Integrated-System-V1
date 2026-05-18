@@ -8262,6 +8262,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnView.onclick = function() { viewRecordOnly(item); }; 
         btnContainer.appendChild(btnView);
         
+        // --- TAMBAH KOD INI UNTUK BUTANG CETAK ---
+        if (item.borang_json && item.borang_json.trim() !== '') {
+            const btnPrint = document.createElement('button');
+            btnPrint.className = 'btn-sm';
+            btnPrint.style.backgroundColor = '#6366f1';
+            btnPrint.innerText = '🖨️ Cetak';
+            btnPrint.onclick = function() { processLihatBorangPreview(item); };
+            btnContainer.appendChild(btnPrint);
+        }
+        // -----------------------------------------
+        
         if (currentUser.role === 'PENGESYOR') {
           const btnUndo = document.createElement('button');
           btnUndo.className = 'btn-sm';
@@ -10759,49 +10770,83 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if (btnQueueSPI) {
       btnQueueSPI.addEventListener('click', async () => {
           
-          // 1. Gunakan fungsi animasi berperingkat (0% - 100%)
-          simulateLoadingWithSteps(
-              ['Menyambung ke pelayan...', 'Menyemak Queue Siasatan Biasa...', 'Menyemak Queue Pemutihan...', 'Menyediakan paparan...'],
-              'Mendapatkan senarai queue SPI'
-          );
-          
+          // 1. Tunjuk popup modal terlebih dahulu
+          queueSpiModal.classList.add('show');
+          queueSpiModal.style.display = 'flex';
+
+          // 2. Masukkan UI loading peratusan custom secara terus ke dalam table body
+          const loadingUI = `
+              <tr>
+                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
+                      <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
+                          <div class="dashboard-spinner" style="margin-bottom:0;"></div>
+                          <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
+                          <div style="width: 80%; max-width: 300px; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                              <div class="queue-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.3s ease-out;"></div>
+                          </div>
+                      </div>
+                  </td>
+              </tr>
+          `;
+
+          document.getElementById('tbodyQueueSiasat').innerHTML = loadingUI;
+          document.getElementById('tbodyQueuePemutihan').innerHTML = loadingUI;
+
+          // 3. Simulasikan peratusan bergerak (0% - 90%) sementara menunggu fetch
+          let progress = 0;
+          const textSteps = ['Menyambung ke pelayan...', 'Menyemak Queue Siasatan Biasa...', 'Menyemak Queue Pemutihan...', 'Menyediakan paparan...'];
+
+          const progressInterval = setInterval(() => {
+              if (progress < 90) {
+                  progress += Math.floor(Math.random() * 15) + 5;
+                  if (progress > 90) progress = 90;
+
+                  const bars = document.querySelectorAll('.queue-loading-bar');
+                  const texts = document.querySelectorAll('.queue-loading-text');
+
+                  bars.forEach(bar => bar.style.width = `${progress}%`);
+                  texts.forEach(text => {
+                      let stepText = textSteps[Math.floor(progress / 25)] || textSteps[3];
+                      text.innerText = `${stepText} ${progress}%`;
+                  });
+              }
+          }, 300);
+
           try {
+              // 4. Minta data dari pelayan (Google Apps Script)
               const userEmail = currentUser ? encodeURIComponent(currentUser.email) : '';
               const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
               const result = await response.json();
-              
-              // 2. Set progress ke 100% dan tunjuk mesej Selesai sebelum tutup
-              const progressBar = document.getElementById('loading-progress-bar');
-              const progressPercent = document.getElementById('loading-progress-percent');
-              const progressLabel = document.getElementById('loading-progress-label');
-              
-              if (progressBar) progressBar.style.width = '100%';
-              if (progressPercent) progressPercent.textContent = '100%';
-              if (progressLabel) progressLabel.textContent = 'Selesai!';
-              
-              // 3. Tunggu setengah saat (500ms) supaya pengguna nampak peratusan penuh 100%
-              // Tambah perkataan 'async' di dalam setTimeout supaya boleh menggunakan fungsi bunyi
+
+              // Hentikan animasi tiruan
+              clearInterval(progressInterval);
+
+              // 5. Set progress terus ke 100% dan tunjuk mesej Selesai
+              const bars = document.querySelectorAll('.queue-loading-bar');
+              const texts = document.querySelectorAll('.queue-loading-text');
+
+              bars.forEach(bar => bar.style.width = '100%');
+              texts.forEach(text => text.innerText = 'Selesai! 100%');
+
+              // 6. Tunggu sebentar (500ms) untuk pengguna melihat 100% sebelum memaparkan jadual data sebenar
               setTimeout(async () => {
-                  hideLoading();
-                  
                   if (result.status === 'success') {
                       populateQueueTable('tbodyQueueSiasat', result.siasat);
                       populateQueueTable('tbodyQueuePemutihan', result.pemutihan);
-                      
-                      queueSpiModal.classList.add('show');
-                      queueSpiModal.style.display = 'flex';
-                      
-                      // KOD TAMBAHAN: Mainkan bunyi berjaya!
+
                       await playSuccessSound();
-                      
                   } else {
                       CustomAppModal.alert('Gagal mendapatkan senarai queue.', 'Ralat', 'error');
+                      queueSpiModal.classList.remove('show');
+                      setTimeout(() => queueSpiModal.style.display = 'none', 300);
                   }
               }, 500);
-              
+
           } catch (error) {
-              hideLoading();
+              clearInterval(progressInterval);
               CustomAppModal.alert('Gagal mendapatkan senarai queue: ' + error.message, 'Ralat', 'error');
+              queueSpiModal.classList.remove('show');
+              setTimeout(() => queueSpiModal.style.display = 'none', 300);
           }
       });
   }
