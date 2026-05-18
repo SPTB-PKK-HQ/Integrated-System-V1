@@ -121,6 +121,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                   const confirmBtn = document.createElement('button');
                   confirmBtn.className = `custom-modal-btn ${options.isDanger ? 'custom-modal-btn-danger' : 'custom-modal-btn-confirm'}`;
+                  
+                  // --- KOD BARU: TEMA HIJAU UNTUK WHATSAPP ---
+                  // Menukar warna background butang dan shadow jika isSuccessBtn dipanggil
+                  if (options.isSuccessBtn) {
+                      confirmBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+                      confirmBtn.style.color = 'white';
+                      confirmBtn.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.3)';
+                  }
+                  // ------------------------------------------
+                  
                   confirmBtn.innerText = options.confirmText || 'Teruskan';
                   confirmBtn.onclick = () => { playSoundEffect('ui_click.mp3'); close(true); };
 
@@ -146,9 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
           playSoundEffect(type === 'error' ? 'error_buzz.mp3' : 'minimal alert.mp3');
           return this.show({ message, title, type, isConfirm: false });
       },
-      confirm: function(message, title = 'Pengesahan Tindakan', type = 'warning', confirmText = 'Teruskan', isDanger = false) {
+      // KOD BARU: Tambah parameter 'isSuccessBtn = false' pada fungsi confirm
+      confirm: function(message, title = 'Pengesahan Tindakan', type = 'warning', confirmText = 'Teruskan', isDanger = false, isSuccessBtn = false) {
           playSoundEffect('minimal alert.mp3');
-          return this.show({ message, title, type, isConfirm: true, confirmText, isDanger });
+          return this.show({ message, title, type, isConfirm: true, confirmText, isDanger, isSuccessBtn });
       }
   };
 
@@ -4159,7 +4170,7 @@ async function handleCredentialResponse(response) {
     
     storageWrapper.remove(['stb_extracted_profile_data']);
     
-    alert("Borang Profile Syarikat telah direset.");
+    // KOD BARU: Alert dialih keluar kerana CustomAppModal sudah dipanggil di listener event klik butang
     console.log("V6.5.2 Profile form reset completed");
   }
 
@@ -7653,7 +7664,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     updateOpenDriveButton();
 
     addPerson();
-    alert("Borang telah diset semula.");
+    // KOD BARU: Guna Custom Modal Animation
+    await CustomAppModal.alert("Borang telah diset semula.", "Berjaya", "success");
 
     updateValidationCheckboxDisplay();
   }
@@ -8083,11 +8095,34 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const isConfirmed = await CustomAppModal.confirm(message, modalTitle, modalType, btnText, isDanger);
     if (!isConfirmed) return;
     
-    // MULA PAPARKAN LOADING
-    simulateLoadingWithSteps(
-      ['Menghubungi pangkalan data...', 'Memproses tindakan...', 'Menyusun semula senarai...'],
-      'Sila Tunggu Sebentar'
-    );
+    // --- KOD BARU: MULA PAPARKAN LOADING PERATUSAN CUSTOM ---
+    const overlay = document.getElementById('loading-overlay');
+    const text = document.getElementById('loading-text');
+    const subtext = document.getElementById('loading-subtext');
+    const progressBar = document.getElementById('loading-progress-bar');
+    const progressPercent = document.getElementById('loading-progress-percent');
+    const progressLabel = document.getElementById('loading-progress-label');
+    
+    if (overlay) {
+        text.textContent = 'Sila Tunggu Sebentar';
+        subtext.textContent = 'Memproses tindakan...';
+        if (progressBar) { progressBar.style.display = 'block'; progressBar.style.width = '0%'; }
+        if (progressPercent) progressPercent.textContent = '0%';
+        if (progressLabel) progressLabel.textContent = 'Menghubungi pangkalan data...';
+        overlay.style.display = 'flex';
+    }
+
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        if (progress < 90) {
+            progress += Math.floor(Math.random() * 10) + 5;
+            if (progress > 90) progress = 90;
+            if (progressBar) progressBar.style.width = `${progress}%`;
+            if (progressPercent) progressPercent.textContent = `${progress}%`;
+            if (progressLabel) progressLabel.textContent = progress < 50 ? 'Menghubungi pangkalan data...' : 'Memproses tindakan...';
+        }
+    }, 200);
+    // --------------------------------------------------------
     
     let payload;
     if (action === 'undo_syor') {
@@ -8166,17 +8201,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // TUNGGU fetchAndRenderList SELESAI SUSUN SEMULA SENARAI BARU
         await fetchAndRenderList(activeListType);
         
-        // TUTUP LOADING SELEPAS SEMUANYA SELESAI
-        hideLoading();
-        
-        // GUNA CUSTOM APP MODAL
-        await CustomAppModal.alert(result.message, "Selesai", "success");
+        // --- KOD BARU: TUTUP LOADING PERATUSAN CUSTOM BILA SIAP ---
+        clearInterval(progressInterval);
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressPercent) progressPercent.textContent = '100%';
+        if (progressLabel) progressLabel.textContent = 'Selesai!';
+
+        setTimeout(async () => {
+            hideLoading();
+            // GUNA CUSTOM APP MODAL BILA SIAP LOADING
+            await CustomAppModal.alert(result.message, "Selesai", "success");
+        }, 500);
+        // --------------------------------------------------------
         
       } else {
+        clearInterval(progressInterval);
         hideLoading();
         await CustomAppModal.alert("Ralat: " + (result.message || 'Gagal memproses rekod'), "Ralat", "error");
       }
     } catch (err) {
+      clearInterval(progressInterval);
       console.error("V6.5.2 Delete error:", err);
       hideLoading();
       await CustomAppModal.alert("Gagal memproses rekod: " + err.message, "Ralat", "error");
@@ -9190,7 +9234,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 "Hantar WhatsApp",
                 "success",
                 "Ya, Hantar",
-                false
+                false,
+                true // KOD BARU: Aktifkan isSuccessBtn untuk tema hijau
             );
             if (isWaConfirmed) {
                 window.open(whatsappUrl, '_blank');
@@ -10927,7 +10972,34 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const query = youtubeSearchInput.value.trim().toLowerCase(); 
       if (!query || !currentUser || !currentUser.email) return;
 
-      simulateLoadingWithSteps(['Mencari di YouTube...', 'Memuatkan video...'], 'Mencari Video');
+      // --- KOD BARU: MULA PAPARKAN LOADING PERATUSAN CUSTOM YOUTUBE ---
+      const overlay = document.getElementById('loading-overlay');
+      const text = document.getElementById('loading-text');
+      const subtext = document.getElementById('loading-subtext');
+      const progressBar = document.getElementById('loading-progress-bar');
+      const progressPercent = document.getElementById('loading-progress-percent');
+      const progressLabel = document.getElementById('loading-progress-label');
+
+      if (overlay) {
+          text.textContent = 'Mencari Video';
+          subtext.textContent = 'Sila tunggu sebentar...';
+          if (progressBar) { progressBar.style.display = 'block'; progressBar.style.width = '0%'; }
+          if (progressPercent) progressPercent.textContent = '0%';
+          if (progressLabel) progressLabel.textContent = 'Mencari di YouTube...';
+          overlay.style.display = 'flex';
+      }
+
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+          if (progress < 90) {
+              progress += Math.floor(Math.random() * 12) + 5;
+              if (progress > 90) progress = 90;
+              if (progressBar) progressBar.style.width = `${progress}%`;
+              if (progressPercent) progressPercent.textContent = `${progress}%`;
+              if (progressLabel) progressLabel.textContent = 'Mencari di YouTube...';
+          }
+      }, 200);
+      // --------------------------------------------------------------
 
       try {
           // 1. Tentukan laluan cache individu: users/{email}/youtube_cache/{query}
@@ -10942,8 +11014,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               
               if (isFresh && cacheData.results) {
                   console.log("Memuatkan hasil carian dari Cache Individu: " + currentUser.email);
-                  hideLoading();
-                  displayYoutubeResults(cacheData.results);
+                  
+                  // --- KOD BARU: TUTUP LOADING PERATUSAN CUSTOM (DARI CACHE) ---
+                  clearInterval(progressInterval);
+                  if (progressBar) progressBar.style.width = '100%';
+                  if (progressPercent) progressPercent.textContent = '100%';
+                  if (progressLabel) progressLabel.textContent = 'Selesai!';
+
+                  setTimeout(() => {
+                      hideLoading();
+                      displayYoutubeResults(cacheData.results);
+                  }, 500);
+                  // -------------------------------------------------------------
                   return; 
               }
           }
@@ -10956,10 +11038,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }, 3, 1000);
 
           const result = await response.json();
-          hideLoading();
+          
+          clearInterval(progressInterval); // Berhenti tambah peratus tiruan
 
           if (result.success) {
-              displayYoutubeResults(result.data);
+              // --- KOD BARU: TUTUP LOADING PERATUSAN CUSTOM (DARI BACKEND) ---
+              if (progressBar) progressBar.style.width = '100%';
+              if (progressPercent) progressPercent.textContent = '100%';
+              if (progressLabel) progressLabel.textContent = 'Selesai!';
+
+              setTimeout(() => {
+                  hideLoading();
+                  displayYoutubeResults(result.data);
+              }, 500);
               
               // 4. SIMPAN HASIL KE CACHE INDIVIDU
               if (dbFirestore && result.data && result.data.length > 0) {
