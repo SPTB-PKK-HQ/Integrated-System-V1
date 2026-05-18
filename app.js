@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTDtqZJsgoibGLO164cdf1GhC-rYO1TDZ0pncX71AM1nxMzVWv_IjHpm0wnPd4GHLY/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyHbF7UKeGCtAXHFCr49BE7kqdzc0pJuFDBWjuJrK-rf5zgxsU4ZdSdz0EUYfkWKPHP/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -654,7 +654,20 @@ async function handleCredentialResponse(response) {
       return new Date(item.tarikh_lulus);
     } else if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '') {
       return new Date(item.tarikh_syor);
-    } else if (item.start_date && String(item.start_date).trim() !== '') {
+    } 
+    
+    // KOD BARU: Baca 'tarikh_masuk_sheet' dari borang_json
+    if (item.borang_json && String(item.borang_json).trim() !== '') {
+       try {
+           const parsed = JSON.parse(item.borang_json);
+           if (parsed.tarikh_masuk_sheet) {
+               return new Date(parsed.tarikh_masuk_sheet);
+           }
+       } catch (e) {}
+    }
+
+    // Jika fail lama yang belum ada JSON, fallback pada start_date asal
+    if (item.start_date && String(item.start_date).trim() !== '') {
       return new Date(item.start_date);
     } else if (item.date_submit && String(item.date_submit).trim() !== '') {
       return new Date(item.date_submit);
@@ -1818,8 +1831,9 @@ async function handleCredentialResponse(response) {
     }
     
     filteredData.forEach(item => {
-      if (item.start_date && item.pengesyor && item.pengesyor.toUpperCase() === currentUser.name.toUpperCase()) {
-        const date = new Date(item.start_date);
+      let dateToUse = resolveRecordDate(item);
+      if (dateToUse && !isNaN(dateToUse)) {
+        const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[monthKey]) {
           if (item.syor_status && item.syor_status.includes('TIDAK DISOKONG')) monthlyData[monthKey].notSupported++;
@@ -1888,8 +1902,10 @@ async function handleCredentialResponse(response) {
     }
     
     filteredData.forEach(item => {
-      if (item.start_date) {
-        const date = new Date(item.start_date);
+      // Gunakan tarikh dinamik berdasarkan status tindakan
+      let dateToUse = resolveRecordDate(item);
+      if (dateToUse && !isNaN(dateToUse)) {
+        const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[monthKey]) {
           if (item.kelulusan && item.kelulusan.includes('LULUS')) monthlyData[monthKey].approved++;
@@ -2087,8 +2103,9 @@ async function handleCredentialResponse(response) {
     }
     
     filteredData.forEach(item => {
-      if (item.start_date && item.pengesyor && item.pengesyor.toUpperCase() === currentUser.name.toUpperCase()) {
-        const date = new Date(item.start_date);
+      let dateToUse = resolveRecordDate(item);
+      if (dateToUse && !isNaN(dateToUse)) {
+        const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[monthKey]) {
           if (item.syor_status && item.syor_status.includes('TIDAK DISOKONG')) monthlyData[monthKey].notSupported++;
@@ -2156,8 +2173,10 @@ async function handleCredentialResponse(response) {
     }
     
     filteredData.forEach(item => {
-      if (item.start_date) {
-        const date = new Date(item.start_date);
+      // Gunakan tarikh dinamik berdasarkan status tindakan
+      let dateToUse = resolveRecordDate(item);
+      if (dateToUse && !isNaN(dateToUse)) {
+        const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[monthKey]) {
           if (item.kelulusan && item.kelulusan.includes('LULUS')) monthlyData[monthKey].approved++;
@@ -2262,9 +2281,9 @@ async function handleCredentialResponse(response) {
       
       months.forEach((month, index) => {
         const monthData = data.filter(item => {
-          if (!item.start_date) return false;
-          const date = new Date(item.start_date);
-          return date.getMonth() === index;
+          let dateToUse = resolveRecordDate(item);
+        if (dateToUse && !isNaN(dateToUse)) {
+          const week = Math.ceil(dateToUse.getDate() / 7);
         });
         
         if (currentUser.role === 'PENGESYOR') {
@@ -2333,9 +2352,9 @@ async function handleCredentialResponse(response) {
       
       const weeks = [];
       data.forEach(item => {
-        if (item.start_date) {
-          const date = new Date(item.start_date);
-          const week = Math.ceil(date.getDate() / 7);
+        let dateToUse = resolveRecordDate(item);
+        if (dateToUse && !isNaN(dateToUse)) {
+          const week = Math.ceil(dateToUse.getDate() / 7);
           if (!weeks[week]) weeks[week] = [];
           weeks[week].push(item);
         }
@@ -9125,6 +9144,42 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         });
       });
       borangJsonData['personnel'] = personnelListObj;
+      
+      // =====================================================================
+      // KOD BARU: KAWALAN TARIKH MASUK SHEET (TERMASUK REKOD SEDIA ADA)
+      // =====================================================================
+      if (!targetRow) {
+         // 1. Jika ini rekod BAHARU sepenuhnya: Gunakan tarikh hari ini
+         borangJsonData['tarikh_masuk_sheet'] = new Date().toISOString().split('T')[0];
+      } else {
+         // 2. Jika ini rekod SEDIA ADA (Sedang di-edit):
+         let existingDate = new Date().toISOString().split('T')[0]; // Default hari ini
+         
+         if (cachedData && cachedData.length > 0) {
+            const oldItem = cachedData.find(item => item.row == targetRow);
+            if (oldItem) {
+               // Cuba cari dari JSON lama dahulu
+               if (oldItem.borang_json) {
+                  try {
+                     const oldParsed = JSON.parse(oldItem.borang_json);
+                     if (oldParsed.tarikh_masuk_sheet) {
+                         existingDate = oldParsed.tarikh_masuk_sheet;
+                     } else if (oldItem.start_date) {
+                         existingDate = oldItem.start_date; // Guna start_date jika JSON tiada tarikh ini
+                     }
+                  } catch(e) {
+                     if (oldItem.start_date) existingDate = oldItem.start_date;
+                  }
+               } 
+               // Jika fail ini sangat lama dan tak pernah ada JSON, ambil start_date
+               else if (oldItem.start_date) {
+                  existingDate = oldItem.start_date;
+               }
+            }
+         }
+         // Setkan kembali tarikh asal supaya tidak berubah ke hari ini
+         borangJsonData['tarikh_masuk_sheet'] = existingDate;
+      }
       // =====================================================================
       
       const payload = {

@@ -1769,9 +1769,20 @@ function getStatisticsData(role, userName) {
   const yearStats = {};
   
   filteredData.forEach(row => {
-    const startDate = row[7];
-    if (startDate) {
-      const date = new Date(startDate);
+    // Cari tarikh_masuk_sheet di dalam borang_json (Kolum AC / indeks 28)
+    let tarikhMasukSheet = '';
+    if (row[28]) {
+       try {
+          const parsed = JSON.parse(row[28]);
+          if (parsed.tarikh_masuk_sheet) tarikhMasukSheet = parsed.tarikh_masuk_sheet;
+       } catch(e) {}
+    }
+
+    // Hierarki: Tarikh Lulus (Y/24) > Tarikh Syor (O/14) > Tarikh Masuk Sheet (JSON) > Start Date (H/7) > Tarikh Submit (J/9)
+    let dynamicDate = row[24] ? row[24] : (row[14] ? row[14] : (tarikhMasukSheet ? tarikhMasukSheet : (row[7] ? row[7] : row[9])));
+    
+    if (dynamicDate) {
+      const date = new Date(dynamicDate);
       if (!isNaN(date)) {
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
