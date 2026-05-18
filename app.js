@@ -2276,14 +2276,18 @@ async function handleCredentialResponse(response) {
     
     let rowsHtml = '';
     
+    // ==========================================
+    // BAHAGIAN 1: PAPARAN TAHUNAN (KIRA BULAN)
+    // ==========================================
     if (period === 'yearly') {
       const months = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogos', 'Sep', 'Okt', 'Nov', 'Dis'];
       
       months.forEach((month, index) => {
         const monthData = data.filter(item => {
           let dateToUse = resolveRecordDate(item);
-        if (dateToUse && !isNaN(dateToUse)) {
-          const week = Math.ceil(dateToUse.getDate() / 7);
+          if (!dateToUse || isNaN(dateToUse)) return false;
+          // Return true jika bulan padan dengan index (0 = Jan, 1 = Feb, dll)
+          return dateToUse.getMonth() === index;
         });
         
         if (currentUser.role === 'PENGESYOR') {
@@ -2337,6 +2341,10 @@ async function handleCredentialResponse(response) {
           `;
         }
       });
+      
+    // ==========================================
+    // BAHAGIAN 2: PAPARAN HARIAN
+    // ==========================================
     } else if (period === 'daily') {
       rowsHtml = `
         <tr>
@@ -2346,6 +2354,10 @@ async function handleCredentialResponse(response) {
           </td>
         </tr>
       `;
+      
+    // ==========================================
+    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU)
+    // ==========================================
     } else {
       const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
       const monthName = monthNames[dashboardData.currentMonth - 1];
@@ -2354,6 +2366,7 @@ async function handleCredentialResponse(response) {
       data.forEach(item => {
         let dateToUse = resolveRecordDate(item);
         if (dateToUse && !isNaN(dateToUse)) {
+          // Bahagi tarikh dengan 7 untuk dapatkan nombor minggu
           const week = Math.ceil(dateToUse.getDate() / 7);
           if (!weeks[week]) weeks[week] = [];
           weeks[week].push(item);
