@@ -8330,7 +8330,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             btnPrint.className = 'btn-sm';
             btnPrint.style.backgroundColor = '#6366f1';
             btnPrint.innerText = '🖨️ Cetak';
-            btnPrint.onclick = function() { processLihatBorangPreview(item); };
+            
+            // KOD BARU: Menggunakan processCetakBiasa berbanding processLihatBorangPreview
+            btnPrint.onclick = function() { processCetakBiasa(item); };
+            
             btnContainer.appendChild(btnPrint);
         }
         // -----------------------------------------
@@ -11350,6 +11353,102 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           hideLoading();
           console.error(e);
           await CustomAppModal.alert("Gagal memproses cetakan: " + e.message, "Ralat", "error");
+      }
+  }
+  function processCetakBiasa(item) {
+      if (!item.borang_json) return;
+      try {
+          const parsedData = JSON.parse(item.borang_json);
+          
+          // --- 1. BACKUP: SIMPAN KEADAAN BORANG SEMASA ---
+          const backupValues = {};
+          document.querySelectorAll('#tab-checker input, #tab-checker select, #tab-checker textarea, #tab-database input, #tab-database select, #tab-database textarea, #tab-pelulus-action input, #tab-pelulus-action select, #tab-pelulus-action textarea').forEach(el => {
+              if (el.id && el.type !== 'file') {
+                  backupValues[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value;
+              }
+          });
+          const backupPersonnelData = [];
+          document.querySelectorAll('.person-card').forEach(card => {
+              const roles = [];
+              card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
+              backupPersonnelData.push({
+                  name: card.querySelector('.p-name')?.value || '',
+                  isCompany: card.querySelector('.is-company')?.checked || false,
+                  roles: roles,
+                  s_ic: card.querySelector('.status-ic')?.value || '',
+                  s_sb: card.querySelector('.status-sb')?.value || '',
+                  s_epf: card.querySelector('.status-epf')?.value || ''
+              });
+          });
+          const oldActiveItem = pelulusActiveItem;
+
+          // --- 2. INJECT SEMENTARA DATA JSON UNTUK CETAKAN ---
+          Object.keys(parsedData).forEach(key => {
+              if (key === 'personnel' || key === 'jenisApp') return;
+              const el = document.getElementById(key);
+              if (el && el.type !== 'file') {
+                  if (el.type === 'checkbox' || el.type === 'radio') el.checked = parsedData[key];
+                  else el.value = parsedData[key];
+              }
+          });
+          if (parsedData.jenisApp) {
+              const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
+              if (radio) radio.checked = true;
+          }
+          const personnelListEl = document.getElementById('personnelList');
+          if (personnelListEl) {
+              personnelListEl.innerHTML = '';
+              if (parsedData.personnel && Array.isArray(parsedData.personnel)) {
+                  parsedData.personnel.forEach(p => addPerson(p));
+              }
+          }
+          
+          pelulusActiveItem = item;
+          
+          // Set maklumat Keputusan & Nama Pelulus
+          const elKeputusan = document.getElementById('pelulus_keputusan');
+          if(elKeputusan) elKeputusan.value = item.kelulusan || '';
+          const elNama = document.getElementById('pelulus_nama');
+          if(elNama) elNama.value = item.pelulus || '';
+          
+          // Paksa nama Pengesyor asal masuk ke input supaya Cop & Sign muncul
+          const elPengesyor = document.getElementById('db_pengesyor');
+          if (elPengesyor) {
+              elPengesyor.value = item.pengesyor || '';
+          }
+          
+          // --- 3. JANA REKAAN CETAKAN ---
+          preparePrintView();
+          
+          // --- 4. TERUS CETAK BIASA ---
+          window.print();
+
+          // --- 5. RESTORE: KEMBALIKAN BORANG KEPADA KEADAAN ASAL SECARA SEMBUNYI ---
+          setTimeout(() => {
+              pelulusActiveItem = oldActiveItem;
+              Object.keys(backupValues).forEach(id => {
+                  const el = document.getElementById(id);
+                  if (el && el.type !== 'file') {
+                      if (el.type === 'checkbox' || el.type === 'radio') el.checked = backupValues[id];
+                      else el.value = backupValues[id];
+                  }
+              });
+              if (personnelListEl) {
+                  personnelListEl.innerHTML = '';
+                  if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
+                  else addPerson();
+              }
+              // Kembalikan warna tick (jika ada)
+              document.querySelectorAll('.status-input').forEach(input => {
+                  if (input.value === '✓') { input.style.backgroundColor = '#dcfce7'; input.style.color = '#166534'; } 
+                  else if (input.value === 'X' || input.value === '✗') { input.style.backgroundColor = '#fee2e2'; input.style.color = '#991b1b'; } 
+                  else { input.style.backgroundColor = '#eff6ff'; input.style.color = '#1e40af'; }
+              });
+          }, 500);
+
+      } catch(e) {
+          console.error(e);
+          CustomAppModal.alert("Gagal mencetak borang: " + e.message, "Ralat", "error"); 
       }
   }
 
