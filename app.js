@@ -648,6 +648,20 @@ async function handleCredentialResponse(response) {
     return null;
   }
 
+  // --- FUNGSI BARU: MENENTUKAN TARIKH TINDAKAN SEBENAR REKOD ---
+  function resolveRecordDate(item) {
+    if (item.tarikh_lulus && String(item.tarikh_lulus).trim() !== '') {
+      return new Date(item.tarikh_lulus);
+    } else if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '') {
+      return new Date(item.tarikh_syor);
+    } else if (item.start_date && String(item.start_date).trim() !== '') {
+      return new Date(item.start_date);
+    } else if (item.date_submit && String(item.date_submit).trim() !== '') {
+      return new Date(item.date_submit);
+    }
+    return null;
+  }
+
   // --- GLOBAL VARIABLES ---
   let loadingProgressInterval = null;
   let typeMonthlyChart = null;
@@ -1442,52 +1456,23 @@ async function handleCredentialResponse(response) {
     
     if (period === 'yearly') {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
+        // KOD BARU: Menggunakan resolveRecordDate untuk keutamaan dinamik
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
-        
         return dateToUse.getFullYear() === currentYear;
       });
     } else if (period === 'daily') {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
-        
         return dateToUse.getFullYear() === currentYear && 
                dateToUse.getMonth() + 1 === currentMonth && 
                dateToUse.getDate() === currentDay;
       });
     } else {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
-        
         return dateToUse.getFullYear() === currentYear && dateToUse.getMonth() + 1 === currentMonth;
       });
     }
@@ -2549,14 +2534,18 @@ async function handleCredentialResponse(response) {
     let filteredData = cachedData;
     if (selectedMonth && selectedYear) {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
+        // KOD BARU: Menyelaraskan tarikh tindakan sistem
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
+      });
+    } else if (selectedYear) {
+      filteredData = cachedData.filter(item => {
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getFullYear() === selectedYear;
+      });
+    }
         
         if (!dateToUse || isNaN(dateToUse)) return false;
         
@@ -2800,14 +2789,18 @@ async function handleCredentialResponse(response) {
     let filteredData = cachedData;
     if (selectedMonth && selectedYear) {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
+        // KOD BARU: Menyelaraskan tarikh tindakan sistem
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
+      });
+    } else if (selectedYear) {
+      filteredData = cachedData.filter(item => {
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getFullYear() === selectedYear;
+      });
+    }
         
         if (!dateToUse || isNaN(dateToUse)) return false;
         
@@ -3040,14 +3033,18 @@ async function handleCredentialResponse(response) {
     let filteredData = cachedData;
     if (selectedMonth && selectedYear) {
       filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
+        // KOD BARU: Menyelaraskan tarikh tindakan sistem
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
+      });
+    } else if (selectedYear) {
+      filteredData = cachedData.filter(item => {
+        let dateToUse = resolveRecordDate(item);
+        if (!dateToUse || isNaN(dateToUse)) return false;
+        return dateToUse.getFullYear() === selectedYear;
+      });
+    }
         
         if (!dateToUse || isNaN(dateToUse)) return false;
         
@@ -3181,19 +3178,19 @@ async function handleCredentialResponse(response) {
     
     if (period === 'yearly') {
       filteredData = cachedData.filter(item => {
-        let dateToUse = item.start_date ? new Date(item.start_date) : (item.tarikh_lulus ? new Date(item.tarikh_lulus) : (item.date_submit ? new Date(item.date_submit) : null));
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear;
       });
     } else if (period === 'daily') {
       filteredData = cachedData.filter(item => {
-        let dateToUse = item.start_date ? new Date(item.start_date) : (item.tarikh_lulus ? new Date(item.tarikh_lulus) : (item.date_submit ? new Date(item.date_submit) : null));
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear && dateToUse.getMonth() + 1 === currentMonth && dateToUse.getDate() === currentDay;
       });
     } else {
       filteredData = cachedData.filter(item => {
-        let dateToUse = item.start_date ? new Date(item.start_date) : (item.tarikh_lulus ? new Date(item.tarikh_lulus) : (item.date_submit ? new Date(item.date_submit) : null));
+        let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear && dateToUse.getMonth() + 1 === currentMonth;
       });
