@@ -2546,27 +2546,6 @@ async function handleCredentialResponse(response) {
         return dateToUse.getFullYear() === selectedYear;
       });
     }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
-        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
-      });
-    } else if (selectedYear) {
-      filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
-        return dateToUse.getFullYear() === selectedYear;
-      });
-    }
     
     const total = filteredData.length;
     const lulus = filteredData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS')).length;
@@ -2801,27 +2780,6 @@ async function handleCredentialResponse(response) {
         return dateToUse.getFullYear() === selectedYear;
       });
     }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
-        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
-      });
-    } else if (selectedYear) {
-      filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
-        return dateToUse.getFullYear() === selectedYear;
-      });
-    }
     
     const pengesyorStats = {};
     const pelulusStats = {};
@@ -3042,27 +3000,6 @@ async function handleCredentialResponse(response) {
       filteredData = cachedData.filter(item => {
         let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
-        return dateToUse.getFullYear() === selectedYear;
-      });
-    }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
-        return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
-      });
-    } else if (selectedYear) {
-      filteredData = cachedData.filter(item => {
-        let dateToUse = null;
-        if (item.start_date) {
-          dateToUse = new Date(item.start_date);
-        } else if (item.tarikh_lulus) {
-          dateToUse = new Date(item.tarikh_lulus);
-        } else if (item.date_submit) {
-          dateToUse = new Date(item.date_submit);
-        }
-        
-        if (!dateToUse || isNaN(dateToUse)) return false;
-        
         return dateToUse.getFullYear() === selectedYear;
       });
     }
