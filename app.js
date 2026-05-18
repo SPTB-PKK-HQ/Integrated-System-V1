@@ -3070,10 +3070,14 @@ async function handleCredentialResponse(response) {
       });
     }
     
+    // --- KIRAAN BARU SEPERTI YANG DIMINTA ---
     const total = filteredData.length;
     const lulus = filteredData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS')).length;
     const tolak = filteredData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
-    const proses = total - (lulus + tolak);
+    const selesai = lulus + tolak;
+    const proses = total - selesai;
+    
+    let tempohKini = selectedMonth ? 'bulan' : 'tahun';
     
     const jenisStats = {};
     filteredData.forEach(item => {
@@ -3115,11 +3119,12 @@ async function handleCredentialResponse(response) {
     csvContent += `Tarikh Jana,${new Date().toLocaleString('ms-MY')}\n`;
     csvContent += `Tempoh,${selectedMonth ? `Bulan ${selectedMonth} ` : ''}Tahun ${selectedYear}\n\n`;
     
+    // --- FORMAT DATA YANG DITETAPKAN ---
     csvContent += "RINGKASAN KESELURUHAN\n";
-    csvContent += `Jumlah,${total}\n`;
-    csvContent += `LULUS,${lulus}\n`;
-    csvContent += `TOLAK/SIASAT,${tolak}\n`;
-    csvContent += `DALAM PROSES,${proses}\n\n`;
+    csvContent += `Jumlah permohonan yang diproses pada ${tempohKini} tersebut,${total}\n`;
+    csvContent += `Jumlah permohonan yang diproses selesai sahaja pada ${tempohKini} tersebut,${selesai}\n`;
+    csvContent += `Jumlah permohonan yang diluluskan pada ${tempohKini} tersebut sahaja,${lulus}\n`;
+    csvContent += `Jumlah permohonan yang ditolak pada ${tempohKini} tersebut,${tolak}\n\n`;
     
     csvContent += "ANALISIS MENGIKUT JENIS PERMOHONAN\n";
     csvContent += "Jenis,Bilangan\n";
@@ -3204,30 +3209,43 @@ async function handleCredentialResponse(response) {
       }
       return false;
     });
+
+    // --- KIRAAN BARU SEPERTI YANG DIMINTA ---
+    const totalDiproses = userSpecificData.length;
+    let totalSelesai = 0;
+    let totalLulus = 0;
+    let totalTolak = 0;
+
+    if (currentUser.role === 'PENGESYOR') {
+        const selesaiData = userSpecificData.filter(item => item.syor_status === 'SOKONG' || item.syor_status === 'TIDAK DISOKONG');
+        totalSelesai = selesaiData.length;
+        totalLulus = selesaiData.filter(item => item.syor_status === 'SOKONG').length;
+        totalTolak = selesaiData.filter(item => item.syor_status === 'TIDAK DISOKONG').length;
+    } else {
+        const selesaiData = userSpecificData.filter(item => item.kelulusan && (item.kelulusan.includes('LULUS') || item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT')));
+        totalSelesai = selesaiData.length;
+        totalLulus = selesaiData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS')).length;
+        totalTolak = selesaiData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
+    }
+
+    let tempohKini = period === 'daily' ? 'hari' : (period === 'monthly' ? 'bulan' : 'tahun');
+    let strLulus = currentUser.role === 'PENGESYOR' ? 'disokong' : 'diluluskan';
     
     let csvContent = "DATA DASHBOARD INDIVIDU\n";
     csvContent += `Pengguna,${currentUser.name} (${currentUser.role})\n`;
     csvContent += `Tempoh,${period} ${currentYear}${period === 'daily' ? `-${currentMonth}-${currentDay}` : (period === 'monthly' ? `-${currentMonth}` : '')}\n`;
     csvContent += `Tarikh Jana,${new Date().toLocaleString('ms-MY')}\n\n`;
     
-    csvContent += "KUMPULAN: BELUM SYOR\n";
-    csvContent += "Nama Syarikat,No. CIDB,Jenis Permohonan,Tarikh Mohon,Nama Pengesyor,Status Syor,Nama Pelulus,Status Kelulusan\n";
-    const belumSyor = userSpecificData.filter(item => !item.tarikh_syor);
-    belumSyor.forEach(item => {
-      csvContent += `"${item.syarikat || '-'}",${item.cidb || '-'},${item.jenis || '-'},${item.start_date || '-'},${item.pengesyor || '-'},${item.syor_status || '-'},${item.pelulus || '-'},${item.kelulusan || '-'}\n`;
-    });
+    // --- FORMAT DATA YANG DITETAPKAN ---
+    csvContent += `Jumlah permohonan yang diproses pada ${tempohKini} tersebut,${totalDiproses}\n`;
+    csvContent += `Jumlah permohonan yang diproses selesai sahaja pada ${tempohKini} tersebut,${totalSelesai}\n`;
+    csvContent += `Jumlah permohonan yang ${strLulus} pada ${tempohKini} tersebut sahaja,${totalLulus}\n`;
+    csvContent += `Jumlah permohonan yang ditolak pada ${tempohKini} tersebut,${totalTolak}\n\n`;
     
-    csvContent += "\nKUMPULAN: TELAH SYOR (MENUNGGU KELULUSAN)\n";
+    csvContent += "SENARAI PERMOHONAN TERPERINCI\n";
     csvContent += "Nama Syarikat,No. CIDB,Jenis Permohonan,Tarikh Mohon,Nama Pengesyor,Status Syor,Nama Pelulus,Status Kelulusan\n";
-    const telahSyor = userSpecificData.filter(item => item.tarikh_syor && (!item.tarikh_lulus || item.tarikh_lulus === ''));
-    telahSyor.forEach(item => {
-      csvContent += `"${item.syarikat || '-'}",${item.cidb || '-'},${item.jenis || '-'},${item.start_date || '-'},${item.pengesyor || '-'},${item.syor_status || '-'},${item.pelulus || '-'},${item.kelulusan || '-'}\n`;
-    });
     
-    csvContent += "\nKUMPULAN: SELESAI (LULUS/TOLAK)\n";
-    csvContent += "Nama Syarikat,No. CIDB,Jenis Permohonan,Tarikh Mohon,Nama Pengesyor,Status Syor,Nama Pelulus,Status Kelulusan\n";
-    const selesai = userSpecificData.filter(item => item.tarikh_lulus && item.tarikh_lulus !== '');
-    selesai.forEach(item => {
+    userSpecificData.forEach(item => {
       csvContent += `"${item.syarikat || '-'}",${item.cidb || '-'},${item.jenis || '-'},${item.start_date || '-'},${item.pengesyor || '-'},${item.syor_status || '-'},${item.pelulus || '-'},${item.kelulusan || '-'}\n`;
     });
     
