@@ -2346,10 +2346,15 @@ async function handleCredentialResponse(response) {
     // BAHAGIAN 2: PAPARAN HARIAN
     // ==========================================
     } else if (period === 'daily') {
+      // Dapatkan nama hari dalam Bahasa Melayu
+      const hariDalamBM = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+      const dateObj = new Date(dashboardData.currentYear, dashboardData.currentMonth - 1, dashboardData.currentDay);
+      const namaHari = hariDalamBM[dateObj.getDay()];
+
       rowsHtml = `
         <tr>
           <td colspan="6" style="text-align:center;">
-            Paparan Harian: ${dashboardData.currentDay}/${dashboardData.currentMonth}/${dashboardData.currentYear}<br>
+            Paparan Harian: ${namaHari}, ${dashboardData.currentDay.toString().padStart(2, '0')}/${dashboardData.currentMonth.toString().padStart(2, '0')}/${dashboardData.currentYear}<br>
             Jumlah rekod: ${data.length}
           </td>
         </tr>
