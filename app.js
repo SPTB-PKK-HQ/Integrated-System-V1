@@ -8117,32 +8117,48 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (action === 'undo_syor') {
       payload = {
         action: 'updateRecord',
+        ...item, // Letakkan di atas supaya ia mudah ditindih oleh nilai baharu di bawah
         row: item.row,
         syor_status: '',
         tarikh_syor: '',
-        email: currentUser ? currentUser.email : '',
-        ...item
+        email: currentUser ? currentUser.email : ''
       };
-      payload.syor_status = '';
-      payload.tarikh_syor = '';
+      
+      // Buang parameter berkaitan pelulus untuk elak data pelulus terbatal atau berubah secara tidak sengaja
       delete payload.kelulusan;
       delete payload.tarikh_lulus;
+      delete payload.pelulus;
+      delete payload.alasan;
       
     } else if (action === 'undo_lulus') {
+      // 1. Buang catatan pelulus lama dari JSON supaya borang bersih semula
+      let updatedBorangJson = item.borang_json;
+      if (updatedBorangJson) {
+          try {
+              let parsed = JSON.parse(updatedBorangJson);
+              parsed.catatan_pelulus = ''; // Kosongkan catatan
+              updatedBorangJson = JSON.stringify(parsed);
+          } catch(e) {}
+      }
+
+      // 2. Susun objek dengan betul (...item mesti di atas supaya mudah ditindih)
       payload = {
         action: 'updateRecord',
+        ...item,
         row: item.row,
         kelulusan: '',
         alasan: '',
         tarikh_lulus: '',
         pelulus: '',
-        email: currentUser ? currentUser.email : '',
-        ...item
+        borang_json: updatedBorangJson,
+        email: currentUser ? currentUser.email : ''
       };
-      payload.kelulusan = '';
-      payload.alasan = '';
-      payload.tarikh_lulus = '';
-      payload.pelulus = '';
+      
+      // 3. Keselamatan UI: Kosongkan tab Keputusan jika rekod yang di-undo sedang aktif dibuka
+      if (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem && pelulusActiveItem.row === item.row) {
+          pelulusActiveItem = null;
+          storageWrapper.remove(['stb_pelulus_state']);
+      }
       
     } else {
       payload = {
