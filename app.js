@@ -11195,7 +11195,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   async function processPelulusPrint(item) {
       if (!item.borang_json) return;
+      
+      // KOD BARU: Simpan warna tema asal Pelulus sebelum ia diubah
+      const originalThemeColor = document.documentElement.style.getPropertyValue('--theme-color');
+      
       try {
+          // KOD BARU: Cari warna Pengesyor di dalam pangkalan data
+          let pengesyorColor = currentUser.color || '#2563eb';
+          if (item.pengesyor && typeof usersList !== 'undefined') {
+              const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
+              if (pengesyorObj && pengesyorObj.color) {
+                  pengesyorColor = pengesyorObj.color;
+              }
+          }
+          const userColorHex = getUserColorHex(pengesyorColor);
+          
           const parsedData = JSON.parse(item.borang_json);
           
           // --- 1. BACKUP: SIMPAN KEADAAN BORANG SEMASA ---
@@ -11282,7 +11296,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           
           if (hasUpdatedDrive) {
               await CustomAppModal.alert("Keputusan borang ini <b style='color:#2563eb;'>telah dikemaskini ke Drive sebelum ini</b>. Untuk mengelakkan pertindanan, anda hanya dibenarkan membuat cetakan biasa sahaja.", "Makluman", "info");
+              
+              // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
+              document.documentElement.style.setProperty('--theme-color', userColorHex);
               window.print();
+              document.documentElement.style.setProperty('--theme-color', originalThemeColor);
+              
               return;
           }
           
@@ -11294,7 +11313,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   "Ya, Kemaskini Drive"
               );
               if (!updateDrive) {
+                  // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
+                  document.documentElement.style.setProperty('--theme-color', userColorHex);
                   window.print();
+                  document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
               }
               proceedToDrive = true;
@@ -11306,7 +11328,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   "Ya, Teruskan"
               );
               if (!userConfirmed) {
+                  // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
+                  document.documentElement.style.setProperty('--theme-color', userColorHex);
                   window.print();
+                  document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
               }
               proceedToDrive = true;
@@ -11321,17 +11346,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               imgEls.forEach(el => { if(el) el.style.display = 'none'; });
               
               const printLayoutElement = document.getElementById('printLayout');
-              
-              // KOD BARU: Dapatkan warna Pengesyor asal untuk cetakan ini
-              let pengesyorColor = '#2563eb'; // Warna default (biru)
-              if (item.pengesyor && typeof usersList !== 'undefined') {
-                  const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
-                  if (pengesyorObj && pengesyorObj.color) {
-                      pengesyorColor = pengesyorObj.color;
-                  }
-              }
-              const userColorHex = getUserColorHex(pengesyorColor);
-              
               const pdfCss = generatePdfCssString(userColorHex);
               const printHTMLForDrive = `<style>${pdfCss}</style>${printLayoutElement.outerHTML}`;
               
@@ -11376,7 +11390,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   hideLoading();
                   await playSuccessSound();
                   await CustomAppModal.alert("Fail PDF berjaya dikemaskini di Drive! Pilihan untuk mengemaskini ke Drive bagi rekod ini telah ditutup.", "Berjaya Disimpan", "success");
+                  
+                  // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
+                  document.documentElement.style.setProperty('--theme-color', userColorHex);
                   window.print();
+                  document.documentElement.style.setProperty('--theme-color', originalThemeColor);
+                  
               } else {
                   hideLoading();
                   throw new Error(result.message);
