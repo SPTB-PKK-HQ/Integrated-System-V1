@@ -325,14 +325,8 @@ function handleCheckAuth(email) {
 // DIUBAH: Action 'checkAuth' kini menerima parameter 'email' dari frontend
 // =========================================================================
 function doGet(e) {
-  const lock = LockService.getScriptLock();
-  let locked = false;
-  
+  // doGet hanya membaca data, tidak memerlukan ScriptLock yang melambatkan sistem
   try {
-    // Tunggu sehingga 15 saat untuk mendapatkan kunci
-    lock.waitLock(15000);
-    locked = true;
-    
     const action = e.parameter ? e.parameter.action : "";
     const role = e.parameter ? e.parameter.role : "";
     const userName = e.parameter ? e.parameter.userName : "";
@@ -343,7 +337,7 @@ function doGet(e) {
       return handleCheckAuth(email);
     }
     
-    // V6.5.0: Handler untuk getQueueData - memerlukan pengesahan ADMIN
+    // V6.5.0: Handler untuk getQueueData
     if (action === "getQueueData") {
       if (!email) {
         return createJSONOutput({ status: "error", message: "Email diperlukan untuk akses queue data." });
@@ -360,7 +354,6 @@ function doGet(e) {
     }
     
     let result;
-
     if (action === "getUsers") {
       result = getUsersData();
     } else if (action === "getStats") {
@@ -372,28 +365,14 @@ function doGet(e) {
     }
     
     return result;
-
   } catch (error) {
-    // Jika timeout lock, kembalikan error 503
-    if (error.toString().includes('timed out')) {
-      return createJSONOutput({ 
-        status: "error", 
-        code: 503,
-        message: "Server sibuk, sila cuba sebentar lagi. (Lock timeout)" 
-      });
-    }
     return createJSONOutput({ 
       status: "error", 
       message: error.toString() 
     });
-
-  } finally {
-    if (locked) {
-      lock.releaseLock();
-    }
-  }
+  } 
+  // Blok finally lock.releaseLock() dibuang kerana lock tidak lagi digunakan di sini
 }
-
 /**
  * Fungsi doPost: Mengendalikan permintaan POST (Simpan Data / Cipta Folder / Padam Rekod / Cetak PDF / AI Processing / CheckAuth)
  * V6.5.0: Menambah pengesahan verifyUserAccess untuk semua tindakan kritikal
@@ -403,19 +382,23 @@ function doPost(e) {
   let locked = false;
   
   try {
-    // Tunggu sehingga 15 saat untuk mendapatkan kunci
-    lock.waitLock(15000);
-    locked = true;
+    // 1. Parse data terlebih dahulu untuk mengetahui jenis 'action'
+    const data = JSON.parse(e.postData.contents);
+    
+    // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf'];
+    
+    // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
+    if (!noLockActions.includes(data.action)) {
+      lock.waitLock(28000); // Naikkan masa menunggu ke 28 saat (Google limit 30s)
+      locked = true;
+    }
     
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName(SHEET_NAME);
-
     if (!sheet) {
       return createJSONOutput({ status: "error", message: "Sheet not found" });
     }
-    
-    const data = JSON.parse(e.postData.contents);
-
     // =====================================================================
     // V6.4.9: HANDLER UNTUK CHECK AUTH MELALUI POST
     // Frontend boleh menghantar { action: 'checkAuth', email: '...' }
@@ -530,17 +513,16 @@ function doPost(e) {
     }
     
   } catch (error) {
-    // Jika timeout lock, kembalikan error 503
-    if (error.toString().includes('timed out')) {
+    // Semak kedua-dua 'timeout' dan 'timed out'
+    if (error.toString().toLowerCase().includes('timeout') || error.toString().includes('timed out')) {
       return createJSONOutput({ 
         status: "error", 
         code: 503,
-        message: "Server sibuk, sila cuba sebentar lagi. (Lock timeout)" 
+        message: "Server sibuk memproses data lain, sila cuba sebentar lagi." 
       });
     }
     logActivity("System", 'ERROR', `Ralat: ${error.toString()}`, '');
     return createJSONOutput({ status: "error", message: error.toString() });
-
   } finally {
     if (locked) {
       lock.releaseLock();
