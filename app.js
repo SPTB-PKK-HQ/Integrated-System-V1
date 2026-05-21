@@ -11321,7 +11321,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               imgEls.forEach(el => { if(el) el.style.display = 'none'; });
               
               const printLayoutElement = document.getElementById('printLayout');
-              const userColorHex = getUserColorHex(currentUser.color);
+              
+              // KOD BARU: Dapatkan warna Pengesyor asal untuk cetakan ini
+              let pengesyorColor = '#2563eb'; // Warna default (biru)
+              if (item.pengesyor && typeof usersList !== 'undefined') {
+                  const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
+                  if (pengesyorObj && pengesyorObj.color) {
+                      pengesyorColor = pengesyorObj.color;
+                  }
+              }
+              const userColorHex = getUserColorHex(pengesyorColor);
+              
               const pdfCss = generatePdfCssString(userColorHex);
               const printHTMLForDrive = `<style>${pdfCss}</style>${printLayoutElement.outerHTML}`;
               
@@ -11443,8 +11453,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // --- 3. JANA REKAAN CETAKAN ---
           preparePrintView();
           
+          // KOD BARU: Dapatkan warna Pengesyor dan tukar warna tema cetakan sementara
+          let pengesyorColor = currentUser.color || '#2563eb';
+          if (item.pengesyor && typeof usersList !== 'undefined') {
+              const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
+              if (pengesyorObj && pengesyorObj.color) {
+                  pengesyorColor = pengesyorObj.color;
+              }
+          }
+          const userColorHex = getUserColorHex(pengesyorColor);
+          const originalThemeColor = document.documentElement.style.getPropertyValue('--theme-color');
+          document.documentElement.style.setProperty('--theme-color', userColorHex);
+          
           // --- 4. TERUS CETAK BIASA ---
           window.print();
+
+          // KOD BARU: Kembalikan warna tema asal Pelulus selepas cetak
+          document.documentElement.style.setProperty('--theme-color', originalThemeColor);
 
           // --- 5. RESTORE: KEMBALIKAN BORANG KEPADA KEADAAN ASAL SECARA SEMBUNYI ---
           setTimeout(() => {
@@ -11541,7 +11566,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           preparePrintView();
           
           const printLayoutElement = document.getElementById('printLayout');
-          const userColorHex = getUserColorHex(currentUser.color);
+          
+          // KOD BARU: Dapatkan warna Pengesyor asal untuk preview ini
+          let pengesyorColor = '#2563eb';
+          if (item.pengesyor && typeof usersList !== 'undefined') {
+              const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
+              if (pengesyorObj && pengesyorObj.color) {
+                  pengesyorColor = pengesyorObj.color;
+              }
+          }
+          const userColorHex = getUserColorHex(pengesyorColor);
+          
           const pdfCss = generatePdfCssString(userColorHex);
           const generatedHtml = printLayoutElement.outerHTML;
 
@@ -11625,7 +11660,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 
                 /* KAWALAN SAIZ & KEDUDUKAN COP / SIGN */
                 #print_pengesyor_sign, #print_pelulus_sign {
-                  bottom: 75px !important; /* Naikkan sign supaya berada di atas nama cop */
+                  bottom: 85px !important; /* Naikkan sign supaya berada di atas nama cop */
                   position: absolute !important;
                   height: 45px !important; /* Kecilkan saiz sign */
                   z-index: 2 !important; /* Pastikan sign berada di lapisan paling atas */
