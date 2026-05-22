@@ -6348,44 +6348,65 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   }
 
+  function saveFormState(tabName) {
+    if (isRestoring) return;
+
+    const tabContent = document.getElementById(`tab-${tabName}`);
+    if (!tabContent) return;
+
+    const state = {};
+    tabContent.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.id && !el.id.startsWith('login')) {
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          state[el.id] = el.checked;
+        } else if (el.type !== 'file') {
+          state[el.id] = el.value;
+        }
+      }
+    });
+
+    formStates[tabName] = state;
+    storageWrapper.set({ 'stb_form_states': formStates });
+  }
+
   function restoreFormState(tabName) {
     isRestoring = true;
 
     if (formStates[tabName]) {
-        const state = formStates[tabName];
-        const tabContent = document.getElementById(`tab-${tabName}`);
-        
-        if (tabContent) {
-            tabContent.querySelectorAll('input, select, textarea').forEach(el => {
-                if (el.id && state[el.id] !== undefined) {
-                    if (el.type === 'checkbox' || el.type === 'radio') {
-                        el.checked = state[el.id];
-                    } else {
-                        el.value = state[el.id];
-                    }
-                    
-                    if (el.type === 'radio' || el.classList.contains('.role-cb')) {
-                        el.dispatchEvent(new Event('change'));
-                    }
-                    
-                    // KOD BARU: Pastikan ruangan perubahan maklumat di Input Database sentiasa terbuka (jika ada isian)
-                    if (el.id === 'db_jenis') {
-                        el.dispatchEvent(new Event('change'));
-                    }
-                }
-            });
-        }
+      const state = formStates[tabName];
+      const tabContent = document.getElementById(`tab-${tabName}`);
+      
+      if (tabContent) {
+        tabContent.querySelectorAll('input, select, textarea').forEach(el => {
+          if (el.id && state[el.id] !== undefined) {
+            if (el.type === 'checkbox' || el.type === 'radio') {
+              el.checked = state[el.id];
+            } else {
+              el.value = state[el.id];
+            }
+            
+            if (el.type === 'radio' || el.classList.contains('.role-cb')) {
+              el.dispatchEvent(new Event('change'));
+            }
+            
+            // KOD BARU: Pastikan ruangan perubahan maklumat di Input Database sentiasa terbuka (jika ada isian)
+            if (el.id === 'db_jenis') {
+              el.dispatchEvent(new Event('change'));
+            }
+          }
+        });
+      }
     }
 
     const syorVal = document.getElementById('db_syor')?.value;
     if (syorVal === 'YA' && dbPautanInput) {
-        dbPautanInput.style.backgroundColor = '#fffbeb';
-        dbPautanInput.style.borderColor = '#f59e0b';
-        dbPautanInput.style.borderWidth = '2px';
+      dbPautanInput.style.backgroundColor = '#fffbeb';
+      dbPautanInput.style.borderColor = '#f59e0b';
+      dbPautanInput.style.borderWidth = '2px';
     }
 
     isRestoring = false;
-}
+  }
 
   document.addEventListener('focusin', saveActiveElement);
 
