@@ -10328,7 +10328,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           cidb: headers.findIndex(h => h.includes('cidb') || h.includes('reg') || h.includes('pendaftar')),
           district: headers.findIndex(h => h.includes('daerah') || h.includes('district') || h.includes('negeri') || h.includes('disctrict')),
           date: headers.findIndex(h => h.includes('tarikh') || h.includes('date') || h.includes('submitted')),
-          updateType: headers.findIndex(h => h.includes('update type') || h === 'update type' || h.includes('jenis perubahan'))
+          updateType: headers.findIndex(h => h.includes('update type') || h === 'update type' || h.includes('jenis perubahan')),
+          transactionCode: headers.findIndex(h => h.includes('transaction') || h.includes('trans code') || h.includes('kod transaksi'))
       };
 
       if (keys.company === -1 || keys.grade === -1 || keys.cidb === -1) {
@@ -10390,7 +10391,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               dateSubmitted: dateStr,
               rawSortDate: rawSortDate,
               // Jika tiada Update Type dalam Excel (contoh: fail 56), ia akan simpan sebagai '-'
-              updateType: keys.updateType !== -1 && row[keys.updateType] ? String(row[keys.updateType]).trim() : '-'
+              updateType: keys.updateType !== -1 && row[keys.updateType] ? String(row[keys.updateType]).trim() : '-',
+              transactionCode: keys.transactionCode !== -1 && row[keys.transactionCode] ? String(row[keys.transactionCode]).trim() : '-'
           };
       });
 
@@ -10491,17 +10493,50 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               for (let c of cachedData) {
                   // Mesti CIDB sama DAN Tarikh Mohon sama
                   if (c.cidb === item.cidb && c.start_date === normExcelDate) {
-                      if (c.tarikh_syor && c.tarikh_syor.trim() !== '') {
-                          isProcessed = true;
-                      } else {
-                          inDrafts = true;
+                      
+                      // KOD BARU: Pastikan Update Type dan Transaction Code juga sama (Jika ada)
+                      let isMatch = true;
+                      if (c.jenis === 'UBAH MAKLUMAT' || c.jenis === 'UBAH GRED') {
+                          const sheetInfo = (c.ubah_maklumat || c.ubah_gred || '').toLowerCase();
+                          const itemUpdate = (item.updateType || '-').toLowerCase();
+                          const itemTrans = (item.transactionCode || '-').toLowerCase();
+                          
+                          // 1. Semak Update Type biasa (Cth: Tukar Nama)
+                          if (itemUpdate !== '-' && !sheetInfo.includes(itemUpdate)) isMatch = false;
+                          
+                          // 2. Semak Transaction Code rahsia dari dalam memori (borang_json)
+                          let sheetTrans = '-';
+                          if (c.borang_json) {
+                              try {
+                                  const parsedJson = JSON.parse(c.borang_json);
+                                  sheetTrans = (parsedJson.borang_transaction_code || '-').toLowerCase();
+                              } catch(e) {}
+                          }
+                          
+                          // Jika borang di sheet memang ada Transaction Code, bandingkan.
+                          if (itemTrans !== '-' && sheetTrans !== '-' && itemTrans !== sheetTrans) {
+                              isMatch = false;
+                          }
                       }
-                      break;
+
+                      if (isMatch) {
+                          if (c.tarikh_syor && c.tarikh_syor.trim() !== '') {
+                              isProcessed = true;
+                          } else {
+                              inDrafts = true;
+                          }
+                          break;
+                      }
                   }
               }
           }
 
-          const inBasket = globalBakulData.some(b => b.cidb === item.cidb && normalizeDateToDBFormat(b.dateSubmitted) === normExcelDate);
+          const inBasket = globalBakulData.some(b => {
+              return b.cidb === item.cidb && 
+                     normalizeDateToDBFormat(b.dateSubmitted) === normExcelDate &&
+                     (b.updateType || '-') === (item.updateType || '-') &&
+                     (b.transactionCode || '-') === (item.transactionCode || '-');
+          });
 
           let statusBadge = '';
           let disableCheckbox = false;
@@ -10531,7 +10566,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               <td>${item.district}</td>
               <td style="font-weight:bold; color: #f59e0b;">${item.grade}</td>
               <td><span style="font-weight:600; color:#475569;">${item.dateSubmitted}</span></td>
-              <td><span style="background: rgba(255,255,255,0.7); color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">${item.updateType}</span></td>
+              <td>
+                <span style="background: rgba(255,255,255,0.7); color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">${item.updateType}</span>
+                ${item.transactionCode !== '-' ? `<span style="display: none;">${item.transactionCode}</span>` : ''}
+              </td>
               <td style="text-align:center;">${statusBadge}</td>
           </tr>
           `;
@@ -10584,6 +10622,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               const item = idMap.get(parseInt(cb.value));
               if(item) {
                   let typeToSave = selectedType;
+                  // Hanya paparkan Update Type (contoh: UBAH MAKLUMAT (Tukar Nama))
                   if (item.updateType && item.updateType !== '-') {
                       typeToSave = `${selectedType} (${item.updateType})`;
                   }
@@ -10601,6 +10640,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                       processorName: currentUser.name,
                       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                       addedToBasketAt: firebase.firestore.FieldValue.serverTimestamp(),
+                      updateType: item.updateType || '-',
+                      transactionCode: item.transactionCode || '-'
                   }));
               }
           });
@@ -10654,9 +10695,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                       for (let c of cachedData) {
                           // Jika CIDB dan Tarikh Mohon adalah sama
                           if (c.cidb === d.cidb && c.start_date === normBDate) {
-                              // Kita boleh anggap ia telah diproses jika ia berada di sistem (Drafts/Submitted)
-                              shouldDelete = true;
-                              break;
+                              // KOD BARU: Pastikan Update Type & Trans Code sama sebelum delete dari Bakul
+                              let isMatch = true;
+                              if (c.jenis === 'UBAH MAKLUMAT' || c.jenis === 'UBAH GRED') {
+                                  const sheetInfo = (c.ubah_maklumat || c.ubah_gred || '').toLowerCase();
+                                  const dUpdate = (d.updateType || '-').toLowerCase();
+                                  const dTrans = (d.transactionCode || '-').toLowerCase();
+                                  
+                                  if (dUpdate !== '-' && !sheetInfo.includes(dUpdate)) isMatch = false;
+                                  if (dTrans !== '-' && !sheetInfo.includes(dTrans)) isMatch = false;
+                              }
+
+                              if (isMatch) {
+                                  shouldDelete = true;
+                                  break;
+                              }
                           }
                       }
                   }
@@ -10712,7 +10765,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                                       data-cidb="${d.cidb || ''}" 
                                       data-grade="${d.grade || ''}" 
                                       data-type="${(d.type || '').replace(/"/g, '&quot;')}"
-                                      data-date="${d.dateSubmitted || ''}">Proses</button>
+                                      data-date="${d.dateSubmitted || ''}"
+                                      data-trans="${d.transactionCode || '-'}">Proses</button>
                                   <button class="btn btn-delete btn-padam-bakul" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: #ef4444;" data-id="${d.id}">Padam</button>
                               </div>
                           </td>
@@ -10766,6 +10820,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               const grade = prosesBtn.getAttribute('data-grade');
               const type = prosesBtn.getAttribute('data-type');
               const dateSubmitted = prosesBtn.getAttribute('data-date');
+              const transCode = prosesBtn.getAttribute('data-trans'); // KOD BARU
+
+              // KOD BARU: Tanam Transaction Code secara rahsia ke dalam borang
+              let hiddenTransInput = document.getElementById('borang_transaction_code');
+              if (!hiddenTransInput) {
+                  hiddenTransInput = document.createElement('input');
+                  hiddenTransInput.type = 'hidden';
+                  hiddenTransInput.id = 'borang_transaction_code';
+                  document.getElementById('tab-checker').appendChild(hiddenTransInput);
+              }
+              hiddenTransInput.value = transCode;
 
               const hasUnsaved = checkUnsavedData();
               if (hasUnsaved) {
