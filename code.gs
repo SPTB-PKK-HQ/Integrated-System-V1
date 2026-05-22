@@ -1527,12 +1527,17 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
     } else {
       targetRow = parseInt(targetRow);
     }
-    
+
     let folderUrl = "";
     let folderId = "";
-
     if (shouldCreateFolder && data.syarikat && data.start_date && data.jenis && data.pengesyor) {
-      const folderResult = createUserFolderStructure(data.syarikat, data.start_date, data.jenis, data.pengesyor);
+      
+      // KOD BARU: Selitkan jenis perubahan jika ada
+      let fullJenis = data.jenis;
+      if (data.jenis === 'UBAH MAKLUMAT' && data.ubah_maklumat) fullJenis += ` (${data.ubah_maklumat})`;
+      else if (data.jenis === 'UBAH GRED' && data.ubah_gred) fullJenis += ` (${data.ubah_gred})`;
+
+      const folderResult = createUserFolderStructure(data.syarikat, data.start_date, fullJenis, data.pengesyor);
       if (folderResult.success) {
         folderUrl = folderResult.folderUrl;
         folderId = folderResult.folderId;

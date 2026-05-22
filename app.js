@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4xFEE6CzdDsVY_45JKG0dqQWYdF-dnemd9FSHG0Q6McQAHhB0OYHCp6XwfcY2K7Oq/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzvFuqaSmFKd5a_kP7vLPp8y1ITKWbM23koX3ucjgicCaPcukZygjFye_mlGmKRB8GP/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -7136,7 +7136,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     const companyFolderName = syarikat.toUpperCase();
-    const subfolderName = `${jenisPermohonan.toUpperCase()} - ${formattedDate}`;
+    
+    // KOD BARU: Selitkan jenis perubahan jika UBAH MAKLUMAT atau UBAH GRED
+    let specificType = '';
+    const dbPerubahanInputVal = document.getElementById('db_perubahan_input')?.value || '';
+    if ((jenisPermohonan === 'UBAH MAKLUMAT' || jenisPermohonan === 'UBAH GRED') && dbPerubahanInputVal) {
+        specificType = ` (${dbPerubahanInputVal.toUpperCase()})`;
+    }
+    const subfolderName = `${jenisPermohonan.toUpperCase()}${specificType} - ${formattedDate}`;
 
     const payload = {
       action: 'createDriveFolder',
@@ -11351,11 +11358,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               
               imgEls.forEach((el, idx) => { if(el) el.style.display = originalDisplays[idx]; });
               
+              // KOD BARU: Tentukan jenis perubahan yang tepat
+              let specificType = '';
+              if (item.jenis === 'UBAH MAKLUMAT' && item.ubah_maklumat) specificType = ` (${item.ubah_maklumat})`;
+              else if (item.jenis === 'UBAH GRED' && item.ubah_gred) specificType = ` (${item.ubah_gred})`;
+
               const payload = {
                   action: 'cetak_dan_simpan_pdf',
                   company_name: item.syarikat,
                   custom_file_name: `Borang Semakan Keputusan-${item.tarikh_lulus || ''}`,
-                  application_type: `${item.jenis} - ${formatDateDisplay(item.start_date)}`.replace(/\//g, '-'),
+                  application_type: `${item.jenis}${specificType} - ${formatDateDisplay(item.start_date)}`.replace(/\//g, '-'),
                   month_year: `${new Date().toLocaleString('ms-MY', { month: 'long' }).toUpperCase()} ${new Date().getFullYear()}`,
                   user_name: item.pengesyor || currentUser.name,
                   user_color: userColorHex,
