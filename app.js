@@ -6348,59 +6348,44 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   }
 
-  function saveFormState(tabName) {
-    if (isRestoring) return;
-
-    const tabContent = document.getElementById(`tab-${tabName}`);
-    if (!tabContent) return;
-
-    const state = {};
-    tabContent.querySelectorAll('input, select, textarea').forEach(el => {
-      if (el.id && !el.id.startsWith('login')) {
-        if (el.type === 'checkbox' || el.type === 'radio') {
-          state[el.id] = el.checked;
-        } else if (el.type !== 'file') { // <-- TAMBAH SYARAT INI
-          state[el.id] = el.value;
-        }
-      }
-    });
-
-    formStates[tabName] = state;
-    storageWrapper.set({ 'stb_form_states': formStates });
-  }
-
   function restoreFormState(tabName) {
     isRestoring = true;
 
     if (formStates[tabName]) {
-      const state = formStates[tabName];
-      const tabContent = document.getElementById(`tab-${tabName}`);
-      if (tabContent) {
-        tabContent.querySelectorAll('input, select, textarea').forEach(el => {
-          if (el.id && state[el.id] !== undefined) {
-            if (el.type === 'checkbox' || el.type === 'radio') {
-              el.checked = state[el.id];
-            } else {
-              el.value = state[el.id];
-            }
-            
-            if (el.type === 'radio' || el.classList.contains('.role-cb')) {
-              el.dispatchEvent(new Event('change'));
-            }
-          }
-        });
-      }
+        const state = formStates[tabName];
+        const tabContent = document.getElementById(`tab-${tabName}`);
+        
+        if (tabContent) {
+            tabContent.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.id && state[el.id] !== undefined) {
+                    if (el.type === 'checkbox' || el.type === 'radio') {
+                        el.checked = state[el.id];
+                    } else {
+                        el.value = state[el.id];
+                    }
+                    
+                    if (el.type === 'radio' || el.classList.contains('.role-cb')) {
+                        el.dispatchEvent(new Event('change'));
+                    }
+                    
+                    // KOD BARU: Pastikan ruangan perubahan maklumat di Input Database sentiasa terbuka (jika ada isian)
+                    if (el.id === 'db_jenis') {
+                        el.dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+        }
     }
 
     const syorVal = document.getElementById('db_syor')?.value;
     if (syorVal === 'YA' && dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '#fffbeb';
-      dbPautanInput.style.borderColor = '#f59e0b';
-      dbPautanInput.style.borderWidth = '2px';
+        dbPautanInput.style.backgroundColor = '#fffbeb';
+        dbPautanInput.style.borderColor = '#f59e0b';
+        dbPautanInput.style.borderWidth = '2px';
     }
 
     isRestoring = false;
-  }
+}
 
   document.addEventListener('focusin', saveActiveElement);
 
@@ -7483,17 +7468,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if(selectedType === 'pembaharuan') dbVal = "PEMBAHARUAN";
         if(selectedType === 'ubah_maklumat') dbVal = "UBAH MAKLUMAT";
         if(selectedType === 'ubah_gred') dbVal = "UBAH GRED";
-        if(dbVal && dropdown) dropdown.value = dbVal;
         
-        const dbPerubahanInput = document.getElementById('db_perubahan_input');
-        if (dbPerubahanInput) {
-          if (selectedType === 'ubah_maklumat') {
-            const ubahMaklumatValue = document.getElementById('input_ubah_maklumat')?.value || '';
-            dbPerubahanInput.value = ubahMaklumatValue;
-          } else if (selectedType === 'ubah_gred') {
-            const ubahGredValue = document.getElementById('input_ubah_gred')?.value || '';
-            dbPerubahanInput.value = ubahGredValue;
-          }
+        if(dbVal && dropdown) {
+            dropdown.value = dbVal;
+            // KOD BARU: Tembak event 'change' supaya kotak perubahan dibuka automatik
+            dropdown.dispatchEvent(new Event('change')); 
         }
       }
 
