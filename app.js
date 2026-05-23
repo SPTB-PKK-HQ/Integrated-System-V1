@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPTMHyc_8__6MCAyeApTJ95SqDcBE-MzM9pgkgHsc7Z_qE_1rStZGZSu5Ii8H7aCUY/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymS7VrgThTKq9r1BHnkYTcDxvnAR1lrJdcow5gvJqI56bem7HT3G9H2QbaLSa259Em/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -3497,14 +3497,17 @@ async function handleCredentialResponse(response) {
       let fullText = '';
       const totalPages = pdf.numPages;
 
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
+      const maxPagesToRead = Math.min(totalPages, 4); 
+
+      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
         fullText += pageText + '\n';
         
-        const progress = 10 + Math.round((pageNum / totalPages) * 30); // 10% ke 40%
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${totalPages}`);
+        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
+        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
       }
 
       console.log("V6.5.2 PDF Extracted. Length:", fullText.length);
@@ -4242,14 +4245,17 @@ async function handleCredentialResponse(response) {
       let fullText = '';
       const totalPages = pdf.numPages;
 
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
+      const maxPagesToRead = Math.min(totalPages, 4); 
+
+      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
         fullText += pageText + '\n';
         
-        const progress = 10 + Math.round((pageNum / totalPages) * 30);
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${totalPages}`);
+        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
+        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
       }
 
       console.log("V6.5.2 Profile PDF extracted. Length:", fullText.length);
