@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyDf1cXxusMIlMXj4IzT0r9Fku2LWYZ2Af77oC48OQYl6x4Yk89Nno7xjn4mLs4J0II/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyC3GkwOEvt8ZhWqz3VNkBdDkK0A3IGKQmPE_lg8LIqGOETtx9sIHU7jAN5nDF19j4N/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -3562,11 +3562,15 @@ async function handleCredentialResponse(response) {
 
     console.log("V6.5.2 (Web) Menghantar teks borang ke backend untuk AI processing...");
     
+    // Dapatkan nilai dari dropdown model AI
+    const selectedModel = document.getElementById('aiModelSelect') ? document.getElementById('aiModelSelect').value : 'auto';
+    
     const payload = {
       action: 'processAI',
       type: 'borang',
       text: truncatedText,
-      email: currentUser ? currentUser.email : '' // <-- TAMBAH INI
+      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
+      email: currentUser ? currentUser.email : '' 
     };
 
     const response = await fetchWithRetry(SCRIPT_URL, {
@@ -4305,11 +4309,15 @@ async function handleCredentialResponse(response) {
 
     console.log("V6.5.2 (Web) Menghantar teks profil ke backend untuk AI processing...");
     
+    // Dapatkan nilai dari dropdown model AI profil
+    const selectedModel = document.getElementById('aiProfileModelSelect') ? document.getElementById('aiProfileModelSelect').value : 'auto';
+    
     const payload = {
       action: 'processAI',
       type: 'profile',
       text: truncatedText,
-      email: currentUser ? currentUser.email : '' // <-- TAMBAH INI
+      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
+      email: currentUser ? currentUser.email : '' 
     };
 
     const response = await fetchWithRetry(SCRIPT_URL, {
