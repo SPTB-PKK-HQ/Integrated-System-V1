@@ -15,7 +15,7 @@ const ADDITIONAL_AUTHORIZED_DOMAINS = ["kuskop.gov.my"]; // Boleh tambah domain 
 // V6.5.0: API KEYS - DISIMPAN DI BACKEND UNTUK KESELAMATAN
 // =========================================================================
 const DEEPSEEK_API_KEY = "sk-afac9888701c4678a58dfef2d49feb7d";
-const GEMINI_API_KEY = "AIzaSyDuwh_qFiE-WeQnJiB1VCXj5mpf7fi96K0";
+const GEMINI_API_KEY = "AQ.Ab8RN6JNl75N7MzkKPoTsmkxnqPNiE6oS2UmVT4wod12ctkfMw";
 const OPENROUTER_API_KEY = "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";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
