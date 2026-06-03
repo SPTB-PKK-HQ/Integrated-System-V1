@@ -5643,7 +5643,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
                 
                 // Masukkan Maklumat Tarikh & Catatan Pelulus
-                const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : new Date().toISOString().split('T')[0];
+                const nowDate = new Date();
+                const localTLulus = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0') + '-' + String(nowDate.getDate()).padStart(2, '0');
+                const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : localTLulus;
                 
                 let catatan = '';
                 if (pelulusActiveItem && pelulusActiveItem.borang_json) {
@@ -9203,12 +9205,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       // =====================================================================
       // KOD BARU: KAWALAN TARIKH MASUK SHEET (TERMASUK REKOD SEDIA ADA)
       // =====================================================================
+      // Dapatkan tarikh tempatan (Local Date)
+      const now = new Date();
+      const localToday = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
       if (!targetRow) {
          // 1. Jika ini rekod BAHARU sepenuhnya: Gunakan tarikh hari ini
-         borangJsonData['tarikh_masuk_sheet'] = new Date().toISOString().split('T')[0];
+         borangJsonData['tarikh_masuk_sheet'] = localToday;
       } else {
          // 2. Jika ini rekod SEDIA ADA (Sedang di-edit):
-         let existingDate = new Date().toISOString().split('T')[0]; // Default hari ini
+         let existingDate = localToday; // Default hari ini
          
          if (cachedData && cachedData.length > 0) {
             const oldItem = cachedData.find(item => item.row == targetRow);
@@ -9267,7 +9273,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       if (isConfirmed) {
         payload.syor_status = document.getElementById('db_syor_status')?.value || 'SOKONG';
-        payload.tarikh_syor = new Date().toISOString().split('T')[0];
+        payload.tarikh_syor = localToday;
       } else {
         payload.syor_status = '';
         payload.tarikh_syor = '';
@@ -9478,11 +9484,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       borangJsonData.catatan_pelulus = catatanPelulus;
       const newBorangJson = JSON.stringify(borangJsonData);
 
+      const nowLulus = new Date();
+      const tarikhLulusLocal = nowLulus.getFullYear() + '-' + String(nowLulus.getMonth() + 1).padStart(2, '0') + '-' + String(nowLulus.getDate()).padStart(2, '0');
+
       const payload = {
         row: pelulusActiveItem.row || '',
         kelulusan: keputusan,
         alasan: document.getElementById('pelulus_alasan')?.value || '',
-        tarikh_lulus: new Date().toISOString().split('T')[0],
+        tarikh_lulus: tarikhLulusLocal,
         pelulus: currentUser.name || '',
         syor_lawatan_baru: tukarSyor,
         justifikasi_baru: justifikasiPelulus,
@@ -9872,7 +9881,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const val = e.target.value;
       // Jika pilih SOKONG atau TIDAK DISOKONG sahaja
       if (val === 'SOKONG' || val === 'TIDAK DISOKONG') {
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         borangTarikhProses.value = today;
       } else {
         // Jika pilih SIASAT atau kosong, kosongkan tarikh proses
