@@ -8318,7 +8318,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             deleteOrClearRecord(item, 'padam_semua');
         };
         btnContainer.appendChild(btnDelete);
-      }
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
         btn.className = 'btn-sm btn-view';
