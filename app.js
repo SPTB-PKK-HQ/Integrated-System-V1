@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIf9AoMBrL6Q6CL5OeNhtGgfMlWlXr6dsbvfYFWWSX8_pB9xuII22afBV40INiHHh/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxzCW4UTH9LytuKwm9Yi_ESpbbdsGi3iFzospSZrJJWLVbwnbGgms2Hm0OPNM-UMiGh/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -8294,6 +8294,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       btnContainer.style.flexShrink = '0';
 
       if (type === 'drafts') {
+        // --- BUTANG LIHAT BARU DITAMBAH ---
+        if (item.borang_json && item.borang_json.trim() !== '') {
+            const btnView = document.createElement('button');
+            btnView.className = 'btn-sm';
+            btnView.style.backgroundColor = '#8b5cf6'; // Warna Ungu
+            btnView.innerText = 'Lihat';
+            btnView.onclick = function() { processLihatBorangPreview(item); }; 
+            btnContainer.appendChild(btnView);
+        }
+
         const btnEdit = document.createElement('button');
         btnEdit.className = 'btn-sm btn-edit';
         btnEdit.innerText = 'Edit';
@@ -8305,10 +8315,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnDelete.innerText = 'Padam';
         btnDelete.style.backgroundColor = '#ef4444';
         btnDelete.onclick = function() { 
-            // Serahkan sepenuhnya kepada fungsi deleteOrClearRecord untuk memaparkan Modal
             deleteOrClearRecord(item, 'padam_semua');
         };
         btnContainer.appendChild(btnDelete);
+      }
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
         btn.className = 'btn-sm btn-view';
@@ -8451,11 +8461,27 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         sptbDateInfo = `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;">📋 Date Submit to SPTB: ${sptbDate}</div>`;
       }
 
+      // --- KOD DUE DATE BARU DITAMBAH ---
+      let dueDateInfo = '';
+      if (item.due_date && type === 'drafts') {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const due = new Date(item.due_date);
+        due.setHours(0,0,0,0);
+        
+        const isOverdue = due < today;
+        const color = isOverdue ? '#dc2626' : '#16a34a'; // Merah jika terlepas tarikh, Hijau jika belum
+        const bgColor = isOverdue ? '#fee2e2' : '#dcfce7'; 
+        const icon = isOverdue ? '⚠️' : '⏳';
+        
+        dueDateInfo = `<div style="font-size:0.75rem; color:${color}; background-color:${bgColor}; font-weight:bold; margin-top:6px; margin-bottom:2px; padding: 4px 8px; border-radius: 6px; border: 1px solid ${color}; display: inline-block;">${icon} DUE DATE: ${formatDateDisplay(item.due_date)}</div><br>`;
+      }
+
       div.innerHTML = `
         <div class="app-info" style="flex: 1; padding-right: 15px; overflow: hidden;">
           <div class="app-title" style="font-weight:bold; font-size:1.1rem; word-break: break-word; white-space: normal;">${item.syarikat || '-'}</div>
           <div class="app-sub">${item.cidb || '-'} | ${item.gred || '-'} | ${jenisBadge}</div>
-          ${dateInfo}
+          ${dueDateInfo} ${dateInfo}
           ${spiDateInfo}
           ${sptbDateInfo}
           ${extraInfo}
@@ -8561,6 +8587,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
       }
     }
+    
+    // --- KOD BARU: Masukkan Nilai Due Date ke Borang ---
+    const dbDueDate = document.getElementById('db_due_date');
+    if (dbDueDate) {
+        dbDueDate.value = item.due_date || '';
+    }
 
     const tarikhSyorInput = document.getElementById('db_tarikh_syor');
     if (tarikhSyorInput && item.tarikh_syor) {
@@ -8580,7 +8612,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const dateMap = {
       'db_tarikh_surat': item.tarikh_surat_terdahulu, 
-      'db_submit_date': item.date_submit
+      'db_submit_date': item.date_submit,
+      'db_due_date': item.due_date // <-- Tambah parameter untuk load due date
     };
 
     for(let id in dateMap) { 
@@ -9150,6 +9183,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           jenisKonsultansiParts.push(`${namaLabel[type]}, ${formattedDate}`);
         }
       });
+      
+      // --- KOD BARU: Cantumkan Due Date bersama Jenis Konsultansi ---
+      const dueDateVal = document.getElementById('db_due_date')?.value;
+      if (dueDateVal) {
+          jenisKonsultansiParts.push(`Due Date: ${formatDateDisplay(dueDateVal)}`);
+      }
+      
       const jenisKonsultansiString = jenisKonsultansiParts.join(' - ');
       
       const dbJenisValue = document.getElementById('db_jenis')?.value || '';
@@ -9264,6 +9304,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         lawatan_syor: lawatanSyor,
         alamat_perniagaan: document.getElementById('db_alamat_perniagaan')?.value || '',
         jenis_konsultansi: jenisKonsultansiString,
+        due_date: document.getElementById('db_due_date')?.value || '', // <-- Tambah due_date ke payload
         hantar_emel_spi: confirmHantarEmel,
         ubah_maklumat: ubahMaklumatVal,
         ubah_gred: ubahGredVal,

@@ -248,11 +248,15 @@
                 <label>Negeri Alamat Operasi</label><select id="db_negeri"><option value="">Pilih Negeri</option><option value="JOHOR">JOHOR</option><option value="KEDAH">KEDAH</option><option value="KELANTAN">KELANTAN</option><option value="MELAKA">MELAKA</option><option value="NEGERI SEMBILAN">NEGERI SEMBILAN</option><option value="PAHANG">PAHANG</option><option value="PERAK">PERAK</option><option value="PERLIS">PERLIS</option><option value="PULAU PINANG">PULAU PINANG</option><option value="SABAH">SABAH</option><option value="SARAWAK">SARAWAK</option><option value="SELANGOR">SELANGOR</option><option value="TERENGGANU">TERENGGANU</option><option value="W.P. KUALA LUMPUR">W.P. KUALA LUMPUR</option><option value="W.P. LABUAN">W.P. LABUAN</option><option value="W.P. PUTRAJAYA">W.P. PUTRAJAYA</option></select>
                 <div class="grid-equal"><div><label>Tarikh Surat</label><input type="date" id="db_tarikh_surat"></div><div><label>Start Date</label><input type="date" id="db_start_date"></div></div>
                 <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">
-                    <label style="font-weight:800; color:#1e40af;">📞 Jenis Konsultansi (Kolum V)</label>
+                    <label style="font-weight:800; color:#1e40af;">📞 Jenis Konsultansi & Due Date (Kolum V)</label>
                     <div style="display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap;">
                         <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_emel" class="konsultansi-checkbox">Emel</label><input type="date" id="date_konsultansi_emel" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
                         <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_whatsapp" class="konsultansi-checkbox">WhatsApp</label><input type="date" id="date_konsultansi_whatsapp" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
                         <div><label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="cb_konsultansi_call" class="konsultansi-checkbox">Panggilan Telefon</label><input type="date" id="date_konsultansi_call" class="konsultansi-date" style="margin-top:5px; display:none;"></div>
+                    </div>
+                    <div style="margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+                        <label style="font-weight:bold; color:#ef4444;">⏳ Tarikh Due Date (SLA)</label>
+                        <input type="date" id="db_due_date" style="border-color: #ef4444; border-width: 2px;">
                     </div>
                 </div>
                 <div style="margin-top:15px; margin-bottom:15px;"><button type="button" id="btnToggleAlamat" class="btn btn-white" style="width:100%; text-align:left; padding:10px;">🏢 Papar/Sembunyi Alamat Perniagaan</button><textarea id="db_alamat_perniagaan" style="display:none; margin-top:10px; min-height:80px;" placeholder="Masukkan Alamat Perniagaan Syarikat..."></textarea></div>
