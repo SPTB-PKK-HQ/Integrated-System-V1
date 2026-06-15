@@ -644,7 +644,7 @@ async function handleCredentialResponse(response) {
 
   // --- Helper function to get user color in HEX ---
   function getUserColorHex(colorName) {
-    if (!colorName) return '#6366f1';
+    if (!colorName) return '#2563eb';
     
     const colorUpper = colorName.toUpperCase();
     if (colorUpper.includes('OREN')) return '#ea580c';
@@ -654,7 +654,7 @@ async function handleCredentialResponse(response) {
     if (colorUpper.includes('PINK')) return '#ec4899';
     if (colorUpper.startsWith('#')) return colorName;
     
-    return '#6366f1';
+    return '#2563eb';
   }
 
   // --- FUNGSI BANTUAN DESTROY CHART ---
@@ -1704,7 +1704,7 @@ async function handleCredentialResponse(response) {
         labels: labels,
         datasets: [{
           data: values,
-          backgroundColor: ['#818cf8', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'],
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'],
           borderWidth: 3,
           borderColor: '#ffffff',
           hoverOffset: 15,          
@@ -1816,7 +1816,7 @@ async function handleCredentialResponse(response) {
         datasets: [{
           label: 'Jumlah Konsultansi',
           data: values,
-          backgroundColor: ['#818cf8', '#10b981', '#f59e0b'],
+          backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
           borderRadius: 8,          
           borderSkipped: false,
           maxBarThickness: 50
@@ -2089,7 +2089,7 @@ async function handleCredentialResponse(response) {
     
     let badgesHtml = '';
     const colors = {
-      'BARU': '#818cf8',
+      'BARU': '#3b82f6',
       'PEMBAHARUAN': '#10b981',
       'UBAH MAKLUMAT': '#f59e0b',
       'UBAH GRED': '#8b5cf6'
@@ -2274,7 +2274,7 @@ async function handleCredentialResponse(response) {
     
     let reasonCardsHtml = '';
     const totalRejected = rejectedData.length;
-    const reasonColors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#818cf8'];
+    const reasonColors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4'];
     
     let colorIndex = 0;
     for (const [reason, count] of Object.entries(reasonCounts)) {
@@ -2686,7 +2686,7 @@ async function handleCredentialResponse(response) {
     if (!adminJenisTbody) return;
     
     let html = '';
-    const jenisColors = ['#818cf8', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
+    const jenisColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
     let colorIndex = 0;
     
     for (const [jenis, count] of Object.entries(jenisStats)) {
@@ -2792,7 +2792,7 @@ async function handleCredentialResponse(response) {
     const totalRejected = rejectedData.length;
     
     let html = '<table style="width:100%; border-collapse:collapse;">';
-    html += '<thead><tr style="background:#4338ca; color:white;"><th>Alasan Penolakan</th><th>Bilangan</th><th>Peratusan</th></tr></thead><tbody>';
+    html += '<thead><tr style="background:#1e40af; color:white;"><th>Alasan Penolakan</th><th>Bilangan</th><th>Peratusan</th></tr></thead><tbody>';
     
     sortedReasons.forEach(([alasan, count]) => {
       const percentage = Math.round((count / totalRejected) * 100);
@@ -2927,7 +2927,7 @@ async function handleCredentialResponse(response) {
     });
     
     let jenisHtml = '';
-    const jenisColors = ['#818cf8', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
+    const jenisColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
     let colorIndex = 0;
     for (const [jenis, count] of Object.entries(jenisStats)) {
       if (count > 0) {
@@ -2967,11 +2967,11 @@ async function handleCredentialResponse(response) {
     
     adminStatsPrintContent.innerHTML = `
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #4338ca; text-align: center;">RINGKASAN KESELURUHAN</h3>
+        <h3 style="color: #1e40af; text-align: center;">RINGKASAN KESELURUHAN</h3>
         <div style="text-align: center; margin-bottom: 10px; font-weight: bold; color: #64748b;">${filterInfo}</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;">
-          <div style="background: #f5f3ff; padding: 15px; border-radius: 8px; text-align: center; border-left: 5px solid #6366f1;">
-            <div style="font-size: 24px; font-weight: bold; color: #6366f1;">${totalT}</div>
+          <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; text-align: center; border-left: 5px solid #2563eb;">
+            <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${totalT}</div>
             <div style="font-size: 12px; color: #64748b;">JUMLAH</div>
           </div>
           <div style="background: #dcfce7; padding: 15px; border-radius: 8px; text-align: center; border-left: 5px solid #22c55e;">
@@ -2990,7 +2990,7 @@ async function handleCredentialResponse(response) {
       </div>
       
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #4338ca;">STATISTIK JENIS PERMOHONAN</h3>
+        <h3 style="color: #1e40af;">STATISTIK JENIS PERMOHONAN</h3>
         <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
           ${jenisHtml || '<div style="padding: 10px; text-align: center;">Tiada data</div>'}
         </div>
@@ -2998,7 +2998,7 @@ async function handleCredentialResponse(response) {
       
       ${rejectionHtml ? `
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #4338ca;">ANALISIS PENOLAKAN</h3>
+        <h3 style="color: #1e40af;">ANALISIS PENOLAKAN</h3>
         <div style="border: 1px solid #fee2e2; border-radius: 8px; background: #fef2f2; padding: 10px;">
           ${rejectionHtml}
         </div>
@@ -3006,15 +3006,15 @@ async function handleCredentialResponse(response) {
       ` : ''}
       
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #4338ca;">STATISTIK MENGIKUT PENGESYOR</h3>
+        <h3 style="color: #1e40af;">STATISTIK MENGIKUT PENGESYOR</h3>
         <table style="width: 100%; border-collapse: collapse;">
           <thead>
-            <tr style="background: #4338ca; color: white;">
-              <th style="padding: 8px; border: 1px solid #818cf8;">Pengesyor</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">Jumlah</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">SOKONG</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">TIDAK DISOKONG</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">Kadar Sokongan</th>
+            <tr style="background: #1e40af; color: white;">
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Pengesyor</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Jumlah</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">SOKONG</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">TIDAK DISOKONG</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Kadar Sokongan</th>
             </tr>
           </thead>
           <tbody>
@@ -3024,15 +3024,15 @@ async function handleCredentialResponse(response) {
       </div>
       
       <div>
-        <h3 style="color: #4338ca;">STATISTIK MENGIKUT PELULUS</h3>
+        <h3 style="color: #1e40af;">STATISTIK MENGIKUT PELULUS</h3>
         <table style="width: 100%; border-collapse: collapse;">
           <thead>
-            <tr style="background: #4338ca; color: white;">
-              <th style="padding: 8px; border: 1px solid #818cf8;">Pelulus</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">Jumlah</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">LULUS</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">TOLAK</th>
-              <th style="padding: 8px; border: 1px solid #818cf8;">Kadar Kelulusan</th>
+            <tr style="background: #1e40af; color: white;">
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Pelulus</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Jumlah</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">LULUS</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">TOLAK</th>
+              <th style="padding: 8px; border: 1px solid #3b82f6;">Kadar Kelulusan</th>
             </tr>
           </thead>
           <tbody>
@@ -3403,7 +3403,7 @@ async function handleCredentialResponse(response) {
     if (pdfFileName) {
       pdfFileName.textContent = fileName;
       pdfFileName.style.fontWeight = 'bold';
-      pdfFileName.style.color = '#818cf8';
+      pdfFileName.style.color = '#3b82f6';
     }
     if (btnProcessManual) {
       btnProcessManual.disabled = fileName === 'Tiada fail dipilih';
@@ -4109,7 +4109,7 @@ async function handleCredentialResponse(response) {
     if (profilePdfFileName) {
       profilePdfFileName.textContent = fileName;
       profilePdfFileName.style.fontWeight = 'bold';
-      profilePdfFileName.style.color = '#818cf8';
+      profilePdfFileName.style.color = '#3b82f6';
     }
     if (btnProsesProfileAI) {
       btnProsesProfileAI.disabled = fileName === 'Tiada fail dipilih';
@@ -4998,7 +4998,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   function generatePdfCssString(userColor) {
-    const themeColor = userColor || '#6366f1';
+    const themeColor = userColor || '#2563eb';
     
     return `
       body {
@@ -5034,7 +5034,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         border: 1px solid #000;
         padding: 8px 10px;
         margin-bottom: 10px;
-        background-color: #f5f3ff;
+        background-color: #f0f9ff;
       }
       
       .jenis-permohonan-row-1 {
@@ -5855,7 +5855,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     pengesyorFilterButtonsContainer.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
         const selectedName = btn.getAttribute('data-name');
-        const isActive = btn.style.backgroundColor === 'rgb(99, 102, 241)' || btn.style.backgroundColor === '#6366f1';
+        const isActive = btn.style.backgroundColor === 'rgb(37, 99, 235)' || btn.style.backgroundColor === '#2563eb';
         
         pengesyorFilterButtonsContainer.querySelectorAll('button').forEach(b => {
           b.style.backgroundColor = '#f3f4f6';
@@ -5866,7 +5866,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (isActive) {
           storageWrapper.set({ 'stb_filter_pengesyor': '' });
         } else {
-          btn.style.backgroundColor = '#6366f1';
+          btn.style.backgroundColor = '#2563eb';
           btn.style.color = 'white';
           btn.style.fontWeight = 'bold';
           storageWrapper.set({ 'stb_filter_pengesyor': selectedName });
@@ -5880,7 +5880,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (storage.stb_filter_pengesyor) {
         const activeBtn = Array.from(pengesyorFilterButtonsContainer.querySelectorAll('button')).find(b => b.getAttribute('data-name') === storage.stb_filter_pengesyor);
         if (activeBtn) {
-          activeBtn.style.backgroundColor = '#6366f1';
+          activeBtn.style.backgroundColor = '#2563eb';
           activeBtn.style.color = 'white';
           activeBtn.style.fontWeight = 'bold';
         }
@@ -5911,7 +5911,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     pelulusFilterButtonsContainer.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
         const selectedName = btn.getAttribute('data-name');
-        const isActive = btn.style.backgroundColor === 'rgb(99, 102, 241)' || btn.style.backgroundColor === '#6366f1';
+        const isActive = btn.style.backgroundColor === 'rgb(37, 99, 235)' || btn.style.backgroundColor === '#2563eb';
         
         pelulusFilterButtonsContainer.querySelectorAll('button').forEach(b => {
           b.style.backgroundColor = '#f3f4f6';
@@ -5922,7 +5922,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (isActive) {
           storageWrapper.set({ 'stb_filter_pelulus': '' });
         } else {
-          btn.style.backgroundColor = '#6366f1';
+          btn.style.backgroundColor = '#2563eb';
           btn.style.color = 'white';
           btn.style.fontWeight = 'bold';
           storageWrapper.set({ 'stb_filter_pelulus': selectedName });
@@ -5936,7 +5936,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (storage.stb_filter_pelulus) {
         const activeBtn = Array.from(pelulusFilterButtonsContainer.querySelectorAll('button')).find(b => b.getAttribute('data-name') === storage.stb_filter_pelulus);
         if (activeBtn) {
-          activeBtn.style.backgroundColor = '#6366f1';
+          activeBtn.style.backgroundColor = '#2563eb';
           activeBtn.style.color = 'white';
           activeBtn.style.fontWeight = 'bold';
         }
@@ -7298,7 +7298,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           </a>
         </div>
         <div style="margin-bottom: 5px;">
-          <a href="${userFolderUrl}" target="_blank" class="drive-link" style="background: #e0e7ff;">
+          <a href="${userFolderUrl}" target="_blank" class="drive-link" style="background: #dbeafe;">
             👤 Klik untuk buka folder user: ${userName}
           </a>
         </div>
@@ -8380,7 +8380,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
-            btnPrint.style.backgroundColor = '#6366f1';
+            btnPrint.style.backgroundColor = '#2563eb';
             btnPrint.innerText = '🖨️ Cetak';
             
             // KOD BARU: Menggunakan processCetakBiasa berbanding processLihatBorangPreview
@@ -8423,7 +8423,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
-            btnPrint.style.backgroundColor = '#6366f1';
+            btnPrint.style.backgroundColor = '#2563eb';
             btnPrint.innerText = '🖨️ Cetak';
             btnPrint.onclick = function() { processPelulusPrint(item); };
             btnContainer.appendChild(btnPrint);
@@ -8484,7 +8484,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       let spiDateInfo = '';
       if (item.date_submit) {
         const spiDate = formatDateDisplay(item.date_submit);
-        spiDateInfo = `<div style="font-size:0.75rem; color:#4f46e5; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>`;
+        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>`;
       }
 
       let sptbDateInfo = '';
@@ -8836,7 +8836,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     let link = '-';
     if (i.pautan) {
-      link = `<a href="${i.pautan}" target="_blank" style="color:#6366f1; font-weight:bold; text-decoration:none;">BUKA DOKUMEN</a>`;
+      link = `<a href="${i.pautan}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:none;">BUKA DOKUMEN</a>`;
     }
 
     let statusBadge = `<span class="status-badge bg-blue">${safe(i.syor_status)}</span>`;
@@ -9414,8 +9414,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                     }
                     // Reset inline styles for status inputs (✓/✗)
                     if (el.classList.contains('status-input')) {
-                        el.style.backgroundColor = '#eef2ff';
-                        el.style.color = '#4338ca';
+                        el.style.backgroundColor = '#eff6ff';
+                        el.style.color = '#1e40af';
                     }
                 }
             });
@@ -10155,8 +10155,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                           displayInput.style.backgroundColor = '#fee2e2'; displayInput.style.color = '#991b1b';
                           originalInput.style.backgroundColor = '#fee2e2'; originalInput.style.color = '#991b1b';
                       } else {
-                          displayInput.style.backgroundColor = '#eef2ff'; displayInput.style.color = '#4338ca';
-                          originalInput.style.backgroundColor = '#eef2ff'; originalInput.style.color = '#4338ca';
+                          displayInput.style.backgroundColor = '#eff6ff'; displayInput.style.color = '#1e40af';
+                          originalInput.style.backgroundColor = '#eff6ff'; originalInput.style.color = '#1e40af';
                       }
                       
                       originalInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -10209,8 +10209,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   function createQuickCheckFieldUI(label, value, index, type) {
-      let bg = '#eef2ff';
-      let color = '#4338ca';
+      let bg = '#eff6ff';
+      let color = '#1e40af';
       if (value === '✓') { bg = '#dcfce7'; color = '#166534'; }
       else if (value === 'X' || value === '✗') { bg = '#fee2e2'; color = '#991b1b'; }
       
@@ -10642,7 +10642,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✅ Telah Disyor</span>`;
               disableCheckbox = true;
           } else if (inDrafts) {
-              statusBadge = `<span style="background: #818cf8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">📝 Belum Hantar</span>`;
+              statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">📝 Belum Hantar</span>`;
               disableCheckbox = true;
           } else if (inBasket) {
               statusBadge = `<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">🛒 Dalam Bakul</span>`;
@@ -11038,9 +11038,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   <td colspan="4" style="text-align:center; padding: 40px 20px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
                           <div class="dashboard-spinner" style="margin-bottom:0;"></div>
-                          <div class="queue-loading-text" style="font-weight:bold; color:#4338ca; font-size:1rem;">Menyambung ke pelayan... 0%</div>
+                          <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
                           <div style="width: 80%; max-width: 300px; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
-                              <div class="queue-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); transition: width 0.3s ease-out;"></div>
+                              <div class="queue-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.3s ease-out;"></div>
                           </div>
                       </div>
                   </td>
@@ -11306,7 +11306,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           
           card.innerHTML = `
               <img src="${item.snippet.thumbnails.medium.url}" style="width:100%; border-radius:8px; margin-bottom:10px; aspect-ratio: 16/9; object-fit: cover;">
-              <h4 style="margin:0 0 5px 0; font-size:0.9rem; color:#4338ca;">${item.snippet.title}</h4>
+              <h4 style="margin:0 0 5px 0; font-size:0.9rem; color:#1e40af;">${item.snippet.title}</h4>
               <p style="margin:0; font-size:0.75rem; color:#64748b;">👤 ${item.snippet.channelTitle}</p>
           `;
 
@@ -11370,7 +11370,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       try {
           // KOD BARU: Cari warna Pengesyor di dalam pangkalan data
-          let pengesyorColor = currentUser.color || '#6366f1';
+          let pengesyorColor = currentUser.color || '#2563eb';
           if (item.pengesyor && typeof usersList !== 'undefined') {
               const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
               if (pengesyorObj && pengesyorObj.color) {
@@ -11455,7 +11455,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           document.querySelectorAll('.status-input').forEach(input => {
               if (input.value === '✓') { input.style.backgroundColor = '#dcfce7'; input.style.color = '#166534'; } 
               else if (input.value === 'X' || input.value === '✗') { input.style.backgroundColor = '#fee2e2'; input.style.color = '#991b1b'; } 
-              else { input.style.backgroundColor = '#eef2ff'; input.style.color = '#4338ca'; }
+              else { input.style.backgroundColor = '#eff6ff'; input.style.color = '#1e40af'; }
           });
 
           // --- 5. LOGIK PEMPROSESAN DRIVE & CETAKAN ---
@@ -11464,7 +11464,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           let proceedToDrive = false;
           
           if (hasUpdatedDrive) {
-              await CustomAppModal.alert("Keputusan borang ini <b style='color:#6366f1;'>telah dikemaskini ke Drive sebelum ini</b>. Untuk mengelakkan pertindanan, anda hanya dibenarkan membuat cetakan biasa sahaja.", "Makluman", "info");
+              await CustomAppModal.alert("Keputusan borang ini <b style='color:#2563eb;'>telah dikemaskini ke Drive sebelum ini</b>. Untuk mengelakkan pertindanan, anda hanya dibenarkan membuat cetakan biasa sahaja.", "Makluman", "info");
               
               // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
               document.documentElement.style.setProperty('--theme-color', userColorHex);
@@ -11647,7 +11647,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           preparePrintView();
           
           // KOD BARU: Dapatkan warna Pengesyor dan tukar warna tema cetakan sementara
-          let pengesyorColor = currentUser.color || '#6366f1';
+          let pengesyorColor = currentUser.color || '#2563eb';
           if (item.pengesyor && typeof usersList !== 'undefined') {
               const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
               if (pengesyorObj && pengesyorObj.color) {
@@ -11683,7 +11683,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               document.querySelectorAll('.status-input').forEach(input => {
                   if (input.value === '✓') { input.style.backgroundColor = '#dcfce7'; input.style.color = '#166534'; } 
                   else if (input.value === 'X' || input.value === '✗') { input.style.backgroundColor = '#fee2e2'; input.style.color = '#991b1b'; } 
-                  else { input.style.backgroundColor = '#eef2ff'; input.style.color = '#4338ca'; }
+                  else { input.style.backgroundColor = '#eff6ff'; input.style.color = '#1e40af'; }
               });
           }, 500);
 
@@ -11761,7 +11761,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           const printLayoutElement = document.getElementById('printLayout');
           
           // KOD BARU: Dapatkan warna Pengesyor asal untuk preview ini
-          let pengesyorColor = '#6366f1';
+          let pengesyorColor = '#2563eb';
           if (item.pengesyor && typeof usersList !== 'undefined') {
               const pengesyorObj = usersList.find(u => u.name.toUpperCase() === item.pengesyor.toUpperCase());
               if (pengesyorObj && pengesyorObj.color) {
@@ -11791,7 +11791,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           document.querySelectorAll('.status-input').forEach(input => {
               if (input.value === '✓') { input.style.backgroundColor = '#dcfce7'; input.style.color = '#166534'; } 
               else if (input.value === 'X' || input.value === '✗') { input.style.backgroundColor = '#fee2e2'; input.style.color = '#991b1b'; } 
-              else { input.style.backgroundColor = '#eef2ff'; input.style.color = '#4338ca'; }
+              else { input.style.backgroundColor = '#eff6ff'; input.style.color = '#1e40af'; }
           });
 
           // --- 5. BUKA TAB PREVIEW (VERSI PENUH SKRIN & KEDUDUKAN BERTENTANGAN) ---
