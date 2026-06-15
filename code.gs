@@ -175,14 +175,24 @@ function handleCheckAuth(fallbackEmail) {
     var profile = findUserByEmail(session.email);
     if (!profile) return createJSONOutput({ authenticated: false, email: session.email, error: 'Akaun Google (' + session.email + ') tidak berdaftar.', code: 403 });
     if (profile.role === ROLE_PENGESYOR) {
+      var fc = null;
       var safeKey = 'FIREBASE_CODE_' + profile.email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
       Logger.log('[V7.0] Mencari FirebaseCode dengan key: ' + safeKey);
-      var fc = PropertiesService.getScriptProperties().getProperty(safeKey);
+      fc = PropertiesService.getScriptProperties().getProperty(safeKey);
+      if (!fc) {
+        var FIREBASE_CODE_MAP = {
+          'zariff.zainudin@kuskop.gov.my': '0707',
+          'norhamizi.hamdzahi@kuskop.gov.my': '5757',
+          'ilyanadia.azmi@kuskop.gov.my': '6166',
+          'khairulfitri.kamaruddin@kuskop.gov.my': '5381'
+        };
+        fc = FIREBASE_CODE_MAP[profile.email.toLowerCase()] || null;
+      }
       if (fc) {
         profile.firebaseCode = fc;
         Logger.log('[V7.0] FirebaseCode dijumpai: ' + fc);
       } else {
-        Logger.log('[V7.0] Tiada FirebaseCode untuk: ' + profile.email + ' (Key: ' + safeKey + ')');
+        Logger.log('[V7.0] Tiada FirebaseCode untuk: ' + profile.email);
       }
     }
     return createJSONOutput({ authenticated: true, user: profile, message: 'Log masuk berjaya' });
