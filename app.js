@@ -591,7 +591,7 @@ async function handleCredentialResponse(response) {
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        auto_select: false,
+        auto_select: true,
         cancel_on_tap_outside: true
       });
       
