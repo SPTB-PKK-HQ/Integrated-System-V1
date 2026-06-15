@@ -299,6 +299,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // LANDING PAGE: Scroll indicator click -> scroll to login
+  document.addEventListener('click', (e) => {
+    const scrollIndicator = e.target.closest('.scroll-indicator');
+    if (scrollIndicator) {
+      e.preventDefault();
+      const loginSection = document.getElementById('landingLoginSection');
+      if (loginSection) {
+        loginSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  });
+
+  // LANDING PAGE: Auto-scroll to login if coming back from auth redirect
+  setTimeout(() => {
+    const loginSection = document.getElementById('landingLoginSection');
+    if (loginSection && window.location.hash === '#login') {
+      setTimeout(() => loginSection.scrollIntoView({ behavior: 'smooth', block: 'center' }), 500);
+    }
+  }, 1000);
+
   async function playSuccessSound() {
     await playSoundEffect('positive_chime.mp3');
   }
