@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwK2bKSTW6pMwfFwkrER3STCQMWf3TnR6IUVMcLvxZqkBtgylwo3ofYPCKka2uYMY2s/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydPZ12Jd5CYiuWv8wr66tTV_Om8atPlB2LQzOVbdthwQ2-W4FIxe4EW7acxfkIqw4/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -6539,6 +6539,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     if (anonymousBadge) anonymousBadge.style.display = 'none';
     
+    var queueBtn = document.getElementById('btnQueueSPI');
+    if (queueBtn) {
+      var allowedRoles = ['ADMIN','PENGESYOR','PELULUS'];
+      var userRole = currentUser.role ? currentUser.role.toUpperCase().trim() : '';
+      queueBtn.style.display = allowedRoles.indexOf(userRole) > -1 ? '' : 'none';
+    }
+    
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
     userBadge.innerText = `👤 ${currentUser.name} (${currentUser.role})`;
     userBadge.title = "Buka Portal YouTube";
@@ -11036,7 +11043,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // 2. Masukkan UI loading peratusan custom secara terus ke dalam table body
           const loadingUI = `
               <tr>
-                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
+                  <td colspan="6" style="text-align:center; padding: 40px 20px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
                           <div class="dashboard-spinner" style="margin-bottom:0;"></div>
                           <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
@@ -11074,7 +11081,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           try {
               // 4. Minta data dari pelayan (Google Apps Script)
               const userEmail = currentUser ? encodeURIComponent(currentUser.email) : '';
-              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
+              const userRole = currentUser ? encodeURIComponent(currentUser.role) : '';
+              const userName = currentUser ? encodeURIComponent(currentUser.name) : '';
+              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&role=${userRole}&userName=${userName}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
               const result = await response.json();
 
               // Hentikan animasi tiruan
@@ -11131,20 +11140,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (!tbody) return;
       
       if (!dataArray || dataArray.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
           return;
       }
       
       tbody.innerHTML = dataArray.map((item, index) => {
-          // KOD BARU: Gunakan pelulus jika ada (untuk pemutihan), jika tiada kekalkan pengesyor (untuk siasatan biasa)
           const pegawai = item.pelulus || item.pengesyor || '-';
+          const tarikh = item.date_submit || '-';
+          var just = item.justifikasi || '';
+          var justDisplay = just.length > 60 ? just.substring(0, 60) + '…' : just;
           
           return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
               <td style="text-align:center;">${index + 1}</td>
               <td style="font-weight:bold; color: #1e293b;">${item.syarikat}</td>
               <td style="text-align:center; color: #475569;">${item.cidb}</td>
+              <td style="text-align:center; font-size: 0.85rem;">${tarikh}</td>
               <td style="text-align:center; font-size: 0.85rem;">${pegawai}</td>
+              <td style="font-size: 0.8rem; color: #475569; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${just.replace(/"/g,'&quot;')}">${justDisplay}</td>
           </tr>
           `;
       }).join('');

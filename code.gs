@@ -72,11 +72,17 @@ function sanitizeData(obj) {
 // =========================================================================
 // PENGESAHAN SESI — Wajib guna Session.getActiveUser().getEmail()
 // =========================================================================
+var _requestFallbackEmail = null; // Diisi oleh doPost/doGet, selamat kerana setiap request ada instance baru.
+
 function getActiveSessionEmail() {
   try {
     var email = Session.getActiveUser().getEmail();
     if (!email || email.toString().trim() === '') {
-      return { email: null, isValid: false, error: 'Tiada sesi Google aktif. Sila log masuk.' };
+      if (_requestFallbackEmail) {
+        email = _requestFallbackEmail;
+      } else {
+        return { email: null, isValid: false, error: 'Tiada sesi Google aktif. Sila log masuk.' };
+      }
     }
     var normalized = email.toString().trim().toLowerCase();
     var domain = normalized.split('@')[1];
@@ -165,10 +171,9 @@ function verifyUserAccess(allowedRoles) {
 function handleCheckAuth(fallbackEmail) {
   try {
     var session = getActiveSessionEmail();
-    var email = session.isValid ? session.email : (fallbackEmail ? fallbackEmail.toString().trim().toLowerCase() : null);
-    if (!email) return createJSONOutput({ authenticated: false, error: session.isValid ? session.error : 'Tiada sesi Google aktif. Sila log masuk.', code: 403 });
-    var profile = findUserByEmail(email);
-    if (!profile) return createJSONOutput({ authenticated: false, email: email, error: 'Akaun Google (' + email + ') tidak berdaftar.', code: 403 });
+    if (!session.isValid) return createJSONOutput({ authenticated: false, error: session.error, code: 403 });
+    var profile = findUserByEmail(session.email);
+    if (!profile) return createJSONOutput({ authenticated: false, email: session.email, error: 'Akaun Google (' + session.email + ') tidak berdaftar.', code: 403 });
     if (profile.role === ROLE_PENGESYOR) {
       var safeKey = 'FIREBASE_CODE_' + profile.email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
       var fc = PropertiesService.getScriptProperties().getProperty(safeKey);
@@ -186,12 +191,24 @@ function handleCheckAuth(fallbackEmail) {
 function doGet(e) {
   try {
     Session.getActiveUser().getEmail();
+    _requestFallbackEmail = e && e.parameter && e.parameter.email ? e.parameter.email : null;
     if (e.parameter && e.parameter.action === "checkAuth") return handleCheckAuth(e.parameter.email);
     if (e.parameter && e.parameter.action === "getQueueData") {
       var ac = verifyUserAccess([ROLE_ADMIN, ROLE_PENGESYOR, ROLE_PELULUS]);
       if (!ac.isAuthorized) return createJSONOutput({ status: "error", message: ac.error });
       var props = PropertiesService.getScriptProperties();
-      return createJSONOutput({ status: "success", siasat: JSON.parse(props.getProperty('SIASAT_QUEUE') || "[]"), pemutihan: JSON.parse(props.getProperty('PEMUTIHAN_QUEUE') || "[]") });
+      var siasat = JSON.parse(props.getProperty('SIASAT_QUEUE') || "[]");
+      var pemutihan = JSON.parse(props.getProperty('PEMUTIHAN_QUEUE') || "[]");
+      var qRole = e.parameter ? e.parameter.role : "";
+      var qName = e.parameter ? e.parameter.userName : "";
+      if (qRole && qName) {
+        if (qRole === "PENGESYOR") {
+          siasat = siasat.filter(function(item) { return item.pengesyor && item.pengesyor.toString().toUpperCase() === qName.toUpperCase(); });
+        } else if (qRole === "PELULUS") {
+          pemutihan = pemutihan.filter(function(item) { return item.pelulus && item.pelulus.toString().toUpperCase() === qName.toUpperCase(); });
+        }
+      }
+      return createJSONOutput({ status: "success", siasat: siasat, pemutihan: pemutihan });
     }
     var role = e.parameter ? e.parameter.role : "";
     var userName = e.parameter ? e.parameter.userName : "";
@@ -215,6 +232,7 @@ function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     data = sanitizeData(data);
+    _requestFallbackEmail = data.email || null;
     var noLock = ['checkAuth','searchYoutube','processAI','cetak_dan_simpan_pdf'];
     if (noLock.indexOf(data.action) === -1) { lock.waitLock(28000); locked = true; }
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1000,3 +1018,40 @@ function testEmbedAllImagesAsBase64() {
 function testGetRepeatedApplications() { return getRepeatedApplicationsData(); }
 function testGetStatistics() { return getStatisticsData(ROLE_PENGARAH, ""); }
 function testUserFolder() { return handleCreateDriveFolderAction({ application_type: "BARU - 21-04-2026", company_name: "SYARIKAT TEST", user_name: "Test" }); }
+
+// =========================================================================
+// SETUP FIREBASE CODES — Jalankan sekali dari Apps Script Editor
+// =========================================================================
+function setupFirebaseCodes() {
+  var codes = {
+    'zariff.zainudin@kuskop.gov.my': '0707',
+    'norhamizi.hamdzahi@kuskop.gov.my': '5757',
+    'ilyanadia.azmi@kuskop.gov.my': '6166',
+    'khairulfitri.kamaruddin@kuskop.gov.my': '5381'
+  };
+  var props = PropertiesService.getScriptProperties();
+  for (var email in codes) {
+    var safeKey = 'FIREBASE_CODE_' + email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
+    props.setProperty(safeKey, codes[email]);
+    console.log('Set ' + safeKey + ' = ' + codes[email]);
+  }
+  console.log('Selesai. ' + Object.keys(codes).length + ' kod Firebase disimpan.');
+  return 'Selesai. ' + Object.keys(codes).length + ' kod Firebase disimpan.';
+}
+
+function lihatFirebaseCodes() {
+  var props = PropertiesService.getScriptProperties();
+  var keys = props.getKeys().filter(function(k) { return k.indexOf('FIREBASE_CODE_') === 0; });
+  if (keys.length === 0) return 'Tiada kod Firebase dalam Properties.';
+  keys.forEach(function(k) {
+    console.log(k + ' = ' + props.getProperty(k));
+  });
+  return keys.length + ' kod dijumpai.';
+}
+
+function padamFirebaseCode(email) {
+  var safeKey = 'FIREBASE_CODE_' + email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
+  PropertiesService.getScriptProperties().deleteProperty(safeKey);
+  console.log('Dipadam: ' + safeKey);
+  return 'Dipadam: ' + safeKey;
+}

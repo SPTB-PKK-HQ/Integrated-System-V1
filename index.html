@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://accounts.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://www.gstatic.com; font-src 'self' https://fonts.gstatic.com; object-src 'self'; media-src 'self' https:; connect-src 'self' https: https://*.googleapis.com; img-src 'self' data: https:; frame-src 'self' https://www.youtube.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://accounts.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://www.gstatic.com; font-src 'self' https://fonts.gstatic.com; object-src 'self'; media-src 'self' https:; connect-src 'self' https: https://*.googleapis.com; img-src 'self' data: https:; frame-src 'self' https://www.youtube.com https://accounts.google.com;">
 
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
@@ -732,21 +732,21 @@
                 
                 <h3 style="color: #3b82f6; margin-top: 15px; font-size: 1.1rem;">🔍 Siasatan Biasa</h3>
                 <div style="max-height: 25vh; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.9rem;">
+                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.85rem;">
                         <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                            <tr><th width="8%">Bil</th><th width="47%">Syarikat</th><th width="20%">CIDB</th><th width="25%">Pengesyor</th></tr>
+                            <tr><th width="5%">Bil</th><th width="35%">Syarikat</th><th width="15%">CIDB</th><th width="15%">Tarikh</th><th width="15%">Pengesyor</th><th width="15%">Justifikasi</th></tr>
                         </thead>
-                        <tbody id="tbodyQueueSiasat"><tr><td colspan="4" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
+                        <tbody id="tbodyQueueSiasat"><tr><td colspan="6" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
                     </table>
                 </div>
 
                 <h3 style="color: #e74c3c; margin-top: 10px; font-size: 1.1rem;">⚠️ Pemutihan</h3>
                 <div style="max-height: 25vh; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.9rem;">
+                    <table class="monthly-table" style="width: 100%; margin-top: 0; font-size: 0.85rem;">
                         <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                            <tr><th width="8%">Bil</th><th width="47%">Syarikat</th><th width="20%">CIDB</th><th width="25%">Pelulus</th></tr>
+                            <tr><th width="5%">Bil</th><th width="35%">Syarikat</th><th width="15%">CIDB</th><th width="15%">Tarikh</th><th width="15%">Pelulus</th><th width="15%">Justifikasi</th></tr>
                         </thead>
-                        <tbody id="tbodyQueuePemutihan"><tr><td colspan="4" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
+                        <tbody id="tbodyQueuePemutihan"><tr><td colspan="6" style="padding: 20px; color: #64748b;">Tiada data</td></tr></tbody>
                     </table>
                 </div>
                 
