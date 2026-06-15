@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
           firebase.initializeApp(firebaseConfig);
       }
       dbFirestore = firebase.firestore();
+      dbFirestore.settings({ experimentalForceLongPolling: true, merge: true });
       authFirebase = firebase.auth();
   } else {
       console.error("Sistem Gagal Memuatkan Firebase. Sila semak fail index.html (CSP).");
@@ -462,8 +463,13 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
+      console.log("Firebase SDK tersedia:", typeof firebase !== 'undefined', "dbFirestore:", dbFirestore !== null);
+
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
-      authFirebase.signInAnonymously().then(() => {
+      if (!authFirebase) {
+        console.error("Firebase Auth tidak tersedia. Firebase mungkin gagal dimuatkan.");
+      } else {
+        authFirebase.signInAnonymously().then(function() {
           console.log("Berjaya log masuk ke Firebase untuk fungsi YouTube/Cache.");
           
           // KOD LAMA: Sambungkan ke Firebase Bakul HANYA jika peranan adalah PENGESYOR
@@ -471,16 +477,27 @@ async function handleCredentialResponse(response) {
               currentUserFirebaseCode = result.user.firebaseCode || null; 
               if (currentUserFirebaseCode) {
                   console.log("Menyambung ke Firebase Bakul dengan kod:", currentUserFirebaseCode);
-                  dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
+                  dbFirestore.collection("users").doc(currentUserFirebaseCode).get()
+                    .then(function(doc) {
                       if (doc.exists) {
                           firebaseUserRules = doc.data();
                           console.log("Peraturan Tapisan Firebase dimuatkan.");
                           subscribeToBakulFirebase();
+                      } else {
+                          console.error("Dokumen Firebase users/" + currentUserFirebaseCode + " tidak wujud. Sila buat dokumen ini di Firebase Console.");
                       }
-                  });
+                    })
+                    .catch(function(fbErr) {
+                      console.error("Ralat Firestore get() untuk users/" + currentUserFirebaseCode + ":", fbErr);
+                    });
+              } else {
+                  console.warn("PENGESYOR tanpa Firebase Code. Pastikan setupFirebaseCodes() telah dijalankan di Apps Script Editor.");
               }
           }
-      }).catch(err => console.error("Ralat Firebase Auth:", err));
+        }).catch(function(authErr) {
+          console.error("Ralat Firebase Auth (signInAnonymously):", authErr);
+        });
+      }
 
       // Simpan sesi dan tarikh hari ini ke storage
       const todayStr = new Date().toDateString();
@@ -4779,19 +4796,31 @@ async function handleCredentialResponse(response) {
 
       // Log masuk semula ke Firebase secara automatik untuk SEMUA role
       if (currentUser && currentUser.email) {
-          authFirebase.signInAnonymously().then(() => {
+          authFirebase.signInAnonymously().then(function() {
+              console.log("Session restore: Firebase signInAnonymously berjaya.");
               // Khusus untuk Pengesyor (Sambung ke fungsi Bakul)
               if (currentUser.role === 'PENGESYOR') {
                   currentUserFirebaseCode = currentUser.firebaseCode || null; 
                   if (currentUserFirebaseCode) {
-                      dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
+                      dbFirestore.collection("users").doc(currentUserFirebaseCode).get()
+                        .then(function(doc) {
                           if (doc.exists) {
                               firebaseUserRules = doc.data();
+                              console.log("Session restore: Peraturan Tapisan dimuatkan.");
                               subscribeToBakulFirebase();
+                          } else {
+                              console.error("Session restore: Dokumen Firebase users/" + currentUserFirebaseCode + " tidak wujud.");
                           }
-                      });
+                        })
+                        .catch(function(fbErr) {
+                          console.error("Session restore: Ralat Firestore get():", fbErr);
+                        });
+                  } else {
+                      console.warn("Session restore: PENGESYOR tanpa Firebase Code.");
                   }
               }
+          }).catch(function(authErr) {
+              console.error("Session restore: Ralat Firebase Auth:", authErr);
           });
       }
       setupUserUI(); 

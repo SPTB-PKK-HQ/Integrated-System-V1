@@ -176,8 +176,14 @@ function handleCheckAuth(fallbackEmail) {
     if (!profile) return createJSONOutput({ authenticated: false, email: session.email, error: 'Akaun Google (' + session.email + ') tidak berdaftar.', code: 403 });
     if (profile.role === ROLE_PENGESYOR) {
       var safeKey = 'FIREBASE_CODE_' + profile.email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
+      Logger.log('[V7.0] Mencari FirebaseCode dengan key: ' + safeKey);
       var fc = PropertiesService.getScriptProperties().getProperty(safeKey);
-      if (fc) profile.firebaseCode = fc;
+      if (fc) {
+        profile.firebaseCode = fc;
+        Logger.log('[V7.0] FirebaseCode dijumpai: ' + fc);
+      } else {
+        Logger.log('[V7.0] Tiada FirebaseCode untuk: ' + profile.email + ' (Key: ' + safeKey + ')');
+      }
     }
     return createJSONOutput({ authenticated: true, user: profile, message: 'Log masuk berjaya' });
   } catch (e) {
