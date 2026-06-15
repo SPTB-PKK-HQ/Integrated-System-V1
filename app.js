@@ -589,11 +589,11 @@ async function handleCredentialResponse(response) {
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        auto_select: false,
+        auto_select: true,
         cancel_on_tap_outside: true
       });
       
-      // Render GIS button into googleButton (hidden via CSS opacity)
+      // Render butang Google Sign-In
       google.accounts.id.renderButton(
         googleButton,
         { 
@@ -606,16 +606,9 @@ async function handleCredentialResponse(response) {
         }
       );
       
-      // Inject overlay label on top of the GIS iframe
-      const label = document.createElement('div');
-      label.className = 'google-btn-label';
-      label.innerHTML = '<svg viewBox="0 0 48 48" width="22" height="22"><path fill="#1a2e1a" d="M44 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11.3c-.5 2.5-1.9 4.7-4 6.1v5.1h6.5c3.8-3.5 6-8.7 6-14.9z"/><path fill="#1a2e1a" d="M24 44c5.4 0 10-1.8 13.3-4.8l-6.5-5.1c-1.8 1.2-4.1 2-6.8 2-5.2 0-9.6-3.5-11.2-8.3H6.1v5.3C9.4 39.3 16.2 44 24 44z"/><path fill="#1a2e1a" d="M12.8 27.9c-.4-1.2-.6-2.5-.6-3.9s.2-2.7.6-3.9v-5.3H6.1C4.7 20.2 4 23.1 4 24s.7 3.8 2.1 6.3l6.7-5.4z"/><path fill="#1a2e1a" d="M24 9.8c3 0 5.6 1 7.7 3.1l5.8-5.8C33.9 4.5 29.3 3 24 3 16.2 3 9.4 7.7 6.1 14.7l6.7 5.3c1.6-4.8 6-8.2 11.2-8.2z"/></svg><span>Log Masuk dengan Google</span>';
-      googleButton.appendChild(label);
-      
-      // Tunjukkan googleButton
       googleButton.style.display = 'flex';
       
-      console.log("V6.5.2 Google Sign-In button rendered with custom overlay");
+      console.log("V6.5.2 Google Sign-In button rendered");
       
     } catch (error) {
       console.error("V6.5.2 Error initializing Google Sign-In:", error);
