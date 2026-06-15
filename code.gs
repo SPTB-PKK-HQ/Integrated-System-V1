@@ -162,12 +162,13 @@ function verifyUserAccess(allowedRoles) {
 // =========================================================================
 // HANDLE CHECK AUTH — Server-side sahaja, guna Session
 // =========================================================================
-function handleCheckAuth() {
+function handleCheckAuth(fallbackEmail) {
   try {
     var session = getActiveSessionEmail();
-    if (!session.isValid) return createJSONOutput({ authenticated: false, error: session.error, code: 403 });
-    var profile = findUserByEmail(session.email);
-    if (!profile) return createJSONOutput({ authenticated: false, email: session.email, error: 'Akaun Google (' + session.email + ') tidak berdaftar.', code: 403 });
+    var email = session.isValid ? session.email : (fallbackEmail ? fallbackEmail.toString().trim().toLowerCase() : null);
+    if (!email) return createJSONOutput({ authenticated: false, error: session.isValid ? session.error : 'Tiada sesi Google aktif. Sila log masuk.', code: 403 });
+    var profile = findUserByEmail(email);
+    if (!profile) return createJSONOutput({ authenticated: false, email: email, error: 'Akaun Google (' + email + ') tidak berdaftar.', code: 403 });
     if (profile.role === ROLE_PENGESYOR) {
       var safeKey = 'FIREBASE_CODE_' + profile.email.toLowerCase().replace(/[^a-z0-9@]/g, '_');
       var fc = PropertiesService.getScriptProperties().getProperty(safeKey);
@@ -185,7 +186,7 @@ function handleCheckAuth() {
 function doGet(e) {
   try {
     Session.getActiveUser().getEmail();
-    if (e.parameter && e.parameter.action === "checkAuth") return handleCheckAuth();
+    if (e.parameter && e.parameter.action === "checkAuth") return handleCheckAuth(e.parameter.email);
     if (e.parameter && e.parameter.action === "getQueueData") {
       var ac = verifyUserAccess([ROLE_ADMIN, ROLE_PENGESYOR, ROLE_PELULUS]);
       if (!ac.isAuthorized) return createJSONOutput({ status: "error", message: ac.error });
@@ -220,7 +221,7 @@ function doPost(e) {
     var sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) return createJSONOutput({ status: "error", message: "Sheet not found" });
 
-    if (data.action === 'checkAuth') return handleCheckAuth();
+    if (data.action === 'checkAuth') return handleCheckAuth(data.email);
     if (data.action === 'searchYoutube') return handleSearchYoutube(data.query);
     if (data.action === 'processAI') {
       var ac = verifyUserAccess([ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);

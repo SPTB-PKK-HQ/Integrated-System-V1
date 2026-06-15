@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvgH2U-QbcZpSECaPmRyp_WlHRLNMohWBseDCFFWngomDxT8Ohaygbnc_28XKcTCBy/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwK2bKSTW6pMwfFwkrER3STCQMWf3TnR6IUVMcLvxZqkBtgylwo3ofYPCKka2uYMY2s/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -530,7 +530,7 @@ async function handleCredentialResponse(response) {
   
   // Fungsi untuk menghantar email ke backend
   // NOTA KESELAMATAN: Backend guna Session.getActiveUser().getEmail() server-side,
-  // email dari frontend TIDAK dipercayai oleh backend.
+  // email dari frontend sebagai fallback jika sesi Google tidak tersedia (contoh: fetch API).
   async function verifyEmailWithBackend(email) {
     console.log("V6.5.2 Verifying email with backend:", email);
     
@@ -539,7 +539,8 @@ async function handleCredentialResponse(response) {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          action: 'checkAuth'
+          action: 'checkAuth',
+          email: email
         })
       }, 3, 1500);
       
