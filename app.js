@@ -1809,153 +1809,6 @@ async function handleCredentialResponse(response) {
     });
   }
 
-  function updateRecommenderCharts(userData, filteredData) {
-    if (recommenderMonthlyChart) { recommenderMonthlyChart.destroy(); recommenderMonthlyChart = null; }
-    const monthlyTrendCanvas = document.getElementById('chartMonthlyTrend');
-    if (!monthlyTrendCanvas) return;
-    const monthlyCtx = monthlyTrendCanvas.getContext('2d');
-    
-    monthlyCtx.clearRect(0, 0, monthlyTrendCanvas.width, monthlyTrendCanvas.height);
-    const monthlyData = {};
-    const monthlyLabels = [];
-    const currentYear = dashboardData.currentYear;
-    const currentMonth = dashboardData.currentMonth;
-    
-    const monthsToShow = 6;
-    for (let i = monthsToShow - 1; i >= 0; i--) {
-      const date = new Date(currentYear, currentMonth - 1 - i, 1);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${date.toLocaleString('ms-MY', { month: 'short' })} ${date.getFullYear()}`;
-      monthlyData[monthKey] = { label: monthLabel, supported: 0, notSupported: 0 };
-      monthlyLabels.push(monthKey);
-    }
-    
-    filteredData.forEach(item => {
-      let dateToUse = resolveRecordDate(item);
-      if (dateToUse && !isNaN(dateToUse)) {
-        const date = dateToUse;
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthlyData[monthKey]) {
-          if (item.syor_status && item.syor_status.includes('TIDAK DISOKONG')) monthlyData[monthKey].notSupported++;
-          else if (item.syor_status && item.syor_status.includes('SOKONG')) monthlyData[monthKey].supported++;
-        }
-      }
-    });
-    
-    recommenderMonthlyChart = new Chart(monthlyCtx, {
-      type: 'bar',
-      data: {
-        labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
-        datasets: [
-          {
-            label: 'SOKONG',
-            data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
-            backgroundColor: '#10b981',
-            borderRadius: 6,        
-            borderSkipped: false
-          },
-          {
-            label: 'TIDAK DISOKONG',
-            data: monthlyLabels.map(key => monthlyData[key]?.notSupported || 0),
-            backgroundColor: '#ef4444',
-            borderRadius: 6,        
-            borderSkipped: false
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 1500, easing: 'easeOutQuart' }, 
-        plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
-          legend: { position: 'top' },
-          title: { display: true, text: 'Trend Syor Bulanan' }
-        },
-        scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Syor' }, ticks: { stepSize: 1 }, border: { display: false } },
-          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
-        }
-      }
-    });
-  }
-
-  function updateApproverCharts(userData, filteredData) {
-    if (approverMonthlyChart) { approverMonthlyChart.destroy(); approverMonthlyChart = null; }
-    const monthlyTrendCanvas = document.getElementById('chartMonthlyTrend');
-    if (!monthlyTrendCanvas) return;
-    const monthlyCtx = monthlyTrendCanvas.getContext('2d');
-    
-    monthlyCtx.clearRect(0, 0, monthlyTrendCanvas.width, monthlyTrendCanvas.height);
-    const monthlyData = {};
-    const monthlyLabels = [];
-    const currentYear = dashboardData.currentYear;
-    const currentMonth = dashboardData.currentMonth;
-    
-    const monthsToShow = 6;
-    for (let i = monthsToShow - 1; i >= 0; i--) {
-      const date = new Date(currentYear, currentMonth - 1 - i, 1);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${date.toLocaleString('ms-MY', { month: 'short' })} ${date.getFullYear()}`;
-      monthlyData[monthKey] = { label: monthLabel, approved: 0, rejected: 0 };
-      monthlyLabels.push(monthKey);
-    }
-    
-    filteredData.forEach(item => {
-      // Gunakan tarikh dinamik berdasarkan status tindakan
-      let dateToUse = resolveRecordDate(item);
-      if (dateToUse && !isNaN(dateToUse)) {
-        const date = dateToUse;
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthlyData[monthKey]) {
-          if (item.kelulusan && item.kelulusan.includes('LULUS')) monthlyData[monthKey].approved++;
-          else if (item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))) monthlyData[monthKey].rejected++;
-        }
-      }
-    });
-    
-    approverMonthlyChart = new Chart(monthlyCtx, {
-      type: 'bar',
-      data: {
-        labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
-        datasets: [
-          {
-            label: 'DILULUSKAN',
-            data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
-            backgroundColor: '#10b981',
-            borderRadius: 6,        
-            borderSkipped: false
-          },
-          {
-            label: 'DITOLAK/SIASAT',
-            data: monthlyLabels.map(key => monthlyData[key]?.rejected || 0),
-            backgroundColor: '#ef4444',
-            borderRadius: 6,        
-            borderSkipped: false
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 1500, easing: 'easeOutQuart' }, 
-        plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
-          legend: { position: 'top' },
-          title: { display: true, text: 'Trend Kelulusan Bulanan' }
-        },
-        scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
-          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
-        }
-      }
-    });
-  }
-
-  // =========================================================================
-  // FUNGSI INITIALIZE DASHBOARD
-  // =========================================================================
-
   function initializeDashboard() {
     console.log("V6.5.2 Initializing dashboard...");
     
@@ -3016,9 +2869,9 @@ async function handleCredentialResponse(response) {
   // FUNGSI MUAT TURUN CSV
   // =========================================================================
   
-  function downloadAdminStatsCSV() {
+  async function downloadAdminStatsCSV() {
     if (!cachedData || cachedData.length === 0) {
-      alert("Tiada data untuk dimuat turun.");
+      await CustomAppModal.alert("Tiada data untuk dimuat turun.", "Tiada Data", "warning");
       return;
     }
     
@@ -3137,9 +2990,9 @@ async function handleCredentialResponse(response) {
     URL.revokeObjectURL(url);
   }
 
-  function downloadDashboardCSV() {
+  async function downloadDashboardCSV() {
     if (!cachedData || cachedData.length === 0) {
-      alert("Tiada data untuk dimuat turun.");
+      await CustomAppModal.alert("Tiada data untuk dimuat turun.", "Tiada Data", "warning");
       return;
     }
     
@@ -3311,7 +3164,7 @@ async function handleCredentialResponse(response) {
       pdfUploadArea.classList.remove('dragover');
     });
 
-    pdfUploadArea.addEventListener('drop', (e) => {
+    pdfUploadArea.addEventListener('drop', async (e) => {
       e.preventDefault();
       pdfUploadArea.classList.remove('dragover');
       
@@ -3325,7 +3178,7 @@ async function handleCredentialResponse(response) {
           pdfFileInput.dispatchEvent(new Event('change', { bubbles: true }));
           updateFileName(file.name);
         } else {
-          alert("Sila muat naik fail PDF sahaja.");
+          await CustomAppModal.alert("Sila muat naik fail PDF sahaja.", "Ralat Format", "error");
         }
       }
     });
@@ -3403,10 +3256,10 @@ async function handleCredentialResponse(response) {
 
     try {
       if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       } else {
         console.error("V6.5.2 PDF.js library not loaded");
-        alert("PDF processing library tidak dimuatkan. Sila muat semula halaman.");
+        await CustomAppModal.alert("PDF processing library tidak dimuatkan. Sila muat semula halaman.", "Ralat Sistem", "error");
         return;
       }
 
@@ -3444,13 +3297,13 @@ async function handleCredentialResponse(response) {
 
   async function processPdfWithAI() {
     if (!pdfFileInput.files.length) {
-      alert("Sila pilih fail PDF terlebih dahulu.");
+      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
       return;
     }
 
     const file = pdfFileInput.files[0];
     if (file.size > 10 * 1024 * 1024) {
-      alert("Fail terlalu besar (Maks 10MB).");
+      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
       return;
     }
 
@@ -3485,7 +3338,7 @@ async function handleCredentialResponse(response) {
       updateProgress(5, "Membaca fail...");
       
       if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       } else {
         throw new Error("PDF.js library not loaded");
       }
@@ -3553,7 +3406,7 @@ async function handleCredentialResponse(response) {
       await playErrorSound();
 
       document.getElementById('pdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      alert("Gagal memproses: " + error.message);
+      await CustomAppModal.alert("Gagal memproses: " + error.message, "Ralat Sistem", "error");
     }
   }
 
@@ -4037,7 +3890,7 @@ async function handleCredentialResponse(response) {
       profilePdfUploadArea.classList.remove('dragover');
     });
 
-    profilePdfUploadArea.addEventListener('drop', (e) => {
+    profilePdfUploadArea.addEventListener('drop', async (e) => {
       e.preventDefault();
       profilePdfUploadArea.classList.remove('dragover');
       
@@ -4051,7 +3904,7 @@ async function handleCredentialResponse(response) {
           profilePdfInput.dispatchEvent(new Event('change', { bubbles: true }));
           updateProfileFileName(file.name);
         } else {
-          alert("Sila muat naik fail PDF sahaja.");
+          await CustomAppModal.alert("Sila muat naik fail PDF sahaja.", "Ralat Format", "error");
         }
       }
     });
@@ -4192,13 +4045,13 @@ async function handleCredentialResponse(response) {
 
   async function processProfileWithAI() {
     if (!profilePdfInput.files.length) {
-      alert("Sila pilih fail PDF terlebih dahulu.");
+      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
       return;
     }
 
     const file = profilePdfInput.files[0];
     if (file.size > 10 * 1024 * 1024) {
-      alert("Fail terlalu besar (Maks 10MB).");
+      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
       return;
     }
 
@@ -4233,7 +4086,7 @@ async function handleCredentialResponse(response) {
       updateProgress(5, "Membaca fail...");
 
       if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       } else {
         throw new Error("PDF.js library not loaded");
       }
@@ -4303,7 +4156,7 @@ async function handleCredentialResponse(response) {
       await playErrorSound();
       
       document.getElementById('profilePdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      alert("Gagal memproses profile PDF: " + error.message);
+      await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
     }
   }
 
@@ -4466,9 +4319,9 @@ async function handleCredentialResponse(response) {
     profilePdfExtractedData.innerHTML = html;
   }
 
-  function applyProfileDataToForm() {
+  async function applyProfileDataToForm() {
     if (!extractedProfileData) {
-      alert("Tiada data profile untuk digunakan.");
+      await CustomAppModal.alert("Tiada data profile untuk digunakan.", "Tiada Data", "warning");
       return;
     }
 
@@ -4557,7 +4410,7 @@ async function handleCredentialResponse(response) {
       profileWeb.value = extractedProfileData.webAddress;
     }
 
-    alert("Data profile berjaya diisi ke borang!");
+    await CustomAppModal.alert("Data profile berjaya diisi ke borang!", "Berjaya", "success");
   }
 
   function clearProfileData() {
@@ -4587,7 +4440,7 @@ async function handleCredentialResponse(response) {
   if (btnCetakProfile) {
     btnCetakProfile.addEventListener('click', async () => {
       if (!profileSyarikat.value.trim()) {
-        alert("Sila isi Nama Syarikat terlebih dahulu sebelum mencetak.");
+        await CustomAppModal.alert("Sila isi Nama Syarikat terlebih dahulu sebelum mencetak.", "Maklumat Tidak Lengkap", "warning");
         return;
       }
 
@@ -5762,11 +5615,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  function openDriveFolder() {
+  async function openDriveFolder() {
     const dbPautan = document.getElementById('db_pautan')?.value;
     
     if (!dbPautan || dbPautan.trim() === '') {
-      alert("Tiada pautan folder Drive. Sila cipta folder terlebih dahulu.");
+      await CustomAppModal.alert("Tiada pautan folder Drive. Sila cipta folder terlebih dahulu.", "Makluman", "warning");
       return;
     }
     
@@ -5778,11 +5631,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   if (btnOpenMyDriveFolder) {
-    btnOpenMyDriveFolder.addEventListener('click', () => {
+    btnOpenMyDriveFolder.addEventListener('click', async () => {
       if (userFolderUrl) {
         window.open(userFolderUrl, '_blank');
       } else {
-        alert("Folder user anda belum dicipta. Sila cipta folder untuk syarikat ini terlebih dahulu.");
+        await CustomAppModal.alert("Folder user anda belum dicipta. Sila cipta folder untuk syarikat ini terlebih dahulu.", "Makluman", "warning");
       }
     });
   }
@@ -6702,7 +6555,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       switchTab(activeTab);
       
     } else {
-      alert("Role pengguna tidak dikenali.");
+      await CustomAppModal.alert("Role pengguna tidak dikenali.", "Ralat Akses", "error");
     }
 
     // --- KOD BARU (a): Masukkan elemen slider ke dalam container ---
@@ -9056,11 +8909,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         if(statusEl) statusEl.innerText = errorMsg; 
         
-        setTimeout(() => {
+        setTimeout(async () => {
           if (loadingOverlay) {
             loadingOverlay.style.display = 'none';
           }
-          alert("GAGAL menghantar data: " + errorMsg);
+          await CustomAppModal.alert("GAGAL menghantar data: " + errorMsg, "Ralat Penghantaran", "error");
         }, 1000);
       });
     } else {
@@ -9096,7 +8949,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         if(callback) callback(result);
       })
-      .catch(err => { 
+      .catch(async (err) => { 
         clearTimeout(timeoutId);
         console.error("V6.5.2 Submit error:", err);
         
@@ -9108,7 +8961,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         
         if(statusEl) statusEl.innerText = errorMsg; 
-        alert("GAGAL menghantar data: " + errorMsg);
+        await CustomAppModal.alert("GAGAL menghantar data: " + errorMsg, "Ralat Penghantaran", "error");
       });
     }
   }
@@ -10093,11 +9946,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
               // 2. Fungsi Buang Personel
               const delBtn = div.querySelector('.qc-btn-delete');
-              delBtn.addEventListener('click', () => {
-                  if (confirm("Adakah anda pasti mahu membuang personel ini?")) {
-                      card.remove(); // Buang kotak di borang asal
+              delBtn.addEventListener('click', async () => {
+                  const isConfirmed = await CustomAppModal.confirm(
+                      "Adakah anda pasti mahu membuang personel ini?",
+                      "Buang Personel",
+                      "warning",
+                      "Ya, Buang",
+                      true
+                  );
+                  if (isConfirmed) {
+                      card.remove();
                       saveFormData();
-                      openQuickCheckModal(); // Refresh modal
+                      openQuickCheckModal();
                   }
               });
               
@@ -10338,13 +10198,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       return dateStr;
   }
 
-  document.addEventListener('change', (e) => {
+  document.addEventListener('change', async (e) => {
       // UPLOAD EXCEL
       if (e.target.id === 'excelFileInput') {
           
           // KEMASKINI 1: Sekat upload jika data tapisan (rules) belum siap di-load dari Firebase
           if (currentUser && currentUser.role === 'PENGESYOR' && !firebaseUserRules) {
-              alert("⏳ Sistem sedang mendapatkan peraturan tapisan peribadi anda. Sila tunggu 2-3 saat dan klik 'Pilih Fail Excel' sekali lagi.");
+              await CustomAppModal.alert("Sistem sedang mendapatkan peraturan tapisan peribadi anda. Sila tunggu 2-3 saat dan klik 'Pilih Fail Excel' sekali lagi.", "Makluman", "info");
               e.target.value = ''; 
               return;
           }
@@ -10358,14 +10218,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           simulateLoadingWithSteps(['Membaca fail Excel...', 'Menapis data berdasarkan ketetapan anda...'], 'Sila Tunggu');
           
           const reader = new FileReader();
-          reader.onload = (evt) => {
+          reader.onload = async (evt) => {
               try {
                   const data = new Uint8Array(evt.target.result);
                   const workbook = XLSX.read(data, { type: 'array' });
                   const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                   processExcelForTapisan(jsonData);
               } catch (error) {
-                  alert("Ralat membaca fail Excel. Pastikan ia format .xlsx yang betul.");
+                  await CustomAppModal.alert("Ralat membaca fail Excel. Pastikan ia format .xlsx yang betul.", "Ralat", "error");
               } finally {
                   hideLoading();
                   e.target.value = ''; 
@@ -10380,7 +10240,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
   });
 
-  function processExcelForTapisan(rawData) {
+  async function processExcelForTapisan(rawData) {
       if (rawData.length < 2) return;
       const headers = rawData[0].map(h => String(h).toLowerCase().trim());
       
@@ -10397,7 +10257,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       };
 
       if (keys.company === -1 || keys.grade === -1 || keys.cidb === -1) {
-          CustomAppModal.alert("Format Excel tidak sah. Mesti ada kolum Syarikat, Gred, dan Reg. No/CIDB.", "Ralat Format", "error");
+          await CustomAppModal.alert("Format Excel tidak sah. Mesti ada kolum Syarikat, Gred, dan Reg. No/CIDB.", "Ralat Format", "error");
           return;
       }
 
@@ -10873,7 +10733,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                       playSoundEffect('positive_chime.mp3');
                   } catch(err) {
                       console.error("Gagal padam:", err);
-                      CustomAppModal.alert("Gagal memadam permohonan dari bakul Firebase.", "Ralat", "error");
+                      await CustomAppModal.alert("Gagal memadam permohonan dari bakul Firebase.", "Ralat", "error");
                   }
               }
           } else if (prosesBtn) {
@@ -11061,7 +10921,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
                       await playSuccessSound();
                   } else {
-                      CustomAppModal.alert('Gagal mendapatkan senarai queue.', 'Ralat', 'error');
+                      await CustomAppModal.alert('Gagal mendapatkan senarai queue.', 'Ralat', 'error');
                       queueSpiModal.classList.remove('show');
                       setTimeout(() => queueSpiModal.style.display = 'none', 300);
                   }
@@ -11069,7 +10929,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
           } catch (error) {
               clearInterval(progressInterval);
-              CustomAppModal.alert('Gagal mendapatkan senarai queue: ' + error.message, 'Ralat', 'error');
+              await CustomAppModal.alert('Gagal mendapatkan senarai queue: ' + error.message, 'Ralat', 'error');
               queueSpiModal.classList.remove('show');
               setTimeout(() => queueSpiModal.style.display = 'none', 300);
           }
@@ -11247,11 +11107,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   }
               }
           } else {
-              CustomAppModal.alert("Gagal cari video: " + result.message, "Ralat", "error");
+              await CustomAppModal.alert("Gagal cari video: " + result.message, "Ralat", "error");
           }
       } catch (error) {
           hideLoading();
-          CustomAppModal.alert("Ralat sistem: " + error.message, "Ralat", "error");
+          await CustomAppModal.alert("Ralat sistem: " + error.message, "Ralat", "error");
       }
   }
   function displayYoutubeResults(items) {
@@ -11548,7 +11408,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           await CustomAppModal.alert("Gagal memproses cetakan: " + e.message, "Ralat", "error");
       }
   }
-  function processCetakBiasa(item) {
+  async function processCetakBiasa(item) {
       if (!item.borang_json) return;
       try {
           const parsedData = JSON.parse(item.borang_json);
@@ -11656,11 +11516,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       } catch(e) {
           console.error(e);
-          CustomAppModal.alert("Gagal mencetak borang: " + e.message, "Ralat", "error"); 
+          await CustomAppModal.alert("Gagal mencetak borang: " + e.message, "Ralat", "error"); 
       }
   }
 
-  function processLihatBorangPreview(item) {
+  async function processLihatBorangPreview(item) {
       if (!item.borang_json) return;
       try {
           const parsedData = JSON.parse(item.borang_json);
@@ -11844,7 +11704,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           newWin.document.close();
       } catch(e) {
           console.error(e);
-          CustomAppModal.alert("Gagal memaparkan borang: " + e.message, "Ralat", "error"); 
+          await CustomAppModal.alert("Gagal memaparkan borang: " + e.message, "Ralat", "error"); 
       }
   }
 
