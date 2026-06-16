@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
           firebase.initializeApp(firebaseConfig);
       }
       dbFirestore = firebase.firestore();
-      dbFirestore.settings({ experimentalForceLongPolling: true, merge: true });
       authFirebase = firebase.auth();
   } else {
       console.error("Sistem Gagal Memuatkan Firebase. Sila semak fail index.html (CSP).");
@@ -40,31 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzAPyPfCMZNNHtJiKez8RvCD-I_dlMpVrHPqAQqxx4xp0kNof7T4CVAdfm58dV105HG/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxzCW4UTH9LytuKwm9Yi_ESpbbdsGi3iFzospSZrJJWLVbwnbGgms2Hm0OPNM-UMiGh/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
   
-  // =========================================================================
-  // SANITISASI FRONTEND (Anti-XSS)
-  // =========================================================================
-  function sanitizeHtml(str) {
-    if (typeof str !== 'string') return str;
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function sanitizeObject(obj) {
-    if (!obj || typeof obj !== 'object') return obj;
-    var out = Array.isArray(obj) ? [] : {};
-    for (var k in obj) {
-      if (obj.hasOwnProperty(k)) {
-        out[k] = typeof obj[k] === 'string' ? sanitizeHtml(obj[k]) : sanitizeObject(obj[k]);
-      }
-    }
-    return out;
-  }
   // =========================================================================
   // PEMBALUT LOCALSTORAGE (Menggantikan chrome.storage.local)
   // =========================================================================
@@ -320,26 +299,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // LANDING PAGE: Scroll indicator click -> scroll to login
-  document.addEventListener('click', (e) => {
-    const scrollIndicator = e.target.closest('.scroll-indicator');
-    if (scrollIndicator) {
-      e.preventDefault();
-      const loginSection = document.getElementById('landingLoginSection');
-      if (loginSection) {
-        loginSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  });
-
-  // LANDING PAGE: Auto-scroll to login if coming back from auth redirect
-  setTimeout(() => {
-    const loginSection = document.getElementById('landingLoginSection');
-    if (loginSection && window.location.hash === '#login') {
-      setTimeout(() => loginSection.scrollIntoView({ behavior: 'smooth', block: 'center' }), 500);
-    }
-  }, 1000);
-
   async function playSuccessSound() {
     await playSoundEffect('positive_chime.mp3');
   }
@@ -463,13 +422,8 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
-      console.log("Firebase SDK tersedia:", typeof firebase !== 'undefined', "dbFirestore:", dbFirestore !== null);
-
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
-      if (!authFirebase) {
-        console.error("Firebase Auth tidak tersedia. Firebase mungkin gagal dimuatkan.");
-      } else {
-        authFirebase.signInAnonymously().then(function() {
+      authFirebase.signInAnonymously().then(() => {
           console.log("Berjaya log masuk ke Firebase untuk fungsi YouTube/Cache.");
           
           // KOD LAMA: Sambungkan ke Firebase Bakul HANYA jika peranan adalah PENGESYOR
@@ -477,27 +431,16 @@ async function handleCredentialResponse(response) {
               currentUserFirebaseCode = result.user.firebaseCode || null; 
               if (currentUserFirebaseCode) {
                   console.log("Menyambung ke Firebase Bakul dengan kod:", currentUserFirebaseCode);
-                  dbFirestore.collection("users").doc(currentUserFirebaseCode).get()
-                    .then(function(doc) {
+                  dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
                       if (doc.exists) {
                           firebaseUserRules = doc.data();
                           console.log("Peraturan Tapisan Firebase dimuatkan.");
                           subscribeToBakulFirebase();
-                      } else {
-                          console.error("Dokumen Firebase users/" + currentUserFirebaseCode + " tidak wujud. Sila buat dokumen ini di Firebase Console.");
                       }
-                    })
-                    .catch(function(fbErr) {
-                      console.error("Ralat Firestore get() untuk users/" + currentUserFirebaseCode + ":", fbErr);
-                    });
-              } else {
-                  console.warn("PENGESYOR tanpa Firebase Code. Pastikan setupFirebaseCodes() telah dijalankan di Apps Script Editor.");
+                  });
               }
           }
-        }).catch(function(authErr) {
-          console.error("Ralat Firebase Auth (signInAnonymously):", authErr);
-        });
-      }
+      }).catch(err => console.error("Ralat Firebase Auth:", err));
 
       // Simpan sesi dan tarikh hari ini ke storage
       const todayStr = new Date().toDateString();
@@ -546,8 +489,6 @@ async function handleCredentialResponse(response) {
 }
   
   // Fungsi untuk menghantar email ke backend
-  // NOTA KESELAMATAN: Backend guna Session.getActiveUser().getEmail() server-side,
-  // email dari frontend sebagai fallback jika sesi Google tidak tersedia (contoh: fetch API).
   async function verifyEmailWithBackend(email) {
     console.log("V6.5.2 Verifying email with backend:", email);
     
@@ -565,7 +506,7 @@ async function handleCredentialResponse(response) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const result = sanitizeObject(await response.json());
+      const result = await response.json();
       console.log("V6.5.2 Backend verification response:", result);
       
       return result;
@@ -616,8 +557,10 @@ async function handleCredentialResponse(response) {
       return;
     }
     
+    // Pastikan Google API sudah dimuatkan
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
       console.warn("V6.5.2 Google Identity Services API not loaded yet");
+      // Cuba lagi selepas 500ms
       setTimeout(initializeGoogleSignIn, 500);
       return;
     }
@@ -625,33 +568,39 @@ async function handleCredentialResponse(response) {
     console.log("V6.5.2 Initializing Google Identity Services...");
     
     try {
+      // Initialize Google Sign-In
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        auto_select: true,
+        auto_select: false,
         cancel_on_tap_outside: true
       });
       
-      // Render butang Google Sign-In
+      // Render butang Google Sign-In (Gaya Moden)
       google.accounts.id.renderButton(
         googleButton,
         { 
-          theme: 'outline',
+          theme: 'filled_blue', // Tukar dari outline ke filled_blue
           size: 'large',
           type: 'standard',
-          shape: 'pill',
-          width: '320',
+          shape: 'pill',       // Tukar dari rectangular ke pill (bujur)
+          width: '320',        // Lebar yang lebih selesa
           logo_alignment: 'left'
         }
       );
       
+      // Tunjukkan googleButton
       googleButton.style.display = 'flex';
+      googleButton.style.justifyContent = 'center';
+      googleButton.style.alignItems = 'center';
+      googleButton.style.padding = '10px';
       
-      console.log("V6.5.2 Google Sign-In button rendered");
+      console.log("V6.5.2 Google Sign-In button rendered successfully");
       
     } catch (error) {
       console.error("V6.5.2 Error initializing Google Sign-In:", error);
       
+      // Fallback: tunjuk mesej error di login screen
       if (loginError) {
         loginError.style.display = 'block';
         loginError.textContent = 'Ralat memuatkan Google Sign-In. Sila muat semula halaman.';
@@ -4796,31 +4745,19 @@ async function handleCredentialResponse(response) {
 
       // Log masuk semula ke Firebase secara automatik untuk SEMUA role
       if (currentUser && currentUser.email) {
-          authFirebase.signInAnonymously().then(function() {
-              console.log("Session restore: Firebase signInAnonymously berjaya.");
+          authFirebase.signInAnonymously().then(() => {
               // Khusus untuk Pengesyor (Sambung ke fungsi Bakul)
               if (currentUser.role === 'PENGESYOR') {
                   currentUserFirebaseCode = currentUser.firebaseCode || null; 
                   if (currentUserFirebaseCode) {
-                      dbFirestore.collection("users").doc(currentUserFirebaseCode).get()
-                        .then(function(doc) {
+                      dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
                           if (doc.exists) {
                               firebaseUserRules = doc.data();
-                              console.log("Session restore: Peraturan Tapisan dimuatkan.");
                               subscribeToBakulFirebase();
-                          } else {
-                              console.error("Session restore: Dokumen Firebase users/" + currentUserFirebaseCode + " tidak wujud.");
                           }
-                        })
-                        .catch(function(fbErr) {
-                          console.error("Session restore: Ralat Firestore get():", fbErr);
-                        });
-                  } else {
-                      console.warn("Session restore: PENGESYOR tanpa Firebase Code.");
+                      });
                   }
               }
-          }).catch(function(authErr) {
-              console.error("Session restore: Ralat Firebase Auth:", authErr);
           });
       }
       setupUserUI(); 
@@ -6567,13 +6504,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     appContainer.style.display = 'block';
     
     if (anonymousBadge) anonymousBadge.style.display = 'none';
-    
-    var queueBtn = document.getElementById('btnQueueSPI');
-    if (queueBtn) {
-      var allowedRoles = ['ADMIN','PENGESYOR','PELULUS'];
-      var userRole = currentUser.role ? currentUser.role.toUpperCase().trim() : '';
-      queueBtn.style.display = allowedRoles.indexOf(userRole) > -1 ? '' : 'none';
-    }
     
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
     userBadge.innerText = `👤 ${currentUser.name} (${currentUser.role})`;
@@ -8417,7 +8347,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
-            btnPrint.style.backgroundColor = '#2563eb';
+            btnPrint.style.backgroundColor = '#6366f1';
             btnPrint.innerText = '🖨️ Cetak';
             
             // KOD BARU: Menggunakan processCetakBiasa berbanding processLihatBorangPreview
@@ -8460,7 +8390,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
-            btnPrint.style.backgroundColor = '#2563eb';
+            btnPrint.style.backgroundColor = '#6366f1';
             btnPrint.innerText = '🖨️ Cetak';
             btnPrint.onclick = function() { processPelulusPrint(item); };
             btnContainer.appendChild(btnPrint);
@@ -11072,7 +11002,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // 2. Masukkan UI loading peratusan custom secara terus ke dalam table body
           const loadingUI = `
               <tr>
-                  <td colspan="6" style="text-align:center; padding: 40px 20px;">
+                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
                           <div class="dashboard-spinner" style="margin-bottom:0;"></div>
                           <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
@@ -11110,9 +11040,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           try {
               // 4. Minta data dari pelayan (Google Apps Script)
               const userEmail = currentUser ? encodeURIComponent(currentUser.email) : '';
-              const userRole = currentUser ? encodeURIComponent(currentUser.role) : '';
-              const userName = currentUser ? encodeURIComponent(currentUser.name) : '';
-              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&role=${userRole}&userName=${userName}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
+              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
               const result = await response.json();
 
               // Hentikan animasi tiruan
@@ -11169,24 +11097,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (!tbody) return;
       
       if (!dataArray || dataArray.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
           return;
       }
       
       tbody.innerHTML = dataArray.map((item, index) => {
+          // KOD BARU: Gunakan pelulus jika ada (untuk pemutihan), jika tiada kekalkan pengesyor (untuk siasatan biasa)
           const pegawai = item.pelulus || item.pengesyor || '-';
-          const tarikh = item.date_submit || '-';
-          var just = item.justifikasi || '';
-          var justDisplay = just.length > 60 ? just.substring(0, 60) + '…' : just;
           
           return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
               <td style="text-align:center;">${index + 1}</td>
               <td style="font-weight:bold; color: #1e293b;">${item.syarikat}</td>
               <td style="text-align:center; color: #475569;">${item.cidb}</td>
-              <td style="text-align:center; font-size: 0.85rem;">${tarikh}</td>
               <td style="text-align:center; font-size: 0.85rem;">${pegawai}</td>
-              <td style="font-size: 0.8rem; color: #475569; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${just.replace(/"/g,'&quot;')}">${justDisplay}</td>
           </tr>
           `;
       }).join('');
