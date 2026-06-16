@@ -61,9 +61,14 @@ function sanitizeText(str) {
 function sanitizeData(obj) {
   if (!obj || typeof obj !== 'object') return obj;
   var out = Array.isArray(obj) ? [] : {};
+  var skipKeys = { 'borang_json': true, 'htmlContent': true };
   for (var k in obj) {
     if (obj.hasOwnProperty(k)) {
-      out[k] = typeof obj[k] === 'string' ? sanitizeText(obj[k]) : sanitizeData(obj[k]);
+      if (skipKeys[k]) {
+        out[k] = obj[k];
+      } else {
+        out[k] = typeof obj[k] === 'string' ? sanitizeText(obj[k]) : sanitizeData(obj[k]);
+      }
     }
   }
   return out;
@@ -570,14 +575,14 @@ function handleUpdateRecord(data, sheet) {
         data.tarikh_hantar_spi !== undefined ? data.tarikh_hantar_spi : rspi[1]
       ]]);
     }
-    if (data.lawatan_tarikh !== undefined || data.lawatan_submit_sptb !== undefined || data.lawatan_syor !== undefined || data.alamat_perniagaan !== undefined || data.jenis_konsultansi !== undefined || data.alasan !== undefined || data.kelulusan !== undefined) {
+    if (data.lawatan_tarikh !== undefined || data.lawatan_submit_sptb !== undefined || data.lawatan_syor !== undefined || data.alamat_perniagaan !== undefined || (data.jenis_konsultansi !== undefined && data.jenis_konsultansi !== '') || data.alasan !== undefined || data.kelulusan !== undefined) {
       var rlaw = sheet.getRange(rowNum, 18, 1, 7).getValues()[0];
       sheet.getRange(rowNum, 18, 1, 7).setValues([[
         data.lawatan_tarikh !== undefined ? data.lawatan_tarikh : rlaw[0],
         data.lawatan_submit_sptb !== undefined ? data.lawatan_submit_sptb : rlaw[1],
         data.lawatan_syor !== undefined ? data.lawatan_syor : rlaw[2],
         data.alamat_perniagaan !== undefined ? data.alamat_perniagaan : rlaw[3],
-        data.jenis_konsultansi !== undefined ? data.jenis_konsultansi : rlaw[4],
+        data.jenis_konsultansi !== undefined && data.jenis_konsultansi !== '' ? data.jenis_konsultansi : rlaw[4],
         data.alasan !== undefined ? data.alasan : rlaw[5],
         data.kelulusan !== undefined ? data.kelulusan : rlaw[6]
       ]]);
@@ -845,7 +850,7 @@ function getApplicationsData(role, userName) {
 // FOLDER HELPERS
 // =========================================================================
 function findFolderInParent(parent, name) {
-  try { var fs = parent.getFolders(); while (fs.hasNext()) { var f = fs.next(); if (f.getName() === name) return f; } return null; } catch(e) { return null; }
+  try { var fs = parent.getFolders(); var cleanName = name.toString().trim(); while (fs.hasNext()) { var f = fs.next(); if (f.getName().toString().trim().toUpperCase() === cleanName.toUpperCase()) return f; } return null; } catch(e) { return null; }
 }
 function getMonthName(m) { return ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'][m-1]; }
 function formatDateForFolder(ds) { try { var d = new Date(ds); return d.getDate().toString().padStart(2,'0') + '-' + (d.getMonth()+1).toString().padStart(2,'0') + '-' + d.getFullYear(); } catch(e) { return new Date().toISOString().split('T')[0]; } }
