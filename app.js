@@ -6945,9 +6945,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           tabList.classList.add('active');
         }
         
+        // V6.5.2: Filter Pengesyor hanya untuk KETUA SEKSYEN, bukan Pelulus
         if (filterSection) {
-          filterSection.style.display = 'flex';
-          updatePengesyorFilter();
+          if (currentUser.role === 'KETUA SEKSYEN') {
+            filterSection.style.display = 'flex';
+            updatePengesyorFilter();
+          } else {
+            filterSection.style.display = 'none';
+          }
         }
         
         fetchAndRenderList('inbox');
@@ -7885,8 +7890,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (type === 'inbox') {
       const inboxBadge = document.getElementById('inboxBadgePelulus');
       if (inboxBadge) {
-        inboxBadge.textContent = countAll || filtered.length;
-        inboxBadge.style.display = (countAll || filtered.length) > 0 ? 'inline' : 'none';
+        inboxBadge.textContent = filtered.length;
+        inboxBadge.style.display = filtered.length > 0 ? 'inline' : 'none';
       }
     }
 
@@ -8397,7 +8402,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       let extraInfo = '';
       if ((currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') && (type === 'inbox' || type === 'history')) {
-        extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
+        extraInfo = `<div style="font-size:0.85rem; color:#0369a1; font-weight:600; margin-top:4px; padding:2px 0;">📩 Daripada: ${item.pengesyor || '-'}</div>`;
       }
       
       if (type === 'history' && item.pelulus) {
