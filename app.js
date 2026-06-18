@@ -3089,7 +3089,7 @@ async function handleCredentialResponse(response) {
   // DYNAMIC YEAR FUNCTION
   // =========================================================================
   function updateDynamicYears(data) {
-    if (!data || data.length === 0) return;
+    if (!data || !Array.isArray(data) || data.length === 0) return;
     
     const years = new Set();
     data.forEach(item => {
@@ -4662,9 +4662,10 @@ async function handleCredentialResponse(response) {
       }
       
       if (storage.stb_data_cache) {
-        cachedData = storage.stb_data_cache;
+        const raw = storage.stb_data_cache;
+        cachedData = Array.isArray(raw) ? raw : (Array.isArray(raw && raw.data) ? raw.data : []);
         console.log("V6.5.2 Loaded data from cache:", cachedData.length);
-        updateDynamicYears(cachedData);
+        if (Array.isArray(cachedData)) updateDynamicYears(cachedData);
       }
       
       if (storage.stb_data_version) {
@@ -7720,8 +7721,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return cachedData;
         }
 
-        // Data baru dari server
-        const newData = data.data || data;
+        // Data baru dari server (handle old format array & new format object)
+        const newData = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
         
@@ -10463,7 +10464,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           let isProcessed = false;
           let inDrafts = false;
 
-          if (cachedData) {
+          if (Array.isArray(cachedData)) {
               for (let c of cachedData) {
                   // Mesti CIDB sama DAN Tarikh Mohon sama
                   if (c.cidb === item.cidb && c.start_date === normExcelDate) {
@@ -10665,7 +10666,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   const normBDate = normalizeDateToDBFormat(d.dateSubmitted);
                   let shouldDelete = false;
 
-                  if (cachedData) {
+                  if (Array.isArray(cachedData)) {
                       for (let c of cachedData) {
                           // Jika CIDB dan Tarikh Mohon adalah sama
                           if (c.cidb === d.cidb && c.start_date === normBDate) {
