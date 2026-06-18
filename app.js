@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsVM9z_YaxuDAUAJw7HkcRES2vJatF2l_WFkDROQgFrN99_cvOwywQ8B6Jk-oLfB6l/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWy8uWhLhsV_6pQ2DwHQEejkqDgSd_-CGeXi_LT7MZD66bjoLcc8eVXc2ez5neDME6/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -6984,11 +6984,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         
         if (filterSection) {
-          filterSection.style.display = 'flex';
-          updatePengesyorFilter();
+          filterSection.style.display = 'none';
         }
         
-        fetchAndRenderList('inbox');
+        fetchAndRenderList('inbox', true);
       }
       else if (tabName === 'pelulus-action') {
         if(!pelulusActiveItem) { 
