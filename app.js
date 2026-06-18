@@ -7851,8 +7851,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       } else {
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
-    }
-    }    else if (type === 'history') {
+    } else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
         filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
