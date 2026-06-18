@@ -1585,7 +1585,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
 
     const targetRange = sheet.getRange(targetRow, 1, 1, newRow.length);
     targetRange.setValues([newRow]);
-    cache.put("firstEmptyRow_" + SHEET_NAME, (targetRow + 1).toString(), 300);
+    try { cache.put("firstEmptyRow_" + SHEET_NAME, (targetRow + 1).toString(), 300); } catch (e) {}
 
     logActivity(data.pengesyor || "System", 'INSERT_RECORD', `Rekod baharu dimasukkan di baris ${targetRow} untuk ${data.syarikat || 'syarikat'}`, folderId);
 
@@ -1897,21 +1897,9 @@ function getApplicationsData(role, userName, clientVersion) {
   }
 
   // ======================
-  // TRY SERVER CACHE
+  // BUANG STALE CACHE (data melebihi 100KB limit)
   // ======================
-  const cachedJson = cache.get(APP_DATA_CACHE_KEY);
-  if (cachedJson) {
-    try {
-      const allRows = JSON.parse(cachedJson);
-      if (Array.isArray(allRows)) {
-        const filtered = filterRowsByRole(allRows, role, userName);
-        return createJSONOutput({ cached: false, data: filtered, version: currentVersion });
-      }
-    } catch (e) {
-      Logger.log(`[V6.5.2] Cache corrupt, reading from sheet: ${e.toString()}`);
-    }
-    cache.remove(APP_DATA_CACHE_KEY);
-  }
+  cache.remove(APP_DATA_CACHE_KEY);
 
   // ======================
   // READ FROM SHEET (FALLBACK)
@@ -1934,7 +1922,7 @@ function getApplicationsData(role, userName, clientVersion) {
     if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
   }
   
-  cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300);
+  try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
 
   const dataRange = sheet.getRange(1, 1, lastRow, sheet.getLastColumn());
   const data = dataRange.getDisplayValues();
@@ -1973,9 +1961,7 @@ function getApplicationsData(role, userName, clientVersion) {
     });
   }
 
-  // Cache full dataset (skip if too large - CacheService limit 100KB)
-  try { cache.put(APP_DATA_CACHE_KEY, JSON.stringify(allRows), APP_DATA_CACHE_TTL); }
-  catch (e) { Logger.log(`[V6.5.2] Cache skip: ${e.toString()}`); }
+  // NOTA: CacheService had 100KB - data 3000+ rows exceeds limit, so skip caching
 
   // Filter dan return
   const filtered = filterRowsByRole(allRows, role, userName);
