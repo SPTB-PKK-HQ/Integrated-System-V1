@@ -1032,10 +1032,8 @@ async function handleCredentialResponse(response) {
   const dbLawatanSubmitSptb = document.getElementById('db_lawatan_submit_sptb');
   const dbLawatanSyor = document.getElementById('db_lawatan_syor');
 
-  // WhatsApp Notification Elements
-  const cbNotifyWhatsapp = document.getElementById('cb_notify_whatsapp');
+  // Pelulus Container
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
-  const labelNotifyWhatsapp = document.getElementById('label_notify_whatsapp');
 
   // Profile Tab Button
   const tabProfileBtn = document.getElementById('tabProfileBtn');
@@ -4833,18 +4831,17 @@ async function handleCredentialResponse(response) {
     
     const pelulusList = usersList.filter(user => user.role === 'PELULUS');
     
-    dbPelulusWhatsapp.innerHTML = '<option value="">- Tiada Notifikasi / Pilih Pelulus -</option>';
+    dbPelulusWhatsapp.innerHTML = '<option value="">- Pilih Pelulus -</option>';
     
     pelulusList.forEach(pelulus => {
-      const phone = pelulus.phone || '';
       const name = pelulus.name || '';
       const option = document.createElement('option');
-      option.value = phone;
-      option.textContent = `${name} ${phone ? '(' + phone + ')' : ''}`;
+      option.value = name;
+      option.textContent = name;
       dbPelulusWhatsapp.appendChild(option);
     });
     
-    console.log(`V6.5.2 WhatsApp dropdown populated with ${pelulusList.length} pelulus`);
+    console.log(`V6.5.2 Pelulus dropdown populated with ${pelulusList.length} pelulus`);
   }
 
   function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone) {
@@ -6236,18 +6233,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  if (cbNotifyWhatsapp) {
-    cbNotifyWhatsapp.addEventListener('change', (e) => {
-      const isChecked = e.target.checked;
-      if (pelulusWhatsappContainer) {
-        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
-      }
-      if (!isChecked && dbPelulusWhatsapp) {
-        dbPelulusWhatsapp.value = '';
-      }
-    });
-  }
-
   // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
   const dbSyorStatusDropdown = document.getElementById('db_syor_status');
   if (dbSyorStatusDropdown) {
@@ -6264,20 +6249,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbSahSyor.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       
-      if (labelNotifyWhatsapp) {
-        labelNotifyWhatsapp.style.display = isChecked ? 'block' : 'none';
+      if (pelulusWhatsappContainer) {
+        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
       }
-      
-      if (!isChecked) {
-        if (cbNotifyWhatsapp) {
-          cbNotifyWhatsapp.checked = false;
-        }
-        if (pelulusWhatsappContainer) {
-          pelulusWhatsappContainer.style.display = 'none';
-        }
-        if (dbPelulusWhatsapp) {
-          dbPelulusWhatsapp.value = '';
-        }
+      if (!isChecked && dbPelulusWhatsapp) {
+        dbPelulusWhatsapp.value = '';
       }
     });
   }
@@ -6577,7 +6553,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     } else if (currentUser.role === 'PELULUS') {
       tabsContainer.innerHTML = `
         <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
-        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">1. Inbox</span></button>
+        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">1. Inbox</span><span class="tab-badge inbox-badge" id="inboxBadgePelulus" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:0 6px; font-size:0.7rem; margin-left:4px;">0</span></button>
         <button class="tab-btn" data-target="pelulus-view"><span class="tab-icon">🔍</span><span class="tab-text">2. Semakan</span></button>
         <button class="tab-btn" data-target="pelulus-action"><span class="tab-icon">⚖️</span><span class="tab-text">3. Keputusan</span></button>
         <button class="tab-btn" data-target="history"><span class="tab-icon">📜</span><span class="tab-text">4. Sejarah</span></button>
@@ -7867,14 +7843,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
      else if (type === 'inbox') {
-      	// Filter logic for inbox
       if (currentUser.role === 'KETUA SEKSYEN') {
-        // Untuk Ketua Seksyen, "Belum Syor" bermaksud semua rekod yang belum ada tarikh_syor (dari SEMUA pengesyor)
         filtered = cachedData.filter(i => !i.tarikh_syor);
+      } else if (currentUser.role === 'PELULUS') {
+        // V6.5.2: Pelulus nampak rekod yang diassign kepadanya sahaja
+        filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === '') && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
-        // Original logic for Pelulus, Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
+    }
     }    else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
         filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
@@ -7903,6 +7880,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (badgeUbahMaklumat) badgeUbahMaklumat.textContent = countUbahMaklumat;
       if (badgeUbahGred) badgeUbahGred.textContent = countUbahGred;
       if (badgeSpi) badgeSpi.textContent = countSpi;
+    }
+
+    // V6.5.2: Badge inbox untuk Pelulus
+    if (type === 'inbox') {
+      const inboxBadge = document.getElementById('inboxBadgePelulus');
+      if (inboxBadge) {
+        inboxBadge.textContent = countAll || filtered.length;
+        inboxBadge.style.display = (countAll || filtered.length) > 0 ? 'inline' : 'none';
+      }
     }
 
     if (type === 'history') {
@@ -8125,11 +8111,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         email: currentUser ? currentUser.email : ''
       };
       
-      // Buang parameter berkaitan pelulus untuk elak data pelulus terbatal atau berubah secara tidak sengaja
-      delete payload.kelulusan;
-      delete payload.tarikh_lulus;
-      delete payload.pelulus;
-      delete payload.alasan;
+      // V6.5.2: Kosongkan pelulus supaya inbox Pelulus dikemaskini
+      payload.kelulusan = '';
+      payload.tarikh_lulus = '';
+      payload.pelulus = '';
+      payload.alasan = '';
       
     } else if (action === 'undo_lulus') {
       // 1. Buang catatan pelulus lama dari JSON supaya borang bersih semula
@@ -9292,6 +9278,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (isConfirmed) {
         payload.syor_status = document.getElementById('db_syor_status')?.value || 'SOKONG';
         payload.tarikh_syor = localToday;
+        // V6.5.2: Wajib pilih Pelulus
+        const selectedPelulusName = dbPelulusWhatsapp ? dbPelulusWhatsapp.value.trim() : '';
+        if (!selectedPelulusName) {
+          await CustomAppModal.alert("Sila pilih Pelulus sebelum menghantar.", "Pelulus Diperlukan", "warning");
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
+          return;
+        }
+        payload.pelulus = selectedPelulusName;
       } else {
         payload.syor_status = '';
         payload.tarikh_syor = '';
@@ -9308,29 +9302,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           "Data BERJAYA disimpan sebagai DRAFT (Belum Syor).";
         
         await playSuccessSound();
+        await CustomAppModal.alert(message, "Selesai", "success");
         
-        const isNotifyWhatsapp = cbNotifyWhatsapp ? cbNotifyWhatsapp.checked : false;
-        const selectedPelulus = document.getElementById('db_pelulus_whatsapp') ? document.getElementById('db_pelulus_whatsapp').value : '';
-        
-        let whatsappUrl = null;
-        if (isConfirmed && isNotifyWhatsapp && selectedPelulus.trim() !== '') {
-            whatsappUrl = sendWhatsAppNotification(payload.syarikat, payload.cidb, payload.jenis, payload.syor_status, payload.tarikh_syor, selectedPelulus);
-        }
-        
-        if (whatsappUrl) {
-            const isWaConfirmed = await CustomAppModal.confirm(
-                message + "<br><br>Adakah anda ingin buka dan hantar notifikasi WhatsApp sekarang?",
-                "Hantar WhatsApp",
-                "success",
-                "Ya, Hantar",
-                false,
-                true // KOD BARU: Aktifkan isSuccessBtn untuk tema hijau
+        // V6.5.2: WhatsApp notification - optional, cari phone dari usersList
+        if (isConfirmed && selectedPelulusName) {
+          const pelulusUser = usersList.find(u => u.name === selectedPelulusName);
+          const pelulusPhone = pelulusUser ? pelulusUser.phone : '';
+          if (pelulusPhone && pelulusPhone.trim() !== '') {
+            const waConfirmed = await CustomAppModal.confirm(
+              "Adakah anda ingin hantar notifikasi WhatsApp kepada " + selectedPelulusName + "?",
+              "Hantar WhatsApp",
+              "info",
+              "Ya, Hantar",
+              false
             );
-            if (isWaConfirmed) {
-                window.open(whatsappUrl, '_blank');
+            if (waConfirmed) {
+              const waUrl = sendWhatsAppNotification(payload.syarikat, payload.cidb, payload.jenis, payload.syor_status, payload.tarikh_syor, pelulusPhone);
+              if (waUrl) window.open(waUrl, '_blank');
             }
-        } else {
-            await CustomAppModal.alert(message, "Selesai", "success");
+          }
         }
         
         await resetFormAfterSubmit();
@@ -9376,7 +9366,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (cbSelesaiLawatan) cbSelesaiLawatan.checked = false;
     if (containerLawatan) containerLawatan.style.display = 'none';
     
-    if (cbNotifyWhatsapp) cbNotifyWhatsapp.checked = false;
     if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
     if (dbPelulusWhatsapp) dbPelulusWhatsapp.value = '';
 
