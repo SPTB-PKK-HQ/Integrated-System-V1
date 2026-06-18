@@ -281,8 +281,9 @@
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
                     <div class="grid-equal"><div><label>Syor</label><select id="db_syor_status"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div></div>
                     <label id="label_db_sah_syor" style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;"><input type="checkbox" id="db_sah_syor" style="width:auto;">Dengan ini saya mengesahkan bahawa permohonan diatas adalah benar dan tepat.</label>
+                    <label style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;" id="label_notify_whatsapp"><input type="checkbox" id="cb_notify_whatsapp" style="width:auto;">Hantar Notifikasi WhatsApp kepada Pelulus</label>
                 </div>
-                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1;">Pilih Pelulus <span style="color:#ef4444;">*</span></label><select id="db_pelulus_whatsapp"><option value="">- Pilih Pelulus -</option></select></div>
+                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1;">Pilih Pelulus (Untuk Notifikasi WhatsApp jika SOKONG)</label><select id="db_pelulus_whatsapp"><option value="">- Tiada Notifikasi / Pilih Pelulus -</option></select></div>
                 <div class="actions"><button class="btn btn-white" id="btnBackToForm">« Kembali ke Borang</button><button class="btn btn-green" id="btnSendToSheet">Simpan & Hantar ke Sheet</button></div>
                 <p id="statusMsg" style="margin-top:10px; font-weight:bold; text-align:center;"></p>
                 <input type="hidden" id="db_row_index">

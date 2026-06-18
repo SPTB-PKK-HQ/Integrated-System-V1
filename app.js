@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWy8uWhLhsV_6pQ2DwHQEejkqDgSd_-CGeXi_LT7MZD66bjoLcc8eVXc2ez5neDME6/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsVM9z_YaxuDAUAJw7HkcRES2vJatF2l_WFkDROQgFrN99_cvOwywQ8B6Jk-oLfB6l/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -1032,8 +1032,10 @@ async function handleCredentialResponse(response) {
   const dbLawatanSubmitSptb = document.getElementById('db_lawatan_submit_sptb');
   const dbLawatanSyor = document.getElementById('db_lawatan_syor');
 
-  // Pelulus Container
+  // WhatsApp Notification Elements
+  const cbNotifyWhatsapp = document.getElementById('cb_notify_whatsapp');
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
+  const labelNotifyWhatsapp = document.getElementById('label_notify_whatsapp');
 
   // Profile Tab Button
   const tabProfileBtn = document.getElementById('tabProfileBtn');
@@ -4831,17 +4833,18 @@ async function handleCredentialResponse(response) {
     
     const pelulusList = usersList.filter(user => user.role === 'PELULUS');
     
-    dbPelulusWhatsapp.innerHTML = '<option value="">- Pilih Pelulus -</option>';
+    dbPelulusWhatsapp.innerHTML = '<option value="">- Tiada Notifikasi / Pilih Pelulus -</option>';
     
     pelulusList.forEach(pelulus => {
+      const phone = pelulus.phone || '';
       const name = pelulus.name || '';
       const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
+      option.value = phone;
+      option.textContent = `${name} ${phone ? '(' + phone + ')' : ''}`;
       dbPelulusWhatsapp.appendChild(option);
     });
     
-    console.log(`V6.5.2 Pelulus dropdown populated with ${pelulusList.length} pelulus`);
+    console.log(`V6.5.2 WhatsApp dropdown populated with ${pelulusList.length} pelulus`);
   }
 
   function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone) {
@@ -6233,6 +6236,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  if (cbNotifyWhatsapp) {
+    cbNotifyWhatsapp.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      if (pelulusWhatsappContainer) {
+        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
+      }
+      if (!isChecked && dbPelulusWhatsapp) {
+        dbPelulusWhatsapp.value = '';
+      }
+    });
+  }
+
   // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
   const dbSyorStatusDropdown = document.getElementById('db_syor_status');
   if (dbSyorStatusDropdown) {
@@ -6249,11 +6264,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbSahSyor.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       
-      if (pelulusWhatsappContainer) {
-        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
+      if (labelNotifyWhatsapp) {
+        labelNotifyWhatsapp.style.display = isChecked ? 'block' : 'none';
       }
-      if (!isChecked && dbPelulusWhatsapp) {
-        dbPelulusWhatsapp.value = '';
+      
+      if (!isChecked) {
+        if (cbNotifyWhatsapp) {
+          cbNotifyWhatsapp.checked = false;
+        }
+        if (pelulusWhatsappContainer) {
+          pelulusWhatsappContainer.style.display = 'none';
+        }
+        if (dbPelulusWhatsapp) {
+          dbPelulusWhatsapp.value = '';
+        }
       }
     });
   }
@@ -6553,7 +6577,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     } else if (currentUser.role === 'PELULUS') {
       tabsContainer.innerHTML = `
         <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
-        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">1. Inbox</span><span class="tab-badge inbox-badge" id="inboxBadgePelulus" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:0 6px; font-size:0.7rem; margin-left:4px;">0</span></button>
+        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">1. Inbox</span></button>
         <button class="tab-btn" data-target="pelulus-view"><span class="tab-icon">🔍</span><span class="tab-text">2. Semakan</span></button>
         <button class="tab-btn" data-target="pelulus-action"><span class="tab-icon">⚖️</span><span class="tab-text">3. Keputusan</span></button>
         <button class="tab-btn" data-target="history"><span class="tab-icon">📜</span><span class="tab-text">4. Sejarah</span></button>
@@ -6945,17 +6969,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           tabList.classList.add('active');
         }
         
-        // V6.5.2: Filter Pengesyor hanya untuk KETUA SEKSYEN, bukan Pelulus
         if (filterSection) {
-          if (currentUser.role === 'KETUA SEKSYEN') {
-            filterSection.style.display = 'flex';
-            updatePengesyorFilter();
-          } else {
-            filterSection.style.display = 'none';
-          }
+          filterSection.style.display = 'flex';
+          updatePengesyorFilter();
         }
         
-        fetchAndRenderList('inbox', true);
+        fetchAndRenderList('inbox');
       }
       else if (tabName === 'history') {
         const tabHistory = document.getElementById('tab-history');
@@ -6984,10 +7003,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         
         if (filterSection) {
-          filterSection.style.display = 'none';
+          filterSection.style.display = 'flex';
+          updatePengesyorFilter();
         }
         
-        fetchAndRenderList('inbox', true);
+        fetchAndRenderList('inbox');
       }
       else if (tabName === 'pelulus-action') {
         if(!pelulusActiveItem) { 
@@ -7717,7 +7737,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  function fetchAndRenderList(listType, forceRefresh) {
+  function fetchAndRenderList(listType) {
     if (!listStatus) return;
 
     activeListType = listType; 
@@ -7739,11 +7759,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       hideLoading();
     }
 
-    const versionParam = (!forceRefresh && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
-    const roleParam = currentUser && currentUser.role ? `&role=${encodeURIComponent(currentUser.role)}` : '';
-    const userParam = currentUser && currentUser.name ? `&userName=${encodeURIComponent(currentUser.name)}` : '';
+    const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam + roleParam + userParam, {
+    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -7849,15 +7867,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
      else if (type === 'inbox') {
+      	// Filter logic for inbox
       if (currentUser.role === 'KETUA SEKSYEN') {
+        // Untuk Ketua Seksyen, "Belum Syor" bermaksud semua rekod yang belum ada tarikh_syor (dari SEMUA pengesyor)
         filtered = cachedData.filter(i => !i.tarikh_syor);
-      } else if (currentUser.role === 'PELULUS') {
-        // V6.5.2: Pelulus nampak rekod yang diassign + dah disyor + belum diproses
-        filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === '') && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
+        // Original logic for Pelulus, Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
-    } else if (type === 'history') {
+    }    else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
         filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
@@ -7885,15 +7903,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (badgeUbahMaklumat) badgeUbahMaklumat.textContent = countUbahMaklumat;
       if (badgeUbahGred) badgeUbahGred.textContent = countUbahGred;
       if (badgeSpi) badgeSpi.textContent = countSpi;
-    }
-
-    // V6.5.2: Badge inbox untuk Pelulus
-    if (type === 'inbox') {
-      const inboxBadge = document.getElementById('inboxBadgePelulus');
-      if (inboxBadge) {
-        inboxBadge.textContent = filtered.length;
-        inboxBadge.style.display = filtered.length > 0 ? 'inline' : 'none';
-      }
     }
 
     if (type === 'history') {
@@ -8116,11 +8125,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         email: currentUser ? currentUser.email : ''
       };
       
-      // V6.5.2: Kosongkan pelulus supaya inbox Pelulus dikemaskini
-      payload.kelulusan = '';
-      payload.tarikh_lulus = '';
-      payload.pelulus = '';
-      payload.alasan = '';
+      // Buang parameter berkaitan pelulus untuk elak data pelulus terbatal atau berubah secara tidak sengaja
+      delete payload.kelulusan;
+      delete payload.tarikh_lulus;
+      delete payload.pelulus;
+      delete payload.alasan;
       
     } else if (action === 'undo_lulus') {
       // 1. Buang catatan pelulus lama dari JSON supaya borang bersih semula
@@ -8403,7 +8412,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       let extraInfo = '';
       if ((currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') && (type === 'inbox' || type === 'history')) {
-        extraInfo = `<div style="font-size:0.85rem; color:#0369a1; font-weight:600; margin-top:4px; padding:2px 0;">📩 Daripada: ${item.pengesyor || '-'}</div>`;
+        extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
       }
       
       if (type === 'history' && item.pelulus) {
@@ -9283,14 +9292,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (isConfirmed) {
         payload.syor_status = document.getElementById('db_syor_status')?.value || 'SOKONG';
         payload.tarikh_syor = localToday;
-        // V6.5.2: Wajib pilih Pelulus
-        const selectedPelulusName = dbPelulusWhatsapp ? dbPelulusWhatsapp.value.trim() : '';
-        if (!selectedPelulusName) {
-          await CustomAppModal.alert("Sila pilih Pelulus sebelum menghantar.", "Pelulus Diperlukan", "warning");
-          if (loadingOverlay) loadingOverlay.style.display = 'none';
-          return;
-        }
-        payload.pelulus = selectedPelulusName;
       } else {
         payload.syor_status = '';
         payload.tarikh_syor = '';
@@ -9307,25 +9308,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           "Data BERJAYA disimpan sebagai DRAFT (Belum Syor).";
         
         await playSuccessSound();
-        await CustomAppModal.alert(message, "Selesai", "success");
         
-        // V6.5.2: WhatsApp notification - optional, cari phone dari usersList
-        if (isConfirmed && selectedPelulusName) {
-          const pelulusUser = usersList.find(u => u.name === selectedPelulusName);
-          const pelulusPhone = pelulusUser ? pelulusUser.phone : '';
-          if (pelulusPhone && pelulusPhone.trim() !== '') {
-            const waConfirmed = await CustomAppModal.confirm(
-              "Adakah anda ingin hantar notifikasi WhatsApp kepada " + selectedPelulusName + "?",
-              "Hantar WhatsApp",
-              "info",
-              "Ya, Hantar",
-              false
+        const isNotifyWhatsapp = cbNotifyWhatsapp ? cbNotifyWhatsapp.checked : false;
+        const selectedPelulus = document.getElementById('db_pelulus_whatsapp') ? document.getElementById('db_pelulus_whatsapp').value : '';
+        
+        let whatsappUrl = null;
+        if (isConfirmed && isNotifyWhatsapp && selectedPelulus.trim() !== '') {
+            whatsappUrl = sendWhatsAppNotification(payload.syarikat, payload.cidb, payload.jenis, payload.syor_status, payload.tarikh_syor, selectedPelulus);
+        }
+        
+        if (whatsappUrl) {
+            const isWaConfirmed = await CustomAppModal.confirm(
+                message + "<br><br>Adakah anda ingin buka dan hantar notifikasi WhatsApp sekarang?",
+                "Hantar WhatsApp",
+                "success",
+                "Ya, Hantar",
+                false,
+                true // KOD BARU: Aktifkan isSuccessBtn untuk tema hijau
             );
-            if (waConfirmed) {
-              const waUrl = sendWhatsAppNotification(payload.syarikat, payload.cidb, payload.jenis, payload.syor_status, payload.tarikh_syor, pelulusPhone);
-              if (waUrl) window.open(waUrl, '_blank');
+            if (isWaConfirmed) {
+                window.open(whatsappUrl, '_blank');
             }
-          }
+        } else {
+            await CustomAppModal.alert(message, "Selesai", "success");
         }
         
         await resetFormAfterSubmit();
@@ -9371,6 +9376,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (cbSelesaiLawatan) cbSelesaiLawatan.checked = false;
     if (containerLawatan) containerLawatan.style.display = 'none';
     
+    if (cbNotifyWhatsapp) cbNotifyWhatsapp.checked = false;
     if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
     if (dbPelulusWhatsapp) dbPelulusWhatsapp.value = '';
 
