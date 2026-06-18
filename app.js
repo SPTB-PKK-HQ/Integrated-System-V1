@@ -308,7 +308,63 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // END V6.4.8 AUDIO SYSTEM & MOBILE MENU
+  // V6.5.2: DAILY GREETING & LOGOUT QUOTES
+  // =========================================================================
+  const loginGreetings = [
+    // Ahad (0)
+    ['Hari Ahad yang tenang. Gunakan masa ini untuk merancang minggu yang lebih teratur. Setiap langkah kecil membawa kepada kejayaan yang besar.'],
+    ['Selamat Hari Ahad. Rehat secukupnya, kerana esok adalah permulaan baru. Jangan lupa bersyukur untuk segala yang telah dicapai.'],
+    ['Ahad adalah hari untuk mengisi semangat. Apa yang kita tanam hari ini, akan kita tuai esok. Kekal fokus dan positif.'],
+    // Isnin (1)
+    ['Selamat Hari Isnin! Bangun dan bersinar! Setiap hari adalah peluang baru untuk menjadi lebih baik dari semalam.'],
+    ['Isnin sudah tiba! Semangat baru, tenaga baru. Jangan biarkan rasa malas menghalang langkah anda. Anda mampu melakukannya!'],
+    ['Selamat bekerja di hari Isnin. Ingatlah, kejayaan bermula dari langkah pertama yang berani. Harimu akan menjadi hebat!'],
+    ['Isnin yang cemerlang bermula dengan fikiran yang positif. Anda adalah arkitek kepada kejayaan anda sendiri.'],
+    // Selasa (2)
+    ['Selasa hari yang sibuk. Tapi ingat, setiap perkara besar bermula dengan langkah kecil. Jangan putus asa!'],
+    ['Selamat Hari Selasa. Hari ini adalah hari untuk bertindak! Jangan tunggu esok untuk melakukan sesuatu yang boleh dilakukan hari ini.'],
+    ['Teruskan perjuangan di hari Selasa ini. Kejayaan bukan tentang seberapa cepat, tapi seberapa konsisten kita melangkah.'],
+    // Rabu (3)
+    ['Selamat Hari Rabu! Pertengahan minggu, jangan kendur. Anda sudah separuh jalan, teruskan dengan lebih gigih.'],
+    ['Rabu adalah hari untuk review pencapaian. Apa yang dah dicapai? Teruskan usaha, jangan berhenti!'],
+    ['Hari Rabu yang produktif. Ingat, rezeki tidak pernah tertukar. Usaha hari ini adalah pelaburan untuk masa depan.'],
+    // Khamis (4)
+    ['Khamis yang cerah! Hampir hujung minggu, tapi jangan lupa tanggungjawab. Selesaikan yang perlu dengan sebaiknya.'],
+    ['Selamat Hari Khamis. Dua hari lagi sebelum rehat. Beri yang terbaik untuk sisa minggu ini!'],
+    ['Khamis adalah hari untuk menyempurnakan. Apa yang tertinggal, selesaikan hari ini agar esok lebih ringan.'],
+    // Jumaat (5)
+    ['Jumaat yang mulia! Semoga hari ini membawa seribu kebaikan dan keberkatan. Selesaikan tugas dengan penuh tanggungjawab!'],
+    ['Selamat Hari Jumaat! Jangan lupa bersedekah dan berdoa agar urusan kita dipermudahkan. Semoga hari Jumaat anda indah.'],
+    ['Jumaat hari yang istimewa. Akhirkan minggu kerja dengan senyuman dan rasa syukur. Selamat berhujung minggu!'],
+    // Sabtu (6)
+    ['Sabtu hari rehat. Tapi ingat, masa tidak menunggu. Guna masa lapang dengan bijak, isi dengan perkara yang bermanfaat.'],
+    ['Selamat Hari Sabtu. Gunakan cuti untuk recharge tenaga. Jumpa keluarga dan orang tersayang. Hargai setiap masa yang ada.'],
+    ['Sabtu yang ceria! Luangkan masa dengan aktiviti yang menyeronokkan. Work hard, play hard!']
+  ];
+
+  const logoutQuotes = [
+    'Log keluar? Kecewa? Ingatlah, setiap kali pintu tertutup, ada pintu lain yang terbuka.',
+    'Pergi dulu. Kadang-kadang kita perlu menjauh seketika untuk melihat sesuatu dengan lebih jelas.',
+    'Sampai jumpa lagi. Rindu itu wajar, tapi jangan biarkan ia melumpuhkan langkah.',
+    'Terima kasih kerana menggunakan sistem ini. Walaupun pahit, kadang perpisahan mengajar kita erti ketabahan.',
+    'Log keluar... Mungkin esok lebih baik. Mungkin esok lebih cerah. Jangan pernah berhenti berharap.',
+    'Keluar dari sistem, tapi jangan keluar dari impian. Teruskan berjuang walau rasa ingin menyerah.',
+    'Sesi berakhir sudah. Semoga ketabahan sentiasa bersamamu walau di mana pun berada.',
+    'Kecewa itu biasa, tapi jangan biarkan ia menjadi pengakhiran. Bangkit dan teruskan hidup.'
+  ];
+
+  function getDailyGreeting() {
+    const day = new Date().getDay();
+    const pool = (day * 3) + Math.floor(Math.random() * 3);
+    return loginGreetings[pool % loginGreetings.length];
+  }
+
+  function getLogoutQuote() {
+    return logoutQuotes[Math.floor(Math.random() * logoutQuotes.length)];
+  }
+
+  // =========================================================================
+  // END V6.5.2 DAILY GREETING & LOGOUT QUOTES
   // =========================================================================
   
   // --- FETCH WITH RETRY MECHANISM ---
@@ -467,10 +523,12 @@ async function handleCredentialResponse(response) {
   }
 
       // Biarkan bar peratusan berjalan sehingga tamat untuk "User Experience" yang premium
-      setTimeout(() => {
-        hideLoading(); 
-        // Jalankan fungsi initialize app selepas loading hilang
-        setupUserUI(); 
+      setTimeout(async () => {
+        hideLoading();
+        // V6.5.2: Papar greeting harian sebelum masuk sistem
+        await playSuccessSound();
+        await CustomAppModal.alert(getDailyGreeting(), 'Selamat Datang ' + currentUser.name, 'success');
+        setupUserUI();
       }, 1500); 
       
     } else {
@@ -7492,6 +7550,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // ... array pemadaman seperti asal ...
           'stb_current_draft_filter', 'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume'
         ]);
+        // V6.5.2: Papar kata-kata galau sebelum keluar
+        await playErrorSound();
+        await CustomAppModal.alert(getLogoutQuote(), 'Sesi Berakhir', 'error');
         location.reload();
       }
     });
