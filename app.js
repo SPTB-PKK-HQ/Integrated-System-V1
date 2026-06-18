@@ -828,7 +828,7 @@ async function handleCredentialResponse(response) {
   const filterHistoryJenisUbahGred = document.getElementById('filterHistoryJenisUbahGred');
   
   // Badges History
-  const badgeHistoryAll = document.getElementById('badgeHistoryAll');
+  const badgeHistoryAll = document.getElementById('badgeHistoryStatusAll');
   const badgeHistoryStatusLulus = document.getElementById('badgeHistoryStatusLulus');
   const badgeHistoryStatusTolak = document.getElementById('badgeHistoryStatusTolak');
   const badgeHistoryStatusPending = document.getElementById('badgeHistoryStatusPending');
