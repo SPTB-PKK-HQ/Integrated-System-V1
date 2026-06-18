@@ -1973,8 +1973,9 @@ function getApplicationsData(role, userName, clientVersion) {
     });
   }
 
-  // Cache full dataset
-  cache.put(APP_DATA_CACHE_KEY, JSON.stringify(allRows), APP_DATA_CACHE_TTL);
+  // Cache full dataset (skip if too large - CacheService limit 100KB)
+  try { cache.put(APP_DATA_CACHE_KEY, JSON.stringify(allRows), APP_DATA_CACHE_TTL); }
+  catch (e) { Logger.log(`[V6.5.2] Cache skip: ${e.toString()}`); }
 
   // Filter dan return
   const filtered = filterRowsByRole(allRows, role, userName);
