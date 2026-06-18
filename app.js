@@ -6955,7 +6955,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }
         }
         
-        fetchAndRenderList('inbox');
+        fetchAndRenderList('inbox', true);
       }
       else if (tabName === 'history') {
         const tabHistory = document.getElementById('tab-history');
@@ -7718,7 +7718,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  function fetchAndRenderList(listType) {
+  function fetchAndRenderList(listType, forceRefresh) {
     if (!listStatus) return;
 
     activeListType = listType; 
@@ -7740,7 +7740,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       hideLoading();
     }
 
-    const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+    const versionParam = (!forceRefresh && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
 
     return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
       method: 'GET',
