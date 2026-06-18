@@ -1901,9 +1901,16 @@ function getApplicationsData(role, userName, clientVersion) {
   // ======================
   const cachedJson = cache.get(APP_DATA_CACHE_KEY);
   if (cachedJson) {
-    const allRows = JSON.parse(cachedJson);
-    const filtered = filterRowsByRole(allRows, role, userName);
-    return createJSONOutput({ cached: false, data: filtered, version: currentVersion });
+    try {
+      const allRows = JSON.parse(cachedJson);
+      if (Array.isArray(allRows)) {
+        const filtered = filterRowsByRole(allRows, role, userName);
+        return createJSONOutput({ cached: false, data: filtered, version: currentVersion });
+      }
+    } catch (e) {
+      Logger.log(`[V6.5.2] Cache corrupt, reading from sheet: ${e.toString()}`);
+    }
+    cache.remove(APP_DATA_CACHE_KEY);
   }
 
   // ======================

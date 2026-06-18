@@ -7709,8 +7709,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         return res.json();
       })
       .then(data => {
+        // Handle error response dari server
+        if (data && data.status === 'error') {
+          console.error("V6.5.2 Server error:", data.message);
+          if (cachedData.length > 0) {
+            listStatus.innerText = `Gunakan cache (ralat server)`;
+          } else {
+            listStatus.innerText = `Ralat: ${data.message || 'server error'}`;
+          }
+          setTimeout(() => hideLoading(), 300);
+          return cachedData;
+        }
+
         // Jika server kata data tak berubah, guna cache sedia ada
-        if (data.cached === true) {
+        if (data && data.cached === true) {
           if (data.version) dataCacheVersion = data.version;
           if (cachedData.length > 0) {
             listStatus.innerText = `Terkini: ${cachedData.length} rekod (cache)`;
@@ -7722,6 +7734,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
 
         // Data baru dari server (handle old format array & new format object)
+        console.log("V6.5.2 Response type:", Array.isArray(data) ? 'array' : typeof data, data && data.cached !== undefined ? 'cached:' + data.cached : '');
         const newData = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
