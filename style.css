@@ -1335,17 +1335,16 @@
             .info-field { display: flex; align-items: center; flex-grow: 1; }
             .info-label { margin-right: 5px; white-space: nowrap; color: #000; }
             .print-result { font-weight: 900; text-align: center; }
-            .verification-box { border: none; padding: 5px; margin-top: 5px; height: 150px; display: flex; flex-direction: column; justify-content: space-between; }
+            .verification-box { border: none; padding: 5px; margin-top: 5px; min-height: 150px; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid !important; break-inside: avoid !important; }
             .ver-title { font-weight: 900; text-decoration: underline; font-size: 13pt; margin-bottom: 5px; }
             .options-text-center { text-align: center; font-weight: normal; font-size: 11pt; padding-bottom: 5px; border-bottom: 1px dotted #000; margin-bottom: 5px; line-height: 1.3; }
-            .pengesyor-grid-new { display: flex; justify-content: space-between; }
-            .pengesyor-dates { font-size: 12pt; line-height: 1.6; font-weight: 700; }
-            .pengesyor-sign-box { width: 45%; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; font-weight: 700; }
+            .pengesyor-grid-new { display: flex; justify-content: space-between; align-items: flex-end; }
+            .pengesyor-dates { font-size: 12pt; line-height: 1.6; font-weight: 700; flex: 1; }
+            .pengesyor-sign-box { width: 50%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center; font-weight: 700; position: relative; min-height: 110px; }
+            .pelulus-grid-new { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; }
+            .pelulus-date-box { font-weight: 700; font-size: 12pt; }
+            .pelulus-sign-box { width: 50%; text-align: center; position: relative; min-height: 110px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
             .verification-separator { border-bottom: 2px solid #000; margin: 5px 0; }
-            .verification-box {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-        }
             #printProfileLayout { font-family: 'Arial', sans-serif; padding: 5px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt !important; }
             #printProfileLayout .profile-header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 8px; }
             #printProfileLayout .profile-title { font-size: 20pt !important; font-weight: bold; margin: 5px 0; color: #1e40af; }

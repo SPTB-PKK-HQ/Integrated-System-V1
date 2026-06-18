@@ -537,7 +537,7 @@
             <table class="print-table layout-table" style="margin-bottom: 5px; border:none;"><tr><td width="30%"><div class="border-box" style="height:28px;"><span style="font-size:12pt; font-weight:700;">TARIKH SURAT:</span><span id="print_bank_date" style="font-weight:bold; margin-left:10px;"></span></div></td><td width="70%"><div class="border-box" style="height:28px;"><span style="font-size:12pt; font-weight:700;">SYARAT PENANDATANGAN:</span><span id="print_bank_sign" style="font-weight:bold; margin-left:10px;"></span><span id="print_bank_status" style="font-weight:bold; margin-left:5px;"></span></div></td></tr></table>
             <h2 style="margin-bottom: 3px;">DOKUMEN UMUM & KWSP</h2>
             <table class="print-table" style="font-size:13pt; margin-bottom: 5px;"><tr><td style="border:none; padding-bottom: 5px; font-weight:700;">CARTA ORGANISASI: <span id="print_doc_carta" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">PETA LAKARAN: <span id="print_doc_peta" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">GAMBAR PREMIS: <span id="print_doc_gambar" class="print-result"></span></td><td style="border:none; padding-bottom: 5px; font-weight:700;">PERJANJIAN SEWA: <span id="print_doc_sewa" class="print-result"></span></td></tr><tr style="height: 30px;"><td colspan="4" style="border:none;"></td></tr><tr><td colspan="4" style="padding-top:5px; border-top: 1px dotted #ccc;"><strong style="font-size:13pt;">KWSP (3 BULAN):</strong><span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_1"></span>,<span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_2"></span>,<span style="border-bottom:1px solid #000; width:auto; padding: 0 5px; display:inline-block; margin: 0 5px;" id="print_kwsp_3"></span></td></tr></table>
-            <div class="verification-box" style="height: 150px;">
+            <div class="verification-box" style="min-height: 150px;">
                 <div class="ver-title">BAHAGIAN PENGESYOR</div>
                 <div class="options-text-center" id="print_syor_container">
                     <span id="print_syor_sokong">SOKONG</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_siasat">SIASAT</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_tidak_sokong">TIDAK DISOKONG</span>
@@ -550,7 +550,7 @@
                         <div>Tarikh Proses: <span id="print_tarikh_proses" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
                     </div>
                     
-                    <div class="pengesyor-sign-box" style="position: relative; height: 90px; width: 45%;">
+                    <div class="pengesyor-sign-box" style="position: relative; height: 110px; width: 50%;">
                         <img id="print_pengesyor_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
                         <img id="print_pengesyor_sign" src="" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
                     </div>
@@ -559,7 +559,7 @@
 
             <div class="verification-separator"></div>
             
-            <div class="verification-box" style="margin-bottom: 0; height: 150px;">
+            <div class="verification-box" style="margin-bottom: 0; min-height: 150px;">
                 <div>
                     <div class="ver-title">BAHAGIAN PELULUS</div>
                     <div style="border-bottom: 1px dotted #000; height: 18px; margin-bottom: 8px; font-size:11pt; color:#666;">Catatan: <span id="print_catatan_pelulus" style="color: black; font-weight: bold; padding-left: 10px;"></span></div>
@@ -567,10 +567,10 @@
                         <span id="print_lulus">LULUS</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_lulus_syarat">LULUS BERSYARAT</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_pemutihan">PEMUTIHAN</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_tolak">TOLAK</span>
                     </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                    <div style="font-weight:700;">Tarikh: <span id="print_tarikh_lulus">________________</span></div>
+                <div class="pelulus-grid-new">
+                    <div class="pelulus-date-box">Tarikh: <span id="print_tarikh_lulus">________________</span></div>
                     
-                    <div style="text-align: center; width: 50%; position: relative; height: 90px;">
+                    <div class="pelulus-sign-box" style="position: relative; height: 110px;">
                         <img id="print_pelulus_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
                         <img id="print_pelulus_sign" src="" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
                     </div>

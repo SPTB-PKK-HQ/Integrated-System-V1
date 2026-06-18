@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlW-4jSuqvEA9T3yUcl6YUBXC5EWa3FqU0mU0SysRWya7lh8rKG5rI2c95vttrlEaF/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuHo4jvOh5PE5eKVDsy5Q7bynqpdg6SvzbwU34SoKKyq9cZNajtuZGxVkMBXI-Ycj6/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -4848,6 +4848,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         height: 6px;
         background-color: ${themeColor};
         margin-bottom: 10px;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
       }
       
       .jenis-permohonan-bar {
@@ -4895,6 +4897,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         background-color: ${themeColor};
         color: white;
         padding: 8px;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
       }
       
       .grade-bar {
@@ -4903,6 +4907,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         margin: 5px 0;
         background-color: #fef3c7;
         display: block;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
       }
       
       .print-table {
@@ -4945,6 +4951,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         border: none;
         padding: 10px;
         margin-top: 10px;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       
       .ver-title {
@@ -4962,17 +4970,38 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       .pengesyor-grid-new {
-        display: block;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
         margin-top: 10px;
       }
       
       .pengesyor-dates {
-        margin-bottom: 10px;
+        flex: 1;
+        line-height: 1.8;
       }
       
       .pengesyor-sign-box {
+        width: 50%;
         text-align: center;
-        margin-top: 15px;
+        position: relative;
+        height: 110px;
+      }
+
+      .pelulus-grid-new {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 10px;
+      }
+      .pelulus-date-box {
+        font-weight: 700;
+      }
+      .pelulus-sign-box {
+        width: 50%;
+        text-align: center;
+        position: relative;
+        height: 110px;
       }
       
       .verification-separator {
@@ -5134,21 +5163,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return;
         }
         
-        const userColorHex = getUserColorHex(currentUser.color);
+        // Dapatkan warna tema Pengesyor
+        let pengesyorColor = currentUser.color || '#2563eb';
+        const namaPengesyorPrint = document.getElementById('db_pengesyor')?.value || document.getElementById('pengesyor')?.value || '';
+        if (namaPengesyorPrint && typeof usersList !== 'undefined' && usersList.length > 0) {
+            const pengesyorObj = usersList.find(u => u.name.toUpperCase() === namaPengesyorPrint.toUpperCase());
+            if (pengesyorObj && pengesyorObj.color) {
+                pengesyorColor = pengesyorObj.color;
+            }
+        }
+        const userColorHex = getUserColorHex(pengesyorColor);
         const pdfCss = generatePdfCssString(userColorHex);
-        // Simpan status asal display untuk dikembalikan semula nanti
-        const imgEls = [
-            document.getElementById('print_pengesyor_sign'), document.getElementById('print_pengesyor_cop'),
-            document.getElementById('print_pelulus_sign'), document.getElementById('print_pelulus_cop')
-        ];
-        const originalDisplays = imgEls.map(el => el ? el.style.display : 'none');
-
-        // Sembunyikan gambar khusus untuk capture HTML ke Drive
-        imgEls.forEach(el => { if(el) el.style.display = 'none'; });
         const printHTMLForDrive = `<style>${pdfCss}</style>${printLayoutElement.outerHTML}`;
-
-        // Tunjukkan semula gambar untuk cetakan browser (window.print)
-        imgEls.forEach((el, idx) => { if(el) el.style.display = originalDisplays[idx]; });
         
         // Gunakan printHTMLForDrive dalam payload ke backend
         
@@ -11334,18 +11360,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }
           
           if (proceedToDrive) {
-              const imgEls = [
-                  document.getElementById('print_pengesyor_sign'), document.getElementById('print_pengesyor_cop'),
-                  document.getElementById('print_pelulus_sign'), document.getElementById('print_pelulus_cop')
-              ];
-              const originalDisplays = imgEls.map(el => el ? el.style.display : 'none');
-              imgEls.forEach(el => { if(el) el.style.display = 'none'; });
               
               const printLayoutElement = document.getElementById('printLayout');
               const pdfCss = generatePdfCssString(userColorHex);
               const printHTMLForDrive = `<style>${pdfCss}</style>${printLayoutElement.outerHTML}`;
-              
-              imgEls.forEach((el, idx) => { if(el) el.style.display = originalDisplays[idx]; });
               
               // KOD BARU: Tentukan jenis perubahan yang tepat
               let specificType = '';
@@ -11664,12 +11682,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
                 
                 /* PENYUSUNAN BERTENTANGAN (SIDE-BY-SIDE) UNTUK PELULUS */
-                /* Mencari div yang mengandungi Tarikh Pelulus dan Sign Pelulus */
-                .verification-box:last-child > div:last-child {
+                .pelulus-grid-new {
                   display: flex !important;
                   justify-content: space-between !important;
                   align-items: flex-end !important;
                   margin-top: 10px !important;
+                }
+                .pelulus-date-box {
+                  font-weight: 700 !important;
+                }
+                .pelulus-sign-box {
+                  width: 50% !important;
+                  height: 110px !important;
+                  position: relative !important;
+                  display: flex !important;
+                  justify-content: center !important;
                 }
                 
                 /* GARISAN PEMISAH */
