@@ -7740,8 +7740,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     const versionParam = (!forceRefresh && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+    const roleParam = currentUser && currentUser.role ? `&role=${encodeURIComponent(currentUser.role)}` : '';
+    const userParam = currentUser && currentUser.name ? `&userName=${encodeURIComponent(currentUser.name)}` : '';
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
+    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam + roleParam + userParam, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -7850,7 +7852,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (currentUser.role === 'KETUA SEKSYEN') {
         filtered = cachedData.filter(i => !i.tarikh_syor);
       } else if (currentUser.role === 'PELULUS') {
-        // V6.5.2: Pelulus nampak rekod yang diassign kepadanya sahaja
+        // V6.5.2: Pelulus nampak rekod yang diassign + dah disyor + belum diproses
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === '') && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));

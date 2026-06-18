@@ -1972,8 +1972,8 @@ function filterRowsByRole(rows, role, userName) {
   if (role === ROLE_PENGESYOR && userName) {
     return rows.filter(r => r.pengesyor && r.pengesyor.toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PELULUS && userName) {
-    // V6.5.2: Hantar semua rekod yang belum lulus + diassign kepada pelulus ini
-    return rows.filter(r => (!r.tarikh_lulus || r.tarikh_lulus === '') && r.pelulus && r.pelulus.toUpperCase() === userName.toUpperCase());
+    // V6.5.2: Hantar rekod yang dah disyor + belum lulus + diassign kepada pelulus ini
+    return rows.filter(r => r.tarikh_syor && (!r.tarikh_lulus || r.tarikh_lulus === '') && r.pelulus && r.pelulus.toUpperCase() === userName.toUpperCase());
   }
   return rows;
 }
