@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwuHo4jvOh5PE5eKVDsy5Q7bynqpdg6SvzbwU34SoKKyq9cZNajtuZGxVkMBXI-Ycj6/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUDIPtijaV5OXHJP0qjc7kps9H6OxKO1dJXOcNFdxpoBHd7ilBb8ImtjDh4IyC5LQj/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -696,6 +696,7 @@ async function handleCredentialResponse(response) {
   let driveFolderCreated = false;
   let createdFolderUrl = '';
   let userFolderUrl = '';
+  let dataCacheVersion = '';
   let allRecommenders = [];
   let allApprovers = [];
   
@@ -4565,6 +4566,7 @@ async function handleCredentialResponse(response) {
         'stb_users_cache',
         'stb_data_cache',
         'stb_cache_timestamp',
+        'stb_data_version',
         'stb_drive_folder_url',
         'stb_user_folder_url',
         'stb_filter_pengesyor',
@@ -4663,6 +4665,10 @@ async function handleCredentialResponse(response) {
         cachedData = storage.stb_data_cache;
         console.log("V6.5.2 Loaded data from cache:", cachedData.length);
         updateDynamicYears(cachedData);
+      }
+      
+      if (storage.stb_data_version) {
+        dataCacheVersion = storage.stb_data_version;
       }
       
       if (storage.stb_extracted_pdf_data) {
@@ -7687,11 +7693,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     if (cachedData.length > 0) {
       renderFilteredList(listType);
-      listStatus.innerText = `Using cached data (${cachedData.length} records)`;
+      listStatus.innerText = `Mengguna cache (${cachedData.length} rekod)`;
       hideLoading();
     }
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now(), {
+    const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+
+    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -7700,27 +7708,43 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         return res.json();
       })
       .then(data => {
-        cachedData = data;
+        // Jika server kata data tak berubah, guna cache sedia ada
+        if (data.cached === true) {
+          if (data.version) dataCacheVersion = data.version;
+          if (cachedData.length > 0) {
+            listStatus.innerText = `Terkini: ${cachedData.length} rekod (cache)`;
+          } else {
+            listStatus.innerText = "Data tidak berubah (cache)";
+          }
+          setTimeout(() => hideLoading(), 300);
+          return cachedData;
+        }
+
+        // Data baru dari server
+        const newData = data.data || data;
+        cachedData = newData;
+        if (data.version) dataCacheVersion = data.version;
         
         storageWrapper.set({ 
-          'stb_data_cache': data,
-          'stb_cache_timestamp': Date.now()
+          'stb_data_cache': newData,
+          'stb_cache_timestamp': Date.now(),
+          'stb_data_version': dataCacheVersion
         });
         
-        updateDynamicYears(data);
+        updateDynamicYears(newData);
         
         if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
           updatePengesyorFilter();
         }
         
         renderFilteredList(listType);
-        listStatus.innerText = `Kemaskini: ${data.length} rekod`;
+        listStatus.innerText = `Kemaskini: ${newData.length} rekod`;
         
         setTimeout(() => {
           hideLoading();
         }, 500);
         
-        return data;
+        return newData;
       })
       .catch(err => {
         console.error("V6.5.2 Fetch list error:", err);
@@ -7730,7 +7754,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }
           
           renderFilteredList(listType);
-          listStatus.innerText = `Using cached data (${cachedData.length} records) - Offline mode`;
+          listStatus.innerText = `Cache luar talian (${cachedData.length} rekod)`;
         } else {
           listStatus.innerText = "Gagal memuat data.";
         }
