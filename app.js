@@ -2484,6 +2484,7 @@ async function handleCredentialResponse(response) {
     };
     if (!item.borang_json || String(item.borang_json).trim() === '') return result;
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return result;
+    if (item.kelulusan && item.kelulusan.includes('LULUS')) return result;
     try {
       const parsed = JSON.parse(item.borang_json);
       const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
@@ -2512,6 +2513,7 @@ async function handleCredentialResponse(response) {
     const labels = [];
     if (!item.borang_json || String(item.borang_json).trim() === '') return '-';
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return '-';
+    if (item.kelulusan && item.kelulusan.includes('LULUS')) return '-';
     try {
       const parsed = JSON.parse(item.borang_json);
       const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
