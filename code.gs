@@ -437,6 +437,11 @@ function doPost(e) {
       return handleProcessAI(data);
     }
     
+    // Handler untuk dapatkan log
+    if (data.action === 'getLogs') {
+      return handleGetLogs();
+    }
+    
     // Handler untuk padam rekod
     if (data.action === 'deleteRecord') {
       // V6.5.0: Pengesahan ketat untuk deleteRecord
@@ -1629,6 +1634,35 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
   } catch (error) {
     logActivity("System", 'ERROR', `Ralat tambah rekod: ${error.toString()}`, '');
     return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+function handleGetLogs() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const logSheet = ss.getSheetByName(LOGS_SHEET_NAME);
+    if (!logSheet) {
+      return createJSONOutput({ status: "success", logs: [] });
+    }
+    const lastRow = logSheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: "success", logs: [] });
+    }
+    const dataRange = logSheet.getRange(2, 1, lastRow - 1, 6);
+    const rows = dataRange.getDisplayValues();
+    const logs = rows.map((r, i) => ({
+      timestamp: r[0] || '',
+      user: r[1] || '',
+      action: r[2] || '',
+      description: r[3] || '',
+      folderId: r[4] || '',
+      url: r[5] || ''
+    }));
+    // Balikkan tertib terbaru dulu
+    logs.reverse();
+    return createJSONOutput({ status: "success", logs: logs });
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString(), logs: [] });
   }
 }
 

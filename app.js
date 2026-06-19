@@ -1017,6 +1017,11 @@ async function handleCredentialResponse(response) {
   const filterIncompleteDocUbahMaklumat = document.getElementById('filterIncompleteDocUbahMaklumat');
   const filterIncompleteDocUbahGred = document.getElementById('filterIncompleteDocUbahGred');
   
+  // Rekod Dipadam Elements
+  const btnRefreshDeletedLogs = document.getElementById('btnRefreshDeletedLogs');
+  const adminDeletedLogsTbody = document.getElementById('adminDeletedLogsTbody');
+  const deletedLogsCount = document.getElementById('deletedLogsCount');
+  
   // Chart Elements for Application Type Analysis
   const chartTypeMonthly = document.getElementById('chartTypeMonthly');
   const chartTypeYearly = document.getElementById('chartTypeYearly');
@@ -2706,6 +2711,9 @@ async function handleCredentialResponse(response) {
     }
     
     renderAdminRejectionReasons(filteredData);
+    
+    // Muat semula rekod dipadam dari Log
+    if (typeof fetchDeletedLogs === 'function') fetchDeletedLogs();
   }
 
   function renderAdminJenisTable(jenisStats, total) {
@@ -10192,6 +10200,112 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         incompleteDocModal.style.display = 'none';
       }
     });
+  }
+
+  // REKOD DIPADAM - LOG & RESTORE
+  let deletedLogsCache = null;
+
+  async function fetchDeletedLogs() {
+    if (!currentUser) return;
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getLogs', email: currentUser.email })
+      }, 3, 1000);
+      if (!response.ok) return;
+      const result = await response.json();
+      if (result.status === 'success') {
+        deletedLogsCache = result.logs.filter(l => l.action === 'DELETE_SNAPSHOT');
+        renderDeletedLogs();
+      }
+    } catch (e) { console.error('Gagal fetch logs:', e); }
+  }
+
+  function renderDeletedLogs() {
+    if (!adminDeletedLogsTbody) return;
+    if (!deletedLogsCache || deletedLogsCache.length === 0) {
+      adminDeletedLogsTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Tiada rekod dipadam</td></tr>';
+      if (deletedLogsCount) deletedLogsCount.textContent = '0 rekod';
+      return;
+    }
+    let html = '';
+    deletedLogsCache.forEach((log, idx) => {
+      let syarikat = '-', cidb = '-', gred = '-', status = '-';
+      try {
+        const desc = log.description || '';
+        const match = desc.match(/: ({.*})$/s);
+        if (match) {
+          const snap = JSON.parse(match[1]);
+          syarikat = snap.syarikat || '-';
+          cidb = snap.cidb || '-';
+          gred = snap.gred || '-';
+          status = snap.kelulusan || snap.syor_status || '-';
+        } else {
+          // Fallback: ambil dari description tu sendiri
+          const namaMatch = desc.match(/\(([^)]+)\)/);
+          syarikat = namaMatch ? namaMatch[1] : desc.substring(0, 80);
+        }
+      } catch (e) {}
+      const ts = log.timestamp || '-';
+      html += `<tr>
+        <td style="padding:8px; font-size:0.85rem;">${ts}</td>
+        <td style="padding:8px;">${log.user || '-'}</td>
+        <td style="padding:8px; text-align:left; font-weight:600;">${syarikat}</td>
+        <td style="padding:8px;">${cidb}</td>
+        <td style="padding:8px;">${gred}</td>
+        <td style="padding:8px;">${status}</td>
+        <td style="padding:8px;"><button class="btn-sm restore-log-btn" data-index="${idx}" style="background:#16a34a; color:white; border:none; cursor:pointer; border-radius:6px;">Pulihkan</button></td>
+      </tr>`;
+    });
+    adminDeletedLogsTbody.innerHTML = html;
+    if (deletedLogsCount) deletedLogsCount.textContent = `${deletedLogsCache.length} rekod`;
+
+    adminDeletedLogsTbody.querySelectorAll('.restore-log-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const idx = parseInt(e.target.getAttribute('data-index'));
+        if (isNaN(idx) || !deletedLogsCache[idx]) return;
+        const log = deletedLogsCache[idx];
+        const desc = log.description || '';
+        const match = desc.match(/: ({.*})$/s);
+        if (!match) {
+          await CustomAppModal.alert("Snapshot JSON tidak ditemui dalam log ini.", "Ralat", "error");
+          return;
+        }
+        const confirmed = await CustomAppModal.confirm(
+          `Adakah anda pasti mahu memulihkan semula rekod ini ke Sheet?`,
+          "Pengesahan Pulihkan", "warning", "Ya, Pulihkan", false
+        );
+        if (!confirmed) return;
+
+        try {
+          const response = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'restoreRecord',
+              snapshot: match[1],
+              user: currentUser.name
+            })
+          }, 3, 1000);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const result = await response.json();
+          if (result.status === 'success') {
+            await CustomAppModal.alert(`Rekod berjaya dipulihkan ke baris ${result.row}.`, "Berjaya", "success");
+            fetchDeletedLogs();
+            if (typeof loadAdminDashboard === 'function') loadAdminDashboard();
+          } else {
+            await CustomAppModal.alert(`Gagal: ${result.message}`, "Ralat", "error");
+          }
+        } catch (err) {
+          await CustomAppModal.alert(`Ralat: ${err.message}`, "Ralat", "error");
+        }
+      });
+    });
+  }
+
+  if (btnRefreshDeletedLogs) {
+    btnRefreshDeletedLogs.addEventListener('click', fetchDeletedLogs);
   }
 
   // LOGIK AUTO-FILL TARIKH PROSES BERDASARKAN KEPUTUSAN SYOR
