@@ -2542,7 +2542,7 @@ async function handleCredentialResponse(response) {
       const adminJenisTbody = document.getElementById('adminJenisTbody');
       if (adminJenisTbody) adminJenisTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tiada data</td></tr>';
       if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = '0';
-      if (adminIncompleteDocsTbody) adminIncompleteDocsTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tiada data</td></tr>';
+      if (adminIncompleteDocsTbody) adminIncompleteDocsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data</td></tr>';
       return;
     }
     
@@ -2668,11 +2668,14 @@ async function handleCredentialResponse(response) {
       let html = '';
       docLabels.forEach(d => {
         const row = docLabels.indexOf(d);
+        let rowTotal = 0;
+        grades.forEach(g => { rowTotal += docByGrade[g][d.key]; });
         html += `<tr${row % 2 === 0 ? ' style="background:#f8fafc;"' : ''}>`;
         html += `<td style="padding:8px; font-weight:600;">${d.label}</td>`;
         grades.forEach(g => {
           html += `<td style="padding:8px; text-align:center;${docByGrade[g][d.key] > 0 ? ' color:#dc2626; font-weight:bold;' : ''}">${docByGrade[g][d.key]}</td>`;
         });
+        html += `<td style="padding:8px; text-align:center; font-weight:bold;${rowTotal > 0 ? ' color:#dc2626;' : ''}">${rowTotal}</td>`;
         html += '</tr>';
       });
       // Baris jumlah
@@ -2680,6 +2683,9 @@ async function handleCredentialResponse(response) {
       grades.forEach(g => {
         html += `<td style="padding:8px; text-align:center;">${gradeTotals[g]}</td>`;
       });
+      let grandTotalRow = 0;
+      grades.forEach(g => { grandTotalRow += gradeTotals[g]; });
+      html += `<td style="padding:8px; text-align:center;">${grandTotalRow}</td>`;
       html += '</tr>';
       adminIncompleteDocsTbody.innerHTML = html;
     }
