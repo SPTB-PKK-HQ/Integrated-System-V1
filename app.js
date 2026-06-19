@@ -2483,8 +2483,11 @@ async function handleCredentialResponse(response) {
       personel_ic: 0, personel_sb: 0, personel_epf: 0
     };
     if (!item.borang_json || String(item.borang_json).trim() === '') return result;
+    if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return result;
     try {
       const parsed = JSON.parse(item.borang_json);
+      const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
+      if (!knownDocFields.some(k => parsed[k] !== undefined)) return result;
       const isInc = (v) => !v || !v.includes('✓');
       if (isInc(parsed.doc_carta_status)) result.doc_carta = 1;
       if (isInc(parsed.doc_peta_status)) result.doc_peta = 1;
@@ -2507,9 +2510,12 @@ async function handleCredentialResponse(response) {
 
   function getIncompleteDocLabels(item) {
     const labels = [];
-    if (!item.borang_json || String(item.borang_json).trim() === '') return 'Tiada borang';
+    if (!item.borang_json || String(item.borang_json).trim() === '') return '-';
+    if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return '-';
     try {
       const parsed = JSON.parse(item.borang_json);
+      const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
+      if (!knownDocFields.some(k => parsed[k] !== undefined)) return '-';
       const isInc = (v) => !v || !v.includes('✓');
       const docMap = [
         { f: 'doc_carta_status', l: 'Carta Organisasi' },
@@ -2529,8 +2535,8 @@ async function handleCredentialResponse(response) {
         if (persons.some(p => isInc(p.s_sb))) labels.push('Personel-SB');
         if (persons.some(p => isInc(p.s_epf))) labels.push('Personel-EPF');
       }
-      return labels.length > 0 ? labels.join(', ') : 'Tiada';
-    } catch (e) { return 'Ralat parse'; }
+      return labels.length > 0 ? labels.join(', ') : '-';
+    } catch (e) { return '-'; }
   }
 
   function loadAdminDashboard() {
