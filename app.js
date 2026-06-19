@@ -1006,9 +1006,6 @@ async function handleCredentialResponse(response) {
   // Butang CSV
   const btnAdminCsv = document.getElementById('btnAdminCsv');
   
-  // Butang Paparan Penuh Admin
-  const btnAdminFullView = document.getElementById('btnAdminFullView');
-  
   // Modal Dokumen Tidak Lengkap
   const incompleteDocModal = document.getElementById('incompleteDocModal');
   const incompleteDocModalClose = document.getElementById('incompleteDocModalClose');
@@ -7674,13 +7671,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       const fullViewUrl = 'index.html?view=full';
       window.open(fullViewUrl, '_blank'); 
-    });
-  }
-  
-  if(btnAdminFullView) {
-    btnAdminFullView.addEventListener('click', () => {
-      const fullViewUrl = 'index.html?view=full';
-      window.open(fullViewUrl, '_blank');
     });
   }
   
