@@ -985,6 +985,8 @@ async function handleCredentialResponse(response) {
   const adminApprovedCount = document.getElementById('admin-approved-count');
   const adminRejectedCount = document.getElementById('admin-rejected-count');
   const adminPendingCount = document.getElementById('admin-pending-count');
+  const adminIncompleteDocCount = document.getElementById('admin-incomplete-doc-count');
+  const adminIncompleteDocsTbody = document.getElementById('adminIncompleteDocsTbody');
   const adminPengesyorTbody = document.getElementById('admin-pengesyor-tbody');
   const adminPelulusTbody = document.getElementById('admin-pelulus-tbody');
   const adminStatsModal = document.getElementById('adminStatsModal');
@@ -2460,6 +2462,36 @@ async function handleCredentialResponse(response) {
   // FUNGSI ADMIN DASHBOARD
   // =========================================================================
 
+  function countIncompleteInRecord(item) {
+    const result = {
+      doc_carta: 0, doc_peta: 0, doc_gambar: 0, doc_sewa: 0,
+      ssm: 0, bank: 0,
+      kwsp_1: 0, kwsp_2: 0, kwsp_3: 0,
+      personel_ic: 0, personel_sb: 0, personel_epf: 0
+    };
+    if (!item.borang_json || String(item.borang_json).trim() === '') return result;
+    try {
+      const parsed = JSON.parse(item.borang_json);
+      const isInc = (v) => !v || !v.includes('✓');
+      if (isInc(parsed.doc_carta_status)) result.doc_carta = 1;
+      if (isInc(parsed.doc_peta_status)) result.doc_peta = 1;
+      if (isInc(parsed.doc_gambar_status)) result.doc_gambar = 1;
+      if (isInc(parsed.doc_sewa_status)) result.doc_sewa = 1;
+      if (isInc(parsed.ssm_status)) result.ssm = 1;
+      if (isInc(parsed.bank_status_input)) result.bank = 1;
+      if (isInc(parsed.kwsp_s1)) result.kwsp_1 = 1;
+      if (isInc(parsed.kwsp_s2)) result.kwsp_2 = 1;
+      if (isInc(parsed.kwsp_s3)) result.kwsp_3 = 1;
+      if (parsed.personnel && Array.isArray(parsed.personnel)) {
+        const persons = parsed.personnel.filter(p => !p.isCompany);
+        if (persons.some(p => isInc(p.s_ic))) result.personel_ic = 1;
+        if (persons.some(p => isInc(p.s_sb))) result.personel_sb = 1;
+        if (persons.some(p => isInc(p.s_epf))) result.personel_epf = 1;
+      }
+      return result;
+    } catch (e) { return result; }
+  }
+
   function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
     
@@ -2474,6 +2506,8 @@ async function handleCredentialResponse(response) {
       if (adminRejectionReasonStats) adminRejectionReasonStats.innerHTML = '<div style="text-align:center; color:#64748b;">Tiada data penolakan</div>';
       const adminJenisTbody = document.getElementById('adminJenisTbody');
       if (adminJenisTbody) adminJenisTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tiada data</td></tr>';
+      if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = '0';
+      if (adminIncompleteDocsTbody) adminIncompleteDocsTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tiada data</td></tr>';
       return;
     }
     
@@ -2556,6 +2590,64 @@ async function handleCredentialResponse(response) {
     
     renderAdminPengesyorTable(pengesyorStats);
     renderAdminPelulusTable(pelulusStats);
+    
+    // Kira dokumen tidak lengkap
+    const docLabels = [
+      { key: 'doc_carta', label: 'Carta Organisasi' },
+      { key: 'doc_peta', label: 'Peta Lakaran' },
+      { key: 'doc_gambar', label: 'Gambar Premis' },
+      { key: 'doc_sewa', label: 'Perjanjian Sewa' },
+      { key: 'ssm', label: 'SSM' },
+      { key: 'bank', label: 'Bank' },
+      { key: 'kwsp_1', label: 'KWSP Bulan 1' },
+      { key: 'kwsp_2', label: 'KWSP Bulan 2' },
+      { key: 'kwsp_3', label: 'KWSP Bulan 3' },
+      { key: 'personel_ic', label: 'Personel - IC' },
+      { key: 'personel_sb', label: 'Personel - Sijil Lahir' },
+      { key: 'personel_epf', label: 'Personel - EPF' }
+    ];
+    const grades = ['G4','G5','G6','G7'];
+    const gradeTotals = {};
+    const docByGrade = {};
+    grades.forEach(g => {
+      gradeTotals[g] = 0;
+      docByGrade[g] = {};
+      docLabels.forEach(d => { docByGrade[g][d.key] = 0; });
+    });
+    let grandTotal = 0;
+    filteredData.forEach(item => {
+      const inc = countIncompleteInRecord(item);
+      let recTotal = 0;
+      docLabels.forEach(d => { recTotal += inc[d.key]; });
+      grandTotal += recTotal;
+      const gred = item.gred ? item.gred.toUpperCase().trim() : '';
+      if (grades.includes(gred)) {
+        gradeTotals[gred] += recTotal;
+        docLabels.forEach(d => { docByGrade[gred][d.key] += inc[d.key]; });
+      }
+    });
+    if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = grandTotal;
+    
+    // Render jadual dokumen tidak lengkap by grade
+    if (adminIncompleteDocsTbody) {
+      let html = '';
+      docLabels.forEach(d => {
+        const row = docLabels.indexOf(d);
+        html += `<tr${row % 2 === 0 ? ' style="background:#f8fafc;"' : ''}>`;
+        html += `<td style="padding:8px; font-weight:600;">${d.label}</td>`;
+        grades.forEach(g => {
+          html += `<td style="padding:8px; text-align:center;${docByGrade[g][d.key] > 0 ? ' color:#dc2626; font-weight:bold;' : ''}">${docByGrade[g][d.key]}</td>`;
+        });
+        html += '</tr>';
+      });
+      // Baris jumlah
+      html += `<tr style="background:#1e40af; color:white; font-weight:bold;"><td style="padding:8px;">JUMLAH</td>`;
+      grades.forEach(g => {
+        html += `<td style="padding:8px; text-align:center;">${gradeTotals[g]}</td>`;
+      });
+      html += '</tr>';
+      adminIncompleteDocsTbody.innerHTML = html;
+    }
     
     renderAdminRejectionReasons(filteredData);
   }
