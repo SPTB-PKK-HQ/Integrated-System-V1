@@ -2480,7 +2480,7 @@ async function handleCredentialResponse(response) {
     if (!item.borang_json || String(item.borang_json).trim() === '') return result;
     if (!item.tarikh_lulus || String(item.tarikh_lulus).trim() === '') return result;
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return result;
-    if (item.kelulusan && item.kelulusan.includes('LULUS')) return result;
+    if (!item.kelulusan || !item.kelulusan.includes('TOLAK')) return result;
     try {
       const parsed = JSON.parse(item.borang_json);
       if (parsed.borang_syor_status === 'SIASAT') return result;
@@ -2512,7 +2512,7 @@ async function handleCredentialResponse(response) {
     if (!item.borang_json || String(item.borang_json).trim() === '') return '-';
     if (!item.tarikh_lulus || String(item.tarikh_lulus).trim() === '') return '-';
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return '-';
-    if (item.kelulusan && item.kelulusan.includes('LULUS')) return '-';
+    if (!item.kelulusan || !item.kelulusan.includes('TOLAK')) return '-';
     try {
       const parsed = JSON.parse(item.borang_json);
       if (parsed.borang_syor_status === 'SIASAT') return '-';
