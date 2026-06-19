@@ -3188,6 +3188,66 @@ async function handleCredentialResponse(response) {
       csvContent += `"${nama}",${data.total},${data.lulus},${data.tolak},${kadar}%\n`;
     });
     
+    // --- DOKUMEN TIDAK LENGKAP MENGIKUT GRED ---
+    const docLabels = [
+      { key: 'doc_carta', label: 'Carta Organisasi' },
+      { key: 'doc_peta', label: 'Peta Lakaran' },
+      { key: 'doc_gambar', label: 'Gambar Premis' },
+      { key: 'doc_sewa', label: 'Perjanjian Sewa' },
+      { key: 'ssm', label: 'SSM' },
+      { key: 'bank', label: 'Bank' },
+      { key: 'kwsp_1', label: 'KWSP Bulan 1' },
+      { key: 'kwsp_2', label: 'KWSP Bulan 2' },
+      { key: 'kwsp_3', label: 'KWSP Bulan 3' },
+      { key: 'personel_ic', label: 'Personel - IC' },
+      { key: 'personel_sb', label: 'Personel - Sijil Lahir' },
+      { key: 'personel_epf', label: 'Personel - EPF' }
+    ];
+    const grades = ['G4','G5','G6','G7'];
+    const gradeTotals = {};
+    const docByGrade = {};
+    grades.forEach(g => {
+      gradeTotals[g] = 0;
+      docByGrade[g] = {};
+      docLabels.forEach(d => { docByGrade[g][d.key] = 0; });
+    });
+    filteredData.forEach(item => {
+      const inc = countIncompleteInRecord(item);
+      const gred = item.gred ? item.gred.toUpperCase().trim() : '';
+      if (grades.includes(gred)) {
+        docLabels.forEach(d => {
+          const val = inc[d.key];
+          if (val) {
+            docByGrade[gred][d.key] += val;
+            gradeTotals[gred] += val;
+          }
+        });
+      }
+    });
+    csvContent += "\nDOKUMEN TIDAK LENGKAP MENGIKUT GRED\n";
+    csvContent += "Dokumen,G4,G5,G6,G7,Jumlah\n";
+    docLabels.forEach(d => {
+      let rowTotal = 0;
+      grades.forEach(g => { rowTotal += docByGrade[g][d.key]; });
+      csvContent += `${d.label},${docByGrade.G4[d.key]},${docByGrade.G5[d.key]},${docByGrade.G6[d.key]},${docByGrade.G7[d.key]},${rowTotal}\n`;
+    });
+    let grandTotal = 0;
+    grades.forEach(g => { grandTotal += gradeTotals[g]; });
+    csvContent += `JUMLAH,${gradeTotals.G4},${gradeTotals.G5},${gradeTotals.G6},${gradeTotals.G7},${grandTotal}\n\n`;
+    
+    // --- SENARAI PERMOHONAN DOKUMEN TIDAK LENGKAP ---
+    const incompleteRecords = filteredData.filter(item => {
+      const inc = countIncompleteInRecord(item);
+      return Object.values(inc).some(v => v > 0);
+    });
+    csvContent += "SENARAI PERMOHONAN DOKUMEN TIDAK LENGKAP\n";
+    csvContent += "Nama Syarikat,No. CIDB,Gred,Tarikh Mohon,Jenis Permohonan,Dokumen Tidak Lengkap\n";
+    const formatDate = (d) => { if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? d : `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`; };
+    incompleteRecords.forEach(item => {
+      const docLabelsStr = getIncompleteDocLabels(item);
+      csvContent += `"${item.syarikat || '-'}","${item.cidb || '-'}","${item.gred || '-'}","${formatDate(item.start_date)}","${item.jenis || '-'}","${docLabelsStr}"\n`;
+    });
+    
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
