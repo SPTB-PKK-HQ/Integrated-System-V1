@@ -2483,6 +2483,7 @@ async function handleCredentialResponse(response) {
       personel_ic: 0, personel_sb: 0, personel_epf: 0
     };
     if (!item.borang_json || String(item.borang_json).trim() === '') return result;
+    if (!item.tarikh_lulus || String(item.tarikh_lulus).trim() === '') return result;
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return result;
     if (item.kelulusan && item.kelulusan.includes('LULUS')) return result;
     try {
@@ -2514,6 +2515,7 @@ async function handleCredentialResponse(response) {
   function getIncompleteDocLabels(item) {
     const labels = [];
     if (!item.borang_json || String(item.borang_json).trim() === '') return '-';
+    if (!item.tarikh_lulus || String(item.tarikh_lulus).trim() === '') return '-';
     if (item.alasan && item.alasan.includes('Gagal lawatan premis')) return '-';
     if (item.kelulusan && item.kelulusan.includes('LULUS')) return '-';
     try {
