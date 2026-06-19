@@ -1683,12 +1683,22 @@ function handleDeleteRecord(data, sheet) {
         }
       }
       
+      // KOD BARU: Simpan snapshot data sebelum padam
+      const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json'];
+      const snapshot = {};
+      for (let i = 0; i < existingData.length && i < columnLabels.length; i++) {
+        snapshot[columnLabels[i]] = existingData[i] ? existingData[i].toString() : '';
+      }
+      snapshot.tindakan = 'DIPADAM';
+      const snapshotJSON = JSON.stringify(snapshot, null, 2);
+
       // KOD BARU: Padam nama syarikat daripada barisan gilir (queue) SPI jika wujud sebelum row dipadam
       if (namaSyarikat) {
         removeFromQueue(namaSyarikat, 'SIASAT_QUEUE');
         removeFromQueue(namaSyarikat, 'PEMUTIHAN_QUEUE');
       }
       
+      logActivity(userName, 'DELETE_SNAPSHOT', `Data penuh baris ${rowNum} (${namaSyarikat || 'tiada nama'}): ${snapshotJSON}`, '');
       sheet.deleteRow(rowNum);
       logActivity(userName, 'DELETE_RECORD', `Rekod dipadam sepenuhnya di baris ${rowNum}`, '');
       invalidateDataCache();
