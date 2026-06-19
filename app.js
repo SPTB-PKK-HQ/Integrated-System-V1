@@ -1009,6 +1009,13 @@ async function handleCredentialResponse(response) {
   // Butang Paparan Penuh Admin
   const btnAdminFullView = document.getElementById('btnAdminFullView');
   
+  // Modal Dokumen Tidak Lengkap
+  const incompleteDocModal = document.getElementById('incompleteDocModal');
+  const incompleteDocModalClose = document.getElementById('incompleteDocModalClose');
+  const incompleteDocModalTbody = document.getElementById('incompleteDocModalTbody');
+  const incompleteDocModalInfo = document.getElementById('incompleteDocModalInfo');
+  const btnCloseIncompleteModal = document.getElementById('btnCloseIncompleteModal');
+  
   // Chart Elements for Application Type Analysis
   const chartTypeMonthly = document.getElementById('chartTypeMonthly');
   const chartTypeYearly = document.getElementById('chartTypeYearly');
@@ -2490,6 +2497,34 @@ async function handleCredentialResponse(response) {
       }
       return result;
     } catch (e) { return result; }
+  }
+
+  function getIncompleteDocLabels(item) {
+    const labels = [];
+    if (!item.borang_json || String(item.borang_json).trim() === '') return 'Tiada borang';
+    try {
+      const parsed = JSON.parse(item.borang_json);
+      const isInc = (v) => !v || !v.includes('✓');
+      const docMap = [
+        { f: 'doc_carta_status', l: 'Carta Organisasi' },
+        { f: 'doc_peta_status', l: 'Peta Lakaran' },
+        { f: 'doc_gambar_status', l: 'Gambar Premis' },
+        { f: 'doc_sewa_status', l: 'Perjanjian Sewa' },
+        { f: 'ssm_status', l: 'SSM' },
+        { f: 'bank_status_input', l: 'Bank' },
+        { f: 'kwsp_s1', l: 'KWSP B1' },
+        { f: 'kwsp_s2', l: 'KWSP B2' },
+        { f: 'kwsp_s3', l: 'KWSP B3' }
+      ];
+      docMap.forEach(d => { if (isInc(parsed[d.f])) labels.push(d.l); });
+      if (parsed.personnel && Array.isArray(parsed.personnel)) {
+        const persons = parsed.personnel.filter(p => !p.isCompany);
+        if (persons.some(p => isInc(p.s_ic))) labels.push('Personel-IC');
+        if (persons.some(p => isInc(p.s_sb))) labels.push('Personel-SB');
+        if (persons.some(p => isInc(p.s_epf))) labels.push('Personel-EPF');
+      }
+      return labels.length > 0 ? labels.join(', ') : 'Tiada';
+    } catch (e) { return 'Ralat parse'; }
   }
 
   function loadAdminDashboard() {
@@ -9978,6 +10013,76 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     adminStatsModal.addEventListener('click', (e) => {
       if (e.target === adminStatsModal) {
         adminStatsModal.classList.remove('active');
+      }
+    });
+  }
+
+  // MODAL DOKUMEN TIDAK LENGKAP
+  const adminCardIncomplete = document.querySelector('.stat-card[style*="border-top-color: #f97316"]');
+  if (adminCardIncomplete) {
+    adminCardIncomplete.style.cursor = 'pointer';
+    adminCardIncomplete.title = 'Klik untuk lihat senarai permohonan';
+    adminCardIncomplete.addEventListener('click', () => {
+      if (!cachedData || cachedData.length === 0) return;
+      const selectedMonth = adminFilterMonth ? parseInt(adminFilterMonth.value) : null;
+      const selectedYear = adminFilterYear ? parseInt(adminFilterYear.value) : dashboardData.currentYear;
+      let filteredData = cachedData;
+      if (selectedMonth && selectedYear) {
+        filteredData = cachedData.filter(item => {
+          let dateToUse = resolveRecordDate(item);
+          if (!dateToUse || isNaN(dateToUse)) return false;
+          return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
+        });
+      } else if (selectedYear) {
+        filteredData = cachedData.filter(item => {
+          let dateToUse = resolveRecordDate(item);
+          if (!dateToUse || isNaN(dateToUse)) return false;
+          return dateToUse.getFullYear() === selectedYear;
+        });
+      }
+      const incompleteRecords = filteredData.filter(item => {
+        const inc = countIncompleteInRecord(item);
+        return Object.values(inc).some(v => v > 0);
+      });
+      if (incompleteDocModalInfo) {
+        incompleteDocModalInfo.textContent = `Menunjukkan ${incompleteRecords.length} daripada ${filteredData.length} permohonan`;
+      }
+      if (incompleteDocModalTbody) {
+        let html = '';
+        if (incompleteRecords.length === 0) {
+          html = '<tr><td colspan="5" style="text-align:center; padding:20px;">Tiada permohonan dengan dokumen tidak lengkap</td></tr>';
+        } else {
+          incompleteRecords.forEach(item => {
+            const docLabels = getIncompleteDocLabels(item);
+            const jenisBadge = item.jenis ? `<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${item.jenis}</span>` : '-';
+            html += `<tr>
+              <td style="padding:8px; text-align:left; font-weight:600;">${item.syarikat || '-'}</td>
+              <td style="padding:8px;">${item.cidb || '-'}</td>
+              <td style="padding:8px;">${item.gred || '-'}</td>
+              <td style="padding:8px;">${jenisBadge}</td>
+              <td style="padding:8px; text-align:left; color:#dc2626; font-size:0.85rem;">${docLabels}</td>
+            </tr>`;
+          });
+        }
+        incompleteDocModalTbody.innerHTML = html;
+      }
+      if (incompleteDocModal) incompleteDocModal.classList.add('active');
+    });
+  }
+  if (incompleteDocModalClose) {
+    incompleteDocModalClose.addEventListener('click', () => {
+      if (incompleteDocModal) incompleteDocModal.classList.remove('active');
+    });
+  }
+  if (btnCloseIncompleteModal) {
+    btnCloseIncompleteModal.addEventListener('click', () => {
+      if (incompleteDocModal) incompleteDocModal.classList.remove('active');
+    });
+  }
+  if (incompleteDocModal) {
+    incompleteDocModal.addEventListener('click', (e) => {
+      if (e.target === incompleteDocModal) {
+        incompleteDocModal.classList.remove('active');
       }
     });
   }
