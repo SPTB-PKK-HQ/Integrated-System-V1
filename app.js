@@ -10072,23 +10072,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         incompleteDocModalTbody.innerHTML = html;
       }
-      if (incompleteDocModal) incompleteDocModal.classList.add('active');
+      if (incompleteDocModal) incompleteDocModal.style.display = 'flex';
     });
   }
   if (incompleteDocModalClose) {
     incompleteDocModalClose.addEventListener('click', () => {
-      if (incompleteDocModal) incompleteDocModal.classList.remove('active');
+      if (incompleteDocModal) incompleteDocModal.style.display = 'none';
     });
   }
   if (btnCloseIncompleteModal) {
     btnCloseIncompleteModal.addEventListener('click', () => {
-      if (incompleteDocModal) incompleteDocModal.classList.remove('active');
+      if (incompleteDocModal) incompleteDocModal.style.display = 'none';
     });
   }
   if (incompleteDocModal) {
     incompleteDocModal.addEventListener('click', (e) => {
       if (e.target === incompleteDocModal) {
-        incompleteDocModal.classList.remove('active');
+        incompleteDocModal.style.display = 'none';
       }
     });
   }
