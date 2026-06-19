@@ -443,6 +443,11 @@ function doPost(e) {
       return handleDeleteRecord(data, sheet);
     }
     
+    // Handler untuk restore rekod dari snapshot
+    if (data.action === 'restoreRecord') {
+      return handleRestoreRecord(data, sheet);
+    }
+    
     // Handler khas: Butang Cipta Folder (Dari Popup)
     if (data.action === 'createDriveFolder') {
       // V6.5.0: Pengesahan untuk createDriveFolder
@@ -1729,6 +1734,53 @@ function handleDeleteRecord(data, sheet) {
     }
   } catch (error) {
     logActivity("System", 'ERROR', `Ralat padam rekod: ${error.toString()}`, '');
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+function handleRestoreRecord(data, sheet) {
+  try {
+    const snapshotJSON = data.snapshot;
+    const userName = data.user || "System";
+    
+    if (!snapshotJSON) {
+      return createJSONOutput({ status: "error", message: "Snapshot JSON diperlukan." });
+    }
+    
+    let snapshot;
+    try {
+      snapshot = JSON.parse(snapshotJSON);
+    } catch (e) {
+      return createJSONOutput({ status: "error", message: "Snapshot JSON tidak sah." });
+    }
+    
+    const namaSyarikat = snapshot.syarikat || 'Tiada nama';
+    const lastRow = sheet.getLastRow();
+    let targetRow = lastRow + 1;
+    
+    // Cari baris kosong pertama dari atas untuk letak semula data
+    for (let r = 2; r <= lastRow + 1; r++) {
+      const cellValue = sheet.getRange(r, 1).getValue();
+      if (!cellValue || cellValue.toString().trim() === '') {
+        targetRow = r;
+        break;
+      }
+    }
+    
+    const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json'];
+    const newRow = [];
+    for (let i = 0; i < columnLabels.length; i++) {
+      const val = snapshot[columnLabels[i]];
+      newRow.push(val !== undefined ? val : '');
+    }
+    
+    sheet.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+    logActivity(userName, 'RESTORE_RECORD', `Rekod dipulihkan ke baris ${targetRow}: ${namaSyarikat}`, '');
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: `Rekod ${namaSyarikat} berjaya dipulihkan ke baris ${targetRow}`, row: targetRow });
+    
+  } catch (error) {
+    logActivity("System", 'ERROR', `Ralat restore rekod: ${error.toString()}`, '');
     return createJSONOutput({ status: "error", message: error.toString() });
   }
 }

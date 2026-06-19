@@ -8233,9 +8233,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let modalType = 'warning';
     
     if (actionType === 'padam_semua') {
-      message = `Anda pasti mahu PADAM KESELURUHAN rekod untuk <b>${item.syarikat}</b>? Tindakan ini TIDAK BOLEH dibatalkan.`;
+      message = `⚠️ <b>AMARAN!</b><br><br>Permohonan <b>${item.syarikat}</b> akan <b>HILANG/DIPADAM</b> dari Sheet (Row ${item.row}).<br><br>Data penuh akan disimpan dalam Log sebelum dipadam.<br><br>Adakah anda mahu teruskan?`;
       action = 'padam_semua';
-      modalTitle = "Pengesahan Padam";
+      modalTitle = "⚠️ Pengesahan Padam";
       btnText = "Ya, Padam";
       isDanger = true;
       modalType = "error"; 
