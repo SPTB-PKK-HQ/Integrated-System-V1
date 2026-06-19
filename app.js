@@ -1015,6 +1015,12 @@ async function handleCredentialResponse(response) {
   const incompleteDocModalTbody = document.getElementById('incompleteDocModalTbody');
   const incompleteDocModalInfo = document.getElementById('incompleteDocModalInfo');
   const btnCloseIncompleteModal = document.getElementById('btnCloseIncompleteModal');
+  const incompleteDocSearch = document.getElementById('incompleteDocSearch');
+  const filterIncompleteDocAll = document.getElementById('filterIncompleteDocAll');
+  const filterIncompleteDocBaru = document.getElementById('filterIncompleteDocBaru');
+  const filterIncompleteDocPembaharuan = document.getElementById('filterIncompleteDocPembaharuan');
+  const filterIncompleteDocUbahMaklumat = document.getElementById('filterIncompleteDocUbahMaklumat');
+  const filterIncompleteDocUbahGred = document.getElementById('filterIncompleteDocUbahGred');
   
   // Chart Elements for Application Type Analysis
   const chartTypeMonthly = document.getElementById('chartTypeMonthly');
@@ -10024,6 +10030,60 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   // MODAL DOKUMEN TIDAK LENGKAP
+  let incompleteDocFilteredData = [];
+  let incompleteDocSearchQuery = '';
+  let incompleteDocFilterJenis = 'ALL';
+  const incompleteDocFilterBtns = [filterIncompleteDocAll, filterIncompleteDocBaru, filterIncompleteDocPembaharuan, filterIncompleteDocUbahMaklumat, filterIncompleteDocUbahGred];
+  const filterJenisMap = { filterIncompleteDocAll: 'ALL', filterIncompleteDocBaru: 'BARU', filterIncompleteDocPembaharuan: 'PEMBAHARUAN', filterIncompleteDocUbahMaklumat: 'UBAH MAKLUMAT', filterIncompleteDocUbahGred: 'UBAH GRED' };
+
+  function renderIncompleteDocModal() {
+    let filtered = incompleteDocFilteredData;
+    if (incompleteDocFilterJenis !== 'ALL') {
+      filtered = filtered.filter(item => item.jenis && item.jenis.toUpperCase().trim() === incompleteDocFilterJenis);
+    }
+    if (incompleteDocSearchQuery.trim() !== '') {
+      const q = incompleteDocSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(item => 
+        (item.syarikat && item.syarikat.toLowerCase().includes(q)) || 
+        (item.cidb && item.cidb.toLowerCase().includes(q))
+      );
+    }
+    if (incompleteDocModalInfo) {
+      incompleteDocModalInfo.textContent = `Menunjukkan ${filtered.length} daripada ${incompleteDocFilteredData.length} permohonan`;
+    }
+    if (incompleteDocModalTbody) {
+      let html = '';
+      if (filtered.length === 0) {
+        html = '<tr><td colspan="7" style="text-align:center; padding:20px;">Tiada permohonan dengan dokumen tidak lengkap</td></tr>';
+      } else {
+        filtered.forEach((item, index) => {
+          const docLabels = getIncompleteDocLabels(item);
+          const formatDate = (d) => { if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? d : `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`; };
+          const jenisBadge = item.jenis ? `<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${item.jenis}</span>` : '-';
+          html += `<tr>
+            <td style="padding:8px; text-align:left; font-weight:600;">${item.syarikat || '-'}</td>
+            <td style="padding:8px;">${item.cidb || '-'}</td>
+            <td style="padding:8px;">${item.gred || '-'}</td>
+            <td style="padding:8px;">${formatDate(item.start_date)}</td>
+            <td style="padding:8px;">${jenisBadge}</td>
+            <td style="padding:8px; text-align:left; color:#dc2626; font-size:0.85rem;">${docLabels}</td>
+            <td style="padding:8px;"><button class="btn-sm view-inc-doc-btn" data-index="${cachedData.indexOf(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
+          </tr>`;
+        });
+      }
+      incompleteDocModalTbody.innerHTML = html;
+      incompleteDocModalTbody.querySelectorAll('.view-inc-doc-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.getAttribute('data-index'));
+          if (idx >= 0 && idx < cachedData.length) {
+            if (incompleteDocModal) incompleteDocModal.style.display = 'none';
+            viewRecordOnly(cachedData[idx]);
+          }
+        });
+      });
+    }
+  }
+
   const adminCardIncomplete = document.querySelector('.stat-card[style*="border-top-color: #f97316"]');
   if (adminCardIncomplete) {
     adminCardIncomplete.style.cursor = 'pointer';
@@ -10046,35 +10106,38 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return dateToUse.getFullYear() === selectedYear;
         });
       }
-      const incompleteRecords = filteredData.filter(item => {
+      incompleteDocFilteredData = filteredData.filter(item => {
         const inc = countIncompleteInRecord(item);
         return Object.values(inc).some(v => v > 0);
       });
-      if (incompleteDocModalInfo) {
-        incompleteDocModalInfo.textContent = `Menunjukkan ${incompleteRecords.length} daripada ${filteredData.length} permohonan`;
-      }
-      if (incompleteDocModalTbody) {
-        let html = '';
-        if (incompleteRecords.length === 0) {
-          html = '<tr><td colspan="5" style="text-align:center; padding:20px;">Tiada permohonan dengan dokumen tidak lengkap</td></tr>';
-        } else {
-          incompleteRecords.forEach(item => {
-            const docLabels = getIncompleteDocLabels(item);
-            const jenisBadge = item.jenis ? `<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${item.jenis}</span>` : '-';
-            html += `<tr>
-              <td style="padding:8px; text-align:left; font-weight:600;">${item.syarikat || '-'}</td>
-              <td style="padding:8px;">${item.cidb || '-'}</td>
-              <td style="padding:8px;">${item.gred || '-'}</td>
-              <td style="padding:8px;">${jenisBadge}</td>
-              <td style="padding:8px; text-align:left; color:#dc2626; font-size:0.85rem;">${docLabels}</td>
-            </tr>`;
-          });
-        }
-        incompleteDocModalTbody.innerHTML = html;
-      }
+      incompleteDocSearchQuery = '';
+      incompleteDocFilterJenis = 'ALL';
+      if (incompleteDocSearch) incompleteDocSearch.value = '';
+      incompleteDocFilterBtns.forEach(b => { if (b) b.style.border = '2px solid transparent'; });
+      if (filterIncompleteDocAll) filterIncompleteDocAll.style.border = '2px solid #f97316';
+      renderIncompleteDocModal();
       if (incompleteDocModal) incompleteDocModal.style.display = 'flex';
     });
   }
+  if (incompleteDocSearch) {
+    incompleteDocSearch.addEventListener('input', () => {
+      incompleteDocSearchQuery = incompleteDocSearch.value;
+      renderIncompleteDocModal();
+    });
+  }
+  incompleteDocFilterBtns.forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const jenis = filterJenisMap[btn.id];
+        if (jenis) {
+          incompleteDocFilterJenis = jenis;
+          incompleteDocFilterBtns.forEach(b => { if (b) b.style.border = '2px solid transparent'; });
+          btn.style.border = '2px solid #f97316';
+          renderIncompleteDocModal();
+        }
+      });
+    }
+  });
   if (incompleteDocModalClose) {
     incompleteDocModalClose.addEventListener('click', () => {
       if (incompleteDocModal) incompleteDocModal.style.display = 'none';
