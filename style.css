@@ -1311,7 +1311,7 @@
         @media print {
             body { background: white !important; padding: 0; margin: 0; font-size: 14pt; font-family: 'Arial Narrow', 'Arial', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: black !important; animation: none !important; }
             @page { margin: 0.5cm; size: A4; }
-            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, #openFullBtn, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay { display: none !important; }
+            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay { display: none !important; }
             .print-only-container { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; }
             h1, h2 { color: black !important; font-size: 10pt; margin: 2px 0; border-bottom: 1px solid #000; text-transform: uppercase; line-height: 1.1; font-weight: 900; }
             .print-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }

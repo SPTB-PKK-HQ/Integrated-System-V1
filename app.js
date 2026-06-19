@@ -813,8 +813,6 @@ async function handleCredentialResponse(response) {
   const loginLoadingText = document.getElementById('loginLoadingText');
   const userBadge = document.getElementById('userBadge');
   const listStatus = document.getElementById('listStatus');
-  const openFullBtn = document.getElementById('openFullBtn');
-  const openFullBtnPelulus = document.getElementById('openFullBtnPelulus');
   const dbSyor = document.getElementById('db_syor');
   const dbPautanInput = document.getElementById('db_pautan');
   const btnSyncToDb = document.getElementById('btnSyncToDb');
@@ -7714,26 +7712,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   });
 
-  if(openFullBtn) {
-    openFullBtn.addEventListener('click', () => { 
-      saveFormData();
-      if (lastActiveTab) {
-        saveFormState(lastActiveTab);
-      }
-      
-      const fullViewUrl = 'index.html?view=full';
-      window.open(fullViewUrl, '_blank'); 
-    });
-  }
-  if(openFullBtnPelulus) {
-    openFullBtnPelulus.addEventListener('click', () => { 
-      savePelulusState();
-      
-      const fullViewUrl = 'index.html?view=full';
-      window.open(fullViewUrl, '_blank'); 
-    });
-  }
-  
   const btnLogoutTop = document.getElementById('btnLogoutTop');
   if (btnLogoutTop) {
     btnLogoutTop.addEventListener('click', async () => {
@@ -9122,7 +9100,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const btnToApproval = document.getElementById('btnToApproval');
     const btnViewBack = document.getElementById('btnViewBack');
-    const btnOpenFull = document.getElementById('openFullBtnPelulus');
 
     if(readOnly) {
       if(btnToApproval) btnToApproval.style.display = 'none';
