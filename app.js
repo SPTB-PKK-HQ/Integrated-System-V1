@@ -9109,9 +9109,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if(btnViewBack) btnViewBack.style.display = 'none';
     }
 
-    if (btnOpenFull) {
-        btnOpenFull.style.display = 'inline-block';
-    }
   }
 
   function submitData(payload, successMsg, callback) {
