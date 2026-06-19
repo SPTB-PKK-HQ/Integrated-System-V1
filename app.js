@@ -2492,7 +2492,7 @@ async function handleCredentialResponse(response) {
       const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
       if (!knownDocFields.some(k => parsed[k] !== undefined)) return result;
       if (!parsed.borang_syarikat || !parsed.borang_cidb) return result;
-      const isInc = (v) => v && !v.includes('✓');
+      const isInc = (v) => v && !v.includes('✓') && !v.includes('Drive');
       if (isInc(parsed.doc_carta_status)) result.doc_carta = 1;
       if (isInc(parsed.doc_peta_status)) result.doc_peta = 1;
       if (isInc(parsed.doc_gambar_status)) result.doc_gambar = 1;
@@ -2524,7 +2524,7 @@ async function handleCredentialResponse(response) {
       const knownDocFields = ['doc_carta_status','doc_peta_status','doc_gambar_status','doc_sewa_status','ssm_status','bank_status_input','kwsp_s1','kwsp_s2','kwsp_s3'];
       if (!knownDocFields.some(k => parsed[k] !== undefined)) return '-';
       if (!parsed.borang_syarikat || !parsed.borang_cidb) return '-';
-      const isInc = (v) => v && !v.includes('✓');
+      const isInc = (v) => v && !v.includes('✓') && !v.includes('Drive');
       const docMap = [
         { f: 'doc_carta_status', l: 'Carta Organisasi' },
         { f: 'doc_peta_status', l: 'Peta Lakaran' },
