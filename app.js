@@ -7099,15 +7099,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // -----------------------------------------------------------
       }
     }
-    // V6.6.0: TAB INBOX (Notifikasi)
-    else if (tabName === 'tab-inbox') {
-      const tabInbox = document.getElementById('tab-inbox');
-      if (tabInbox) {
-        tabInbox.style.display = 'block';
-        tabInbox.classList.add('active');
-        fetchInbox();
-      }
-    }
     // =========================================================
     // KOD BARU DITAMBAH DI SINI (UNTUK TAPISAN & BAKUL)
     // =========================================================
@@ -12424,16 +12415,13 @@ async function fetchInbox() {
 
 function updateInboxBadge() {
   const unreadCount = cachedInboxData ? cachedInboxData.filter(m => !m.dibaca).length : 0;
-  const inboxBtn = document.getElementById('tabInboxBtn');
-  if (inboxBtn) {
-    const existingBadge = inboxBtn.querySelector('.inbox-unread-badge');
-    if (existingBadge) existingBadge.remove();
+  const topBadge = document.getElementById('inboxTopBadge');
+  if (topBadge) {
     if (unreadCount > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'inbox-unread-badge';
-      badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
-      badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-      inboxBtn.appendChild(badge);
+      topBadge.style.display = 'inline';
+      topBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    } else {
+      topBadge.style.display = 'none';
     }
   }
 }
@@ -12897,8 +12885,36 @@ Terima kasih.`;
 // V6.6.0: INBOX REFRESH BUTTON
 // =========================================================================
 
-// Refresh Inbox button
+// Inbox modal buttons
+const btnInboxTop = document.getElementById('btnInboxTop');
+const inboxModal = document.getElementById('inboxModal');
+const btnCloseInbox = document.getElementById('btnCloseInbox');
 const btnRefreshInbox = document.getElementById('btnRefreshInbox');
+
+if (btnInboxTop && inboxModal) {
+  btnInboxTop.addEventListener('click', () => {
+    fetchInbox();
+    inboxModal.style.display = 'flex';
+    inboxModal.classList.add('show');
+  });
+}
+
+if (btnCloseInbox && inboxModal) {
+  btnCloseInbox.addEventListener('click', () => {
+    inboxModal.classList.remove('show');
+    setTimeout(() => inboxModal.style.display = 'none', 300);
+  });
+}
+
+if (inboxModal) {
+  inboxModal.addEventListener('click', (e) => {
+    if (e.target === inboxModal) {
+      inboxModal.classList.remove('show');
+      setTimeout(() => inboxModal.style.display = 'none', 300);
+    }
+  });
+}
+
 if (btnRefreshInbox) {
   btnRefreshInbox.addEventListener('click', fetchInbox);
 }

@@ -1142,7 +1142,8 @@ function sendAutoEmailSPI(data) {
     
     <div class="footer">
       <p>Sistem Bersepadu SPTB<br>
-      © ${new Date().getFullYear()} PKK. Hak Cipta Terpelihara.</p>
+      © ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
+
       <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
     </div>
   </div>
@@ -2644,7 +2645,7 @@ function processPemutihanQueue() {
       <p style="margin-top: 20px;"><em>*** Emel ini dijana secara automatik setiap hari Jumaat (Setiap 2 Minggu). Sila jangan balas emel ini. ***</em></p>
     </div>
     <div class="footer">
-      <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} PKK. Hak Cipta Terpelihara.</p>
+      <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
       <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
     </div>
   </div>
@@ -2781,7 +2782,7 @@ function processSiasatQueue() {
       <p style="margin-top: 20px;"><em>*** Emel ini dijana secara automatik setiap hari bekerja. Sila jangan balas emel ini. ***</em></p>
     </div>
     <div class="footer">
-      <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} PKK. Hak Cipta Terpelihara.</p>
+      <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
       <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
     </div>
   </div>

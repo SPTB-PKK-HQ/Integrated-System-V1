@@ -63,7 +63,7 @@
                     <img src="jata.svg" alt="Jata Negara" class="hero-logo">
                     <div class="hero-badge">V6.6.0</div>
                     <h1 class="hero-title">SISTEM BERSEPADU<br>SPTB (HQ)</h1>
-                    <p class="hero-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Kewangan Malaysia</p>
+                    <p class="hero-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Pembangunan Usahawan dan Koperasi (KUSKOP)</p>
                     <div class="hero-divider"></div>
                     
                     <!-- Google Sign In -->
@@ -113,7 +113,7 @@
 
             <!-- Footer -->
             <div class="landing-footer">
-                <p>Sistem Bersepadu SPTB (HQ) © 2026 PKK. Hak Cipta Terpelihara.</p>
+                <p>Sistem Bersepadu SPTB (HQ) © 2026 KUSKOP. Hak Cipta Terpelihara.</p>
             </div>
         </div>
     </div>
@@ -142,7 +142,10 @@
             
         </div>
         <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar">🚪 Log Keluar</button>
-        <button id="btnQueueSPI" class="btn-top-fullview" style="color: #0ea5e9; border-color: #0ea5e9; top: 45px;" title="Lihat Queue SPI">📋 Lihat Queue SPI</button>
+        <div style="position:absolute; top:45px; left:5px; display:flex; gap:5px; z-index:100;">
+            <button id="btnQueueSPI" class="btn-top-fullview" style="position:static; color:#0ea5e9; border-color:#0ea5e9; font-size:0.85rem; padding:5px 10px;" title="Queue SPI">📋 SPI</button>
+            <button id="btnInboxTop" class="btn-top-fullview" style="position:static; color:#22c55e; border-color:#22c55e; font-size:0.85rem; padding:5px 10px;" title="Inbox Notifikasi">📥 Inbox<span id="inboxTopBadge" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:1px 5px; font-size:0.6rem; margin-left:4px;">0</span></button>
+        </div>
         
        <div id="customModalOverlay" class="custom-modal-overlay">
         <div class="custom-modal-card" id="customModalCard">
@@ -169,7 +172,6 @@
             <button class="tab-btn" data-tab="tab-pelulus-action">⚖️ Keputusan</button>
             <button class="tab-btn" data-tab="tab-admin-dashboard" id="tabAdminBtn" style="display:none;">👑 Admin Dashboard</button>
             <button class="tab-btn" data-tab="tab-history" id="tabHistoryBtn" style="display:none;">📜 Sejarah</button>
-            <button class="tab-btn" data-tab="tab-inbox" id="tabInboxBtn">📥 Inbox</button>
         </div>
 
         <!-- TAB 1: BORANG SEMAKAN -->
@@ -730,19 +732,27 @@
                 </div>
             </div>
         </div>
-        <!-- TAB INBOX -->
-        <div id="tab-inbox" class="tab-content no-print">
-            <div class="card">
-                <h2>📥 Inbox / Notifikasi</h2>
-                <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
-                    <button id="btnRefreshInbox" class="btn btn-blue" style="padding:10px 20px;">🔄 Refresh Inbox</button>
-                    <span id="inboxCount" style="font-weight:bold; color:#64748b; font-size:0.9rem;">0 mesej</span>
+        <!-- INBOX MODAL -->
+        <div class="custom-modal-overlay" id="inboxModal">
+            <div class="custom-modal-card" style="max-width:600px; max-height:80vh; overflow-y:auto; text-align:left; padding:0;">
+                <div style="position:sticky; top:0; background:white; z-index:10; border-bottom:2px solid #22c55e; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; border-radius:24px 24px 0 0;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:1.3rem;">📥</span>
+                        <span style="font-weight:800; color:#075e54; font-size:1.1rem;">Inbox / Notifikasi</span>
+                        <span id="inboxCount" style="font-weight:bold; color:#64748b; font-size:0.8rem; background:#f1f5f9; padding:2px 10px; border-radius:10px;">0</span>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button id="btnRefreshInbox" class="btn btn-blue" style="padding:6px 12px; font-size:0.8rem;">🔄</button>
+                        <button id="btnCloseInbox" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b; padding:0; line-height:1;">✕</button>
+                    </div>
                 </div>
-                <div id="inboxList" style="max-height: 600px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;"></div>
-                <div id="inboxEmpty" style="display:none; text-align:center; padding:40px; color:#94a3b8;">
-                    <div style="font-size:3rem; margin-bottom:15px;">📭</div>
-                    <div style="font-size:1.2rem; font-weight:bold;">Tiada mesej dalam inbox</div>
-                    <div style="font-size:0.9rem; margin-top:5px;">Mesej notifikasi sistem akan dipaparkan di sini</div>
+                <div style="padding:15px 20px;">
+                    <div id="inboxList" style="max-height: 450px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;"></div>
+                    <div id="inboxEmpty" style="display:none; text-align:center; padding:40px; color:#94a3b8;">
+                        <div style="font-size:2.5rem; margin-bottom:10px;">📭</div>
+                        <div style="font-size:1.1rem; font-weight:bold;">Tiada mesej dalam inbox</div>
+                        <div style="font-size:0.85rem; margin-top:5px;">Mesej notifikasi sistem akan dipaparkan di sini</div>
+                    </div>
                 </div>
             </div>
         </div>
