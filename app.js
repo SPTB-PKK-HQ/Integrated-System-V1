@@ -5804,6 +5804,35 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (el) el.setAttribute('class', ''); // Buang sebarang highlight sedia ada
     });
 
+    // V6.6.0: Set maklumat pelulus di print (luar usersList check)
+    const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : '';
+    let catatan = '';
+    if (pelulusActiveItem && pelulusActiveItem.borang_json) {
+        try { 
+            const parsed = JSON.parse(pelulusActiveItem.borang_json);
+            if (parsed.catatan_pelulus) catatan = parsed.catatan_pelulus;
+        } catch(e){}
+    }
+    if (!catatan) {
+        catatan = document.getElementById('pelulus_catatan')?.value || document.getElementById('pelulus_alasan')?.value || (pelulusActiveItem ? pelulusActiveItem.alasan : '');
+    }
+    setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '________________');
+    setTxt('print_catatan_pelulus', catatan);
+    setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
+    
+    // Highlight Keputusan Pelulus di PDF
+    const elLulus = document.getElementById('print_lulus');
+    const elLulusSyarat = document.getElementById('print_lulus_syarat');
+    const elPemutihan = document.getElementById('print_pemutihan');
+    const elTolak = document.getElementById('print_tolak');
+    [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
+        if (el) el.setAttribute('class', 'syor-dimmed'); 
+    });
+    if (keputusanPelulus === 'LULUS' && elLulus) elLulus.setAttribute('class', 'syor-selected');
+    else if (keputusanPelulus === 'LULUS BERSYARAT' && elLulusSyarat) elLulusSyarat.setAttribute('class', 'syor-selected');
+    else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
+    else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
+
     if (typeof usersList !== 'undefined' && usersList.length > 0) {
         
         // Sign/Cop hanya muncul jika syorPilihan (SOKONG/SIASAT/TIDAK DISOKONG) sudah dipilih
@@ -5833,42 +5862,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                     imgCopPelulus.setAttribute('src', userPelulus.copUrl.trim()); 
                     imgCopPelulus.style.display = 'block'; 
                 }
-                
-                // Masukkan Maklumat Tarikh & Catatan Pelulus
-                const nowDate = new Date();
-                const localTLulus = nowDate.getFullYear() + '-' + String(nowDate.getMonth() + 1).padStart(2, '0') + '-' + String(nowDate.getDate()).padStart(2, '0');
-                const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : localTLulus;
-                
-                let catatan = '';
-                if (pelulusActiveItem && pelulusActiveItem.borang_json) {
-                    try { 
-                        const parsed = JSON.parse(pelulusActiveItem.borang_json);
-                        if (parsed.catatan_pelulus) catatan = parsed.catatan_pelulus;
-                    } catch(e){}
-                }
-                if (!catatan) {
-                    catatan = document.getElementById('pelulus_catatan')?.value || document.getElementById('pelulus_alasan')?.value || (pelulusActiveItem ? pelulusActiveItem.alasan : '');
-                }
-                
-                setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '________________');
-                setTxt('print_catatan_pelulus', catatan);
-                
-                // Highlight Keputusan Pelulus di PDF
-                const elLulus = document.getElementById('print_lulus');
-                const elLulusSyarat = document.getElementById('print_lulus_syarat');
-                const elPemutihan = document.getElementById('print_pemutihan');
-                const elTolak = document.getElementById('print_tolak');
-                [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
-                    if (el) el.setAttribute('class', 'syor-dimmed'); 
-                });
-                
-                if (keputusanPelulus === 'LULUS' && elLulus) elLulus.setAttribute('class', 'syor-selected');
-                else if (keputusanPelulus === 'LULUS BERSYARAT' && elLulusSyarat) elLulusSyarat.setAttribute('class', 'syor-selected');
-                else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
-                else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
-                
-                // Set nama pelulus di print
-                setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
             }
         }
     }
@@ -6704,6 +6697,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (!isAppReady) {
       initAppBasedOnRole();
     }
+    
+    // V6.6.0: Mula auto refresh inbox bila log masuk
+    fetchInbox();
+    startInboxAutoRefresh();
     
     resetInactivityTimer();
 
@@ -13054,6 +13051,19 @@ if (btnRefreshInbox) {
 
 // Setup WhatsApp scheduling UI
 setupWhatsAppSchedulingUI();
+
+// V6.6.0: Auto refresh inbox badge setiap 30 saat
+let inboxAutoRefreshInterval = null;
+
+function startInboxAutoRefresh() {
+  if (inboxAutoRefreshInterval) clearInterval(inboxAutoRefreshInterval);
+  // Refresh inbox setiap 30 saat untuk update badge
+  inboxAutoRefreshInterval = setInterval(() => {
+    if (currentUser && currentUser.email) {
+      fetchInbox();
+    }
+  }, 30000); // 30 saat
+}
 
 }); // <--- PENUTUP UTAMA UNTUK DOMContentLoaded
 
