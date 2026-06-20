@@ -114,6 +114,7 @@
             <button class="tab-btn" data-tab="tab-pelulus-action">⚖️ Keputusan</button>
             <button class="tab-btn" data-tab="tab-admin-dashboard" id="tabAdminBtn" style="display:none;">👑 Admin Dashboard</button>
             <button class="tab-btn" data-tab="tab-history" id="tabHistoryBtn" style="display:none;">📜 Sejarah</button>
+            <button class="tab-btn" data-tab="tab-inbox" id="tabInboxBtn">📥 Inbox</button>
         </div>
 
         <!-- TAB 1: BORANG SEMAKAN -->
@@ -258,6 +259,44 @@
                         <label style="font-weight:bold; color:#ef4444;">⏳ Tarikh Due Date (SLA)</label>
                         <input type="date" id="db_due_date" style="border-color: #ef4444; border-width: 2px;">
                     </div>
+                    <div style="margin-top:15px; border-top: 2px solid #25D366; padding-top: 10px; background:#f0fdf4; border-radius:8px; padding:12px;">
+                        <label style="font-weight:800; color:#075e54; display:flex; align-items:center; gap:5px;">💬 WhatsApp Scheduling</label>
+                        <div style="display:flex; gap:15px; margin-top:8px;">
+                            <label style="display:flex; align-items:center; gap:5px; font-weight:normal;"><input type="radio" name="wa_mode" value="MANUAL" checked> Manual (Tarikh Sahaja)</label>
+                            <label style="display:flex; align-items:center; gap:5px; font-weight:normal;"><input type="radio" name="wa_mode" value="AUTO"> Auto (Dijadualkan)</label>
+                        </div>
+                        <div id="wa_manual_fields" style="margin-top:8px;">
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <label style="font-weight:600; white-space:nowrap;">Tarikh WhatsApp:</label>
+                                <input type="date" id="wa_tarikh_manual" style="flex:1;">
+                            </div>
+                        </div>
+                        <div id="wa_auto_fields" style="display:none; margin-top:8px;">
+                            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                                <label style="font-weight:600; white-space:nowrap;">Tarikh Hantar:</label>
+                                <input type="date" id="wa_tarikh_auto" style="flex:1;">
+                            </div>
+                            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                                <label style="font-weight:600; white-space:nowrap;">Masa (Jam):</label>
+                                <select id="wa_masa" style="flex:1;">
+                                    <option value="">Pilih Jam</option>
+                                    <option value="8">8:00 AM</option>
+                                    <option value="9">9:00 AM</option>
+                                    <option value="10">10:00 AM</option>
+                                    <option value="11">11:00 AM</option>
+                                    <option value="12">12:00 PM</option>
+                                    <option value="14">2:00 PM</option>
+                                    <option value="15">3:00 PM</option>
+                                    <option value="16">4:00 PM</option>
+                                    <option value="17">5:00 PM</option>
+                                </select>
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <label style="font-weight:600;">Mesej WhatsApp:</label>
+                                <textarea id="wa_ayat" rows="3" placeholder="Taip mesej WhatsApp yang ingin dihantar secara auto..." style="width:100%; border:2px solid #25D366; border-radius:8px; padding:8px; text-transform:none;"></textarea>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div style="margin-top:15px; margin-bottom:15px;"><button type="button" id="btnToggleAlamat" class="btn btn-white" style="width:100%; text-align:left; padding:10px;">🏢 Papar/Sembunyi Alamat Perniagaan</button><textarea id="db_alamat_perniagaan" style="display:none; margin-top:10px; min-height:80px;" placeholder="Masukkan Alamat Perniagaan Syarikat..."></textarea></div>
                 <label>Tatatertib STB</label><select id="db_tatatertib"><option value="">Pilih</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select>
@@ -281,9 +320,8 @@
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
                     <div class="grid-equal"><div><label>Syor</label><select id="db_syor_status"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div></div>
                     <label id="label_db_sah_syor" style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;"><input type="checkbox" id="db_sah_syor" style="width:auto;">Dengan ini saya mengesahkan bahawa permohonan diatas adalah benar dan tepat.</label>
-                    <label style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;" id="label_notify_whatsapp"><input type="checkbox" id="cb_notify_whatsapp" style="width:auto;">Hantar Notifikasi WhatsApp kepada Pelulus</label>
                 </div>
-                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1;">Pilih Pelulus (Untuk Notifikasi WhatsApp jika SOKONG)</label><select id="db_pelulus_whatsapp"><option value="">- Tiada Notifikasi / Pilih Pelulus -</option></select></div>
+                <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1; font-weight:800;">👤 Pilih Pelulus (Wajib jika Sahkan Syor)</label><select id="db_pelulus_whatsapp"><option value="">- Sila Pilih Pelulus -</option></select></div>
                 <div class="actions"><button class="btn btn-white" id="btnBackToForm">« Kembali ke Borang</button><button class="btn btn-green" id="btnSendToSheet">Simpan & Hantar ke Sheet</button></div>
                 <p id="statusMsg" style="margin-top:10px; font-weight:bold; text-align:center;"></p>
                 <input type="hidden" id="db_row_index">
@@ -637,6 +675,23 @@
                 </div>
             </div>
         </div>
+        <!-- TAB INBOX -->
+        <div id="tab-inbox" class="tab-content no-print">
+            <div class="card">
+                <h2>📥 Inbox / Notifikasi</h2>
+                <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
+                    <button id="btnRefreshInbox" class="btn btn-blue" style="padding:10px 20px;">🔄 Refresh Inbox</button>
+                    <span id="inboxCount" style="font-weight:bold; color:#64748b; font-size:0.9rem;">0 mesej</span>
+                </div>
+                <div id="inboxList" style="max-height: 600px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;"></div>
+                <div id="inboxEmpty" style="display:none; text-align:center; padding:40px; color:#94a3b8;">
+                    <div style="font-size:3rem; margin-bottom:15px;">📭</div>
+                    <div style="font-size:1.2rem; font-weight:bold;">Tiada mesej dalam inbox</div>
+                    <div style="font-size:0.9rem; margin-top:5px;">Mesej notifikasi sistem akan dipaparkan di sini</div>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-youtube" class="tab-content no-print" style="display: none;">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">

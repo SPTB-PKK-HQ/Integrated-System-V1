@@ -41,8 +41,8 @@ const ROLE_PENGARAH = "PENGARAH";
 const ROLE_KETUA_SEKSYEN = "KETUA_SEKSYEN";
 const ROLE_ADMIN = "ADMIN";
 
-// Jumlah lajur dalam sheet (A hingga AC = 29 lajur)
-const TOTAL_COLUMNS = 29;
+// Jumlah lajur dalam sheet (A hingga AE = 31 lajur)
+const TOTAL_COLUMNS = 31;
 
 // === CACHE CONFIG ===
 const APP_DATA_CACHE_KEY = 'STB_APP_DATA_V3';
@@ -356,6 +356,11 @@ function doGet(e) {
       return createJSONOutput({ status: "success", siasat: siasatQ, pemutihan: pemutihanQ });
     }
     
+    // V6.6.0: Handler untuk getInbox
+    if (action === "getInbox") {
+      return handleGetInbox(e.parameter);
+    }
+    
     let result;
     if (action === "getUsers") {
       result = getUsersData();
@@ -477,6 +482,34 @@ function doPost(e) {
       }
       logActivity(data.user, data.actionType, data.description, data.folderId);
       return createJSONOutput({ status: "success", message: "Activity logged" });
+    }
+    
+    // V6.6.0: Handler untuk scheduleWhatsApp
+    if (data.action === 'scheduleWhatsApp') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      const result = scheduleWhatsApp(data);
+      return createJSONOutput(result);
+    }
+    
+    // V6.6.0: Handler untuk getInbox
+    if (data.action === 'getInbox') {
+      return handleGetInbox(data);
+    }
+    
+    // V6.6.0: Handler untuk deleteInbox
+    if (data.action === 'deleteInbox') {
+      return handleDeleteInbox(data);
+    }
+    
+    // V6.6.0: Handler untuk markInboxRead
+    if (data.action === 'markInboxRead') {
+      return handleMarkInboxRead(data);
     }
     
     // Handler baharu: Cetak dan simpan PDF
@@ -1425,6 +1458,33 @@ function handleUpdateRecord(data, sheet) {
       sheet.getRange(rowNum, 29).setValue(data.borang_json);
     }
     
+    // V6.6.0: BLOK 6 (AD: Kolum 30) - whatsapp_schedule
+    if (data.whatsapp_schedule !== undefined) {
+      sheet.getRange(rowNum, 30).setValue(data.whatsapp_schedule);
+    }
+    
+    // V6.6.0: BLOK 7 (AE: Kolum 31) - inbox
+    let inboxUpdated = false;
+    if (data.add_inbox !== undefined && data.add_inbox.message && data.add_inbox.role) {
+      const existingStr = sheet.getRange(rowNum, 31).getValue() || '[]';
+      let messages = [];
+      try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
+      messages.push({
+        id: Utilities.getUuid(),
+        masa: new Date().toISOString(),
+        mesej: data.add_inbox.message,
+        jenis: data.add_inbox.type || 'INFO',
+        role: data.add_inbox.role,
+        dibaca: false
+      });
+      if (messages.length > 50) messages = messages.slice(-50);
+      sheet.getRange(rowNum, 31).setValue(JSON.stringify(messages));
+      inboxUpdated = true;
+    }
+    if (data.inbox !== undefined && !inboxUpdated) {
+      sheet.getRange(rowNum, 31).setValue(data.inbox);
+    }
+    
     // AUTO EMAIL LOGIC
     let syorLawatanValue = data.syor_lawatan_baru !== undefined ? data.syor_lawatan_baru : (data.syor_lawatan !== undefined ? data.syor_lawatan : existingData[8]);
     let dateSubmitValue = data.date_submit !== undefined ? data.date_submit : existingData[9];
@@ -1501,6 +1561,29 @@ function handleUpdateRecord(data, sheet) {
         }
     }
     
+    // V6.6.0: Auto inbox notification untuk pelulus bila syor diupdate dengan pelulus
+    const syorBaruDisahkan = data.syor_status && data.syor_status.toString().trim() !== '' 
+      && data.pelulus && (!existingData[13] || existingData[13].toString().trim() === '');
+    if (syorBaruDisahkan) {
+      try {
+        const inboxMsg = `📋 Permohonan *${data.syarikat || existingData[0] || ''}* (${data.jenis || existingData[3] || ''}) menunggu keputusan anda. Sila semak di tab Keputusan.`;
+        addInboxToRow(rowNum, data.pelulus, inboxMsg, 'INFO');
+      } catch (e) {}
+    }
+    
+    // V6.6.0: Auto inbox notification untuk pengesyor bila pelulus buat keputusan
+    const keputusanBaru = data.kelulusan && data.kelulusan.toString().trim() !== '' 
+      && (!existingData[23] || existingData[23].toString().trim() === '');
+    if (keputusanBaru) {
+      const pengesyorName = existingData[12] || '';
+      const pelulusName = data.pelulus || existingData[25] || '';
+      const statusKeputusan = data.kelulusan;
+      try {
+        const inboxMsg = `📬 Keputusan untuk *${data.syarikat || existingData[0] || ''}*: *${statusKeputusan}* oleh ${pelulusName}.`;
+        addInboxToRow(rowNum, pengesyorName, inboxMsg, statusKeputusan.includes('LULUS') ? 'SUCCESS' : 'INFO');
+      } catch (e) {}
+    }
+
     const actionType = (data.syor_status === "" && existingData[13] !== "") ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
     const actionDesc = actionType === 'UNDO_RECOMMENDATION' 
       ? `Undo syor di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`
@@ -1564,7 +1647,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       }
     }
     
-    // Susunan kolum: A-O (1-15) | P-Q (16-17) STATUS & TARIKH HANTAR SPI | R-X (18-24) | Y-AB (25-28) | AC (29) BORANG JSON
+    // Susunan kolum: A-O (1-15) | P-Q (16-17) | R-X (18-24) | Y-AB (25-28) | AC (29) BORANG JSON | AD (30) WHATSAPP | AE (31) INBOX
     const newRow = [
       // A-O (Kolum 1-15)
       data.syarikat||"", data.cidb||"", data.gred||"", data.jenis||"", 
@@ -1590,7 +1673,11 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       data.ubah_maklumat||"",         
       data.ubah_gred||"",
       // AC (Kolum 29)
-      data.borang_json||""
+      data.borang_json||"",
+      // AD (Kolum 30) - WhatsApp Schedule
+      data.whatsapp_schedule||"",
+      // AE (Kolum 31) - Inbox
+      data.inbox||""
     ];
 
     const targetRange = sheet.getRange(targetRow, 1, 1, newRow.length);
@@ -1598,6 +1685,16 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
     try { cache.put("firstEmptyRow_" + SHEET_NAME, (targetRow + 1).toString(), 300); } catch (e) {}
 
     logActivity(data.pengesyor || "System", 'INSERT_RECORD', `Rekod baharu dimasukkan di baris ${targetRow} untuk ${data.syarikat || 'syarikat'}`, folderId);
+
+    // V6.6.0: Auto inbox notification untuk pelulus bila syor dihantar
+    if (data.syor_status && data.syor_status.toString().trim() !== '' && data.pelulus) {
+      try {
+        const inboxMsg = `📋 Permohonan *${data.syarikat || ''}* (${data.jenis || ''}) menunggu keputusan anda. Sila semak di tab Keputusan.`;
+        addInboxToRow(targetRow, data.pelulus, inboxMsg, 'INFO');
+      } catch (e) {
+        console.error('Gagal hantar inbox pelulus:', e.toString());
+      }
+    }
 
     const syorLawatanYA = data.syor_lawatan && data.syor_lawatan.toString().toUpperCase() === 'YA';
     const dateSubmitExists = data.date_submit && data.date_submit.toString().trim() !== '';
@@ -1723,7 +1820,7 @@ function handleDeleteRecord(data, sheet) {
       }
       
       // KOD BARU: Simpan snapshot data sebelum padam
-      const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json'];
+      const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox'];
       const snapshot = {};
       for (let i = 0; i < existingData.length && i < columnLabels.length; i++) {
         snapshot[columnLabels[i]] = existingData[i] ? existingData[i].toString() : '';
@@ -1759,6 +1856,8 @@ function handleDeleteRecord(data, sheet) {
       // Untuk padam syor, mana-mana pengguna yang dibenarkan boleh lakukan (Kolum 13-15)
       const rangeToClear = sheet.getRange(rowNum, 13, 1, 3);
       rangeToClear.clearContent();
+      // V6.6.0: Turut kosongkan kolum Z (25) - nama pelulus
+      sheet.getRange(rowNum, 25).clearContent();
       logActivity(userName, 'CLEAR_RECOMMENDATION', `Syor dikosongkan di baris ${rowNum}`, '');
       invalidateDataCache();
       return createJSONOutput({ status: "success", message: "Syor berjaya dikosongkan", action: "cleared_syor" });
@@ -1801,7 +1900,7 @@ function handleRestoreRecord(data, sheet) {
       }
     }
     
-    const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json'];
+    const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox'];
     const newRow = [];
     for (let i = 0; i < columnLabels.length; i++) {
       const val = snapshot[columnLabels[i]];
@@ -2053,7 +2152,9 @@ function getApplicationsData(role, userName, clientVersion) {
       due_date: dueDateValue,
       alasan: row[22], kelulusan: row[23],
       tarikh_lulus: row[24], pelulus: row[25], ubah_maklumat: row[26], ubah_gred: row[27],
-      borang_json: row[28] || ""
+      borang_json: row[28] || "",
+      whatsapp_schedule: row[29] || "",
+      inbox: row[30] || ""
     });
   }
 
@@ -2068,7 +2169,8 @@ function filterRowsByRole(rows, role, userName) {
   if (role === ROLE_PENGESYOR && userName) {
     return rows.filter(r => r.pengesyor && r.pengesyor.toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PELULUS && userName) {
-    return rows.filter(r => r.syor_status && r.syor_status.toString().trim() !== "");
+    return rows.filter(r => r.syor_status && r.syor_status.toString().trim() !== ""
+      && r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
   }
   return rows;
 }
@@ -2792,4 +2894,492 @@ function manualPadamSyarikatDariQueue() {
   removeFromQueue(namaSyarikatGhost, 'PEMUTIHAN_QUEUE'); //
   
   console.log("Pembersihan manual selesai! Sila semak log di atas.");
+}
+
+// =========================================================================
+// V6.6.0: WHATSAPP SCHEDULING SYSTEM (MANUAL/AUTO)
+// =========================================================================
+
+/**
+ * Fungsi scheduleWhatsApp: Menyimpan jadual WhatsApp ke kolum AD
+ * @param {Object} data - { row, mode, tarikh, masa, ayat, no_hantar }
+ */
+function scheduleWhatsApp(data) {
+  try {
+    const scheduleData = {
+      mode: data.mode || 'MANUAL',
+      tarikh: data.tarikh || '',
+      masa: data.masa || 8,
+      ayat: data.ayat || '',
+      status: data.mode === 'AUTO' ? 'PENDING' : 'MANUAL',
+      no_hantar: data.no_hantar || '',
+      no_tujuan: data.no_tujuan || '',
+      created_at: new Date().toISOString(),
+      syarikat: data.syarikat || '',
+      email_pengesyor: data.email || ''
+    };
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rowNum = parseInt(data.row);
+    
+    if (rowNum && rowNum > 1) {
+      sheet.getRange(rowNum, 30).setValue(JSON.stringify(scheduleData));
+    }
+    
+    const msg = data.mode === 'AUTO' 
+      ? `WhatsAP dijadualkan AUTO pada ${data.tarikh} jam ${data.masa}:00`
+      : 'WhatsApp MANUAL direkodkan';
+    
+    logActivity(data.user || 'System', 'SCHEDULE_WHATSAPP', `${msg} untuk ${data.syarikat || ''} (Baris ${data.row})`, '');
+    
+    // Jika AUTO, daftarkan trigger satu masa
+    if (data.mode === 'AUTO' && data.tarikh && data.masa) {
+      registerWhatsAppTrigger(rowNum, data.tarikh, data.masa);
+    }
+    
+    return { success: true, message: msg };
+  } catch (error) {
+    logActivity('System', 'ERROR_SCHEDULE_WHATSAPP', `Ralat: ${error.toString()}`, '');
+    return { success: false, message: error.toString() };
+  }
+}
+
+function registerWhatsAppTrigger(row, tarikhStr, jam) {
+  try {
+    const [tahun, bulan, hari] = tarikhStr.split('-');
+    const scheduledDate = new Date(tahun, bulan - 1, hari, jam, 0, 0);
+    
+    if (scheduledDate <= new Date()) {
+      logActivity('System', 'WHATSAPP_TRIGGER', `Masa sudah lepas untuk baris ${row}, hantar segera`, '');
+      return;
+    }
+    
+    ScriptApp.newTrigger('processSingleWhatsApp')
+      .timeBased()
+      .at(scheduledDate)
+      .create();
+      
+    logActivity('System', 'WHATSAPP_TRIGGER', `Trigger didaftarkan untuk baris ${row} pada ${scheduledDate.toLocaleString('ms-MY')}`, '');
+  } catch (error) {
+    logActivity('System', 'ERROR_WHATSAPP_TRIGGER', `Ralat daftar trigger: ${error.toString()}`, '');
+  }
+}
+
+/**
+ * Fungsi processSingleWhatsApp: Dipanggil oleh trigger untuk proses WhatsApp.
+ * Jika CallMeBot API ada, hantar auto. Jika tidak, inbox notification dengan wa.me link.
+ */
+function processSingleWhatsApp() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  
+  for (let r = 2; r <= lastRow; r++) {
+    const scheduleCell = sheet.getRange(r, 30).getValue();
+    if (!scheduleCell) continue;
+    
+    try {
+      const schedule = JSON.parse(scheduleCell);
+      if (schedule.mode !== 'AUTO' || schedule.status !== 'PENDING') continue;
+      
+      const tarikh = schedule.tarikh;
+      const jam = schedule.masa;
+      const now = new Date();
+      const nowDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      
+      if (tarikh === nowDate && now.getHours() >= jam) {
+        const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getValues()[0];
+        const syarikat = rowData[0] || '';
+        
+        // Dapatkan semua no telefon dari borang_json
+        const borangJson = rowData[28] || '';
+        let rawNumbers = [];
+        if (borangJson) {
+          try {
+            const parsed = JSON.parse(borangJson);
+            if (parsed.borang_no_telefon) {
+              // Format: "0388805281, 0142473308, 018140081" - asingkan dengan koma
+              rawNumbers = rawNumbers.concat(parsed.borang_no_telefon.split(',').map(s => s.trim()).filter(s => s));
+            }
+            if (parsed.phoneNumbers && Array.isArray(parsed.phoneNumbers)) {
+              rawNumbers = rawNumbers.concat(parsed.phoneNumbers);
+            }
+          } catch (e) {}
+        }
+        
+        // Tapis: hanya nombor mobile Malaysia (bermula 011, 012, 013, 014, 015, 016, 017, 018, 019)
+        const noTujuanList = [];
+        rawNumbers.forEach(no => {
+          let clean = no.replace(/[\s\-\(\)\+]/g, '');
+          if (clean.startsWith('60')) clean = clean.substring(2);
+          // Mobile Malaysia: panjang 9-11 digit, bermula dengan 01x
+          if (/^01[0-9]{7,9}$/.test(clean)) {
+            noTujuanList.push('60' + clean);
+          }
+        });
+        
+        // Generate wa.me links untuk setiap no telefon
+        let waLinks = [];
+        noTujuanList.forEach(no => {
+          let clean = no.replace(/[\s\-\(\)]/g, '');
+          if (clean.startsWith('0')) clean = '60' + clean.substring(1);
+          else if (!clean.startsWith('60')) clean = '60' + clean;
+          if (/^\d{9,15}$/.test(clean)) {
+            waLinks.push({ no: clean, url: `https://wa.me/${clean}?text=${encodeURIComponent(schedule.ayat)}` });
+          }
+        });
+        
+        // Cuba hantar via CallMeBot API
+        const result = hantarWhatsApp(r, schedule);
+        
+        schedule.status = result.success ? 'SENT' : 'PENDING_MANUAL';
+        schedule.hantar_masa = now.toISOString();
+        schedule.ralat = result.error || '';
+        schedule.wa_links = waLinks;
+        
+        sheet.getRange(r, 30).setValue(JSON.stringify(schedule));
+        
+        // Inbox notification: kalau gagal/takde API, bagi link manual
+        if (result.success) {
+          addInboxToRow(r, 'PENGESYOR', `✅ WhatsApp AUTO berjaya dihantar ke ${noTujuanList.length} nombor untuk ${syarikat}`, 'SUCCESS');
+          addInboxToRow(r, 'PELULUS', `✅ WhatsApp AUTO berjaya dihantar untuk ${syarikat}`, 'SUCCESS');
+        } else {
+          let mesejInbox = `📤 WhatsApp AUTO untuk ${syarikat} sudah tiba masa dihantar.\n\nMesej: ${schedule.ayat}\n\n`;
+          if (waLinks.length > 0) {
+            mesejInbox += `📱 Klik link untuk hantar:\n`;
+            waLinks.forEach((link, i) => {
+              mesejInbox += `${link.url}\n`;
+            });
+          } else {
+            mesejInbox += `❌ Tiada nombor WhatsApp yang sah dijumpai dalam borang.`;
+          }
+          addInboxToRow(r, 'PENGESYOR', mesejInbox, 'WARNING');
+        }
+        
+        logActivity('System', 'WHATSAPP_SENT', `WhatsApp AUTO ${result.success ? 'BERJAYA' : 'PERLU MANUAL'} untuk ${syarikat} (Baris ${r}) - ${waLinks.length} nombor`, '');
+      }
+    } catch (e) {
+      logActivity('System', 'ERROR_WHATSAPP_PROCESS', `Ralat proses baris ${r}: ${e.toString()}`, '');
+    }
+  }
+}
+
+/**
+ * Fungsi hantarWhatsApp: Menghantar WhatsApp menggunakan CallMeBot API atau wa.me
+ */
+function hantarWhatsApp(row, schedule) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rowData = sheet.getRange(row, 1, 1, TOTAL_COLUMNS).getValues()[0];
+    const syarikat = rowData[0] || '';
+    const borangJson = rowData[28] || '';
+    const pengesyor = rowData[12] || '';
+    
+    let noTujuan = schedule.no_tujuan || '';
+    if (!noTujuan && borangJson) {
+      try {
+        const parsed = JSON.parse(borangJson);
+        if (parsed.phoneNumbers && parsed.phoneNumbers.length > 0) {
+          noTujuan = parsed.phoneNumbers[0];
+        } else if (parsed.borang_no_telefon) {
+          noTujuan = parsed.borang_no_telefon;
+        }
+      } catch (e) {}
+    }
+    
+    if (!noTujuan) {
+      return { success: false, error: 'No telefon tujuan tidak dijumpai' };
+    }
+    
+    let cleanPhone = noTujuan.replace(/[\s\-\(\)]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
+    else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
+    
+    if (!/^\d{9,15}$/.test(cleanPhone)) {
+      return { success: false, error: 'No telefon tidak sah: ' + cleanPhone };
+    }
+    
+    // Cari API key peribadi pengesyor dari Script Properties
+    let callmebotKey = '';
+    const emailPengesyor = schedule.email_pengesyor || '';
+    if (emailPengesyor) {
+      const propKey = 'CALLMEBOT_API_KEY_' + emailPengesyor.toLowerCase();
+      callmebotKey = getScriptProp(propKey);
+    }
+    // Fallback: guna nama pengesyor untuk cari email
+    if (!callmebotKey && pengesyor) {
+      const userProfile = findUserByPengesyorName(pengesyor);
+      if (userProfile) {
+        const propKey = 'CALLMEBOT_API_KEY_' + userProfile.email.toLowerCase();
+        callmebotKey = getScriptProp(propKey);
+      }
+    }
+    // Fallback ke key global jika tiada key peribadi
+    if (!callmebotKey) {
+      callmebotKey = getScriptProp('CALLMEBOT_API_KEY');
+    }
+    
+    if (callmebotKey) {
+      return hantarViaCallMeBot(cleanPhone, schedule.ayat, callmebotKey);
+    }
+    
+    // Fallback: Log wa.me URL dan maklumkan
+    return { 
+      success: false, 
+      error: 'API WhatsApp tidak dikonfigurasi untuk pengesyor ini. Sila guna Manual.',
+      waUrl: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(schedule.ayat)}`
+    };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+function findUserByPengesyorName(name) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return null;
+    const data = sheet.getDataRange().getDisplayValues();
+    if (!data || data.length < 2) return null;
+    const headers = data.shift();
+    const nameColIndex = headers.findIndex(h => h && h.toString().toUpperCase().includes('NAMA'));
+    const emailColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('EMEL') || h.toString().toUpperCase().includes('EMAIL')));
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][nameColIndex] && data[i][nameColIndex].toString().toUpperCase().trim() === name.toUpperCase().trim()) {
+        return {
+          name: data[i][nameColIndex] || '',
+          email: data[i][emailColIndex] || ''
+        };
+      }
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+function hantarViaCallMeBot(phone, message, apiKey) {
+  try {
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const code = response.getResponseCode();
+    
+    if (code === 200) {
+      return { success: true, error: null };
+    } else {
+      return { success: false, error: `API Error HTTP ${code}: ${response.getContentText()}` };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Fungsi WhatsApp: Check nombor menggunakan API (placeholder)
+ */
+function checkWhatsAppNumber(phone) {
+  const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+  if (!/^\d{9,15}$/.test(cleanPhone)) {
+    return { valid: false, reason: 'Format nombor tidak sah' };
+  }
+  // Untuk CallMeBot, tiada API check number. Anggap sah.
+  return { valid: true };
+}
+
+// =========================================================================
+// V6.6.0: INBOX / NOTIFICATION SYSTEM (Kolum AE / 31)
+// =========================================================================
+
+/**
+ * Fungsi addInboxToRow: Tambah mesej inbox ke kolum AE
+ * @param {number} row - Nombor baris sheet
+ * @param {string} roleOrName - Boleh jadi nama PELULUS atau nama pengguna spesifik
+ * @param {string} message - Mesej notifikasi
+ * @param {string} type - INFO/SUCCESS/ERROR/WARNING
+ */
+function addInboxToRow(row, roleOrName, message, type = 'INFO') {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
+    let messages = [];
+    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
+    
+    messages.push({
+      id: Utilities.getUuid(),
+      masa: new Date().toISOString(),
+      mesej: message,
+      jenis: type,
+      role: roleOrName, // BOLEH jadi nama spesifik (contoh: "ALI BIN AHMAD")
+      dibaca: false
+    });
+    
+    // Simpan maksimum 50 mesej
+    if (messages.length > 50) messages = messages.slice(-50);
+    
+    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
+    
+    // Dapatkan syarikat untuk logging
+    const syarikat = sheet.getRange(row, 1).getValue() || '';
+    logActivity('System', 'INBOX_ADD', `Inbox untuk ${roleOrName}: ${message.substring(0, 80)} (${syarikat})`, '');
+    
+    return { success: true };
+  } catch (error) {
+    logActivity('System', 'ERROR_INBOX', error.toString(), '');
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Fungsi getInboxForRole: Dapatkan inbox untuk role tertentu dari seluruh sheet
+ */
+function handleGetInbox(data) {
+  try {
+    const role = data.role || '';
+    const email = data.email || '';
+    
+    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
+    
+    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ status: 'error', message: accessCheck.error });
+    }
+    
+    const userRole = accessCheck.userProfile.role;
+    const userName = accessCheck.userProfile.name;
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow < 2) return createJSONOutput({ status: 'success', inbox: [] });
+    
+    const dataRange = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS);
+    const rows = dataRange.getDisplayValues();
+    
+    const inboxItems = [];
+    
+    rows.forEach((row, index) => {
+      if (!row[0] || row[0].toString().trim() === '') return;
+      
+      const inboxStr = row[30] || '';
+      if (!inboxStr) return;
+      
+      let messages = [];
+      try { messages = JSON.parse(inboxStr); } catch (e) { return; }
+      
+      // Filter messages for this user's role OR name
+      messages.forEach(msg => {
+        let shouldShow = false;
+        
+        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+          shouldShow = true; // Admin/Pengarah/KetuaSeksyen boleh nampak semua
+        } else if (msg.role === userRole) {
+          shouldShow = true; // Contoh: msg.role = 'PENGESYOR' cocok dengan userRole
+        } else if (msg.role === 'ALL') {
+          shouldShow = true;
+        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
+          shouldShow = true; // V6.6.0: msg.role = nama spesifik pengguna (contoh: "ALI BIN AHMAD")
+        }
+        
+        // Pengesyor only sees messages for their own records
+        if (userRole === 'PENGESYOR') {
+          const rowPengesyor = row[12] || '';
+          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
+            shouldShow = false;
+          }
+        }
+        
+        if (shouldShow) {
+          inboxItems.push({
+            id: msg.id,
+            row: index + 2,
+            syarikat: row[0] || '',
+            cidb: row[1] || '',
+            jenis: row[3] || '',
+            masa: msg.masa,
+            mesej: msg.mesej,
+            jenisMsg: msg.jenis || 'INFO',
+            role: msg.role,
+            dibaca: msg.dibaca || false
+          });
+        }
+      });
+    });
+    
+    // Sort by date descending (newest first)
+    inboxItems.sort((a, b) => new Date(b.masa) - new Date(a.masa));
+    
+    return createJSONOutput({ status: 'success', inbox: inboxItems });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString(), inbox: [] });
+  }
+}
+
+/**
+ * Fungsi handleDeleteInbox: Padam mesej inbox tertentu
+ */
+function handleDeleteInbox(data) {
+  try {
+    const email = data.email || '';
+    const msgId = data.msgId || '';
+    const row = parseInt(data.row);
+    
+    if (!email || !msgId || !row) {
+      return createJSONOutput({ status: 'error', message: 'Data tidak lengkap' });
+    }
+    
+    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ status: 'error', message: accessCheck.error });
+    }
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
+    let messages = [];
+    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
+    
+    messages = messages.filter(msg => msg.id !== msgId);
+    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
+    
+    return createJSONOutput({ status: 'success', message: 'Mesej inbox berjaya dipadam' });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi handleMarkInboxRead: Tandakan inbox sebagai dibaca
+ */
+function handleMarkInboxRead(data) {
+  try {
+    const email = data.email || '';
+    const msgId = data.msgId || '';
+    const row = parseInt(data.row);
+    
+    if (!email || !msgId || !row) {
+      return createJSONOutput({ status: 'error', message: 'Data tidak lengkap' });
+    }
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
+    let messages = [];
+    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
+    
+    messages = messages.map(msg => {
+      if (msg.id === msgId) msg.dibaca = true;
+      return msg;
+    });
+    
+    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
+    
+    return createJSONOutput({ status: 'success', message: 'Mesej ditandakan dibaca' });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
+  }
 }

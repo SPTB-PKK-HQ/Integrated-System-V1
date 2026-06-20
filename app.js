@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzYTY_ahz1XpEgasr6elxSH44YBa5lK4OvjwZf7qOp7mBLOOPJDJa0sOadpl0C9IzUd/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrnPH6Q4JaaR0hl0_BoT6qY6bSDYjByQppACjiVDARJEIY2li-cQ1Tavk5mPisW602/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -1048,9 +1048,7 @@ async function handleCredentialResponse(response) {
   const dbLawatanSyor = document.getElementById('db_lawatan_syor');
 
   // WhatsApp Notification Elements
-  const cbNotifyWhatsapp = document.getElementById('cb_notify_whatsapp');
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
-  const labelNotifyWhatsapp = document.getElementById('label_notify_whatsapp');
 
   // Profile Tab Button
   const tabProfileBtn = document.getElementById('tabProfileBtn');
@@ -6452,17 +6450,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  if (cbNotifyWhatsapp) {
-    cbNotifyWhatsapp.addEventListener('change', (e) => {
-      const isChecked = e.target.checked;
-      if (pelulusWhatsappContainer) {
-        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
-      }
-      if (!isChecked && dbPelulusWhatsapp) {
-        dbPelulusWhatsapp.value = '';
-      }
-    });
-  }
+  // V6.6.0: cb_notify_whatsapp tidak digunakan lagi - diganti dengan modal WhatsApp
 
   // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
   const dbSyorStatusDropdown = document.getElementById('db_syor_status');
@@ -6480,17 +6468,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbSahSyor.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       
-      if (labelNotifyWhatsapp) {
-        labelNotifyWhatsapp.style.display = isChecked ? 'block' : 'none';
+      // V6.6.0: Papar dropdown pelulus serta-merta bila sah syor (wajib pilih)
+      if (pelulusWhatsappContainer) {
+        pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
       }
       
       if (!isChecked) {
-        if (cbNotifyWhatsapp) {
-          cbNotifyWhatsapp.checked = false;
-        }
-        if (pelulusWhatsappContainer) {
-          pelulusWhatsappContainer.style.display = 'none';
-        }
         if (dbPelulusWhatsapp) {
           dbPelulusWhatsapp.value = '';
         }
@@ -7081,6 +7064,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
              loadRecentYoutubeCache();
         }
         // -----------------------------------------------------------
+      }
+    }
+    // V6.6.0: TAB INBOX (Notifikasi)
+    else if (tabName === 'tab-inbox') {
+      const tabInbox = document.getElementById('tab-inbox');
+      if (tabInbox) {
+        tabInbox.style.display = 'block';
+        tabInbox.classList.add('active');
+        fetchInbox();
       }
     }
     // =========================================================
@@ -8056,14 +8048,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
      else if (type === 'inbox') {
-      	// Filter logic for inbox
-      if (currentUser.role === 'KETUA SEKSYEN') {
+       	// Filter logic for inbox
+      if (currentUser.role === 'KETUA_SEKSYEN') {
         // Untuk Ketua Seksyen, "Belum Syor" bermaksud semua rekod yang belum ada tarikh_syor (dari SEMUA pengesyor)
         filtered = cachedData.filter(i => !i.tarikh_syor);
+      } else if (currentUser.role === 'PELULUS') {
+        // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya
+        filtered = cachedData.filter(i => i.tarikh_syor && i.pelulus && i.pelulus.toUpperCase() === user
+          && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       } else {
-        // Original logic for Pelulus, Pengarah: Has been syor but not yet lulus
+        // Original logic for Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
+    }
     }    else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
         filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
@@ -8078,7 +8075,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       updateSubmittedBadges(filtered);
     }
     
-    if (type === 'drafts' || type === 'inbox') {
+    if (type === 'drafts' || (type === 'inbox' && currentUser.role !== 'PELULUS')) {
       const countAll = filtered.length;
       const countBaru = filtered.filter(item => item.jenis === 'BARU').length;
       const countPembaharuan = filtered.filter(item => item.jenis === 'PEMBAHARUAN').length;
@@ -8092,6 +8089,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (badgeUbahMaklumat) badgeUbahMaklumat.textContent = countUbahMaklumat;
       if (badgeUbahGred) badgeUbahGred.textContent = countUbahGred;
       if (badgeSpi) badgeSpi.textContent = countSpi;
+    }
+    
+    // V6.6.0: Badge untuk inbox pelulus
+    if (type === 'inbox' && currentUser.role === 'PELULUS') {
+      const countAll = filtered.length;
+      if (listTitle) listTitle.textContent = `📋 Inbox Pelulus (${countAll})`;
     }
 
     if (type === 'history') {
@@ -8754,6 +8757,39 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
     
+    // V6.6.0: Load WhatsApp schedule data
+    if (item.whatsapp_schedule) {
+      try {
+        const waData = JSON.parse(item.whatsapp_schedule);
+        if (waData && waData.mode) {
+          const radioManual = document.querySelector('input[name="wa_mode"][value="MANUAL"]');
+          const radioAuto = document.querySelector('input[name="wa_mode"][value="AUTO"]');
+          const manualFields = document.getElementById('wa_manual_fields');
+          const autoFields = document.getElementById('wa_auto_fields');
+          
+          if (waData.mode === 'AUTO') {
+            if (radioAuto) radioAuto.checked = true;
+            if (manualFields) manualFields.style.display = 'none';
+            if (autoFields) autoFields.style.display = 'block';
+            const waTarikhAuto = document.getElementById('wa_tarikh_auto');
+            if (waTarikhAuto && waData.tarikh) waTarikhAuto.value = waData.tarikh;
+            const waMasa = document.getElementById('wa_masa');
+            if (waMasa && waData.masa) waMasa.value = waData.masa;
+            const waAyat = document.getElementById('wa_ayat');
+            if (waAyat && waData.ayat) waAyat.value = waData.ayat;
+          } else {
+            if (radioManual) radioManual.checked = true;
+            if (manualFields) manualFields.style.display = 'block';
+            if (autoFields) autoFields.style.display = 'none';
+            const waTarikhManual = document.getElementById('wa_tarikh_manual');
+            if (waTarikhManual && waData.tarikh) waTarikhManual.value = waData.tarikh;
+          }
+        }
+      } catch (e) {
+        console.warn('V6.6.0 Failed to parse whatsapp_schedule:', e);
+      }
+    }
+    
     // --- KOD BARU: Masukkan Nilai Due Date ke Borang ---
     const dbDueDate = document.getElementById('db_due_date');
     if (dbDueDate) {
@@ -9303,6 +9339,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       const isConfirmed = dbSahSyor ? dbSahSyor.checked : false;
       
+      // V6.6.0: Jika sah syor, pastikan pelulus dipilih
+      let selectedPelulusName = '';
+      let selectedPelulusPhone = '';
+      if (isConfirmed) {
+        const pelulusDropdown = document.getElementById('db_pelulus_whatsapp');
+        if (pelulusDropdown) {
+          selectedPelulusPhone = pelulusDropdown.value;
+          const selectedText = pelulusDropdown.options[pelulusDropdown.selectedIndex]?.text || '';
+          // Extract name from "ALI BIN AHMAD (0123456789)" format
+          const nameMatch = selectedText.match(/^(.+?)\s*\(/);
+          selectedPelulusName = nameMatch ? nameMatch[1].trim() : selectedText.split('(')[0].trim();
+        }
+        if (!selectedPelulusName) {
+          await CustomAppModal.alert("Sila pilih nama Pelulus di ruangan 'Pilih Pelulus' sebelum sahkan syor.", "Pelulus Diperlukan", "warning");
+          return;
+        }
+      }
+      
       const isLawatanSelesai = cbSelesaiLawatan ? cbSelesaiLawatan.checked : false;
       const lawatanTarikh = isLawatanSelesai && dbLawatanTarikh ? dbLawatanTarikh.value : '';
       const lawatanSubmitSptb = isLawatanSelesai && dbLawatanSubmitSptb ? dbLawatanSubmitSptb.value : '';
@@ -9471,12 +9525,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         ubah_maklumat: ubahMaklumatVal,
         ubah_gred: ubahGredVal,
         email: currentUser ? currentUser.email : '',
-        borang_json: JSON.stringify(borangJsonData) // JSON yang telah merangkumi semua elemen
+        borang_json: JSON.stringify(borangJsonData), // JSON yang telah merangkumi semua elemen
+        whatsapp_schedule: getWhatsAppScheduleData() || '' // V6.6.0: WhatsApp schedule
       };
       
       if (isConfirmed) {
         payload.syor_status = document.getElementById('db_syor_status')?.value || 'SOKONG';
         payload.tarikh_syor = localToday;
+        payload.pelulus = selectedPelulusName; // V6.6.0: Nama pelulus untuk kolum Z
       } else {
         payload.syor_status = '';
         payload.tarikh_syor = '';
@@ -9494,28 +9550,70 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         await playSuccessSound();
         
-        const isNotifyWhatsapp = cbNotifyWhatsapp ? cbNotifyWhatsapp.checked : false;
-        const selectedPelulus = document.getElementById('db_pelulus_whatsapp') ? document.getElementById('db_pelulus_whatsapp').value : '';
-        
-        let whatsappUrl = null;
-        if (isConfirmed && isNotifyWhatsapp && selectedPelulus.trim() !== '') {
-            whatsappUrl = sendWhatsAppNotification(payload.syarikat, payload.cidb, payload.jenis, payload.syor_status, payload.tarikh_syor, selectedPelulus);
+        // V6.6.0: Handle WhatsApp AUTO scheduling
+        const waScheduleData = getWhatsAppScheduleData();
+        let waSchedulePayload = null;
+        if (waScheduleData) {
+          const parsedSchedule = JSON.parse(waScheduleData);
+          if (parsedSchedule.mode === 'AUTO' && result && result.row) {
+            const recommenderPhone = currentUser.phone || '';
+            let allPhones = [];
+            if (borangJsonData.borang_no_telefon) {
+              allPhones = borangJsonData.borang_no_telefon.split(',').map(s => s.trim()).filter(s => s);
+            }
+            if (borangJsonData.phoneNumbers && Array.isArray(borangJsonData.phoneNumbers)) {
+              allPhones = allPhones.concat(borangJsonData.phoneNumbers);
+            }
+            const mobilePhones = allPhones.filter(no => {
+              let c = no.replace(/[\s\-\(\)\+]/g, '');
+              if (c.startsWith('60')) c = c.substring(2);
+              return /^01[0-9]{7,9}$/.test(c);
+            });
+            
+            parsedSchedule.no_hantar = recommenderPhone;
+            parsedSchedule.no_tujuan = mobilePhones.join(',');
+            parsedSchedule.syarikat = payload.syarikat;
+            
+            waSchedulePayload = {
+              action: 'scheduleWhatsApp',
+              row: result.row,
+              mode: 'AUTO',
+              tarikh: parsedSchedule.tarikh,
+              masa: parsedSchedule.masa,
+              ayat: parsedSchedule.ayat,
+              no_hantar: recommenderPhone,
+              no_tujuan: mobilePhones.join(','),
+              syarikat: payload.syarikat,
+              user: currentUser.name,
+              email: currentUser.email
+            };
+            
+            try {
+              await fetchWithRetry(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(waSchedulePayload)
+              }, 2, 1000);
+              console.log('V6.6.0 WhatsApp AUTO schedule registered');
+            } catch (e) {
+              console.error('V6.6.0 Failed to schedule WhatsApp:', e);
+            }
+          }
         }
         
-        if (whatsappUrl) {
-            const isWaConfirmed = await CustomAppModal.confirm(
-                message + "<br><br>Adakah anda ingin buka dan hantar notifikasi WhatsApp sekarang?",
-                "Hantar WhatsApp",
-                "success",
-                "Ya, Hantar",
-                false,
-                true // KOD BARU: Aktifkan isSuccessBtn untuk tema hijau
-            );
-            if (isWaConfirmed) {
-                window.open(whatsappUrl, '_blank');
-            }
-        } else {
+        // V6.6.0: Modal WhatsApp selepas submit (ganti checkbox)
+        if (isConfirmed && selectedPelulusPhone) {
+          const waUrl = sendWhatsAppNotification(
+            payload.syarikat, payload.cidb, payload.jenis,
+            payload.syor_status, payload.tarikh_syor, selectedPelulusPhone
+          );
+          if (waUrl) {
+            showWhatsAppConfirmModal(waUrl, payload.syarikat, selectedPelulusName);
+          } else {
             await CustomAppModal.alert(message, "Selesai", "success");
+          }
+        } else {
+          await CustomAppModal.alert(message, "Selesai", "success");
         }
         
         await resetFormAfterSubmit();
@@ -9561,9 +9659,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (cbSelesaiLawatan) cbSelesaiLawatan.checked = false;
     if (containerLawatan) containerLawatan.style.display = 'none';
     
-    if (cbNotifyWhatsapp) cbNotifyWhatsapp.checked = false;
+    // V6.6.0: cb_notify_whatsapp tidak digunakan lagi
     if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
     if (dbPelulusWhatsapp) dbPelulusWhatsapp.value = '';
+    
+    // V6.6.0: Reset WhatsApp scheduling fields
+    document.querySelectorAll('input[name="wa_mode"]').forEach(r => { if (r.value === 'MANUAL') r.checked = true; });
+    const waManualFields = document.getElementById('wa_manual_fields');
+    const waAutoFields = document.getElementById('wa_auto_fields');
+    if (waManualFields) waManualFields.style.display = 'block';
+    if (waAutoFields) waAutoFields.style.display = 'none';
+    const waTarikhManual = document.getElementById('wa_tarikh_manual');
+    const waTarikhAuto = document.getElementById('wa_tarikh_auto');
+    const waMasa = document.getElementById('wa_masa');
+    const waAyat = document.getElementById('wa_ayat');
+    if (waTarikhManual) waTarikhManual.value = '';
+    if (waTarikhAuto) waTarikhAuto.value = '';
+    if (waMasa) waMasa.value = '';
+    if (waAyat) waAyat.value = '';
 
     const dbPerubahanContainer = document.getElementById('db_perubahan_container');
     if (dbPerubahanContainer) dbPerubahanContainer.style.display = 'none';
@@ -12252,6 +12365,515 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
   }
 
+// =========================================================================
+// V6.6.0: INBOX / NOTIFICATION SYSTEM
+// =========================================================================
+
+let cachedInboxData = [];
+
+async function fetchInbox() {
+  if (!currentUser || !currentUser.email) return;
+  try {
+    const response = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'getInbox', email: currentUser.email, role: currentUser.role })
+    }, 3, 1000);
+    if (!response.ok) return;
+    const result = await response.json();
+    if (result.status === 'success') {
+      cachedInboxData = result.inbox || [];
+      renderInbox();
+    }
+  } catch (e) {
+    console.error('Gagal fetch inbox:', e);
+  }
+}
+
+function updateInboxBadge() {
+  const unreadCount = cachedInboxData ? cachedInboxData.filter(m => !m.dibaca).length : 0;
+  const inboxBtn = document.getElementById('tabInboxBtn');
+  if (inboxBtn) {
+    const existingBadge = inboxBtn.querySelector('.inbox-unread-badge');
+    if (existingBadge) existingBadge.remove();
+    if (unreadCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'inbox-unread-badge';
+      badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
+      badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+      inboxBtn.appendChild(badge);
+    }
+  }
+}
+
+function renderInbox() {
+  const inboxList = document.getElementById('inboxList');
+  const inboxEmpty = document.getElementById('inboxEmpty');
+  const inboxCount = document.getElementById('inboxCount');
+  
+  if (!inboxList) return;
+  
+  if (!cachedInboxData || cachedInboxData.length === 0) {
+    inboxList.innerHTML = '';
+    if (inboxEmpty) inboxEmpty.style.display = 'block';
+    if (inboxCount) inboxCount.textContent = '0 mesej';
+    updateInboxBadge();
+    return;
+  }
+  
+  if (inboxEmpty) inboxEmpty.style.display = 'none';
+  if (inboxCount) inboxCount.textContent = `${cachedInboxData.length} mesej`;
+  
+  const unreadCount = cachedInboxData.filter(m => !m.dibaca).length;
+  updateInboxBadge();
+  
+  let html = '';
+  cachedInboxData.forEach((msg, index) => {
+    const isUnread = !msg.dibaca;
+    const iconMap = { 'SUCCESS': '✅', 'ERROR': '❌', 'WARNING': '⚠️', 'INFO': 'ℹ️' };
+    const icon = iconMap[msg.jenisMsg] || 'ℹ️';
+    const badgeClass = { 'SUCCESS': 'inbox-badge-success', 'ERROR': 'inbox-badge-error', 'WARNING': 'inbox-badge-warning', 'INFO': 'inbox-badge-info' };
+    const badge = badgeClass[msg.jenisMsg] || 'inbox-badge-info';
+    
+    let masaStr = '';
+    if (msg.masa) {
+      try {
+        const d = new Date(msg.masa);
+        masaStr = d.toLocaleString('ms-MY');
+      } catch (e) { masaStr = msg.masa; }
+    }
+    
+    // Extract wa.me links from message
+    const waLinks = [];
+    if (msg.mesej) {
+      const regex = /https:\/\/wa\.me\/[^\s\n]+/g;
+      let m;
+      while ((m = regex.exec(msg.mesej)) !== null) {
+        const url = m[0];
+        // Extract phone number from URL for display
+        const phoneMatch = url.match(/wa\.me\/(\d+)/);
+        const phone = phoneMatch ? phoneMatch[1] : '';
+        waLinks.push({ url, phone, sent: false });
+      }
+    }
+    const hasWhatsAppLinks = waLinks.length > 0;
+    
+    html += `
+      <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
+        <div class="inbox-icon">${icon}</div>
+        <div class="inbox-content">
+          <div class="inbox-message" style="white-space:pre-line;">${msg.mesej}</div>
+          <div class="inbox-meta">
+            <span class="inbox-badge ${badge}">${msg.jenisMsg}</span>
+            ${msg.syarikat ? `<span>🏢 ${msg.syarikat}</span>` : ''}
+            ${msg.jenis ? `<span>📋 ${msg.jenis}</span>` : ''}
+            <span>⏱ ${masaStr}</span>
+          </div>
+          ${hasWhatsAppLinks ? `
+          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="inbox-btn inbox-btn-wa-pilih" data-index="${index}" style="background:#25D366; color:white; font-weight:bold;">💬 Pilih & Hantar WhatsApp</button>
+          </div>` : ''}
+        </div>
+        <div class="inbox-actions">
+          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
+          <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  inboxList.innerHTML = html;
+  
+  // WhatsApp selection modal buttons
+  inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.target.getAttribute('data-index'));
+      const msg = cachedInboxData[idx];
+      if (!msg) return;
+      openWhatsAppPicker(msg, idx);
+    });
+  });
+  
+  inboxList.innerHTML = html;
+  
+  // Delete buttons
+  inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const msgId = e.target.getAttribute('data-msgid');
+      const row = e.target.getAttribute('data-row');
+      const idx = parseInt(e.target.getAttribute('data-idx'));
+      
+      const confirmed = await CustomAppModal.confirm('Padam mesej ini?', 'Padam Inbox', 'warning', 'Ya, Padam', true);
+      if (!confirmed) return;
+      
+      try {
+        const response = await fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'deleteInbox', msgId: msgId, row: row, email: currentUser.email })
+        }, 3, 1000);
+        const result = await response.json();
+        if (result.status === 'success') {
+          cachedInboxData.splice(idx, 1);
+          renderInbox();
+          await CustomAppModal.alert('Mesej berjaya dipadam', 'Berjaya', 'success');
+        } else {
+          await CustomAppModal.alert('Gagal padam: ' + result.message, 'Ralat', 'error');
+        }
+      } catch (err) {
+        await CustomAppModal.alert('Ralat: ' + err.message, 'Ralat', 'error');
+      }
+    });
+  });
+  
+  // View buttons - navigate to record in pelulus view
+  inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const row = parseInt(e.target.getAttribute('data-row'));
+      if (!row || !cachedData) return;
+      const item = cachedData.find(d => d.row === row);
+      if (item) {
+        viewRecordOnly(item);
+      }
+    });
+  });
+  
+  // Mark as read
+  inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      if (e.target.closest('.inbox-actions')) return;
+      const idx = parseInt(item.getAttribute('data-index'));
+      const msg = cachedInboxData[idx];
+      if (!msg || msg.dibaca) return;
+      
+      try {
+        await fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
+        }, 2, 500);
+      } catch (e) {}
+      
+      cachedInboxData[idx].dibaca = true;
+      renderInbox();
+    });
+  });
+}
+
+// =========================================================================
+// V6.6.0: WHATSAPP PICKER MODAL (Pilih nombor untuk hantar)
+// =========================================================================
+
+function openWhatsAppPicker(msg, msgIndex) {
+  // Parse wa.me links from message
+  const waLinks = [];
+  if (msg.mesej) {
+    const regex = /https:\/\/wa\.me\/[^\s\n]+/g;
+    let m;
+    while ((m = regex.exec(msg.mesej)) !== null) {
+      const url = m[0];
+      const phoneMatch = url.match(/wa\.me\/(\d+)/);
+      const phone = phoneMatch ? phoneMatch[1] : '';
+      // Check if already sent (if message contains ✓ or ✅ before this URL)
+      const beforeUrl = msg.mesej.substring(0, m.index);
+      const sent = beforeUrl.includes('✅') && !beforeUrl.endsWith('\n');
+      waLinks.push({ url, phone, sent });
+    }
+  }
+  
+  if (waLinks.length === 0) {
+    CustomAppModal.alert('Tiada nombor WhatsApp tersedia.', 'Makluman', 'info');
+    return;
+  }
+  
+  // Create modal
+  const overlay = document.getElementById('waPickerModal') || createWAPickerModal();
+  
+  const titleEl = document.getElementById('waPickerTitle');
+  const listEl = document.getElementById('waPickerList');
+  const closeBtn = document.getElementById('waPickerClose');
+  
+  if (titleEl) {
+    titleEl.textContent = `📱 Hantar WhatsApp - ${msg.syarikat || 'Syarikat'}`;
+  }
+  
+  if (listEl) {
+    let listHtml = '';
+    waLinks.forEach((link, i) => {
+      // Format phone for display: 60XXXXXXXXX -> 0XX-XXXXXXX
+      let displayPhone = link.phone;
+      if (displayPhone.startsWith('60')) displayPhone = '0' + displayPhone.substring(2);
+      
+      listHtml += `
+        <div class="wa-picker-item" data-index="${i}" style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:8px; background:${link.sent ? '#f0fdf4' : 'white'}; border:2px solid ${link.sent ? '#22c55e' : '#e5e7eb'}; border-radius:10px;">
+          <div style="flex:1;">
+            <div style="font-weight:bold; font-size:1rem; color:${link.sent ? '#166534' : '#1e293b'};">
+              📱 ${displayPhone}
+              ${link.sent ? '<span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>' : ''}
+            </div>
+            <div style="font-size:0.8rem; color:#64748b; margin-top:3px;">
+              ${link.sent ? 'Telah dihantar' : 'Belum dihantar'}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            ${link.sent ? `
+              <button class="inbox-btn wa-picker-btn wa-picker-sent" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" style="background:#22c55e; color:white; cursor:default; opacity:0.7;">✅ Selesai</button>
+            ` : `
+              <button class="inbox-btn wa-picker-btn wa-picker-send" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" data-mid="${msg.id}" data-row="${msg.row}" style="background:#25D366; color:white;">💬 Hantar</button>
+            `}
+          </div>
+        </div>
+      `;
+    });
+    listEl.innerHTML = listHtml;
+    
+    // Hantar buttons
+    listEl.querySelectorAll('.wa-picker-send').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const url = e.target.getAttribute('data-url');
+        const phone = e.target.getAttribute('data-phone');
+        const mid = e.target.getAttribute('data-mid');
+        const row = e.target.getAttribute('data-row');
+        
+        // Open WhatsApp
+        window.open(url, '_blank');
+        
+        // Mark as sent in inbox message (update the cached message)
+        const msgData = cachedInboxData[msgIndex];
+        if (msgData && msgData.mesej) {
+          // Replace the URL in the message with ✅ marker
+          msgData.mesej = msgData.mesej.replace(url, `✅ ${url}`);
+          // Re-render to reflect changes
+          renderInbox();
+        }
+        
+        // Update the button state
+        const parent = e.target.closest('.wa-picker-item');
+        if (parent) {
+          parent.style.background = '#f0fdf4';
+          parent.style.borderColor = '#22c55e';
+          e.target.textContent = '✅ Selesai';
+          e.target.className = 'inbox-btn wa-picker-btn wa-picker-sent';
+          e.target.style.background = '#22c55e';
+          e.target.style.opacity = '0.7';
+          e.target.style.cursor = 'default';
+          e.target.disabled = true;
+          
+          const label = parent.querySelector('div:first-child div:first-child');
+          if (label && !label.innerHTML.includes('Selesai')) {
+            label.innerHTML += ' <span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>';
+          }
+          const status = parent.querySelector('div:first-child div:last-child');
+          if (status) status.textContent = 'Telah dihantar';
+        }
+      });
+    });
+    
+    // Already sent buttons - do nothing
+    listEl.querySelectorAll('.wa-picker-sent').forEach(btn => {
+      // No action needed
+    });
+  }
+  
+  // Close handler
+  if (closeBtn) {
+    closeBtn.onclick = () => { overlay.style.display = 'none'; };
+  }
+  
+  overlay.style.display = 'flex';
+  overlay.classList.add('show');
+}
+
+function createWAPickerModal() {
+  const div = document.createElement('div');
+  div.id = 'waPickerModal';
+  div.className = 'custom-modal-overlay';
+  div.innerHTML = `
+    <div class="custom-modal-card" style="max-width:500px; text-align:left; max-height:80vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #25D366; padding-bottom:10px;">
+        <h3 id="waPickerTitle" style="margin:0; color:#075e54;">📱 Pilih Nombor</h3>
+        <button id="waPickerClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;">✕</button>
+      </div>
+      <div id="waPickerList"></div>
+      <div style="margin-top:15px; padding-top:10px; border-top:1px solid #e5e7eb; text-align:center;">
+        <button id="waPickerDone" class="btn btn-green" style="padding:10px 30px;">Selesai, Tutup</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  
+  document.getElementById('waPickerDone').onclick = () => { div.style.display = 'none'; };
+  div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
+  
+  return div;
+}
+
+// =========================================================================
+// V6.6.0: WHATSAPP CONFIRM MODAL (Ganti checkbox)
+// =========================================================================
+
+async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
+  const overlay = document.getElementById('waConfirmModal') || createWAConfirmModal();
+  
+  const msgEl = document.getElementById('waConfirmMsg');
+  const btnYa = document.getElementById('waConfirmYa');
+  const btnBatal = document.getElementById('waConfirmBatal');
+  const titleEl = document.getElementById('waConfirmTitle');
+  
+  if (titleEl) titleEl.innerHTML = '💬 Hantar Notifikasi WhatsApp';
+  if (msgEl) {
+    msgEl.innerHTML = `
+      <div style="text-align:center; margin-bottom:15px;">
+        <div style="font-size:3rem; margin-bottom:10px;">💬</div>
+        <div style="font-weight:bold; font-size:1.1rem; color:#075e54;">Notifikasi Kepada Pelulus</div>
+        <div style="color:#4b5563; margin-top:8px;">
+          Hantar notifikasi WhatsApp ke <strong>${pelulusName}</strong> untuk permohonan <strong>${syarikat}</strong>?
+        </div>
+      </div>
+    `;
+  }
+  
+  overlay.style.display = 'flex';
+  overlay.classList.add('show');
+  
+  return new Promise((resolve) => {
+    btnYa.onclick = () => {
+      overlay.style.display = 'none';
+      window.open(waUrl, '_blank');
+      resolve(true);
+    };
+    btnBatal.onclick = () => {
+      overlay.style.display = 'none';
+      resolve(false);
+    };
+  });
+}
+
+function createWAConfirmModal() {
+  const div = document.createElement('div');
+  div.id = 'waConfirmModal';
+  div.className = 'custom-modal-overlay';
+  div.innerHTML = `
+    <div class="custom-modal-card" style="max-width:400px; border-top:6px solid #25D366 !important; text-align:center;">
+      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">💬 Hantar WhatsApp</div>
+      <div id="waConfirmMsg"></div>
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:15px;">
+        <button id="waConfirmBatal" class="custom-modal-btn custom-modal-btn-cancel" style="flex:1;">Batal</button>
+        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">💬 Ya, Hantar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
+  return div;
+}
+
+// =========================================================================
+// V6.6.0: WHATSAPP SCHEDULING UI (Manual/Auto)
+// =========================================================================
+
+function setupWhatsAppSchedulingUI() {
+  // Radio button toggle Manual/Auto
+  document.querySelectorAll('input[name="wa_mode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const manualFields = document.getElementById('wa_manual_fields');
+      const autoFields = document.getElementById('wa_auto_fields');
+      if (e.target.value === 'AUTO') {
+        if (manualFields) manualFields.style.display = 'none';
+        if (autoFields) autoFields.style.display = 'block';
+      } else {
+        if (manualFields) manualFields.style.display = 'block';
+        if (autoFields) autoFields.style.display = 'none';
+      }
+    });
+  });
+}
+
+function getWhatsAppScheduleData() {
+  const selectedMode = document.querySelector('input[name="wa_mode"]:checked');
+  if (!selectedMode) return null;
+  
+  const mode = selectedMode.value;
+  const waTarikhManual = document.getElementById('wa_tarikh_manual')?.value || '';
+  const waTarikhAuto = document.getElementById('wa_tarikh_auto')?.value || '';
+  const waMasa = document.getElementById('wa_masa')?.value || '';
+  const waAyat = document.getElementById('wa_ayat')?.value || '';
+  
+  if (mode === 'MANUAL' && waTarikhManual) {
+    return JSON.stringify({
+      mode: 'MANUAL',
+      tarikh: waTarikhManual,
+      masa: 0,
+      ayat: '',
+      status: 'MANUAL',
+      no_hantar: '',
+      no_tujuan: ''
+    });
+  }
+  
+  if (mode === 'AUTO' && waTarikhAuto && waMasa && waAyat) {
+    return JSON.stringify({
+      mode: 'AUTO',
+      tarikh: waTarikhAuto,
+      masa: parseInt(waMasa),
+      ayat: waAyat,
+      status: 'PENDING',
+      no_hantar: '',
+      no_tujuan: ''
+    });
+  }
+  
+  return null;
+}
+
+// =========================================================================
+// V6.6.0: WHATSAPP NOTIFICATION (send from recommender to applicant)
+// =========================================================================
+
+function sendWhatsAppAutoNotification(companyName, cidb, jenis, tarikh, masa, message, phoneTujuan) {
+  if (!phoneTujuan || phoneTujuan.trim() === '') {
+    console.log("V6.6.0 No target phone number for WhatsApp");
+    return null;
+  }
+  
+  let cleanPhone = phoneTujuan.replace(/[\s\-\(\)]/g, '');
+  if (cleanPhone.startsWith('0')) {
+    cleanPhone = '60' + cleanPhone.substring(1);
+  } else if (!cleanPhone.startsWith('60')) {
+    cleanPhone = '60' + cleanPhone;
+  }
+  
+  if (!/^\d{9,15}$/.test(cleanPhone)) {
+    console.log("V6.6.0 Invalid phone number:", cleanPhone);
+    return null;
+  }
+  
+  const finalMessage = message || `*NOTIFIKASI PERMOHONAN STB*
+
+Syarikat: ${companyName}
+No. CIDB: ${cidb || 'Tiada'}
+Jenis: ${jenis || 'Tiada'}
+Tarikh: ${tarikh || 'Tiada'}
+
+Terima kasih.`;
+  
+  const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMessage)}`;
+  return whatsappUrl;
+}
+
+// =========================================================================
+// V6.6.0: INBOX REFRESH BUTTON
+// =========================================================================
+
+// Refresh Inbox button
+const btnRefreshInbox = document.getElementById('btnRefreshInbox');
+if (btnRefreshInbox) {
+  btnRefreshInbox.addEventListener('click', fetchInbox);
+}
+
+// Setup WhatsApp scheduling UI
+setupWhatsAppSchedulingUI();
+
 }); // <--- PENUTUP UTAMA UNTUK DOMContentLoaded
 
-console.log("STB System V6.5.2 - Web App JS loaded successfully");
+console.log("STB System V6.6.0 - Web App JS loaded successfully (WhatsApp + Inbox)");
