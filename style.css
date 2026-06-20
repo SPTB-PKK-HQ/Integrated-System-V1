@@ -1581,49 +1581,33 @@
             font-weight: 700;
         }
 
-        /* Horizontal slider strip */
-        .changelog-slider-wrap {
+        /* CHANGELOG CAROUSEL — ONE IMAGE AT A TIME */
+        .changelog-carousel {
             position: relative;
             margin: 0 -24px;
-            padding: 0 24px;
+        }
+
+        .changelog-slider-wrap {
+            position: relative;
+            overflow: hidden;
         }
 
         .changelog-slider {
             display: flex;
-            gap: 18px;
-            padding: 10px 0 20px;
-            overflow-x: auto;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-            cursor: grab;
-            scrollbar-width: none;
-        }
-        .changelog-slider::-webkit-scrollbar { display: none; }
-        .changelog-slider.dragging {
-            cursor: grabbing;
-            scroll-behavior: auto;
+            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            will-change: transform;
         }
 
         .changelog-slide {
             flex-shrink: 0;
-            width: 460px;
-            height: 300px;
-            border-radius: 16px;
-            overflow: hidden;
-            border: 2px solid rgba(255,255,255,0.08);
-            transition: all 0.3s ease;
+            width: 100%;
+            height: 480px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.25);
             cursor: pointer;
             position: relative;
-            background: rgba(0,0,0,0.2);
-        }
-        .changelog-slide:hover {
-            border-color: rgba(59,130,246,0.5);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 35px rgba(0,0,0,0.4);
-        }
-        .changelog-slide.active {
-            border-color: #3b82f6;
-            box-shadow: 0 0 25px rgba(59,130,246,0.3);
         }
         .changelog-slide img {
             width: 100%;
@@ -1631,40 +1615,92 @@
             object-fit: contain;
             display: block;
             pointer-events: none;
-            background: rgba(0,0,0,0.15);
-        }
-        @media (max-width: 768px) {
-            .changelog-slide { width: 280px; height: 190px; }
+            padding: 12px;
+            box-sizing: border-box;
         }
         .changelog-slide-icon {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(16,185,129,0.08));
+            font-size: 4rem;
+            opacity: 0.5;
         }
         .changelog-slide-overlay {
             position: absolute;
-            bottom: 0; left: 0; right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            padding: 8px 10px;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(6px);
+            padding: 6px 18px;
+            border-radius: 20px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 10px;
             pointer-events: none;
         }
         .changelog-slide-overlay span {
             color: white;
-            font-size: 0.6rem;
+            font-size: 0.8rem;
             font-weight: 800;
-            background: rgba(37,99,235,0.7);
-            padding: 1px 8px;
-            border-radius: 10px;
         }
         .changelog-slide-overlay .latest-badge {
-            background: rgba(16,185,129,0.8);
+            color: #10b981;
+        }
+
+        /* Arrows */
+        .changelog-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 5;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 1.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0;
+            line-height: 1;
+        }
+        .changelog-slider-wrap:hover .changelog-arrow { opacity: 1; }
+        .changelog-arrow:hover { background: rgba(59,130,246,0.7); }
+        .changelog-arrow-prev { left: 16px; }
+        .changelog-arrow-next { right: 16px; }
+        .changelog-arrow.hidden { display: none; }
+
+        /* Dots */
+        .changelog-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 0 6px;
+        }
+        .changelog-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0;
+        }
+        .changelog-dot.active {
+            background: #3b82f6;
+            width: 28px;
+            border-radius: 6px;
+        }
+        .changelog-dot:hover { background: rgba(255,255,255,0.4); }
+
+        @media (max-width: 768px) {
+            .changelog-slide { height: 260px; }
+            .changelog-slide img { padding: 6px; }
+            .changelog-arrow { width: 34px; height: 34px; font-size: 1.3rem; }
         }
 
         /* Description panel (shown on click) */
@@ -1782,17 +1818,20 @@
 
         .carousel-image-container {
             width: 100%;
-            height: 200px;
+            height: 380px;
             border-radius: 16px;
             overflow: hidden;
-            background: rgba(255,255,255,0.03);
+            background: rgba(0,0,0,0.25);
             border: 1px solid rgba(255,255,255,0.06);
             position: relative;
         }
         .carousel-image-container img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
+            display: block;
+            padding: 8px;
+            box-sizing: border-box;
         }
         .carousel-img-multi {
             width: 100%;
@@ -1802,7 +1841,13 @@
         .carousel-img-multi img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
+            display: block;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        @media (max-width: 768px) {
+            .carousel-image-container { height: 220px; }
         }
         .carousel-img-prev, .carousel-img-next {
             position: absolute;

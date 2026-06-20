@@ -405,7 +405,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -3469,7 +3469,11 @@ function handleGetUserLastSeenVersion(email) {
       sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
       sheet.setFrozenRows(1);
     }
-    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: 'success', version: '' });
+    }
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
     const found = data.find(r => r[0] && r[0].toString().trim().toLowerCase() === email.toLowerCase().trim());
     return createJSONOutput({ status: 'success', version: found ? (found[1] || '') : '' });
   } catch (error) {
@@ -3489,7 +3493,12 @@ function handleUpdateUserLastSeenVersion(email, version) {
       sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
       sheet.setFrozenRows(1);
     }
-    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      sheet.getRange(2, 1, 1, 2).setValues([[email, version]]);
+      return createJSONOutput({ status: 'success', message: 'Versi dikemaskini' });
+    }
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
     let foundRow = -1;
     for (let i = 0; i < data.length; i++) {
       if (data[i][0] && data[i][0].toString().trim().toLowerCase() === email.toLowerCase().trim()) {

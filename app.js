@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2x296EYv2M2mecB2TTPKXZ1hUCGud2tcwWJXjdfNbUjG5c_UxV99P9CyXvw9cc3wI/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyGXlZL1E6_9Nxcqbp3k1QOAwVN_MMUMynCjyHWCnCIkTWQRkE6I5145KBbVIL2X1GR/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -5070,6 +5070,8 @@ async function handleCredentialResponse(response) {
   }
 
   let changelogAutoScroll = null;
+  let changelogCurrentIdx = 0;
+  let changelogData = [];
 
   function renderChangelog(data) {
     const slider = document.getElementById('changelogSlider');
@@ -5077,6 +5079,9 @@ async function handleCredentialResponse(response) {
     const count = document.getElementById('changelogCount');
     if (!slider) return;
     if (count) count.textContent = data.length;
+
+    changelogData = data;
+    changelogCurrentIdx = 0;
 
     const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
 
@@ -5105,86 +5110,106 @@ async function handleCredentialResponse(response) {
       });
     });
 
-    // Click handler
+    // Build dots
+    const dotsEl = document.getElementById('clDots');
+    if (dotsEl && data.length > 1) {
+      dotsEl.innerHTML = data.map((_, i) =>
+        `<button class="changelog-dot${i === 0 ? ' active' : ''}" data-carousel-idx="${i}"></button>`
+      ).join('');
+      dotsEl.querySelectorAll('.changelog-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          const idx = parseInt(dot.dataset.carouselIdx);
+          goToSlide(idx);
+        });
+      });
+    } else if (dotsEl) {
+      dotsEl.innerHTML = '';
+    }
+
+    // Arrow handlers
+    const prevBtn = document.getElementById('clArrowPrev');
+    const nextBtn = document.getElementById('clArrowNext');
+    if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx + 1));
+
+    // Click slide to show description
     slider.querySelectorAll('.changelog-slide').forEach(el => {
       el.addEventListener('click', () => {
         const idx = parseInt(el.dataset.idx);
         const item = data[idx];
         if (!item) return;
-
-        // Stop auto scroll
         stopChangelogAutoScroll();
-
-        // Highlight
-        slider.querySelectorAll('.changelog-slide').forEach(s => s.classList.remove('active'));
-        el.classList.add('active');
-
-        // Show panel
-        const tag = document.getElementById('panelVersionTag');
-        const dateEl = document.getElementById('panelDate');
-        const descEl = document.getElementById('panelDesc');
-        if (tag) {
-          tag.textContent = item.versi;
-          tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
-        }
-        if (dateEl) dateEl.textContent = item.tarikh || '';
-        if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
-        if (panel) {
-          panel.style.display = 'block';
-          panel.style.animation = 'none';
-          panel.offsetHeight;
-          panel.style.animation = 'slideDown 0.35s ease';
-        }
-
-        // Scroll slide into view
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        showChangelogDesc(idx);
+        goToSlide(idx);
       });
     });
 
-    // Drag-to-scroll
-    let isDragging = false, startX, scrollLeft;
-    slider.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      slider.classList.add('dragging');
-      startX = e.pageX - slider.offsetLeft;
-      scrollLeft = slider.scrollLeft;
-    });
-    slider.addEventListener('mouseleave', () => {
-      isDragging = false;
-      slider.classList.remove('dragging');
-    });
-    slider.addEventListener('mouseup', () => {
-      isDragging = false;
-      slider.classList.remove('dragging');
-    });
-    slider.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      const x = e.pageX - slider.offsetLeft;
-      const walk = (x - startX) * 1.5;
-      slider.scrollLeft = scrollLeft - walk;
-    });
+    // Position at first slide
+    goToSlide(0, true);
 
-    // Auto scroll
-    startChangelogAutoScroll(data);
+    // Start auto
+    startChangelogAutoScroll();
   }
 
-  function startChangelogAutoScroll(data) {
-    stopChangelogAutoScroll();
+  function goToSlide(idx, noAnim) {
     const slider = document.getElementById('changelogSlider');
-    if (!slider || slider.children.length < 2) return;
+    if (!slider || !changelogData.length) return;
 
-    const step = 480;
-    let scrollAmount = slider.scrollLeft || 0;
+    if (idx < 0) idx = changelogData.length - 1;
+    if (idx >= changelogData.length) idx = 0;
+    changelogCurrentIdx = idx;
+
+    const percent = -idx * 100;
+    slider.style.transition = noAnim ? 'none' : 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    slider.style.transform = `translateX(${percent}%)`;
+
+    if (noAnim) {
+      slider.offsetHeight;
+      slider.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    }
+
+    // Update dots
+    document.querySelectorAll('.changelog-dot').forEach(dot => {
+      dot.classList.toggle('active', parseInt(dot.dataset.carouselIdx) === idx);
+    });
+
+    // Arrows
+    const prevBtn = document.getElementById('clArrowPrev');
+    const nextBtn = document.getElementById('clArrowNext');
+    if (prevBtn) prevBtn.classList.toggle('hidden', idx === 0);
+    if (nextBtn) nextBtn.classList.toggle('hidden', idx === changelogData.length - 1);
+  }
+
+  function showChangelogDesc(idx) {
+    const item = changelogData[idx];
+    if (!item) return;
+    const panel = document.getElementById('changelogPanel');
+    const tag = document.getElementById('panelVersionTag');
+    const dateEl = document.getElementById('panelDate');
+    const descEl = document.getElementById('panelDesc');
+    if (tag) {
+      tag.textContent = item.versi;
+      tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
+    }
+    if (dateEl) dateEl.textContent = item.tarikh || '';
+    if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
+    if (panel) {
+      panel.style.display = 'block';
+      panel.style.animation = 'none';
+      panel.offsetHeight;
+      panel.style.animation = 'slideDown 0.35s ease';
+    }
+  }
+
+  function startChangelogAutoScroll() {
+    stopChangelogAutoScroll();
+    if (!changelogData || changelogData.length < 2) return;
 
     changelogAutoScroll = setInterval(() => {
-      if (slider.matches(':hover') || document.querySelector('.changelog-panel[style*="display: block"]')) return;
-      scrollAmount += step;
-      if (scrollAmount >= slider.scrollWidth - slider.clientWidth) {
-        scrollAmount = 0;
-      }
-      slider.scrollTo({ left: scrollAmount, behavior: 'smooth' });
-    }, 3000);
+      const panel = document.getElementById('changelogPanel');
+      if (panel && panel.style.display === 'block') return;
+      goToSlide(changelogCurrentIdx + 1);
+    }, 4000);
   }
 
   function stopChangelogAutoScroll() {
