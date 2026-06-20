@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrPPeggAIHe3bLTIxYea2KZzDney_9c1LMGQZ6YKebcepKkaBFWuaFjiXqgxBzMv2Z/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz6TzxWb-UlhpXcyC0JJqX3_oGX4du1vW8JrgWGQ4GY7NdWALj_PeKTgOEAH1Hoo1KE/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -9947,22 +9947,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           try { borangJsonData = JSON.parse(pelulusActiveItem.borang_json); } catch(e){}
       }
       
-      // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU
-      let finalCatatan = catatanPelulus;
-      const nowLulus = new Date();
-      if (keputusan === 'TOLAK & BEKU 3 BULAN' || keputusan === 'TOLAK & BEKU 6 BULAN') {
-        const bulanBeku = keputusan === 'TOLAK & BEKU 3 BULAN' ? 3 : 6;
-        const tarikhMula = nowLulus.toISOString().split('T')[0];
-        const tarikhTamat = new Date(nowLulus);
-        tarikhTamat.setMonth(tarikhTamat.getMonth() + bulanBeku);
-        const tarikhTamatStr = tarikhTamat.toISOString().split('T')[0];
-        const bekuNote = `TARIKH MULA BEKU: ${tarikhMula} HINGGA TAMAT BEKU: ${tarikhTamatStr}`;
-        finalCatatan = finalCatatan ? `${finalCatatan}\n${bekuNote}` : bekuNote;
-      }
-      
-      borangJsonData.catatan_pelulus = finalCatatan;
+      // V6.6.0: BEKU dihandle oleh backend (code.gs) untuk elak duplicate
+      borangJsonData.catatan_pelulus = catatanPelulus;
       const newBorangJson = JSON.stringify(borangJsonData);
 
+      const nowLulus = new Date();
       const tarikhLulusLocal = nowLulus.getFullYear() + '-' + String(nowLulus.getMonth() + 1).padStart(2, '0') + '-' + String(nowLulus.getDate()).padStart(2, '0');
 
       const payload = {
@@ -12162,10 +12151,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (item.jenis === 'UBAH MAKLUMAT' && item.ubah_maklumat) specificType = ` (${item.ubah_maklumat})`;
               else if (item.jenis === 'UBAH GRED' && item.ubah_gred) specificType = ` (${item.ubah_gred})`;
 
+              // V6.6.0: Nama fail berdasarkan keputusan
+              let keputusanLabel = 'Keputusan';
+              if (item.kelulusan) {
+                if (item.kelulusan.includes('LULUS')) keputusanLabel = 'LULUS';
+                else if (item.kelulusan.includes('TOLAK')) keputusanLabel = 'TOLAK';
+                else keputusanLabel = item.kelulusan;
+              }
               const payload = {
                   action: 'cetak_dan_simpan_pdf',
                   company_name: item.syarikat,
-                  custom_file_name: `Borang Semakan Keputusan-${item.tarikh_lulus || ''}`,
+                  custom_file_name: `Borang Semakan ${keputusanLabel} (${item.tarikh_lulus || ''})`,
                   application_type: `${item.jenis}${specificType} - ${formatDateDisplay(item.start_date)}`.replace(/\//g, '-'),
                   month_year: `${new Date().toLocaleString('ms-MY', { month: 'long' }).toUpperCase()} ${new Date().getFullYear()}`,
                   user_name: item.pengesyor || currentUser.name,
