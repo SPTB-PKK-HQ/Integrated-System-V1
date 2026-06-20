@@ -5069,35 +5069,121 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  let changelogAutoScroll = null;
+
   function renderChangelog(data) {
-    const list = document.getElementById('changelogList');
+    const slider = document.getElementById('changelogSlider');
+    const panel = document.getElementById('changelogPanel');
     const count = document.getElementById('changelogCount');
-    if (!list) return;
+    if (!slider) return;
     if (count) count.textContent = data.length;
-    
+
     const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
-    
-    list.innerHTML = data.map((item, i) => {
+
+    // Build slides
+    slider.innerHTML = data.map((item, i) => {
       const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
-      let visual;
+      let content;
       if (images.length > 0) {
-        const extra = images.length > 1 ? `<span class="changelog-card-more">+${images.length - 1}</span>` : '';
-        visual = `<div class="changelog-card-img-wrap"><img src="${images[0]}" alt="${item.versi}" loading="lazy">${extra}</div>`;
+        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy">`;
       } else {
-        visual = `<span style="font-size:1.5rem;">${featureIcons[i % featureIcons.length]}</span>`;
+        content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
       }
-      return `
-      <div class="changelog-card-item">
-        <div class="changelog-card-visual">${visual}</div>
-        <div class="changelog-card-body">
-          <div class="changelog-card-version">
-            <span class="changelog-card-tag ${i === 0 ? 'latest' : ''}">${item.versi}</span>
-            <span class="changelog-card-date">${item.tarikh || ''}</span>
-          </div>
-          <div class="changelog-card-desc">${item.penerangan.replace(/\n/g, '<br>')}</div>
+      return `<div class="changelog-slide" data-idx="${i}">
+        ${content}
+        <div class="changelog-slide-overlay">
+          <span class="${i === 0 ? 'latest-badge' : ''}">${item.versi}</span>
         </div>
-      </div>
-    `}).join('');
+      </div>`;
+    }).join('');
+
+    // Click handler
+    slider.querySelectorAll('.changelog-slide').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx);
+        const item = data[idx];
+        if (!item) return;
+
+        // Stop auto scroll
+        stopChangelogAutoScroll();
+
+        // Highlight
+        slider.querySelectorAll('.changelog-slide').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+
+        // Show panel
+        const tag = document.getElementById('panelVersionTag');
+        const dateEl = document.getElementById('panelDate');
+        const descEl = document.getElementById('panelDesc');
+        if (tag) {
+          tag.textContent = item.versi;
+          tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
+        }
+        if (dateEl) dateEl.textContent = item.tarikh || '';
+        if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
+        if (panel) {
+          panel.style.display = 'block';
+          panel.style.animation = 'none';
+          panel.offsetHeight;
+          panel.style.animation = 'slideDown 0.35s ease';
+        }
+
+        // Scroll slide into view
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      });
+    });
+
+    // Drag-to-scroll
+    let isDragging = false, startX, scrollLeft;
+    slider.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      slider.classList.add('dragging');
+      startX = e.pageX - slider.offsetLeft;
+      scrollLeft = slider.scrollLeft;
+    });
+    slider.addEventListener('mouseleave', () => {
+      isDragging = false;
+      slider.classList.remove('dragging');
+    });
+    slider.addEventListener('mouseup', () => {
+      isDragging = false;
+      slider.classList.remove('dragging');
+    });
+    slider.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - slider.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      slider.scrollLeft = scrollLeft - walk;
+    });
+
+    // Auto scroll
+    startChangelogAutoScroll(data);
+  }
+
+  function startChangelogAutoScroll(data) {
+    stopChangelogAutoScroll();
+    const slider = document.getElementById('changelogSlider');
+    if (!slider || slider.children.length < 2) return;
+
+    const step = 180;
+    let scrollAmount = slider.scrollLeft || 0;
+
+    changelogAutoScroll = setInterval(() => {
+      if (slider.matches(':hover') || document.querySelector('.changelog-panel[style*="display: block"]')) return;
+      scrollAmount += step;
+      if (scrollAmount >= slider.scrollWidth - slider.clientWidth) {
+        scrollAmount = 0;
+      }
+      slider.scrollTo({ left: scrollAmount, behavior: 'smooth' });
+    }, 3000);
+  }
+
+  function stopChangelogAutoScroll() {
+    if (changelogAutoScroll) {
+      clearInterval(changelogAutoScroll);
+      changelogAutoScroll = null;
+    }
   }
 
   // V6.6.0: Changelog walkthrough carousel
