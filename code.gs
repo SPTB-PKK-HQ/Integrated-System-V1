@@ -2,6 +2,7 @@
 const SHEET_NAME = "Sheet1";
 const USERS_SHEET_NAME = "Users";
 const LOGS_SHEET_NAME = "Logs";
+const CHANGELOG_SHEET_NAME = "Changelog";
 
 // FOLDER INDUK ID - Disimpan di Script Properties (key: MAIN_FOLDER_ID)
 const MAIN_FOLDER_NAME = "STB MAIN FOLDER";
@@ -338,6 +339,11 @@ function doGet(e) {
     // V6.4.9: Handler untuk checkAuth - kini menerima email dari parameter
     if (action === "checkAuth") {
       return handleCheckAuth(email);
+    }
+    
+    // V6.6.0: Handler untuk getChangelog (public - tiada auth diperlukan)
+    if (action === "getChangelog") {
+      return handleGetChangelog();
     }
     
     // V6.5.0: Handler untuk getQueueData
@@ -3348,6 +3354,48 @@ function handleDeleteInbox(data) {
     
   } catch (error) {
     return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+// =========================================================================
+// V6.6.0: CHANGELOG / RELEASE NOTES
+// =========================================================================
+
+function handleGetChangelog() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(CHANGELOG_SHEET_NAME);
+    
+    if (!sheet) {
+      // Create sheet if not exists
+      sheet = ss.insertSheet(CHANGELOG_SHEET_NAME);
+      const headers = [['Versi', 'Tarikh', 'Penerangan']];
+      sheet.getRange(1, 1, 1, 3).setValues(headers);
+      sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+      sheet.getRange(2, 1, 1, 3).setValues([['V6.6.0', new Date().toISOString().split('T')[0], '• WhatsApp Scheduling (Manual/Auto)\n• Inbox Notifikasi\n• Pelulus Assignment']]);
+      sheet.getRange(3, 1, 1, 3).setValues([['V6.5.2', '2026-04-01', '• Auto Email Authentication\n• Mobile UI Polish\n• QR Code Preview']]);
+      sheet.getRange(4, 1, 1, 3).setValues([['V6.5.0', '2026-03-01', '• API Keys di Script Properties\n• Firebase Integration\n• 3-Tier AI Fallback']]);
+    }
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: 'success', changelog: [] });
+    }
+    
+    const data = sheet.getRange(2, 1, lastRow - 1, 3).getDisplayValues();
+    const changelog = data
+      .filter(r => r[0] && r[0].toString().trim() !== '')
+      .map(r => ({
+        versi: r[0].toString().trim(),
+        tarikh: r[1] || '',
+        penerangan: r[2] || ''
+      }));
+    
+    return createJSONOutput({ status: 'success', changelog: changelog });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString(), changelog: [] });
   }
 }
 

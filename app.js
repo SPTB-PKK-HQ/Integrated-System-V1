@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrnPH6Q4JaaR0hl0_BoT6qY6bSDYjByQppACjiVDARJEIY2li-cQ1Tavk5mPisW602/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNxMZ4sCvsu5xS3GWGkBoPYOJNn64gGPlboZt_99YyLvJF17zjC8nD46W_6Jebs6f6/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -5039,7 +5039,40 @@ async function handleCredentialResponse(response) {
       }
       // Initialize Google Sign-In pada skrin login
       initializeGoogleSignIn();
+      
+      // V6.6.0: Muatkan changelog di landing page
+      loadChangelog();
     }
+  }
+
+  // V6.6.0: Changelog loader
+  async function loadChangelog() {
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL + '?action=getChangelog&t=' + Date.now(), { method: 'GET' }, 2, 1000);
+      const result = await response.json();
+      if (result.status === 'success' && result.changelog && result.changelog.length > 0) {
+        renderChangelog(result.changelog);
+      }
+    } catch (e) {
+      console.warn('Gagal muat changelog:', e);
+    }
+  }
+
+  function renderChangelog(data) {
+    const list = document.getElementById('changelogList');
+    const count = document.getElementById('changelogCount');
+    if (!list) return;
+    if (count) count.textContent = data.length;
+    
+    list.innerHTML = data.map((item, i) => `
+      <div class="changelog-item">
+        <div class="changelog-version">
+          <span class="changelog-version-tag ${i === 0 ? 'latest' : ''}">${item.versi}</span>
+          <span class="changelog-date">${item.tarikh || ''}</span>
+        </div>
+        <div class="changelog-desc">${item.penerangan.replace(/\n/g, '<br>')}</div>
+      </div>
+    `).join('');
   }
 
   function populateWhatsAppDropdown() {

@@ -49,16 +49,71 @@
         <div class="form-checker-loading-text">Memproses Borang Semakan...</div>
     </div>
 
-    <!-- LOGIN -->
+    <!-- LOGIN / LANDING PAGE -->
     <div id="login-screen">
-        <div class="login-card">
-            <img src="jata.svg" alt="Jata Negara" style="width: 100px; margin-bottom: 15px;">
-            <h2 class="login-title">SISTEM BERSEPADU SPTB (HQ)</h2>
-            <p style="color:#666; margin-bottom:10px;">Log Masuk Menggunakan Akaun Google</p>
-            <div class="auth-status" id="authStatus">
-                <p style="color:#64748b; font-size:0.9rem; margin-bottom:15px;">Sila klik butang di bawah untuk log masuk secara automatik.</p>
-                <div id="googleButton" style="margin-top: 20px; min-height: 50px; display: flex; justify-content: center; align-items: center;"></div>
-                <div class="auth-error" id="authError"></div>
+        <div class="landing-wrapper">
+            <!-- Hero Section -->
+            <div class="landing-hero">
+                <div class="hero-bg-shapes">
+                    <div class="shape shape-1"></div>
+                    <div class="shape shape-2"></div>
+                    <div class="shape shape-3"></div>
+                </div>
+                <div class="hero-content">
+                    <img src="jata.svg" alt="Jata Negara" class="hero-logo">
+                    <div class="hero-badge">V6.6.0</div>
+                    <h1 class="hero-title">SISTEM BERSEPADU<br>SPTB (HQ)</h1>
+                    <p class="hero-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Kewangan Malaysia</p>
+                    <div class="hero-divider"></div>
+                    
+                    <!-- Google Sign In -->
+                    <div class="login-section">
+                        <p class="login-prompt">Log masuk untuk mengakses sistem</p>
+                        <div id="googleButton" class="google-btn-wrapper" style="min-height: 50px; display: flex; justify-content: center; align-items: center;"></div>
+                        <div class="auth-error" id="authError"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Cards -->
+            <div class="landing-features">
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-title">Borang Semakan</div>
+                    <div class="feature-desc">Auto-ekstrak PDF dengan AI, semak dokumen dan personel</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">Dashboard Analisis</div>
+                    <div class="feature-desc">Statistik permohonan, trend bulanan dan jenis permohonan</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <div class="feature-title">WhatsApp & Inbox</div>
+                    <div class="feature-desc">Jadual WhatsApp auto, notifikasi dan inbox pintar</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <div class="feature-title">Google Drive</div>
+                    <div class="feature-desc">Folder automatik, simpanan PDF berwarna dan QR profile</div>
+                </div>
+            </div>
+
+            <!-- Changelog Section -->
+            <div class="landing-changelog">
+                <div class="changelog-header">
+                    <span class="changelog-icon">📢</span>
+                    <span class="changelog-title">Apa Yang Baru?</span>
+                    <span class="changelog-badge" id="changelogCount">0</span>
+                </div>
+                <div class="changelog-list" id="changelogList">
+                    <div class="changelog-loading">Memuatkan perubahan terkini...</div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="landing-footer">
+                <p>Sistem Bersepadu SPTB (HQ) © 2026 PKK. Hak Cipta Terpelihara.</p>
             </div>
         </div>
     </div>
