@@ -5132,13 +5132,12 @@ async function handleCredentialResponse(response) {
     if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx - 1));
     if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx + 1));
 
-    // Click slide to show description
+    // Click slide to show description (auto-scroll tetap jalan)
     slider.querySelectorAll('.changelog-slide').forEach(el => {
       el.addEventListener('click', () => {
         const idx = parseInt(el.dataset.idx);
         const item = data[idx];
         if (!item) return;
-        stopChangelogAutoScroll();
         showChangelogDesc(idx);
         goToSlide(idx);
       });
@@ -5206,8 +5205,6 @@ async function handleCredentialResponse(response) {
     if (!changelogData || changelogData.length < 2) return;
 
     changelogAutoScroll = setInterval(() => {
-      const panel = document.getElementById('changelogPanel');
-      if (panel && panel.style.display === 'block') return;
       goToSlide(changelogCurrentIdx + 1);
     }, 4000);
   }
