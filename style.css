@@ -1590,8 +1590,8 @@
 
         .changelog-slider {
             display: flex;
-            gap: 14px;
-            padding: 8px 0 16px;
+            gap: 18px;
+            padding: 10px 0 20px;
             overflow-x: auto;
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
@@ -1606,9 +1606,9 @@
 
         .changelog-slide {
             flex-shrink: 0;
-            width: 160px;
-            height: 120px;
-            border-radius: 14px;
+            width: 300px;
+            height: 200px;
+            border-radius: 16px;
             overflow: hidden;
             border: 2px solid rgba(255,255,255,0.06);
             transition: all 0.3s ease;

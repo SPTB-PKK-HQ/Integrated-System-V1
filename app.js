@@ -5085,7 +5085,7 @@ async function handleCredentialResponse(response) {
       const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
       let content;
       if (images.length > 0) {
-        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy">`;
+        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy" data-fallback="${i}">`;
       } else {
         content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
       }
@@ -5096,6 +5096,14 @@ async function handleCredentialResponse(response) {
         </div>
       </div>`;
     }).join('');
+
+    // Image error fallback
+    slider.querySelectorAll('img[data-fallback]').forEach(img => {
+      img.addEventListener('error', function() {
+        const idx = parseInt(this.dataset.fallback);
+        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${featureIcons[idx % featureIcons.length]}</div>`;
+      });
+    });
 
     // Click handler
     slider.querySelectorAll('.changelog-slide').forEach(el => {
@@ -5166,7 +5174,7 @@ async function handleCredentialResponse(response) {
     const slider = document.getElementById('changelogSlider');
     if (!slider || slider.children.length < 2) return;
 
-    const step = 180;
+    const step = 320;
     let scrollAmount = slider.scrollLeft || 0;
 
     changelogAutoScroll = setInterval(() => {
@@ -5259,7 +5267,18 @@ async function handleCredentialResponse(response) {
             <button class="carousel-img-next" data-subidx="1">›</button>
           `;
         }
+        const fallbackIcon = featureIcons[idx % featureIcons.length];
         imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
+        
+        // Image error fallback
+        const carouselImg = imgContainer.querySelector('.carousel-img-multi img');
+        if (carouselImg) {
+          carouselImg.addEventListener('error', function handler() {
+            this.removeEventListener('error', handler);
+            const multi = this.closest('.carousel-img-multi');
+            if (multi) multi.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${fallbackIcon}</span></div>`;
+          });
+        }
         
         // Sub-image navigation
         imgContainer.querySelectorAll('.carousel-img-prev, .carousel-img-next').forEach(btn => {
