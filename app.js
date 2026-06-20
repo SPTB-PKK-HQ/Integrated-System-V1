@@ -5820,11 +5820,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     setTxt('print_catatan_pelulus', catatan);
     setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
     
-    // Highlight Keputusan Pelulus di PDF
-    const elLulus = document.getElementById('print_lulus');
-    const elLulusSyarat = document.getElementById('print_lulus_syarat');
-    const elPemutihan = document.getElementById('print_pemutihan');
-    const elTolak = document.getElementById('print_tolak');
+    // Highlight Keputusan Pelulus di PDF (guna semula dari reset atas)
     [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
         if (el) el.setAttribute('class', 'syor-dimmed'); 
     });
