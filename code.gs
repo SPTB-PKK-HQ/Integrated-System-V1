@@ -374,6 +374,10 @@ function doGet(e) {
       result = getStatisticsData(role, userName);
     } else if (action === "getRepeatedApplications") {
       result = getRepeatedApplicationsData();
+    } else if (action === "refreshData") {
+      // V6.6.0: Paksa refresh dengan increment version
+      invalidateDataCache();
+      result = getApplicationsData(role, userName, '');
     } else {
       result = getApplicationsData(role, userName, clientVersion);
     }

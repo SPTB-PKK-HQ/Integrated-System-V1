@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7EcCBTnoyeTNXdS5aWGs0j4C1xj5nK36-MMU-CLEtKbG9MQWPvxunw0ajqEkHBa15/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrPPeggAIHe3bLTIxYea2KZzDney_9c1LMGQZ6YKebcepKkaBFWuaFjiXqgxBzMv2Z/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -13071,6 +13071,36 @@ if (inboxModal) {
 
 if (btnRefreshInbox) {
   btnRefreshInbox.addEventListener('click', fetchInbox);
+}
+
+// V6.6.0: Force refresh data dari sheet
+const btnRefreshData = document.getElementById('btnRefreshData');
+if (btnRefreshData) {
+  btnRefreshData.addEventListener('click', async () => {
+    const confirmed = await CustomAppModal.confirm(
+      'Refresh data akan muat turun semula semua rekod dari sheet. Teruskan?',
+      'Refresh Data', 'info', 'Ya, Refresh', false
+    );
+    if (!confirmed) return;
+    
+    // Clear local cache
+    cachedData = [];
+    dataCacheVersion = '';
+    await storageWrapper.remove(['stb_data_cache', 'stb_cache_timestamp', 'stb_data_version']);
+    
+    // Force fetch with refresh action
+    try {
+      simulateLoadingWithSteps(['Menghubungi pelayan...', 'Muat turun data terkini...', 'Selesai!'], 'Refresh Data');
+      await fetchWithRetry(SCRIPT_URL + '?action=refreshData&role=' + currentUser.role + '&userName=' + encodeURIComponent(currentUser.name) + '&t=' + Date.now(), { method: 'GET' }, 3, 1000);
+      // Refetch the data
+      await fetchAndRenderList(activeListType || 'drafts');
+      hideLoading();
+      await CustomAppModal.alert('Data berjaya dikemas kini!', 'Selesai', 'success');
+    } catch (e) {
+      hideLoading();
+      await CustomAppModal.alert('Gagal refresh: ' + e.message, 'Ralat', 'error');
+    }
+  });
 }
 
 // Setup WhatsApp scheduling UI
