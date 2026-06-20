@@ -12540,6 +12540,7 @@ function renderInbox() {
   // WhatsApp selection modal buttons
   inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      closeInboxModal(); // Tutup modal dulu
       const idx = parseInt(e.target.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg) return;
@@ -12555,6 +12556,8 @@ function renderInbox() {
       const msgId = e.target.getAttribute('data-msgid');
       const row = e.target.getAttribute('data-row');
       const idx = parseInt(e.target.getAttribute('data-idx'));
+      
+      closeInboxModal(); // Tutup modal dulu
       
       const confirmed = await CustomAppModal.confirm('Padam mesej ini?', 'Padam Inbox', 'warning', 'Ya, Padam', true);
       if (!confirmed) return;
@@ -12582,6 +12585,7 @@ function renderInbox() {
   // View buttons - navigate to record in pelulus view
   inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      closeInboxModal(); // Tutup modal dulu
       const row = parseInt(e.target.getAttribute('data-row'));
       if (!row || !cachedData) return;
       const item = cachedData.find(d => d.row === row);
@@ -12928,6 +12932,14 @@ Terima kasih.`;
 // =========================================================================
 
 // Inbox modal buttons
+function closeInboxModal() {
+  const modal = document.getElementById('inboxModal');
+  if (modal) {
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  }
+}
+
 const btnInboxTop = document.getElementById('btnInboxTop');
 const inboxModal = document.getElementById('inboxModal');
 const btnCloseInbox = document.getElementById('btnCloseInbox');
@@ -12942,18 +12954,12 @@ if (btnInboxTop && inboxModal) {
 }
 
 if (btnCloseInbox && inboxModal) {
-  btnCloseInbox.addEventListener('click', () => {
-    inboxModal.classList.remove('show');
-    setTimeout(() => inboxModal.style.display = 'none', 300);
-  });
+  btnCloseInbox.addEventListener('click', closeInboxModal);
 }
 
 if (inboxModal) {
   inboxModal.addEventListener('click', (e) => {
-    if (e.target === inboxModal) {
-      inboxModal.classList.remove('show');
-      setTimeout(() => inboxModal.style.display = 'none', 300);
-    }
+    if (e.target === inboxModal) closeInboxModal();
   });
 }
 
