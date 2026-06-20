@@ -3373,7 +3373,7 @@ function handleGetChangelog() {
       sheet.getRange(1, 1, 1, 3).setValues(headers);
       sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
       sheet.setFrozenRows(1);
-      sheet.getRange(2, 1, 1, 3).setValues([['V6.6.0', new Date().toISOString().split('T')[0], '• WhatsApp Scheduling (Manual/Auto)\n• Inbox Notifikasi\n• Pelulus Assignment']]);
+      sheet.getRange(2, 1, 1, 3).setValues([['V6.6.0', '2026-06-21', '• WhatsApp Scheduling Manual/Auto\n• Inbox Notifikasi (kolum AE)\n• Pelulus Wajib Pilih + Kolum Z\n• WhatsApp Confirm Modal (ganti checkbox)\n• CallMeBot API per-user\n• Inbox Notifikasi Pelulus/Pengesyor\n• Landing Page & Changelog']]);
       sheet.getRange(3, 1, 1, 3).setValues([['V6.5.2', '2026-04-01', '• Auto Email Authentication\n• Mobile UI Polish\n• QR Code Preview']]);
       sheet.getRange(4, 1, 1, 3).setValues([['V6.5.0', '2026-03-01', '• API Keys di Script Properties\n• Firebase Integration\n• 3-Tier AI Fallback']]);
     }

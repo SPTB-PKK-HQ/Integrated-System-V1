@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNxMZ4sCvsu5xS3GWGkBoPYOJNn64gGPlboZt_99YyLvJF17zjC8nD46W_6Jebs6f6/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwv_i2jfCXPmAK0zTYgoRdT6ghI3zm5MQK3UXFJ-XYsb30dbJMrBqFbIyCJUkSIpK4B/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -8093,8 +8093,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // Original logic for Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
-    }
-    }    else if (type === 'history') {
+    } else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
         filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
       } else {
