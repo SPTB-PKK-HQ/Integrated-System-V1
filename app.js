@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxK7gLQTthYTFGsKqIbAK5aU4czlp641RP1VAZI9ZQsIuoAY2mwth-kWsDI7sO-f1wC/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2x296EYv2M2mecB2TTPKXZ1hUCGud2tcwWJXjdfNbUjG5c_UxV99P9CyXvw9cc3wI/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -529,6 +529,8 @@ async function handleCredentialResponse(response) {
         await playSuccessSound();
         await CustomAppModal.alert(getDailyGreeting(), 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
+        // V6.6.0: Tunjuk changelog walkthrough jika ada versi baru
+        setTimeout(() => showChangelogWalkthrough(), 500);
       }, 1500); 
       
     } else {
@@ -4887,7 +4889,11 @@ async function handleCredentialResponse(response) {
               }
           });
       }
-      setupUserUI(); 
+      setupUserUI();
+      // V6.6.0: Muat changelog dan tunjuk walkthrough jika ada versi baru
+      loadChangelog().then(() => {
+        setTimeout(() => showChangelogWalkthrough(), 500);
+      });
   }
 }
       
@@ -5055,7 +5061,8 @@ async function handleCredentialResponse(response) {
       const response = await fetchWithRetry(SCRIPT_URL + '?action=getChangelog&t=' + Date.now(), { method: 'GET' }, 2, 1000);
       const result = await response.json();
       if (result.status === 'success' && result.changelog && result.changelog.length > 0) {
-        renderChangelog(result.changelog);
+        cachedChangelog = result.changelog;
+        renderChangelog(cachedChangelog);
       }
     } catch (e) {
       console.warn('Gagal muat changelog:', e);
@@ -5068,15 +5075,162 @@ async function handleCredentialResponse(response) {
     if (!list) return;
     if (count) count.textContent = data.length;
     
-    list.innerHTML = data.map((item, i) => `
-      <div class="changelog-item">
-        <div class="changelog-version">
-          <span class="changelog-version-tag ${i === 0 ? 'latest' : ''}">${item.versi}</span>
-          <span class="changelog-date">${item.tarikh || ''}</span>
+    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+    
+    list.innerHTML = data.map((item, i) => {
+      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
+      let visual;
+      if (images.length > 0) {
+        const extra = images.length > 1 ? `<span class="changelog-card-more">+${images.length - 1}</span>` : '';
+        visual = `<div class="changelog-card-img-wrap"><img src="${images[0]}" alt="${item.versi}" loading="lazy">${extra}</div>`;
+      } else {
+        visual = `<span style="font-size:1.5rem;">${featureIcons[i % featureIcons.length]}</span>`;
+      }
+      return `
+      <div class="changelog-card-item">
+        <div class="changelog-card-visual">${visual}</div>
+        <div class="changelog-card-body">
+          <div class="changelog-card-version">
+            <span class="changelog-card-tag ${i === 0 ? 'latest' : ''}">${item.versi}</span>
+            <span class="changelog-card-date">${item.tarikh || ''}</span>
+          </div>
+          <div class="changelog-card-desc">${item.penerangan.replace(/\n/g, '<br>')}</div>
         </div>
-        <div class="changelog-desc">${item.penerangan.replace(/\n/g, '<br>')}</div>
       </div>
-    `).join('');
+    `}).join('');
+  }
+
+  // V6.6.0: Changelog walkthrough carousel
+  let cachedChangelog = null;
+
+  async function getUserLastSeenVersion(email) {
+    try {
+      const r = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getUserLastSeenVersion', email })
+      }, 2, 1000);
+      const d = await r.json();
+      return d.status === 'success' ? (d.version || '') : '';
+    } catch (e) { return ''; }
+  }
+
+  async function updateUserLastSeenVersion(email, version) {
+    try {
+      await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateUserLastSeenVersion', email, version })
+      }, 2, 1000);
+    } catch (e) {}
+  }
+
+  async function showChangelogWalkthrough() {
+    if (!cachedChangelog || cachedChangelog.length === 0) return;
+    const email = currentUser ? currentUser.email : '';
+    if (!email) return;
+
+    const lastSeen = await getUserLastSeenVersion(email);
+    const latestVersion = cachedChangelog[0].versi;
+    if (lastSeen === latestVersion) return; // Already seen latest
+
+    // Show carousel
+    const overlay = document.getElementById('changelogOverlay');
+    const slide = document.getElementById('carouselSlide');
+    const body = document.getElementById('carouselBody');
+    const desc = document.getElementById('carouselDesc');
+    const dateEl = document.getElementById('carouselDate');
+    const badgeEl = document.getElementById('clVersionBadge');
+    const dots = document.getElementById('carouselDots');
+    const prevBtn = document.getElementById('carouselPrev');
+    const nextBtn = document.getElementById('carouselNext');
+    const closeBtn = document.getElementById('carouselClose');
+    const imgContainer = document.getElementById('carouselImageContainer');
+    const imgPlaceholder = document.getElementById('carouselImagePlaceholder');
+
+    if (!overlay || !body || !desc) return;
+
+    let currentIndex = 0;
+    let subIndex = 0;
+    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+
+    function renderItem(idx, resetSub) {
+      const item = cachedChangelog[idx];
+      if (!item) return;
+      const icon = featureIcons[idx % featureIcons.length];
+      
+      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
+      if (resetSub) subIndex = 0;
+      if (subIndex >= images.length) subIndex = 0;
+      
+      if (images.length > 0) {
+        const currentImg = images[subIndex] || images[0];
+        let arrows = '';
+        if (images.length > 1) {
+          arrows = `
+            <button class="carousel-img-prev" data-subidx="-1">‹</button>
+            <div class="carousel-img-dots">${images.map((_, si) => `<span class="carousel-img-dot${si === subIndex ? ' active' : ''}"></span>`).join('')}</div>
+            <button class="carousel-img-next" data-subidx="1">›</button>
+          `;
+        }
+        imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
+        
+        // Sub-image navigation
+        imgContainer.querySelectorAll('.carousel-img-prev, .carousel-img-next').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dir = parseInt(btn.dataset.subidx);
+            subIndex = Math.max(0, Math.min(images.length - 1, subIndex + dir));
+            renderItem(idx, false);
+          });
+        });
+      } else {
+        imgContainer.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${icon}</span></div>`;
+        subIndex = 0;
+      }
+      
+      badgeEl.textContent = item.versi;
+      dateEl.textContent = item.tarikh || '';
+      desc.innerHTML = item.penerangan.replace(/\n/g, '<br>');
+      
+      // Version dots (between versions)
+      dots.innerHTML = cachedChangelog.map((_, i) =>
+        `<button class="carousel-dot ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-idx="${i}"></button>`
+      ).join('');
+      
+      dots.querySelectorAll('.carousel-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          currentIndex = parseInt(dot.dataset.idx);
+          renderItem(currentIndex, true);
+          updateButtons();
+        });
+      });
+
+      updateButtons();
+      slide.style.animation = 'none';
+      slide.offsetHeight;
+      slide.style.animation = 'fadeSlideIn 0.4s ease';
+    }
+
+    function updateButtons() {
+      prevBtn.style.display = currentIndex === 0 ? 'none' : '';
+      nextBtn.style.display = currentIndex < cachedChangelog.length - 1 ? '' : 'none';
+      closeBtn.style.display = currentIndex >= cachedChangelog.length - 1 ? '' : 'none';
+    }
+
+    prevBtn.onclick = () => {
+      if (currentIndex > 0) { currentIndex--; renderItem(currentIndex, true); }
+    };
+    nextBtn.onclick = () => {
+      if (currentIndex < cachedChangelog.length - 1) { currentIndex++; renderItem(currentIndex, true); }
+    };
+    closeBtn.onclick = () => {
+      overlay.style.display = 'none';
+      updateUserLastSeenVersion(email, latestVersion);
+    };
+
+    renderItem(0, true);
+    overlay.style.display = 'flex';
   }
 
   function populateWhatsAppDropdown() {

@@ -1545,98 +1545,425 @@
             line-height: 1.4;
         }
 
-        /* CHANGELOG */
+        /* CHANGELOG - MODERN CARDS */
         .landing-changelog {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.03);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px;
-            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 24px;
         }
 
         .changelog-header {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 15px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
 
-        .changelog-icon { font-size: 1.3rem; }
+        .changelog-icon { font-size: 1.4rem; }
         .changelog-title {
-            color: #e2e8f0;
+            color: #f1f5f9;
             font-weight: 800;
             font-size: 1.1rem;
             flex: 1;
         }
 
         .changelog-badge {
-            background: #3b82f6;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
             color: white;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
             font-weight: 700;
         }
 
-        .changelog-list {
-            max-height: 300px;
-            overflow-y: auto;
+        .changelog-cards {
             display: flex;
             flex-direction: column;
-            gap: 0;
+            gap: 14px;
+            max-height: 360px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
 
-        .changelog-item {
-            padding: 14px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            transition: background 0.2s;
+        .changelog-card-item {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 16px;
+            transition: all 0.25s ease;
+            cursor: default;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
         }
-        .changelog-item:last-child { border-bottom: none; }
-        .changelog-item:hover { background: rgba(255,255,255,0.03); }
+        .changelog-card-item:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: rgba(255,255,255,0.12);
+            transform: translateY(-1px);
+        }
+        .changelog-card-item:last-child { border-bottom: none; }
 
-        .changelog-version {
+        .changelog-card-visual {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.1));
+            border: 1px solid rgba(59,130,246,0.15);
+            overflow: hidden;
+            position: relative;
+        }
+        .changelog-card-img-wrap {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        .changelog-card-img-wrap img {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            object-fit: cover;
+        }
+        .changelog-card-more {
+            position: absolute;
+            bottom: 0; right: 0;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 0.55rem;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 4px 0 8px 0;
+            line-height: 1.2;
+        }
+
+        .changelog-card-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .changelog-card-version {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             margin-bottom: 4px;
         }
-        .changelog-version-tag {
-            background: #2563eb;
+        .changelog-card-tag {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: white;
-            padding: 2px 10px;
-            border-radius: 6px;
-            font-size: 0.75rem;
+            padding: 1px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
             font-weight: 800;
+            letter-spacing: 0.3px;
         }
-        .changelog-version-tag.latest {
-            background: #10b981;
+        .changelog-card-tag.latest {
+            background: linear-gradient(135deg, #10b981, #059669);
         }
-        .changelog-date {
+        .changelog-card-date {
             color: #64748b;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
         }
-        .changelog-desc {
+        .changelog-card-desc {
             color: #cbd5e1;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             line-height: 1.5;
             white-space: pre-line;
-            margin-left: 5px;
         }
-        .changelog-desc ul {
+        .changelog-card-desc ul {
             margin: 4px 0;
-            padding-left: 20px;
+            padding-left: 18px;
         }
-        .changelog-desc li {
+        .changelog-card-desc li {
             margin-bottom: 2px;
         }
 
         .changelog-loading {
             color: #64748b;
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             font-size: 0.9rem;
+        }
+
+        /* CHANGELOG WALKTHROUGH CAROUSEL MODAL */
+        .changelog-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .changelog-modal {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.4s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .changelog-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 20px 24px 0;
+            text-align: center;
+        }
+        .changelog-modal-icon { font-size: 1.5rem; }
+        .changelog-modal-title {
+            color: #f1f5f9;
+            font-size: 1.1rem;
+            font-weight: 800;
+            flex: 1;
+            margin: 0;
+        }
+        .changelog-modal-version {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 800;
+        }
+
+        .changelog-carousel {
+            padding: 20px 24px;
+            flex: 1;
+        }
+
+        .carousel-slide {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            animation: fadeSlideIn 0.4s ease;
+        }
+
+        .carousel-image-container {
+            width: 100%;
+            height: 200px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+        }
+        .carousel-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .carousel-img-multi {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        .carousel-img-multi img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .carousel-img-prev, .carousel-img-next {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            padding: 0;
+            line-height: 1;
+            z-index: 2;
+        }
+        .carousel-img-prev:hover, .carousel-img-next:hover { background: rgba(0,0,0,0.8); }
+        .carousel-img-prev { left: 8px; }
+        .carousel-img-next { right: 8px; }
+        .carousel-img-dots {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 5px;
+            background: rgba(0,0,0,0.4);
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+        .carousel-img-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+        }
+        .carousel-img-dot.active {
+            background: white;
+        }
+        .carousel-image-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(16,185,129,0.1));
+        }
+        .carousel-image-icon {
+            font-size: 4rem;
+            opacity: 0.6;
+        }
+
+        .carousel-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .carousel-stepper {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        .step-indicator {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            transition: all 0.3s ease;
+        }
+        .step-indicator.active {
+            background: #3b82f6;
+            width: 24px;
+            border-radius: 4px;
+        }
+        .step-indicator.done {
+            background: #10b981;
+        }
+
+        .carousel-body {
+            text-align: center;
+        }
+        .carousel-version {
+            color: #f1f5f9;
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin: 0 0 4px;
+        }
+        .carousel-date {
+            color: #64748b;
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+        .carousel-desc {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            white-space: pre-line;
+            text-align: left;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .carousel-desc ul {
+            margin: 4px 0;
+            padding-left: 20px;
+        }
+        .carousel-desc li {
+            margin-bottom: 4px;
+        }
+
+        .changelog-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px 20px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .carousel-dots {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex: 1;
+        }
+        .carousel-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0;
+        }
+        .carousel-dot.active {
+            background: #3b82f6;
+            transform: scale(1.2);
+        }
+        .carousel-dot.done {
+            background: #10b981;
+        }
+
+        .carousel-btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .carousel-btn-prev {
+            background: rgba(255,255,255,0.08);
+            color: #94a3b8;
+        }
+        .carousel-btn-prev:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
+        .carousel-btn-next {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+        .carousel-btn-next:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(59,130,246,0.3); }
+        .carousel-btn-close {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+        .carousel-btn-close:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(16,185,129,0.3); }
+        .carousel-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
         /* FOOTER */
