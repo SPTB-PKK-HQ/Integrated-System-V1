@@ -7194,16 +7194,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         fetchAndRenderList('submitted');
       }
-      else if (tabName === 'inbox') {
+    else if (tabName === 'inbox') {
         const tabList = document.getElementById('tab-list');
         if (tabList) {
-          tabList.style.display = 'block';
-          tabList.classList.add('active');
+            tabList.style.display = 'block';
+            tabList.classList.add('active');
         }
         
-        if (filterSection) {
-          filterSection.style.display = 'flex';
-          updatePengesyorFilter();
+        // V6.6.0: Buang filter pengesyor untuk Pelulus inbox
+        if (currentUser.role !== 'PELULUS' && filterSection) {
+            filterSection.style.display = 'flex';
+            updatePengesyorFilter();
         }
         
         fetchAndRenderList('inbox');
@@ -7234,9 +7235,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           tabList.classList.add('active');
         }
         
+        // V6.6.0: Buang filter pengesyor untuk Pelulus
         if (filterSection) {
-          filterSection.style.display = 'flex';
-          updatePengesyorFilter();
+          filterSection.style.display = 'none';
         }
         
         fetchAndRenderList('inbox');
@@ -8098,6 +8099,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       updateSubmittedBadges(filtered);
     }
     
+    // Cleanup badge if not pelulus inbox
+    if (type !== 'inbox' || currentUser.role !== 'PELULUS') {
+      const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
+      if (tabBtn) {
+        const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
+        if (existingBadge) existingBadge.remove();
+      }
+    }
+
     if (type === 'drafts' || (type === 'inbox' && currentUser.role !== 'PELULUS')) {
       const countAll = filtered.length;
       const countBaru = filtered.filter(item => item.jenis === 'BARU').length;
@@ -8118,6 +8128,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (type === 'inbox' && currentUser.role === 'PELULUS') {
       const countAll = filtered.length;
       if (listTitle) listTitle.textContent = `📋 Inbox Pelulus (${countAll})`;
+      // Juga update badge di tab button
+      const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
+      if (tabBtn) {
+        const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
+        if (existingBadge) existingBadge.remove();
+        if (countAll > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'pelulus-inbox-badge';
+          badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
+          badge.textContent = countAll > 99 ? '99+' : countAll;
+          tabBtn.appendChild(badge);
+        }
+      }
     }
 
     if (type === 'history') {
