@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz6TzxWb-UlhpXcyC0JJqX3_oGX4du1vW8JrgWGQ4GY7NdWALj_PeKTgOEAH1Hoo1KE/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxK7gLQTthYTFGsKqIbAK5aU4czlp641RP1VAZI9ZQsIuoAY2mwth-kWsDI7sO-f1wC/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -4938,6 +4938,10 @@ async function handleCredentialResponse(response) {
         cachedData = Array.isArray(raw) ? raw : (Array.isArray(raw && raw.data) ? raw.data : []);
         console.log("V6.5.2 Loaded data from cache:", cachedData.length);
         if (Array.isArray(cachedData)) updateDynamicYears(cachedData);
+        // V6.6.0: Update badge dari cache
+        if (currentUser && currentUser.role === 'PELULUS') {
+          updatePelulusInboxBadge();
+        }
       }
       
       if (storage.stb_data_version) {
@@ -8002,6 +8006,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
         
+        // V6.6.0: Update badge inbox pelulus setiap kali data ditukar
+        if (currentUser && currentUser.role === 'PELULUS') {
+          updatePelulusInboxBadge();
+        }
+        
         storageWrapper.set({ 
           'stb_data_cache': newData,
           'stb_cache_timestamp': Date.now(),
@@ -8038,6 +8047,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         hideLoading();
         throw err;
       });
+  }
+
+  // V6.6.0: Update badge merah di tab Senarai untuk pelulus
+  function updatePelulusInboxBadge(count) {
+    const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
+    if (!tabBtn) return;
+    const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
+    if (existingBadge) existingBadge.remove();
+    if (count === undefined && currentUser && cachedData) {
+      const user = currentUser.name.toUpperCase();
+      count = cachedData.filter(i => i.tarikh_syor && i.pelulus && i.pelulus.toUpperCase() === user
+        && (!i.tarikh_lulus || i.tarikh_lulus === '')).length;
+    }
+    if (count > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'pelulus-inbox-badge';
+      badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
+      badge.textContent = count > 99 ? '99+' : count;
+      tabBtn.appendChild(badge);
+    }
   }
 
   function renderFilteredList(type) {
@@ -8095,14 +8124,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       updateSubmittedBadges(filtered);
     }
     
-    // Cleanup badge if not pelulus inbox
-    if (type !== 'inbox' || currentUser.role !== 'PELULUS') {
-      const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
-      if (tabBtn) {
-        const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
-        if (existingBadge) existingBadge.remove();
-      }
-    }
+    // V6.6.0: Update badge inbox pelulus bila data berubah
+    updatePelulusInboxBadge();
 
     if (type === 'drafts' || (type === 'inbox' && currentUser.role !== 'PELULUS')) {
       const countAll = filtered.length;
@@ -8124,19 +8147,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (type === 'inbox' && currentUser.role === 'PELULUS') {
       const countAll = filtered.length;
       if (listTitle) listTitle.textContent = `📋 Inbox Pelulus (${countAll})`;
-      // Juga update badge di tab button
-      const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
-      if (tabBtn) {
-        const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
-        if (existingBadge) existingBadge.remove();
-        if (countAll > 0) {
-          const badge = document.createElement('span');
-          badge.className = 'pelulus-inbox-badge';
-          badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
-          badge.textContent = countAll > 99 ? '99+' : countAll;
-          tabBtn.appendChild(badge);
-        }
-      }
+      updatePelulusInboxBadge(countAll);
     }
 
     if (type === 'history') {
@@ -12686,14 +12697,27 @@ function renderInbox() {
   
   // View buttons - navigate to record in pelulus view
   inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      closeInboxModal(); // Tutup modal dulu
-      const row = parseInt(e.target.getAttribute('data-row'));
-      if (!row || !cachedData) return;
-      const item = cachedData.find(d => d.row === row);
-      if (item) {
-        viewRecordOnly(item);
+    btn.addEventListener('click', async (e) => {
+      const msgId = e.target.getAttribute('data-msgid');
+      const row = e.target.getAttribute('data-row');
+      const idx = parseInt(e.target.getAttribute('data-idx'));
+      // Mark as read
+      if (msgId && row && cachedInboxData[idx] && !cachedInboxData[idx].dibaca) {
+        try {
+          await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'markInboxRead', msgId: msgId, row: row, email: currentUser.email })
+          }, 2, 500);
+          cachedInboxData[idx].dibaca = true;
+          renderInbox();
+        } catch (e) {}
       }
+      closeInboxModal();
+      const itemRow = parseInt(row);
+      if (!itemRow || !cachedData) return;
+      const item = cachedData.find(d => d.row === itemRow);
+      if (item) viewRecordOnly(item);
     });
   });
   

@@ -1622,7 +1622,21 @@ function handleUpdateRecord(data, sheet) {
       }
     }
 
-    const actionType = (data.syor_status === "" && existingData[13] !== "") ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
+    // V6.6.0: Inbox notification bila undo
+    const existingSyor = existingData[13] ? existingData[13].toString().trim() : '';
+    const existingKelulusan = existingData[23] ? existingData[23].toString().trim() : '';
+    const newSyor = data.syor_status !== undefined ? data.syor_status.toString().trim() : undefined;
+    const newKelulusan = data.kelulusan !== undefined ? data.kelulusan.toString().trim() : undefined;
+    const isUndoSyor = newSyor === '' && existingSyor !== '';
+    const isUndoLulus = newKelulusan === '' && existingKelulusan !== '' && (newSyor === undefined || newSyor === existingSyor);
+    if (isUndoSyor || isUndoLulus) {
+      try {
+        const syarikat = data.syarikat || existingData[0] || '';
+        addInboxToRow(rowNum, data.pelulus || existingData[25] || existingData[12] || '', `↩️ Undo: ${isUndoLulus ? 'Keputusan pelulus' : 'Syor'} untuk ${syarikat}`, 'INFO');
+      } catch (e) {}
+    }
+
+    const actionType = isUndoSyor ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
     const actionDesc = actionType === 'UNDO_RECOMMENDATION' 
       ? `Undo syor di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`
       : `Rekod dikemaskini di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`;
