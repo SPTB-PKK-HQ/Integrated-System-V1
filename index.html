@@ -316,7 +316,10 @@
                         <label style="font-weight:bold; color:#ef4444;">⏳ Tarikh Due Date (SLA)</label>
                         <input type="date" id="db_due_date" style="border-color: #ef4444; border-width: 2px;">
                     </div>
-                    <div style="margin-top:15px; border-top: 2px solid #25D366; padding-top: 10px; background:#f0fdf4; border-radius:8px; padding:12px;">
+                    <div style="margin-top:15px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; color:#075e54;"><input type="checkbox" id="cb_show_wa_schedule"> 📅 Paparkan Jadual WhatsApp</label>
+                    </div>
+                    <div id="wa_schedule_container" style="display:none; margin-top:8px; border-top:2px solid #25D366; padding-top:12px; background:#f0fdf4; border-radius:8px; padding:12px;">
                         <label style="font-weight:800; color:#075e54; display:flex; align-items:center; gap:5px;">💬 WhatsApp Scheduling</label>
                         <div style="display:flex; gap:15px; margin-top:8px;">
                             <label style="display:flex; align-items:center; gap:5px; font-weight:normal;"><input type="radio" name="wa_mode" value="MANUAL" checked> Manual (Tarikh Sahaja)</label>

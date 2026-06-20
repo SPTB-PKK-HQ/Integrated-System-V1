@@ -8785,6 +8785,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       try {
         const waData = JSON.parse(item.whatsapp_schedule);
         if (waData && waData.mode) {
+          // Show container and check checkbox
+          const cbShowWa = document.getElementById('cb_show_wa_schedule');
+          const waContainer = document.getElementById('wa_schedule_container');
+          if (cbShowWa) cbShowWa.checked = true;
+          if (waContainer) waContainer.style.display = 'block';
+          
           const radioManual = document.querySelector('input[name="wa_mode"][value="MANUAL"]');
           const radioAuto = document.querySelector('input[name="wa_mode"][value="AUTO"]');
           const manualFields = document.getElementById('wa_manual_fields');
@@ -9687,6 +9693,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (dbPelulusWhatsapp) dbPelulusWhatsapp.value = '';
     
     // V6.6.0: Reset WhatsApp scheduling fields
+    const cbShowWa = document.getElementById('cb_show_wa_schedule');
+    if (cbShowWa) { cbShowWa.checked = false; }
+    const waContainer = document.getElementById('wa_schedule_container');
+    if (waContainer) { waContainer.style.display = 'none'; }
     document.querySelectorAll('input[name="wa_mode"]').forEach(r => { if (r.value === 'MANUAL') r.checked = true; });
     const waManualFields = document.getElementById('wa_manual_fields');
     const waAutoFields = document.getElementById('wa_auto_fields');
@@ -12793,6 +12803,15 @@ function createWAConfirmModal() {
 // =========================================================================
 
 function setupWhatsAppSchedulingUI() {
+  // Toggle container with checkbox
+  const cbShow = document.getElementById('cb_show_wa_schedule');
+  const container = document.getElementById('wa_schedule_container');
+  if (cbShow && container) {
+    cbShow.addEventListener('change', (e) => {
+      container.style.display = e.target.checked ? 'block' : 'none';
+    });
+  }
+
   // Radio button toggle Manual/Auto
   document.querySelectorAll('input[name="wa_mode"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
