@@ -5174,7 +5174,7 @@ async function handleCredentialResponse(response) {
     const slider = document.getElementById('changelogSlider');
     if (!slider || slider.children.length < 2) return;
 
-    const step = 320;
+    const step = 480;
     let scrollAmount = slider.scrollLeft || 0;
 
     changelogAutoScroll = setInterval(() => {
