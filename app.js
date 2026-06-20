@@ -8347,13 +8347,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const choice = await showUndoChoiceModal(item);
         if (!choice) return;
         if (choice === 'termasuk_pelulus') {
-          actionType = 'undo_lulus';
+          actionType = 'undo_syor_dan_lulus';
         }
       }
       
-      if (actionType === 'undo_lulus') {
-        message = `Anda pasti mahu UNDO syor dan PADAM keputusan pelulus untuk <b>${item.syarikat}</b>? Semua data pelulus akan dibuang.`;
-        action = 'undo_lulus';
+      if (actionType === 'undo_syor_dan_lulus') {
+        message = `Anda pasti mahu UNDO syor dan PADAM keputusan pelulus untuk <b>${item.syarikat}</b>? Semua data akan dibuang.`;
+        action = 'undo_syor_dan_lulus';
         modalTitle = "Padam Termasuk Pelulus";
         btnText = "Ya, Padam Semua";
         isDanger = true;
@@ -8432,6 +8432,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       delete payload.pelulus;
       delete payload.alasan;
       
+    } else if (action === 'undo_syor_dan_lulus') {
+      // V6.6.0: Padam syor + pelulus (dari pengesyor undo)
+      let updatedBorangJson = item.borang_json;
+      if (updatedBorangJson) {
+          try {
+              let parsed = JSON.parse(updatedBorangJson);
+              parsed.catatan_pelulus = ''; // Kosongkan catatan
+              updatedBorangJson = JSON.stringify(parsed);
+          } catch(e) {}
+      }
+      payload = {
+        action: 'updateRecord',
+        ...item,
+        row: item.row,
+        syor_status: '',
+        tarikh_syor: '',
+        kelulusan: '',
+        alasan: '',
+        tarikh_lulus: '',
+        pelulus: '',
+        borang_json: updatedBorangJson,
+        email: currentUser ? currentUser.email : ''
+      };
     } else if (action === 'undo_lulus') {
       // 1. Buang catatan pelulus lama dari JSON supaya borang bersih semula
       let updatedBorangJson = item.borang_json;
@@ -8443,17 +8466,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           } catch(e) {}
       }
 
-      // 2. Susun objek dengan betul (...item mesti di atas supaya mudah ditindih)
+      // 2. Hanya padam keputusan, kekalkan syor + nama pelulus (supaya kembali ke inbox)
       payload = {
         action: 'updateRecord',
         ...item,
         row: item.row,
-        syor_status: '',    // Kosongkan syor
-        tarikh_syor: '',    // Kosongkan tarikh syor
         kelulusan: '',
         alasan: '',
         tarikh_lulus: '',
-        pelulus: '',
+        // pelulus dikekalkan supaya item kembali ke inbox pelulus yang sama
         borang_json: updatedBorangJson,
         email: currentUser ? currentUser.email : ''
       };
@@ -8496,6 +8517,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               cachedData[index].syor_status = '';
               cachedData[index].tarikh_syor = '';
             } else if (action === 'undo_lulus') {
+              cachedData[index].kelulusan = '';
+              cachedData[index].alasan = '';
+              cachedData[index].tarikh_lulus = '';
+              // pelulus dikekalkan
+            } else if (action === 'undo_syor_dan_lulus') {
+              cachedData[index].syor_status = '';
+              cachedData[index].tarikh_syor = '';
               cachedData[index].kelulusan = '';
               cachedData[index].alasan = '';
               cachedData[index].tarikh_lulus = '';
