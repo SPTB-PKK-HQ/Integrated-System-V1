@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwv_i2jfCXPmAK0zTYgoRdT6ghI3zm5MQK3UXFJ-XYsb30dbJMrBqFbIyCJUkSIpK4B/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7EcCBTnoyeTNXdS5aWGs0j4C1xj5nK36-MMU-CLEtKbG9MQWPvxunw0ajqEkHBa15/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -5793,6 +5793,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     // RESET PENTING 2: Kosongkan Teks, Tarikh & Highlight Pelulus kepada format asal (kosong)
     setTxt('print_tarikh_lulus', '________________');
     setTxt('print_catatan_pelulus', '');
+    setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
     
     const elLulus = document.getElementById('print_lulus');
     const elLulusSyarat = document.getElementById('print_lulus_syarat');
@@ -5857,7 +5858,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 const elLulusSyarat = document.getElementById('print_lulus_syarat');
                 const elPemutihan = document.getElementById('print_pemutihan');
                 const elTolak = document.getElementById('print_tolak');
-                
                 [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
                     if (el) el.setAttribute('class', 'syor-dimmed'); 
                 });
@@ -5865,7 +5865,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 if (keputusanPelulus === 'LULUS' && elLulus) elLulus.setAttribute('class', 'syor-selected');
                 else if (keputusanPelulus === 'LULUS BERSYARAT' && elLulusSyarat) elLulusSyarat.setAttribute('class', 'syor-selected');
                 else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
-                else if (keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
+                else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
+                
+                // Set nama pelulus di print
+                setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
             }
         }
     }
@@ -8276,6 +8279,55 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     updateHistoryFilterButtons();
   }
 
+  // V6.6.0: Modal pilihan undo - syor saja atau termasuk pelulus
+  async function showUndoChoiceModal(item) {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('undoChoiceModal') || createUndoChoiceModal();
+      const titleEl = document.getElementById('undoChoiceTitle');
+      const msgEl = document.getElementById('undoChoiceMsg');
+      const btnSyor = document.getElementById('undoChoiceSyor');
+      const btnSemua = document.getElementById('undoChoiceSemua');
+      const btnBatal = document.getElementById('undoChoiceBatal');
+      
+      if (titleEl) titleEl.innerHTML = '⚠️ Pilihan Undo';
+      if (msgEl) {
+        msgEl.innerHTML = `Permohonan <b>${item.syarikat}</b> sudah ada keputusan pelulus (<b>${item.kelulusan}</b>).<br><br>Sila pilih tindakan:`;
+      }
+      
+      overlay.style.display = 'flex';
+      overlay.classList.add('show');
+      
+      const cleanup = () => {
+        overlay.classList.remove('show');
+        setTimeout(() => { overlay.style.display = 'none'; }, 300);
+      };
+      
+      btnSyor.onclick = () => { cleanup(); resolve('syor_only'); };
+      btnSemua.onclick = () => { cleanup(); resolve('termasuk_pelulus'); };
+      btnBatal.onclick = () => { cleanup(); resolve(null); };
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } }, { once: true });
+    });
+  }
+
+  function createUndoChoiceModal() {
+    const div = document.createElement('div');
+    div.id = 'undoChoiceModal';
+    div.className = 'custom-modal-overlay';
+    div.innerHTML = `
+      <div class="custom-modal-card" style="max-width:420px; text-align:center;">
+        <div id="undoChoiceTitle" style="font-size:1.4rem; font-weight:800; color:#1e293b; margin-bottom:12px;"></div>
+        <div id="undoChoiceMsg" style="font-size:0.95rem; color:#64748b; margin-bottom:20px; line-height:1.6;"></div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);">📝 Padam Pengesyor Sahaja</button>
+          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);">🗑 Padam Termasuk Pelulus</button>
+          <button id="undoChoiceBatal" class="custom-modal-btn custom-modal-btn-cancel">Batal</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(div);
+    return div;
+  }
+
   async function deleteOrClearRecord(item, actionType) {
     if (!item || !item.row) {
       await CustomAppModal.alert("Rekod tidak sah.", "Ralat", "error");
@@ -8297,12 +8349,30 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       isDanger = true;
       modalType = "error"; 
     } else if (actionType === 'undo_syor') {
-      message = `Anda pasti mahu UNDO syor untuk <b>${item.syarikat}</b>? Rekod akan kembali ke "Belum Syor".`;
-      action = 'undo_syor';
-      modalTitle = "Pengesahan Undo";
-      btnText = "Ya, Undo";
-      isDanger = false;
-      modalType = "warning"; 
+      // V6.6.0: Jika sudah ada keputusan pelulus, bagi pilihan
+      if (item.kelulusan && item.kelulusan.trim() !== '') {
+        const choice = await showUndoChoiceModal(item);
+        if (!choice) return;
+        if (choice === 'termasuk_pelulus') {
+          actionType = 'undo_lulus';
+        }
+      }
+      
+      if (actionType === 'undo_lulus') {
+        message = `Anda pasti mahu UNDO syor dan PADAM keputusan pelulus untuk <b>${item.syarikat}</b>? Semua data pelulus akan dibuang.`;
+        action = 'undo_lulus';
+        modalTitle = "Padam Termasuk Pelulus";
+        btnText = "Ya, Padam Semua";
+        isDanger = true;
+        modalType = "error";
+      } else {
+        message = `Anda pasti mahu UNDO syor untuk <b>${item.syarikat}</b>? Rekod akan kembali ke "Belum Syor".`;
+        action = 'undo_syor';
+        modalTitle = "Pengesahan Undo";
+        btnText = "Ya, Undo";
+        isDanger = false;
+        modalType = "warning";
+      }
     } else if (actionType === 'undo_lulus') {
       message = `Anda pasti mahu UNDO kelulusan untuk <b>${item.syarikat}</b>? Rekod akan kembali ke Inbox Pelulus.`;
       action = 'undo_lulus';
@@ -8385,6 +8455,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         action: 'updateRecord',
         ...item,
         row: item.row,
+        syor_status: '',    // Kosongkan syor
+        tarikh_syor: '',    // Kosongkan tarikh syor
         kelulusan: '',
         alasan: '',
         tarikh_lulus: '',
@@ -9853,10 +9925,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (pelulusActiveItem.borang_json && pelulusActiveItem.borang_json.trim() !== '') {
           try { borangJsonData = JSON.parse(pelulusActiveItem.borang_json); } catch(e){}
       }
-      borangJsonData.catatan_pelulus = catatanPelulus;
+      
+      // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU
+      let finalCatatan = catatanPelulus;
+      const nowLulus = new Date();
+      if (keputusan === 'TOLAK & BEKU 3 BULAN' || keputusan === 'TOLAK & BEKU 6 BULAN') {
+        const bulanBeku = keputusan === 'TOLAK & BEKU 3 BULAN' ? 3 : 6;
+        const tarikhMula = nowLulus.toISOString().split('T')[0];
+        const tarikhTamat = new Date(nowLulus);
+        tarikhTamat.setMonth(tarikhTamat.getMonth() + bulanBeku);
+        const tarikhTamatStr = tarikhTamat.toISOString().split('T')[0];
+        const bekuNote = `TARIKH MULA BEKU: ${tarikhMula} HINGGA TAMAT BEKU: ${tarikhTamatStr}`;
+        finalCatatan = finalCatatan ? `${finalCatatan}\n${bekuNote}` : bekuNote;
+      }
+      
+      borangJsonData.catatan_pelulus = finalCatatan;
       const newBorangJson = JSON.stringify(borangJsonData);
 
-      const nowLulus = new Date();
       const tarikhLulusLocal = nowLulus.getFullYear() + '-' + String(nowLulus.getMonth() + 1).padStart(2, '0') + '-' + String(nowLulus.getDate()).padStart(2, '0');
 
       const payload = {

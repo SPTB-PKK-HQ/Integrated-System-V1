@@ -1590,6 +1590,31 @@ function handleUpdateRecord(data, sheet) {
         addInboxToRow(rowNum, pengesyorName, inboxMsg, statusKeputusan.includes('LULUS') ? 'SUCCESS' : 'INFO');
       } catch (e) {}
     }
+    
+    // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU
+    const kelulusanValue = data.kelulusan || existingData[23] || '';
+    if ((kelulusanValue === 'TOLAK & BEKU 3 BULAN' || kelulusanValue === 'TOLAK & BEKU 6 BULAN') && keputusanBaru) {
+      const bulanBeku = kelulusanValue === 'TOLAK & BEKU 3 BULAN' ? 3 : 6;
+      const tarikhLulus = data.tarikh_lulus || existingData[24] || new Date().toISOString().split('T')[0];
+      const mula = new Date(tarikhLulus);
+      const tamat = new Date(mula);
+      tamat.setMonth(tamat.getMonth() + bulanBeku);
+      const mulaStr = Utilities.formatDate(mula, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+      const tamatStr = Utilities.formatDate(tamat, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+      const bekuNote = `TARIKH MULA BEKU: ${mulaStr} HINGGA TAMAT BEKU: ${tamatStr}`;
+      
+      // Add to borang_json catatan_pelulus
+      let borangJson = data.borang_json || existingData[28] || '{}';
+      try {
+        const parsed = JSON.parse(borangJson);
+        parsed.catatan_pelulus = parsed.catatan_pelulus 
+          ? parsed.catatan_pelulus + '\n' + bekuNote 
+          : bekuNote;
+        sheet.getRange(rowNum, 29).setValue(JSON.stringify(parsed));
+      } catch (e) {
+        logActivity('System', 'ERROR_BEKU', `Gagal set catatan beku: ${e.toString()}`, '');
+      }
+    }
 
     const actionType = (data.syor_status === "" && existingData[13] !== "") ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
     const actionDesc = actionType === 'UNDO_RECOMMENDATION' 
