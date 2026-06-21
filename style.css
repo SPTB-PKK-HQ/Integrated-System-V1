@@ -1427,7 +1427,7 @@
         /* HERO */
         .landing-hero {
             position: relative;
-            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #3b82f6 100%);
+            background: #2563eb;
             border-radius: 24px;
             padding: 40px 30px;
             overflow: hidden;
@@ -1525,9 +1525,8 @@
         }
 
         .login-section {
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
             border-radius: 16px;
             padding: 20px 30px;
             width: 100%;
@@ -1567,20 +1566,20 @@
         }
 
         .feature-card {
-            background: rgba(255,255,255,0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0,0,0,0.08);
             border-radius: 16px;
             padding: 20px;
             text-align: center;
             transition: all 0.3s ease;
             cursor: default;
+            border: 1px solid transparent;
         }
+        .feature-card:nth-child(1) { background: #eff6ff; border-color: #bfdbfe; }
+        .feature-card:nth-child(2) { background: #f0fdf4; border-color: #bbf7d0; }
+        .feature-card:nth-child(3) { background: #ecfdf5; border-color: #a7f3d0; }
+        .feature-card:nth-child(4) { background: #f0f9ff; border-color: #bae6fd; }
 
         .feature-card:hover {
             transform: translateY(-5px);
-            background: rgba(255,255,255,0.9);
-            border-color: rgba(0,0,0,0.12);
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         }
 
@@ -1615,9 +1614,8 @@
 
         /* CHANGELOG - HORIZONTAL SLIDER + CLICK TO READ */
         .landing-changelog {
-            background: rgba(255,255,255,0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0,0,0,0.08);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
             border-radius: 20px;
             padding: 24px;
             overflow: hidden;
@@ -1703,8 +1701,7 @@
             bottom: 16px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(37,99,235,0.9);
-            backdrop-filter: blur(6px);
+            background: #2563eb;
             padding: 6px 18px;
             border-radius: 20px;
             display: flex;
