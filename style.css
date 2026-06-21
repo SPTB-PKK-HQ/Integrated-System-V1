@@ -1,33 +1,84 @@
+/* SVG icon base */
+.icon {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.25em;
+  display: inline-block;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+}
+.tab-btn .icon,
+.btn-top-fullview .icon,
+.feature-icon .icon {
+  width: 1.3em;
+  height: 1.3em;
+}
+.user-badge .icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+}
+
 :root {
+            /* Design System V6.6.1 — Professional Blue + Dark */
             --theme-color: #2563eb;
-            --glass-bg: rgba(255, 255, 255, 0.96);
-            --glass-border: 1px solid rgba(255, 255, 255, 0.7);
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --music-color: #8b5cf6;
-            --sfx-color: #f97316;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-light: rgba(37,99,235,0.12);
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #0ea5e9;
+
+            --bg-base: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-elevated: rgba(255,255,255,0.05);
+            --bg-hover: rgba(255,255,255,0.08);
+
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --text-inverse: #0f172a;
+
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-hover: rgba(255,255,255,0.15);
+            --border-accent: rgba(37,99,235,0.4);
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --radius-full: 9999px;
+
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.4);
+
+            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+
+            --text-xs: 0.625rem;
+            --text-sm: 0.75rem;
+            --text-base: 0.875rem;
+            --text-md: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+            --text-3xl: 2rem;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--font-family);
             margin: 0;
             padding: 20px;
             width: 100%;
             overflow-x: hidden;
-            color: #333;
-            background: linear-gradient(-45deg, #10b981, #facc15, #3b82f6, #06b6d4);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
+            color: var(--text-primary);
+            background: var(--bg-base);
             min-height: 100vh;
             position: relative;
             box-sizing: border-box;
-        }
-
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
         }
 
         .hide-login #login-screen {
@@ -688,12 +739,12 @@
             justify-content: center;
             width: fit-content;
             margin: 0 auto 20px auto;
-            background: rgba(255, 255, 255, 0.7); /* Diterangkan sedikit supaya jelas bila scroll */
-            backdrop-filter: blur(12px);          /* KOD BARU: Efek kaca kabur bila scroll */
-            -webkit-backdrop-filter: blur(12px);  /* KOD BARU: Sokongan untuk browser Safari/Apple */
+            background: var(--bg-surface);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-radius: 12px;
             padding: 5px;
-            border: var(--glass-border);
+            border: 1px solid var(--border-subtle);
             flex-wrap: wrap;
             
             /* --- KOD BARU UNTUK JADIKAN IA MELEKAT (STICKY) --- */
@@ -737,8 +788,14 @@
 
         /* KOD BARU: Asingkan saiz ikon dan sembunyikan teks */
         .tab-icon {
-            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             line-height: 1;
+        }
+        .tab-icon .icon {
+            width: 1.3em;
+            height: 1.3em;
         }
 
         .tab-text {
@@ -768,14 +825,14 @@
         }
 
         .card {
-            background: var(--glass-bg);
+            background: var(--bg-surface);
             backdrop-filter: blur(16px);
-            border-radius: 16px;
-            border: var(--glass-border);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
             padding: 25px;
             margin-bottom: 20px;
             border-top: 6px solid var(--theme-color);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-md);
             width: 100%;
             box-sizing: border-box;
         }
@@ -1528,8 +1585,19 @@
         }
 
         .feature-icon {
-            font-size: 2.2rem;
-            margin-bottom: 10px;
+            width: 44px;
+            height: 44px;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(37,99,235,0.1);
+            border-radius: 12px;
+        }
+        .feature-icon .icon {
+            width: 26px;
+            height: 26px;
+            stroke: var(--primary, #2563eb);
         }
 
         .feature-title {
@@ -1619,8 +1687,16 @@
             box-sizing: border-box;
         }
         .changelog-slide-icon {
-            font-size: 4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 60px;
             opacity: 0.5;
+        }
+        .changelog-slide-icon .icon {
+            width: 64px;
+            height: 64px;
         }
         .changelog-slide-overlay {
             position: absolute;
@@ -1899,8 +1975,14 @@
             background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(16,185,129,0.1));
         }
         .carousel-image-icon {
-            font-size: 4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             opacity: 0.6;
+        }
+        .carousel-image-icon .icon {
+            width: 64px;
+            height: 64px;
         }
 
         .carousel-content {

@@ -1,7 +1,72 @@
+// V6.6.1: SVG icon system (Heroicons outline)
+const ICONS = {
+  sparkles: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>',
+  documentText: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>',
+  chartBar: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>',
+  chatBubble: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>',
+  folder: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>',
+  rocketLaunch: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>',
+  scale: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.589-1.202L18.75 4.97zm-12 0L4.13 15.696c-.122.499.106 1.028.589 1.202a5.989 5.989 0 002.031.352 5.989 5.989 0 002.031-.352c.483-.174.711-.703.589-1.202L6.75 4.97z"/></svg>',
+  paintBrush: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42z"/></svg>',
+  wrench: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z"/></svg>',
+  lockClosed: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>',
+  arrowPath: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>',
+  star: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg>',
+  inbox: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M12 3v8.25m0 0l-3-3m3 3l3-3"/></svg>',
+  user: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>',
+  eye: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+  checkCircle: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+  queueList: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg>',
+  logout: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>',
+  chevronLeft: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>',
+  chevronRight: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>',
+  xMark: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+  bell: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>',
+  clock: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+  documentArrowDown: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>',
+  banknotes: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v9.75m-1.5-3.75H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125H20.25M6 12h.008v.008H6V12z"/></svg>',
+};
+
+// Helper to render an icon
+function icon(name, className = '') {
+  if (!ICONS[name]) return `<!-- icon:${name} -->`;
+  return className ? ICONS[name].replace('class="icon"', `class="icon ${className}"`) : ICONS[name];
+}
+
+// Replace all [data-icon] elements in DOM with SVG icons
+function renderDataIcons() {
+  document.querySelectorAll('[data-icon]').forEach(el => {
+    const name = el.getAttribute('data-icon');
+    if (name && ICONS[name]) {
+      el.innerHTML = icon(name);
+      el.removeAttribute('data-icon');
+    }
+  });
+}
+
+// Mapping emoji → icon name for changelog feature icons
+const FEATURE_ICON_MAP = {
+  '🚀': 'rocketLaunch',
+  '💬': 'chatBubble',
+  '📋': 'documentText',
+  '⚖️': 'scale',
+  '🎨': 'paintBrush',
+  '🔧': 'wrench',
+  '📊': 'chartBar',
+  '🔒': 'lockClosed',
+  '📁': 'folder',
+  '🔄': 'arrowPath',
+  '✨': 'sparkles',
+  '🎯': 'star',
+};
+
 // app.js - V6.5.2 (WEB APP VERSION)
 // (UPDATED: Auto Email Authentication, Removed PIN Login, Dynamic URL Routing, Anonymous Access, Mobile UI Polish, Unique ID, Fixed CORS & WhatsApp Popup, Pemutihan Email Confirmation, Ketua Seksyen Tab Fixes, GIS Integration)
 
 document.addEventListener('DOMContentLoaded', () => {
+  // V6.6.1: Render data-icon → SVG icons
+  renderDataIcons();
+
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
   
   // =========================================================================
@@ -96,9 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
               iconBox.className = 'custom-modal-icon-container';
               const type = options.type || 'info';
               if (type === 'success') { iconBox.classList.add('icon-success'); iconEl.innerHTML = '✨'; }
-              else if (type === 'error') { iconBox.classList.add('icon-error'); iconEl.innerHTML = '❌'; }
-              else if (type === 'warning') { iconBox.classList.add('icon-warning'); iconEl.innerHTML = '⚠️'; }
-              else { iconBox.classList.add('icon-info'); iconEl.innerHTML = 'ℹ️'; }
+              else if (type === 'error') { iconBox.classList.add('icon-error'); iconEl.innerHTML = icon('xMark'); }
+              else if (type === 'warning') { iconBox.classList.add('icon-warning'); iconEl.innerHTML = icon('wrench'); }
+              else { iconBox.classList.add('icon-info'); iconEl.innerHTML = icon('star'); }
 
               titleEl.innerText = options.title || 'Makluman';
               messageEl.innerHTML = options.message || '';
@@ -5083,7 +5148,7 @@ async function handleCredentialResponse(response) {
     changelogData = data;
     changelogCurrentIdx = 0;
 
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+    const iconNames = ['rocketLaunch', 'chatBubble', 'documentText', 'scale', 'paintBrush', 'wrench', 'chartBar', 'lockClosed', 'folder', 'arrowPath', 'sparkles', 'star'];
 
     // Build slides
     slider.innerHTML = data.map((item, i) => {
@@ -5092,7 +5157,7 @@ async function handleCredentialResponse(response) {
       if (images.length > 0) {
         content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy" data-fallback="${i}">`;
       } else {
-        content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
+        content = `<div class="changelog-slide-icon">${icon(iconNames[i % iconNames.length])}</div>`;
       }
       return `<div class="changelog-slide" data-idx="${i}">
         ${content}
@@ -5106,7 +5171,7 @@ async function handleCredentialResponse(response) {
     slider.querySelectorAll('img[data-fallback]').forEach(img => {
       img.addEventListener('error', function() {
         const idx = parseInt(this.dataset.fallback);
-        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${featureIcons[idx % featureIcons.length]}</div>`;
+        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${icon(iconNames[idx % iconNames.length])}</div>`;
       });
     });
 
@@ -5268,12 +5333,12 @@ async function handleCredentialResponse(response) {
 
     let currentIndex = 0;
     let subIndex = 0;
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+    const iconNames = ['rocketLaunch', 'chatBubble', 'documentText', 'scale', 'paintBrush', 'wrench', 'chartBar', 'lockClosed', 'folder', 'arrowPath', 'sparkles', 'star'];
 
     function renderItem(idx, resetSub) {
       const item = cachedChangelog[idx];
       if (!item) return;
-      const icon = featureIcons[idx % featureIcons.length];
+      const fallbackEmoji = icon(iconNames[idx % iconNames.length]);
       
       const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
       if (resetSub) subIndex = 0;
@@ -5289,7 +5354,6 @@ async function handleCredentialResponse(response) {
             <button class="carousel-img-next" data-subidx="1">›</button>
           `;
         }
-        const fallbackIcon = featureIcons[idx % featureIcons.length];
         imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
         
         // Image error fallback
@@ -7068,10 +7132,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
         <button class="tab-btn" data-target="tab-tapisan"><span class="tab-icon">📄</span><span class="tab-text">Tapisan Excel</span></button>
         <button class="tab-btn" data-target="tab-bakul"><span class="tab-icon">🛒</span><span class="tab-text">Bakul Permohonan</span></button>
-        <button class="tab-btn" data-target="stb"><span class="tab-icon">✓</span><span class="tab-text">Borang Semakan</span></button>
-        <button class="tab-btn" data-target="db"><span class="tab-icon">📂</span><span class="tab-text">Input Database</span></button>
-        <button class="tab-btn" data-target="drafts"><span class="tab-icon">📋</span><span class="tab-text">Belum Hantar</span></button>
-        <button class="tab-btn" data-target="submitted"><span class="tab-icon">✅</span><span class="tab-text">Telah Disyor</span></button>
+        <button class="tab-btn" data-target="stb"><span class="tab-icon">${icon('checkCircle')}</span><span class="tab-text">Borang Semakan</span></button>
+        <button class="tab-btn" data-target="db"><span class="tab-icon">${icon('folder')}</span><span class="tab-text">Input Database</span></button>
+        <button class="tab-btn" data-target="drafts"><span class="tab-icon">${icon('documentText')}</span><span class="tab-text">Belum Hantar</span></button>
+        <button class="tab-btn" data-target="submitted"><span class="tab-icon">${icon('star')}</span><span class="tab-text">Telah Disyor</span></button>
       `;
       
       const nameField = document.getElementById('db_pengesyor');
@@ -8574,7 +8638,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const btnSemua = document.getElementById('undoChoiceSemua');
       const btnBatal = document.getElementById('undoChoiceBatal');
       
-      if (titleEl) titleEl.innerHTML = '⚠️ Pilihan Undo';
+      if (titleEl) titleEl.innerHTML = `${icon('wrench')} Pilihan Undo`;
       if (msgEl) {
         msgEl.innerHTML = `Permohonan <b>${item.syarikat}</b> sudah ada keputusan pelulus (<b>${item.kelulusan}</b>).<br><br>Sila pilih tindakan:`;
       }
@@ -8603,8 +8667,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <div id="undoChoiceTitle" style="font-size:1.4rem; font-weight:800; color:#1e293b; margin-bottom:12px;"></div>
         <div id="undoChoiceMsg" style="font-size:0.95rem; color:#64748b; margin-bottom:20px; line-height:1.6;"></div>
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);">📝 Padam Pengesyor Sahaja</button>
-          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);">🗑 Padam Termasuk Pelulus</button>
+          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);">${icon('documentText')} Padam Pengesyor Sahaja</button>
+          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);">${icon('xMark')} Padam Termasuk Pelulus</button>
           <button id="undoChoiceBatal" class="custom-modal-btn custom-modal-btn-cancel">Batal</button>
         </div>
       </div>
@@ -8627,9 +8691,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let modalType = 'warning';
     
     if (actionType === 'padam_semua') {
-      message = `⚠️ <b>AMARAN!</b><br><br>Permohonan <b>${item.syarikat}</b> akan <b>HILANG/DIPADAM</b> dari Sheet (Row ${item.row}).<br><br>Data penuh akan disimpan dalam Log sebelum dipadam.<br><br>Adakah anda mahu teruskan?`;
+      message = `${icon('wrench')} <b>AMARAN!</b><br><br>Permohonan <b>${item.syarikat}</b> akan <b>HILANG/DIPADAM</b> dari Sheet (Row ${item.row}).<br><br>Data penuh akan disimpan dalam Log sebelum dipadam.<br><br>Adakah anda mahu teruskan?`;
       action = 'padam_semua';
-      modalTitle = "⚠️ Pengesahan Padam";
+      modalTitle = `${icon('wrench', '')} Pengesahan Padam`;
       btnText = "Ya, Padam";
       isDanger = true;
       modalType = "error"; 
@@ -8949,7 +9013,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
             btnPrint.style.backgroundColor = '#6366f1';
-            btnPrint.innerText = '🖨️ Cetak';
+            btnPrint.innerHTML = `${icon('documentArrowDown')} Cetak`;
             
             // KOD BARU: Menggunakan processCetakBiasa berbanding processLihatBorangPreview
             btnPrint.onclick = function() { processCetakBiasa(item); };
@@ -8992,7 +9056,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
             btnPrint.style.backgroundColor = '#6366f1';
-            btnPrint.innerText = '🖨️ Cetak';
+            btnPrint.innerHTML = `${icon('documentArrowDown')} Cetak`;
             btnPrint.onclick = function() { processPelulusPrint(item); };
             btnContainer.appendChild(btnPrint);
         }
@@ -9052,7 +9116,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       let spiDateInfo = '';
       if (item.date_submit) {
         const spiDate = formatDateDisplay(item.date_submit);
-        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>`;
+        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">${icon('clock')} Tarikh Hantar SPI: ${spiDate}</div>`;
       }
 
       let sptbDateInfo = '';
@@ -9564,7 +9628,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         </div>` : ''}
         
         ${(i.borang_json && i.borang_json.trim() !== '') ? 
-            `<div style="margin-top: 15px;"><button id="btnLihatBorangSemakan" class="btn btn-blue" style="width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📄 Lihat Borang Semakan</button></div>` 
+            `<div style="margin-top: 15px;"><button id="btnLihatBorangSemakan" class="btn btn-blue" style="width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">${icon('documentText')} Lihat Borang Semakan</button></div>` 
         : ''}
       </div>
     `;
@@ -10912,7 +10976,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       } else {
         console.log("V6.5.2 No Drive link found in Input Database tab");
         const warningMsg = document.createElement('div');
-        warningMsg.textContent = '⚠ Tiada pautan Drive di Input Database untuk disalin';
+        warningMsg.innerHTML = `${icon('wrench')} Tiada pautan Drive di Input Database untuk disalin`;
         warningMsg.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#f59e0b; color:white; padding:8px 16px; border-radius:8px; z-index:10000; font-size:0.9rem;';
         document.body.appendChild(warningMsg);
         setTimeout(() => warningMsg.remove(), 2000);
@@ -11190,7 +11254,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           saat = saat < 10 ? '0' + saat : saat;
           
           // Paparkan ke skrin (Hari, Tarikh Bulan Tahun | Masa AM/PM)
-          clockEl.innerHTML = `🗓️ ${hari}, ${tarikh} ${bulan} ${tahun} <span style="color:#cbd5e1; margin: 0 6px;">|</span> ⏱️ ${jam}:${minit}:${saat} ${ampm}`;
+          clockEl.innerHTML = `${icon('star')} ${hari}, ${tarikh} ${bulan} ${tahun} <span style="color:#cbd5e1; margin: 0 6px;">|</span> ${icon('clock')} ${jam}:${minit}:${saat} ${ampm}`;
       }, 1000); // Bergerak setiap 1 saat
   }
 
@@ -11568,7 +11632,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✅ Telah Disyor</span>`;
               disableCheckbox = true;
           } else if (inDrafts) {
-              statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">📝 Belum Hantar</span>`;
+              statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">${icon('documentText')} Belum Hantar</span>`;
               disableCheckbox = true;
           } else if (inBasket) {
               statusBadge = `<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">🛒 Dalam Bakul</span>`;
@@ -12056,7 +12120,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (!tbody) return;
       
       if (!dataArray || dataArray.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#64748b;">${icon('checkCircle')} Tiada permohonan dalam queue ini</td></tr>`;
           return;
       }
       
@@ -12912,18 +12976,18 @@ function renderInbox() {
           <div class="inbox-message" style="white-space:pre-line;">${msg.mesej}</div>
           <div class="inbox-meta">
             <span class="inbox-badge ${badge}">${msg.jenisMsg}</span>
-            ${msg.syarikat ? `<span>🏢 ${msg.syarikat}</span>` : ''}
-            ${msg.jenis ? `<span>📋 ${msg.jenis}</span>` : ''}
-            <span>⏱ ${masaStr}</span>
+            ${msg.syarikat ? `<span>${icon('user')} ${msg.syarikat}</span>` : ''}
+            ${msg.jenis ? `<span>${icon('documentText')} ${msg.jenis}</span>` : ''}
+            <span>${icon('clock')} ${masaStr}</span>
           </div>
           ${hasWhatsAppLinks ? `
           <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="inbox-btn inbox-btn-wa-pilih" data-index="${index}" style="background:#25D366; color:white; font-weight:bold;">💬 Pilih & Hantar WhatsApp</button>
+            <button class="inbox-btn inbox-btn-wa-pilih" data-index="${index}" style="background:#25D366; color:white; font-weight:bold;">${icon('chatBubble')} Pilih & Hantar WhatsApp</button>
           </div>` : ''}
         </div>
         <div class="inbox-actions">
-          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
-          <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
+          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-row="${msg.row}" data-idx="${index}">${icon('eye')} Lihat</button>` : ''}
+          <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">${icon('xMark')} Padam</button>
         </div>
       </div>
     `;
@@ -13116,7 +13180,7 @@ function openWhatsAppPicker(msg, msgIndex) {
         if (parent) {
           parent.style.background = '#f0fdf4';
           parent.style.borderColor = '#22c55e';
-          e.target.textContent = '✅ Selesai';
+          e.target.innerHTML = `${icon('checkCircle')} Selesai`;
           e.target.className = 'inbox-btn wa-picker-btn wa-picker-sent';
           e.target.style.background = '#22c55e';
           e.target.style.opacity = '0.7';
@@ -13125,7 +13189,7 @@ function openWhatsAppPicker(msg, msgIndex) {
           
           const label = parent.querySelector('div:first-child div:first-child');
           if (label && !label.innerHTML.includes('Selesai')) {
-            label.innerHTML += ' <span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>';
+            label.innerHTML += ` <span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">${icon('checkCircle')} Selesai</span>`;
           }
           const status = parent.querySelector('div:first-child div:last-child');
           if (status) status.textContent = 'Telah dihantar';
@@ -13184,7 +13248,7 @@ async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
   const btnBatal = document.getElementById('waConfirmBatal');
   const titleEl = document.getElementById('waConfirmTitle');
   
-  if (titleEl) titleEl.innerHTML = '💬 Hantar Notifikasi WhatsApp';
+  if (titleEl) titleEl.innerHTML = `${icon('chatBubble')} Hantar Notifikasi WhatsApp`;
   if (msgEl) {
     msgEl.innerHTML = `
       <div style="text-align:center; margin-bottom:15px;">
