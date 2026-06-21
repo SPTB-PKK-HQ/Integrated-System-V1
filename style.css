@@ -1,84 +1,33 @@
-/* SVG icon base */
-.icon {
-  width: 1.25em;
-  height: 1.25em;
-  vertical-align: -0.25em;
-  display: inline-block;
-  flex-shrink: 0;
-  stroke: currentColor;
-  fill: none;
-}
-.tab-btn .icon,
-.btn-top-fullview .icon,
-.feature-icon .icon {
-  width: 1.3em;
-  height: 1.3em;
-}
-.user-badge .icon {
-  width: 1.1em;
-  height: 1.1em;
-  vertical-align: -0.2em;
-}
-
 :root {
-            /* Design System V6.6.2 — Light Mode */
             --theme-color: #2563eb;
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --primary-light: rgba(37,99,235,0.1);
-            --success: #16a34a;
-            --warning: #d97706;
-            --danger: #dc2626;
-            --info: #0284c7;
-
-            --bg-base: #f1f5f9;
-            --bg-surface: #ffffff;
-            --bg-elevated: rgba(0,0,0,0.03);
-            --bg-hover: rgba(0,0,0,0.05);
-
-            --text-primary: #1e293b;
-            --text-secondary: #475569;
-            --text-muted: #94a3b8;
-            --text-inverse: #ffffff;
-
-            --border-subtle: rgba(0,0,0,0.08);
-            --border-hover: rgba(0,0,0,0.12);
-            --border-accent: rgba(37,99,235,0.3);
-
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 20px;
-            --radius-full: 9999px;
-
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
-            --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
-
-            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
-
-            --text-xs: 0.625rem;
-            --text-sm: 0.75rem;
-            --text-base: 0.875rem;
-            --text-md: 1rem;
-            --text-lg: 1.125rem;
-            --text-xl: 1.25rem;
-            --text-2xl: 1.5rem;
-            --text-3xl: 2rem;
+            --glass-bg: rgba(255, 255, 255, 0.96);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.7);
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --music-color: #8b5cf6;
+            --sfx-color: #f97316;
         }
 
         body {
-            font-family: var(--font-family);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
             width: 100%;
             overflow-x: hidden;
-            color: var(--text-primary);
-            background: var(--bg-base);
+            color: #333;
+            background: linear-gradient(-45deg, #10b981, #facc15, #3b82f6, #06b6d4);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
             min-height: 100vh;
             position: relative;
             box-sizing: border-box;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .hide-login #login-screen {
@@ -739,12 +688,12 @@
             justify-content: center;
             width: fit-content;
             margin: 0 auto 20px auto;
-            background: var(--bg-surface);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.7); /* Diterangkan sedikit supaya jelas bila scroll */
+            backdrop-filter: blur(12px);          /* KOD BARU: Efek kaca kabur bila scroll */
+            -webkit-backdrop-filter: blur(12px);  /* KOD BARU: Sokongan untuk browser Safari/Apple */
             border-radius: 12px;
             padding: 5px;
-            border: 1px solid var(--border-subtle);
+            border: var(--glass-border);
             flex-wrap: wrap;
             
             /* --- KOD BARU UNTUK JADIKAN IA MELEKAT (STICKY) --- */
@@ -788,14 +737,8 @@
 
         /* KOD BARU: Asingkan saiz ikon dan sembunyikan teks */
         .tab-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 1.2rem;
             line-height: 1;
-        }
-        .tab-icon .icon {
-            width: 1.3em;
-            height: 1.3em;
         }
 
         .tab-text {
@@ -825,14 +768,14 @@
         }
 
         .card {
-            background: var(--bg-surface);
+            background: var(--glass-bg);
             backdrop-filter: blur(16px);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            border: var(--glass-border);
             padding: 25px;
             margin-bottom: 20px;
             border-top: 6px solid var(--theme-color);
-            box-shadow: var(--shadow-md);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             width: 100%;
             box-sizing: border-box;
         }
@@ -1399,7 +1342,7 @@
         #login-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
             z-index: 2000;
             display: flex;
             justify-content: center;
@@ -1427,7 +1370,7 @@
         /* HERO */
         .landing-hero {
             position: relative;
-            background: #2563eb;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #1d4ed8 100%);
             border-radius: 24px;
             padding: 40px 30px;
             overflow: hidden;
@@ -1487,9 +1430,9 @@
 
         .hero-badge {
             display: inline-block;
-            background: rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.2);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.35);
+            border: 1px solid rgba(255,255,255,0.3);
             color: white;
             padding: 4px 16px;
             border-radius: 20px;
@@ -1504,13 +1447,13 @@
             font-size: 2.2rem;
             font-weight: 900;
             margin: 0 0 8px 0;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
             letter-spacing: 2px;
             line-height: 1.2;
         }
 
         .hero-subtitle {
-            color: rgba(255,255,255,0.85);
+            color: rgba(255,255,255,0.8);
             font-size: 0.95rem;
             margin: 0 0 20px 0;
             font-weight: 500;
@@ -1519,14 +1462,15 @@
         .hero-divider {
             width: 80px;
             height: 3px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
             border-radius: 2px;
             margin-bottom: 20px;
         }
 
         .login-section {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 16px;
             padding: 20px 30px;
             width: 100%;
@@ -1534,7 +1478,7 @@
         }
 
         .login-prompt {
-            color: rgba(255,255,255,0.95);
+            color: rgba(255,255,255,0.9);
             font-size: 0.9rem;
             font-weight: 600;
             margin: 0 0 15px 0;
@@ -1547,15 +1491,15 @@
         }
 
         .auth-error {
-            color: #dc2626;
+            color: #fca5a5;
             font-weight: 600;
             font-size: 0.85rem;
             margin-top: 10px;
             display: none;
-            background: rgba(239,68,68,0.1);
+            background: rgba(239,68,68,0.15);
             padding: 10px;
             border-radius: 8px;
-            border: 1px solid rgba(239,68,68,0.25);
+            border: 1px solid rgba(239,68,68,0.3);
         }
 
         /* FEATURE CARDS */
@@ -1566,56 +1510,46 @@
         }
 
         .feature-card {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 16px;
             padding: 20px;
             text-align: center;
             transition: all 0.3s ease;
             cursor: default;
-            border: 1px solid transparent;
         }
-        .feature-card:nth-child(1) { background: #eff6ff; border-color: #bfdbfe; }
-        .feature-card:nth-child(2) { background: #f0fdf4; border-color: #bbf7d0; }
-        .feature-card:nth-child(3) { background: #ecfdf5; border-color: #a7f3d0; }
-        .feature-card:nth-child(4) { background: #f0f9ff; border-color: #bae6fd; }
 
         .feature-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
         .feature-icon {
-            width: 44px;
-            height: 44px;
-            margin: 0 auto 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(37,99,235,0.12);
-            border-radius: 12px;
-        }
-        .feature-icon .icon {
-            width: 26px;
-            height: 26px;
-            stroke: var(--primary, #2563eb);
+            font-size: 2.2rem;
+            margin-bottom: 10px;
         }
 
         .feature-title {
-            color: var(--text-primary, #1e293b);
+            color: #e2e8f0;
             font-weight: 800;
             font-size: 1rem;
             margin-bottom: 6px;
         }
 
         .feature-desc {
-            color: var(--text-secondary, #475569);
+            color: #94a3b8;
             font-size: 0.8rem;
             line-height: 1.4;
         }
 
         /* CHANGELOG - HORIZONTAL SLIDER + CLICK TO READ */
         .landing-changelog {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08);
             border-radius: 20px;
             padding: 24px;
             overflow: hidden;
@@ -1627,12 +1561,12 @@
             gap: 10px;
             margin-bottom: 16px;
             padding-bottom: 12px;
-            border-bottom: 1px solid rgba(0,0,0,0.08);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
         }
 
-        .changelog-icon .icon { width: 1.4rem; height: 1.4rem; }
+        .changelog-icon { font-size: 1.4rem; }
         .changelog-title {
-            color: var(--text-primary, #1e293b);
+            color: #f1f5f9;
             font-weight: 800;
             font-size: 1.1rem;
             flex: 1;
@@ -1671,7 +1605,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(0,0,0,0.04);
+            background: rgba(0,0,0,0.25);
             cursor: pointer;
             position: relative;
         }
@@ -1685,23 +1619,16 @@
             box-sizing: border-box;
         }
         .changelog-slide-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            padding: 60px;
+            font-size: 4rem;
             opacity: 0.5;
-        }
-        .changelog-slide-icon .icon {
-            width: 64px;
-            height: 64px;
         }
         .changelog-slide-overlay {
             position: absolute;
             bottom: 16px;
             left: 50%;
             transform: translateX(-50%);
-            background: #2563eb;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(6px);
             padding: 6px 18px;
             border-radius: 20px;
             display: flex;
@@ -1757,7 +1684,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: rgba(0,0,0,0.15);
+            background: rgba(255,255,255,0.2);
             border: none;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -1768,7 +1695,7 @@
             width: 28px;
             border-radius: 6px;
         }
-        .changelog-dot:hover { background: rgba(0,0,0,0.3); }
+        .changelog-dot:hover { background: rgba(255,255,255,0.4); }
 
         @media (max-width: 768px) {
             .changelog-slide { height: 260px; }
@@ -1779,13 +1706,13 @@
         /* Description panel (shown on click) */
         .changelog-panel {
             margin-top: 14px;
-            border-top: 1px solid rgba(0,0,0,0.06);
+            border-top: 1px solid rgba(255,255,255,0.06);
             padding-top: 14px;
             animation: slideDown 0.35s ease;
         }
         .changelog-panel-inner {
-            background: rgba(255,255,255,0.7);
-            border: 1px solid rgba(0,0,0,0.08);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
             border-radius: 14px;
             padding: 16px;
         }
@@ -1807,7 +1734,7 @@
             font-size: 0.75rem;
         }
         .changelog-panel-desc {
-            color: var(--text-primary, #1e293b);
+            color: #cbd5e1;
             font-size: 0.85rem;
             line-height: 1.6;
             white-space: pre-line;
@@ -1972,14 +1899,8 @@
             background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(16,185,129,0.1));
         }
         .carousel-image-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 4rem;
             opacity: 0.6;
-        }
-        .carousel-image-icon .icon {
-            width: 64px;
-            height: 64px;
         }
 
         .carousel-content {
@@ -2023,12 +1944,12 @@
             margin-bottom: 12px;
         }
         .carousel-desc {
-            color: #e2e8f0;
+            color: #cbd5e1;
             font-size: 0.9rem;
             line-height: 1.6;
             white-space: pre-line;
             text-align: left;
-            background: rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03);
             border-radius: 12px;
             padding: 14px 16px;
         }

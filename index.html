@@ -78,7 +78,7 @@
             <!-- Changelog Section -->
             <div class="landing-changelog">
                 <div class="changelog-header">
-                    <span class="changelog-icon" data-icon="sparkles"></span>
+                    <span class="changelog-icon">✨</span>
                     <span class="changelog-title">Apa Yang Baru?</span>
                     <span class="changelog-badge" id="changelogCount">0</span>
                 </div>
@@ -102,22 +102,22 @@
             <!-- Feature Cards -->
             <div class="landing-features">
                 <div class="feature-card">
-                    <div class="feature-icon" data-icon="documentText"></div>
+                    <div class="feature-icon">📋</div>
                     <div class="feature-title">Borang Semakan</div>
                     <div class="feature-desc">Auto-ekstrak PDF dengan AI, semak dokumen dan personel</div>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon" data-icon="chartBar"></div>
+                    <div class="feature-icon">📊</div>
                     <div class="feature-title">Dashboard Analisis</div>
                     <div class="feature-desc">Statistik permohonan, trend bulanan dan jenis permohonan</div>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon" data-icon="chatBubble"></div>
+                    <div class="feature-icon">💬</div>
                     <div class="feature-title">WhatsApp & Inbox</div>
                     <div class="feature-desc">Jadual WhatsApp auto, notifikasi dan inbox pintar</div>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon" data-icon="folder"></div>
+                    <div class="feature-icon">📁</div>
                     <div class="feature-title">Google Drive</div>
                     <div class="feature-desc">Folder automatik, simpanan PDF berwarna dan QR profile</div>
                 </div>
@@ -144,7 +144,7 @@
         <!-- TOP RIGHT: USER BADGE & FULL VIEW BUTTON -->
         <div class="top-controls" style="flex-direction: column; align-items: flex-end; gap: 0; top: 12px; right: 15px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 2px solid white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 8px 12px; z-index: 100;">
             
-            <div class="user-badge" id="userBadge" title="Profil Pengguna" style="box-shadow: none; border: none; background: transparent; padding: 2px 5px; margin-bottom: 4px; font-size: 0.9rem;"><span data-icon="user"></span> User</div>
+            <div class="user-badge" id="userBadge" title="Profil Pengguna" style="box-shadow: none; border: none; background: transparent; padding: 2px 5px; margin-bottom: 4px; font-size: 0.9rem;">👤 User</div>
             
             <div style="width: 100%; height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); margin-bottom: 6px;"></div>
             
@@ -153,11 +153,11 @@
             </div>
             
         </div>
-        <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar"><span data-icon="logout"></span> Log Keluar</button>
+        <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar">🚪 Log Keluar</button>
         <div style="position:absolute; top:45px; left:5px; display:flex; gap:5px; z-index:100;">
-            <button id="btnQueueSPI" class="btn-top-fullview" style="position:static; color:#0ea5e9; border-color:#0ea5e9; font-size:0.85rem; padding:5px 10px;" title="Queue SPI"><span data-icon="queueList"></span> SPI</button>
-            <button id="btnInboxTop" class="btn-top-fullview" style="position:static; color:#22c55e; border-color:#22c55e; font-size:0.85rem; padding:5px 10px;" title="Inbox Notifikasi"><span data-icon="inbox"></span> Inbox<span id="inboxTopBadge" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:1px 5px; font-size:0.6rem; margin-left:4px;">0</span></button>
-            <button id="btnRefreshData" class="btn-top-fullview" style="position:static; color:#8b5cf6; border-color:#8b5cf6; font-size:0.85rem; padding:5px 10px;" title="Refresh Data"><span data-icon="arrowPath"></span> Refresh</button>
+            <button id="btnQueueSPI" class="btn-top-fullview" style="position:static; color:#0ea5e9; border-color:#0ea5e9; font-size:0.85rem; padding:5px 10px;" title="Queue SPI">📋 SPI</button>
+            <button id="btnInboxTop" class="btn-top-fullview" style="position:static; color:#22c55e; border-color:#22c55e; font-size:0.85rem; padding:5px 10px;" title="Inbox Notifikasi">📥 Inbox<span id="inboxTopBadge" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:1px 5px; font-size:0.6rem; margin-left:4px;">0</span></button>
+            <button id="btnRefreshData" class="btn-top-fullview" style="position:static; color:#8b5cf6; border-color:#8b5cf6; font-size:0.85rem; padding:5px 10px;" title="Refresh Data">🔄 Refresh</button>
         </div>
         
        <div id="customModalOverlay" class="custom-modal-overlay">
@@ -175,16 +175,16 @@
 
         <!-- NAVIGATION TABS -->
         <div class="tabs no-print" id="tabs-container">
-            <button class="tab-btn" data-target="dashboard"><span class="tab-icon" data-icon="chartBar"></span><span class="tab-text"> Dashboard</span></button>
-            <button class="tab-btn" data-target="tab-tapisan"><span class="tab-icon" data-icon="documentText"></span><span class="tab-text"> Tapisan Excel</span></button>
-            <button class="tab-btn" data-target="tab-bakul"><span class="tab-icon" data-icon="inbox"></span><span class="tab-text"> Bakul Permohonan</span></button>
-            <button class="tab-btn active" data-tab="tab-checker"><span class="tab-icon" data-icon="checkCircle"></span><span class="tab-text"> Borang Semakan</span></button>
-            <button class="tab-btn" data-tab="tab-database"><span class="tab-icon" data-icon="folder"></span><span class="tab-text"> Input Database</span></button>
-            <button class="tab-btn" data-tab="tab-list"><span class="tab-icon" data-icon="queueList"></span><span class="tab-text"> Senarai</span></button>
-            <button class="tab-btn" data-tab="tab-pelulus-view"><span class="tab-icon" data-icon="eye"></span><span class="tab-text"> Paparan Pelulus</span></button>
-            <button class="tab-btn" data-tab="tab-pelulus-action"><span class="tab-icon" data-icon="scale"></span><span class="tab-text"> Keputusan</span></button>
-            <button class="tab-btn" data-tab="tab-admin-dashboard" id="tabAdminBtn" style="display:none;"><span class="tab-icon" data-icon="user"></span><span class="tab-text"> Admin Dashboard</span></button>
-            <button class="tab-btn" data-tab="tab-history" id="tabHistoryBtn" style="display:none;"><span class="tab-icon" data-icon="clock"></span><span class="tab-text"> Sejarah</span></button>
+            <button class="tab-btn" data-target="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-target="tab-tapisan">📄 Tapisan Excel</button>
+            <button class="tab-btn" data-target="tab-bakul">🛒 Bakul Permohonan</button>
+            <button class="tab-btn active" data-tab="tab-checker">✓ Borang Semakan</button>
+            <button class="tab-btn" data-tab="tab-database">📂 Input Database</button>
+            <button class="tab-btn" data-tab="tab-list">📋 Senarai</button>
+            <button class="tab-btn" data-tab="tab-pelulus-view">👁️ Paparan Pelulus</button>
+            <button class="tab-btn" data-tab="tab-pelulus-action">⚖️ Keputusan</button>
+            <button class="tab-btn" data-tab="tab-admin-dashboard" id="tabAdminBtn" style="display:none;">👑 Admin Dashboard</button>
+            <button class="tab-btn" data-tab="tab-history" id="tabHistoryBtn" style="display:none;">📜 Sejarah</button>
         </div>
 
         <!-- TAB 1: BORANG SEMAKAN -->
@@ -404,9 +404,9 @@
         <!-- TAB PROFILE -->
         <div id="tab-profile" class="tab-content no-print">
     <div style="margin-bottom: 15px;">
-        <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><span data-icon="arrowPath"></span> Kembali ke Input Database</button>
+        <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
     </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <h2><span data-icon="rocketLaunch"></span> Auto-Ekstrak Profil (AI)</h2>
+        <h2>🚀 Auto-Ekstrak Profil (AI)</h2>
         
         <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
             <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model AI:</label>
@@ -457,7 +457,7 @@
         <!-- TAB LIST -->
         <div id="tab-list" class="tab-content no-print">
             <div class="card">
-                <h2 id="listTitle"><span data-icon="queueList"></span> Senarai</h2>
+                <h2 id="listTitle">📋 Senarai</h2>
                 <div id="submittedFiltersContainer" style="display: none; margin-bottom: 20px; background: #f1f5f9; border-radius: 12px; padding: 12px; border: 1px solid #cbd5e1;">
                     <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #1e40af;">✅ Telah Syor (Dihantar)</h3>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
@@ -491,7 +491,7 @@
 
         <!-- TAB PELULUS VIEW -->
         <div id="tab-pelulus-view" class="tab-content no-print">
-            <div class="card" style="border-top-color: #000;"><h2><span data-icon="eye"></span> Ringkasan Permohonan</h2><div id="pelulus_view_content"></div><div class="actions"><button class="btn btn-white" id="btnViewBack" style="display:none;">Kembali</button><div style="flex-grow:1;"></div><button class="btn btn-blue" id="btnToApproval">Ke Keputusan »</button></div></div>
+            <div class="card" style="border-top-color: #000;"><h2>🔍 Ringkasan Permohonan</h2><div id="pelulus_view_content"></div><div class="actions"><button class="btn btn-white" id="btnViewBack" style="display:none;">Kembali</button><div style="flex-grow:1;"></div><button class="btn btn-blue" id="btnToApproval">Ke Keputusan »</button></div></div>
         </div>
 
         <!-- TAB PELULUS ACTION -->
@@ -522,10 +522,10 @@
                         <div class="chart-container" id="chartTypeDistContainer"><div class="chart-title">📊 Taburan Jenis Permohonan</div><div class="chart-canvas-container"><canvas id="chartTypeDist"></canvas></div></div>
                         <div class="chart-container" id="chartKonsultansiContainer"><div class="chart-title">📞 Taburan Jenis Konsultansi</div><div class="chart-canvas-container"><canvas id="chartKonsultansi"></canvas></div></div>
                         <div class="chart-container" id="chartReasonDistContainer" style="display: none;"><div class="chart-title">📊 Taburan Alasan Penolakan</div><div class="chart-canvas-container"><canvas id="chartReasonDist"></canvas></div></div>
-                        <div class="chart-container" id="chartTypeMonthlyContainer" style="display: none;"><div class="chart-title"><span data-icon="chartBar"></span> Jenis Permohonan (Bulanan)</div><div class="chart-canvas-container"><canvas id="chartTypeMonthly"></canvas></div></div>
-                        <div class="chart-container" id="chartTypeYearlyContainer" style="display: none;"><div class="chart-title"><span data-icon="chartBar"></span> Jenis Permohonan (Tahunan)</div><div class="chart-canvas-container"><canvas id="chartTypeYearly"></canvas></div></div>
-                        <div class="chart-container" id="reasonStatsContainer" style="display: none;"><div class="chart-title"><span data-icon="chartBar"></span> Statistik Alasan Penolakan</div><div id="reasonAnalysis"><div class="reason-stats" id="reasonStats"></div></div></div>
-                        <div class="chart-container" style="grid-column: span 2;"><div class="chart-title"><span data-icon="documentText"></span> Analisis Terperinci</div><div id="detailedAnalysis"><table class="monthly-table" id="detailedTable"><thead><tr><th>BULAN</th><th>JUMLAH</th><th id="detailCol1">SOKONG</th><th id="detailCol2">TIDAK DISOKONG</th><th id="detailCol3">DALAM PROSES</th><th id="detailCol4">KADAR SOKONGAN</th></tr></thead><tbody id="detailedTableBody"><tr><td colspan="6" style="text-align:center;">Tiada data</td></tr></tbody></table></div></div>
+                        <div class="chart-container" id="chartTypeMonthlyContainer" style="display: none;"><div class="chart-title">📋 Jenis Permohonan (Bulanan)</div><div class="chart-canvas-container"><canvas id="chartTypeMonthly"></canvas></div></div>
+                        <div class="chart-container" id="chartTypeYearlyContainer" style="display: none;"><div class="chart-title">📊 Jenis Permohonan (Tahunan)</div><div class="chart-canvas-container"><canvas id="chartTypeYearly"></canvas></div></div>
+                        <div class="chart-container" id="reasonStatsContainer" style="display: none;"><div class="chart-title">📊 Statistik Alasan Penolakan</div><div id="reasonAnalysis"><div class="reason-stats" id="reasonStats"></div></div></div>
+                        <div class="chart-container" style="grid-column: span 2;"><div class="chart-title">📋 Analisis Terperinci</div><div id="detailedAnalysis"><table class="monthly-table" id="detailedTable"><thead><tr><th>BULAN</th><th>JUMLAH</th><th id="detailCol1">SOKONG</th><th id="detailCol2">TIDAK DISOKONG</th><th id="detailCol3">DALAM PROSES</th><th id="detailCol4">KADAR SOKONGAN</th></tr></thead><tbody id="detailedTableBody"><tr><td colspan="6" style="text-align:center;">Tiada data</td></tr></tbody></table></div></div>
                     </div>
                 </div>
             </div>
@@ -534,9 +534,9 @@
         <!-- Tapisan Permohonan Excel -->
         <div id="tab-tapisan" class="tab-content no-print" style="display:none;">
             <div class="card">
-                <h2><span data-icon="documentText"></span> Tapisan Permohonan Excel</h2>
+                <h2>📄 Tapisan Permohonan Excel</h2>
                 <div style="border: 2px dashed #3b82f6; border-radius: 12px; padding: 40px; text-align: center; background: #f8fafc;">
-                    <div style="font-size: 48px; color: #10b981; margin-bottom: 15px;"><span data-icon="chartBar" style="width:48px;height:48px;"></span></div>
+                    <div style="font-size: 48px; color: #10b981; margin-bottom: 15px;">📊</div>
                     <label for="excelFileInput" style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; transition: transform 0.2s;">
                         Pilih Fail Excel
                     </label>
@@ -555,7 +555,7 @@
                 <div id="excelResultsContainer" style="display: none; margin-top: 20px; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <p style="margin: 0; font-size: 1.1rem;"><strong id="excelRowCount" style="color: #2563eb; font-size: 1.2rem;">0</strong> rekod dipaparkan untuk anda.</p>
-                        <button id="btnSaveToBasket" class="btn btn-blue" style="font-size: 1rem; padding: 10px 20px;"><span data-icon="inbox"></span> Simpan Ke Bakul</button>
+                        <button id="btnSaveToBasket" class="btn btn-blue" style="font-size: 1rem; padding: 10px 20px;">🛒 Simpan Ke Bakul</button>
                     </div>
                     
                     <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -583,7 +583,7 @@
         <div id="tab-bakul" class="tab-content no-print" style="display:none;">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(0,0,0,0.05); padding-bottom: 10px;">
-                    <h2 style="margin: 0; border: none;"><span data-icon="inbox"></span> Bakul Permohonan</h2>
+                    <h2 style="margin: 0; border: none;">🛒 Bakul Permohonan</h2>
                     <span id="bakulCountBadge" style="background: #ef4444; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">0</span>
                 </div>
                 <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -609,7 +609,7 @@
         <div id="tab-admin-dashboard" class="tab-content">
             <div class="dashboard-container">
                 <div class="card">
-                    <div class="dashboard-header"><h2><span data-icon="user"></span> Admin Dashboard - Statistik Keseluruhan</h2><div class="dashboard-filter"><label>Bulan:</label><select id="adminFilterMonth"><option value="">Semua</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="adminFilterYear"><option value="">Semua</option></select><button id="btnAdminCsv" class="btn" style="background-color: #10b981; color: white;"><span data-icon="documentArrowDown"></span> Muat Turun CSV</button><button id="btnPrintAdminStats" class="btn" style="background-color: #f59e0b; color: white;"><span data-icon="documentText"></span> Cetak Laporan</button></div></div>
+                    <div class="dashboard-header"><h2>👑 Admin Dashboard - Statistik Keseluruhan</h2><div class="dashboard-filter"><label>Bulan:</label><select id="adminFilterMonth"><option value="">Semua</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="adminFilterYear"><option value="">Semua</option></select><button id="btnAdminCsv" class="btn" style="background-color: #10b981; color: white;">⬇️ Muat Turun CSV</button><button id="btnPrintAdminStats" class="btn" style="background-color: #f59e0b; color: white;">🖨️ Cetak Laporan</button></div></div>
                     <div class="dashboard-stats"><div class="stat-card" id="admin-card-total"><div class="stat-value" id="admin-total-count">0</div><div class="stat-label">JUMLAH KESELURUHAN</div></div><div class="stat-card" style="border-top-color: #22c55e;"><div class="stat-value" id="admin-approved-count">0</div><div class="stat-label">LULUS</div></div><div class="stat-card" style="border-top-color: #ef4444;"><div class="stat-value" id="admin-rejected-count">0</div><div class="stat-label">TOLAK</div></div><div class="stat-card" style="border-top-color: #f59e0b;"><div class="stat-value" id="admin-pending-count">0</div><div class="stat-label">DALAM PROSES</div></div><div class="stat-card" style="border-top-color: #f97316;"><div class="stat-value" id="admin-incomplete-doc-count">0</div><div class="stat-label">DOKUMEN TIDAK LENGKAP</div></div></div>
                     <div class="admin-stats-section" id="admin-pengesyor-stats"><h3>📋 Statistik Mengikut Pengesyor</h3><table class="admin-stats-table" id="admin-pengesyor-table"><thead><tr><th>Pengesyor</th><th>Jumlah Syor</th><th>SOKONG</th><th>TIDAK DISOKONG</th><th>Kadar Sokongan</th></tr></thead><tbody id="admin-pengesyor-tbody"><tr><td colspan="5" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
                     <div class="admin-stats-section" id="admin-pelulus-stats"><h3>⚖️ Statistik Mengikut Pelulus</h3><table class="admin-stats-table" id="admin-pelulus-table"><thead><tr><th>Pelulus</th><th>Jumlah Diproses</th><th>LULUS</th><th>TOLAK</th><th>Kadar Kelulusan</th></tr></thead><tbody id="admin-pelulus-tbody"><tr><td colspan="5" style="text-align:center;">Tiada data</td></tr></tbody></table></div>
@@ -624,7 +624,7 @@
         <!-- TAB HISTORY -->
         <div id="tab-history" class="tab-content no-print" style="display: none;">
             <div class="card">
-                <h2><span data-icon="clock"></span> Sejarah Keputusan Pelulus</h2>
+                <h2>📜 Sejarah Keputusan Pelulus</h2>
                 <div id="historyFiltersContainer" style="margin-bottom: 20px; background: #f1f5f9; border-radius: 12px; padding: 12px; border: 1px solid #cbd5e1;"><h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #1e40af;">📜 Tapisan Sejarah</h3><div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"><button id="filterHistoryStatusAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA STATUS <span id="badgeHistoryStatusAll" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button><button id="filterHistoryStatusLulus" class="btn-sm" style="background: #22c55e; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">LULUS <span id="badgeHistoryStatusLulus" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button><button id="filterHistoryStatusTolak" class="btn-sm" style="background: #ef4444; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">TOLAK/SIASAT <span id="badgeHistoryStatusTolak" style="background: #ef4444; border-radius: 50%; padding: 2px 6px; margin-left: 5px;">0</span></button></div><div style="display: flex; flex-wrap: wrap; gap: 8px;"><button id="filterHistoryJenisAll" class="btn-sm" style="background: #1e293b; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">SEMUA JENIS</button><button id="filterHistoryJenisBaru" class="btn-sm" style="background: #2563eb; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">BARU</button><button id="filterHistoryJenisPembaharuan" class="btn-sm" style="background: #059669; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">PEMBAHARUAN</button><button id="filterHistoryJenisUbahMaklumat" class="btn-sm" style="background: #d97706; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH MAKLUMAT</button><button id="filterHistoryJenisUbahGred" class="btn-sm" style="background: #db2777; color: white; border: 2px solid transparent; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">UBAH GRED</button></div></div>
                 <div class="filter-section" style="margin-bottom: 15px;"><label>Nama Pelulus:</label><select id="historyPelulusFilter"><option value="">Semua Pelulus</option></select><label>Bulan:</label><select id="historyMonthFilter"><option value="">Semua Bulan</option><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><label>Tahun:</label><select id="historyYearFilter"><option value="">Semua Tahun</option></select><button class="btn btn-blue" id="btnRefreshHistory">Refresh</button></div>
 <div class="search-box" style="display:flex; gap:5px; margin-bottom:10px;">
@@ -779,7 +779,7 @@
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <h2 style="color: #ef4444; margin: 0; border: none;">▶️ Portal Video & Muzik YouTube</h2>
-                    <button id="btnTutupYoutube" class="btn" style="background-color: #1e293b; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><span data-icon="arrowPath"></span> Kembali Bekerja (Muzik Terus Dimainkan)</button>
+                    <button id="btnTutupYoutube" class="btn" style="background-color: #1e293b; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali Bekerja (Muzik Terus Dimainkan)</button>
                 </div>
 
                 <div id="sfx-control-panel" style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px dashed #cbd5e1; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
@@ -802,7 +802,7 @@
         </div>
         <div class="admin-stats-modal" id="type-modal-bakul" style="display: none; z-index: 10002;">
             <div class="admin-stats-content" style="max-width: 400px; width: 90%; padding: 25px; text-align: center; border-top: 5px solid #2563eb;">
-                <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px; font-size: 1.3rem;"><span data-icon="inbox"></span> Simpan ke Bakul</h3>
+                <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px; font-size: 1.3rem;">🛒 Simpan ke Bakul</h3>
                 <p style="color: #64748b; margin-bottom: 15px;"><span id="modal-bakul-count" style="font-weight: bold; color: #ef4444; font-size: 1.1rem;">0</span> permohonan dipilih.</p>
                 
                 <div style="text-align: left; margin-bottom: 25px;">
