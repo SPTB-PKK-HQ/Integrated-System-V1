@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxK7gLQTthYTFGsKqIbAK5aU4czlp641RP1VAZI9ZQsIuoAY2mwth-kWsDI7sO-f1wC/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyGXlZL1E6_9Nxcqbp3k1QOAwVN_MMUMynCjyHWCnCIkTWQRkE6I5145KBbVIL2X1GR/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -529,6 +529,8 @@ async function handleCredentialResponse(response) {
         await playSuccessSound();
         await CustomAppModal.alert(getDailyGreeting(), 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
+        // V6.6.0: Tunjuk changelog walkthrough jika ada versi baru
+        setTimeout(() => showChangelogWalkthrough(), 500);
       }, 1500); 
       
     } else {
@@ -4887,7 +4889,11 @@ async function handleCredentialResponse(response) {
               }
           });
       }
-      setupUserUI(); 
+      setupUserUI();
+      // V6.6.0: Muat changelog dan tunjuk walkthrough jika ada versi baru
+      loadChangelog().then(() => {
+        setTimeout(() => showChangelogWalkthrough(), 500);
+      });
   }
 }
       
@@ -5055,28 +5061,303 @@ async function handleCredentialResponse(response) {
       const response = await fetchWithRetry(SCRIPT_URL + '?action=getChangelog&t=' + Date.now(), { method: 'GET' }, 2, 1000);
       const result = await response.json();
       if (result.status === 'success' && result.changelog && result.changelog.length > 0) {
-        renderChangelog(result.changelog);
+        cachedChangelog = result.changelog;
+        renderChangelog(cachedChangelog);
       }
     } catch (e) {
       console.warn('Gagal muat changelog:', e);
     }
   }
 
+  let changelogAutoScroll = null;
+  let changelogCurrentIdx = 0;
+  let changelogData = [];
+
   function renderChangelog(data) {
-    const list = document.getElementById('changelogList');
+    const slider = document.getElementById('changelogSlider');
+    const panel = document.getElementById('changelogPanel');
     const count = document.getElementById('changelogCount');
-    if (!list) return;
+    if (!slider) return;
     if (count) count.textContent = data.length;
-    
-    list.innerHTML = data.map((item, i) => `
-      <div class="changelog-item">
-        <div class="changelog-version">
-          <span class="changelog-version-tag ${i === 0 ? 'latest' : ''}">${item.versi}</span>
-          <span class="changelog-date">${item.tarikh || ''}</span>
+
+    changelogData = data;
+    changelogCurrentIdx = 0;
+
+    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+
+    // Build slides
+    slider.innerHTML = data.map((item, i) => {
+      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
+      let content;
+      if (images.length > 0) {
+        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy" data-fallback="${i}">`;
+      } else {
+        content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
+      }
+      return `<div class="changelog-slide" data-idx="${i}">
+        ${content}
+        <div class="changelog-slide-overlay">
+          <span class="${i === 0 ? 'latest-badge' : ''}">${item.versi}</span>
         </div>
-        <div class="changelog-desc">${item.penerangan.replace(/\n/g, '<br>')}</div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
+
+    // Image error fallback
+    slider.querySelectorAll('img[data-fallback]').forEach(img => {
+      img.addEventListener('error', function() {
+        const idx = parseInt(this.dataset.fallback);
+        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${featureIcons[idx % featureIcons.length]}</div>`;
+      });
+    });
+
+    // Build dots
+    const dotsEl = document.getElementById('clDots');
+    if (dotsEl && data.length > 1) {
+      dotsEl.innerHTML = data.map((_, i) =>
+        `<button class="changelog-dot${i === 0 ? ' active' : ''}" data-carousel-idx="${i}"></button>`
+      ).join('');
+      dotsEl.querySelectorAll('.changelog-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          const idx = parseInt(dot.dataset.carouselIdx);
+          goToSlide(idx);
+        });
+      });
+    } else if (dotsEl) {
+      dotsEl.innerHTML = '';
+    }
+
+    // Arrow handlers
+    const prevBtn = document.getElementById('clArrowPrev');
+    const nextBtn = document.getElementById('clArrowNext');
+    if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx + 1));
+
+    // Click slide to show description (auto-scroll tetap jalan)
+    slider.querySelectorAll('.changelog-slide').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx);
+        const item = data[idx];
+        if (!item) return;
+        showChangelogDesc(idx);
+        goToSlide(idx);
+      });
+    });
+
+    // Position at first slide
+    goToSlide(0, true);
+
+    // Start auto
+    startChangelogAutoScroll();
+  }
+
+  function goToSlide(idx, noAnim) {
+    const slider = document.getElementById('changelogSlider');
+    if (!slider || !changelogData.length) return;
+
+    if (idx < 0) idx = changelogData.length - 1;
+    if (idx >= changelogData.length) idx = 0;
+    changelogCurrentIdx = idx;
+
+    const percent = -idx * 100;
+    slider.style.transition = noAnim ? 'none' : 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    slider.style.transform = `translateX(${percent}%)`;
+
+    if (noAnim) {
+      slider.offsetHeight;
+      slider.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    }
+
+    // Update dots
+    document.querySelectorAll('.changelog-dot').forEach(dot => {
+      dot.classList.toggle('active', parseInt(dot.dataset.carouselIdx) === idx);
+    });
+
+    // Arrows
+    const prevBtn = document.getElementById('clArrowPrev');
+    const nextBtn = document.getElementById('clArrowNext');
+    if (prevBtn) prevBtn.classList.toggle('hidden', idx === 0);
+    if (nextBtn) nextBtn.classList.toggle('hidden', idx === changelogData.length - 1);
+  }
+
+  function showChangelogDesc(idx) {
+    const item = changelogData[idx];
+    if (!item) return;
+    const panel = document.getElementById('changelogPanel');
+    const tag = document.getElementById('panelVersionTag');
+    const dateEl = document.getElementById('panelDate');
+    const descEl = document.getElementById('panelDesc');
+    if (tag) {
+      tag.textContent = item.versi;
+      tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
+    }
+    if (dateEl) dateEl.textContent = item.tarikh || '';
+    if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
+    if (panel) {
+      panel.style.display = 'block';
+      panel.style.animation = 'none';
+      panel.offsetHeight;
+      panel.style.animation = 'slideDown 0.35s ease';
+    }
+  }
+
+  function startChangelogAutoScroll() {
+    stopChangelogAutoScroll();
+    if (!changelogData || changelogData.length < 2) return;
+
+    changelogAutoScroll = setInterval(() => {
+      goToSlide(changelogCurrentIdx + 1);
+    }, 4000);
+  }
+
+  function stopChangelogAutoScroll() {
+    if (changelogAutoScroll) {
+      clearInterval(changelogAutoScroll);
+      changelogAutoScroll = null;
+    }
+  }
+
+  // V6.6.0: Changelog walkthrough carousel
+  let cachedChangelog = null;
+
+  async function getUserLastSeenVersion(email) {
+    try {
+      const r = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getUserLastSeenVersion', email })
+      }, 2, 1000);
+      const d = await r.json();
+      return d.status === 'success' ? (d.version || '') : '';
+    } catch (e) { return ''; }
+  }
+
+  async function updateUserLastSeenVersion(email, version) {
+    try {
+      await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateUserLastSeenVersion', email, version })
+      }, 2, 1000);
+    } catch (e) {}
+  }
+
+  async function showChangelogWalkthrough() {
+    if (!cachedChangelog || cachedChangelog.length === 0) return;
+    const email = currentUser ? currentUser.email : '';
+    if (!email) return;
+
+    const lastSeen = await getUserLastSeenVersion(email);
+    const latestVersion = cachedChangelog[0].versi;
+    if (lastSeen === latestVersion) return; // Already seen latest
+
+    // Show carousel
+    const overlay = document.getElementById('changelogOverlay');
+    const slide = document.getElementById('carouselSlide');
+    const body = document.getElementById('carouselBody');
+    const desc = document.getElementById('carouselDesc');
+    const dateEl = document.getElementById('carouselDate');
+    const badgeEl = document.getElementById('clVersionBadge');
+    const dots = document.getElementById('carouselDots');
+    const prevBtn = document.getElementById('carouselPrev');
+    const nextBtn = document.getElementById('carouselNext');
+    const closeBtn = document.getElementById('carouselClose');
+    const imgContainer = document.getElementById('carouselImageContainer');
+    const imgPlaceholder = document.getElementById('carouselImagePlaceholder');
+
+    if (!overlay || !body || !desc) return;
+
+    let currentIndex = 0;
+    let subIndex = 0;
+    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
+
+    function renderItem(idx, resetSub) {
+      const item = cachedChangelog[idx];
+      if (!item) return;
+      const icon = featureIcons[idx % featureIcons.length];
+      
+      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
+      if (resetSub) subIndex = 0;
+      if (subIndex >= images.length) subIndex = 0;
+      
+      if (images.length > 0) {
+        const currentImg = images[subIndex] || images[0];
+        let arrows = '';
+        if (images.length > 1) {
+          arrows = `
+            <button class="carousel-img-prev" data-subidx="-1">‹</button>
+            <div class="carousel-img-dots">${images.map((_, si) => `<span class="carousel-img-dot${si === subIndex ? ' active' : ''}"></span>`).join('')}</div>
+            <button class="carousel-img-next" data-subidx="1">›</button>
+          `;
+        }
+        const fallbackIcon = featureIcons[idx % featureIcons.length];
+        imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
+        
+        // Image error fallback
+        const carouselImg = imgContainer.querySelector('.carousel-img-multi img');
+        if (carouselImg) {
+          carouselImg.addEventListener('error', function handler() {
+            this.removeEventListener('error', handler);
+            const multi = this.closest('.carousel-img-multi');
+            if (multi) multi.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${fallbackIcon}</span></div>`;
+          });
+        }
+        
+        // Sub-image navigation
+        imgContainer.querySelectorAll('.carousel-img-prev, .carousel-img-next').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dir = parseInt(btn.dataset.subidx);
+            subIndex = Math.max(0, Math.min(images.length - 1, subIndex + dir));
+            renderItem(idx, false);
+          });
+        });
+      } else {
+        imgContainer.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${icon}</span></div>`;
+        subIndex = 0;
+      }
+      
+      badgeEl.textContent = item.versi;
+      dateEl.textContent = item.tarikh || '';
+      desc.innerHTML = item.penerangan.replace(/\n/g, '<br>');
+      
+      // Version dots (between versions)
+      dots.innerHTML = cachedChangelog.map((_, i) =>
+        `<button class="carousel-dot ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-idx="${i}"></button>`
+      ).join('');
+      
+      dots.querySelectorAll('.carousel-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          currentIndex = parseInt(dot.dataset.idx);
+          renderItem(currentIndex, true);
+          updateButtons();
+        });
+      });
+
+      updateButtons();
+      slide.style.animation = 'none';
+      slide.offsetHeight;
+      slide.style.animation = 'fadeSlideIn 0.4s ease';
+    }
+
+    function updateButtons() {
+      prevBtn.style.display = currentIndex === 0 ? 'none' : '';
+      nextBtn.style.display = currentIndex < cachedChangelog.length - 1 ? '' : 'none';
+      closeBtn.style.display = currentIndex >= cachedChangelog.length - 1 ? '' : 'none';
+    }
+
+    prevBtn.onclick = () => {
+      if (currentIndex > 0) { currentIndex--; renderItem(currentIndex, true); }
+    };
+    nextBtn.onclick = () => {
+      if (currentIndex < cachedChangelog.length - 1) { currentIndex++; renderItem(currentIndex, true); }
+    };
+    closeBtn.onclick = () => {
+      overlay.style.display = 'none';
+      updateUserLastSeenVersion(email, latestVersion);
+    };
+
+    renderItem(0, true);
+    overlay.style.display = 'flex';
   }
 
   function populateWhatsAppDropdown() {
@@ -8049,9 +8330,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
 
-  // V6.6.0: Update badge merah di tab Senarai untuk pelulus
+  // V6.6.0: Update badge merah di tab inbox untuk pelulus
   function updatePelulusInboxBadge(count) {
-    const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
+    const tabBtn = currentUser && currentUser.role === 'PELULUS'
+      ? document.querySelector('.tab-btn[data-target="inbox"]')
+      : document.querySelector('.tab-btn[data-tab="tab-list"]');
     if (!tabBtn) return;
     const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
     if (existingBadge) existingBadge.remove();
@@ -8587,7 +8870,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     filtered.forEach((item, index) => {
       const wrapper = document.createElement('div');
-      wrapper.className = 'app-item-wrapper';
+      wrapper.className = 'app-item-wrapper' + (type === 'inbox' ? ' inbox-pending' : '');
       
       const numberDiv = document.createElement('div');
       numberDiv.className = 'app-item-number';
@@ -8640,8 +8923,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnContainer.appendChild(btnDelete);
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
-        btn.className = 'btn-sm btn-view';
-        btn.innerText = 'Proses';
+        btn.className = 'btn-sm btn-proses';
+        btn.innerText = '⚡ Proses';
         btn.onclick = function() { loadRecordToPelulus(item); }; 
         btnContainer.appendChild(btn);
       } else if (type === 'submitted') {
@@ -12637,11 +12920,11 @@ function renderInbox() {
           </div>
           ${hasWhatsAppLinks ? `
           <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="inbox-btn inbox-btn-wa-pilih" data-index="${index}" style="background:#25D366; color:white; font-weight:bold;">💬 Pilih & Hantar WhatsApp</button>
+            <button class="inbox-btn-wa-pilih" data-index="${index}">💬 Pilih & Hantar WhatsApp</button>
           </div>` : ''}
         </div>
         <div class="inbox-actions">
-          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
+          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
         </div>
       </div>
@@ -12653,15 +12936,17 @@ function renderInbox() {
   // WhatsApp selection modal buttons
   inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       closeInboxModal(); // Tutup modal dulu
-      const idx = parseInt(e.target.getAttribute('data-index'));
+      const idx = parseInt(e.currentTarget.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg) return;
       openWhatsAppPicker(msg, idx);
     });
   });
   
-  inboxList.innerHTML = html;
+  // Pastikan DOM stabil sebelum attach event listeners lain
+  // (Tiada innerHTML kedua - guna DOM yang sedia ada)
   
   // Delete buttons
   inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
@@ -12725,6 +13010,7 @@ function renderInbox() {
   inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
     item.addEventListener('click', async (e) => {
       if (e.target.closest('.inbox-actions')) return;
+      if (e.target.closest('button')) return; // Jangan mark as read jika klik button
       const idx = parseInt(item.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg || msg.dibaca) return;
