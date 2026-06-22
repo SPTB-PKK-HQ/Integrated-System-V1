@@ -8330,9 +8330,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
 
-  // V6.6.0: Update badge merah di tab Senarai untuk pelulus
+  // V6.6.0: Update badge merah di tab inbox untuk pelulus
   function updatePelulusInboxBadge(count) {
-    const tabBtn = document.querySelector('.tab-btn[data-tab="tab-list"]');
+    const tabBtn = currentUser && currentUser.role === 'PELULUS'
+      ? document.querySelector('.tab-btn[data-target="inbox"]')
+      : document.querySelector('.tab-btn[data-tab="tab-list"]');
     if (!tabBtn) return;
     const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
     if (existingBadge) existingBadge.remove();
@@ -12918,11 +12920,11 @@ function renderInbox() {
           </div>
           ${hasWhatsAppLinks ? `
           <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="inbox-btn inbox-btn-wa-pilih" data-index="${index}" style="background:#25D366; color:white; font-weight:bold;">💬 Pilih & Hantar WhatsApp</button>
+            <button class="inbox-btn-wa-pilih" data-index="${index}">💬 Pilih & Hantar WhatsApp</button>
           </div>` : ''}
         </div>
         <div class="inbox-actions">
-          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
+          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
         </div>
       </div>
@@ -12934,15 +12936,17 @@ function renderInbox() {
   // WhatsApp selection modal buttons
   inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       closeInboxModal(); // Tutup modal dulu
-      const idx = parseInt(e.target.getAttribute('data-index'));
+      const idx = parseInt(e.currentTarget.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg) return;
       openWhatsAppPicker(msg, idx);
     });
   });
   
-  inboxList.innerHTML = html;
+  // Pastikan DOM stabil sebelum attach event listeners lain
+  // (Tiada innerHTML kedua - guna DOM yang sedia ada)
   
   // Delete buttons
   inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
@@ -13006,6 +13010,7 @@ function renderInbox() {
   inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
     item.addEventListener('click', async (e) => {
       if (e.target.closest('.inbox-actions')) return;
+      if (e.target.closest('button')) return; // Jangan mark as read jika klik button
       const idx = parseInt(item.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg || msg.dibaca) return;

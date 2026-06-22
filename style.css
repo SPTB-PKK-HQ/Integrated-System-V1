@@ -2070,7 +2070,7 @@
             align-items: flex-start;
             padding: 15px;
             border-bottom: 1px solid #f1f5f9;
-            transition: background 0.2s;
+            transition: background 0.2s, border-color 0.2s;
             gap: 12px;
         }
         .inbox-item:hover {
@@ -2158,4 +2158,37 @@
         .inbox-badge-warning {
             background: #fef3c7;
             color: #92400e;
+        }
+        .inbox-btn-wa-pilih {
+            background: #25D366;
+            color: white;
+            font-weight: bold;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(37,211,102,0.2);
+        }
+        .inbox-btn-wa-pilih:hover {
+            background: #1da851;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37,211,102,0.3);
+        }
+        .inbox-btn-wa-pilih:active {
+            transform: translateY(0);
+        }
+        /* Styling tambahan untuk inbox */
+        #inboxList {
+            scroll-behavior: smooth;
+        }
+        .inbox-item.unread:hover {
+            background: #dbeafe;
+        }
+        .inbox-item .inbox-content {
+            cursor: default;
+        }
+        .inbox-item.unread .inbox-content {
+            cursor: pointer;
         }
