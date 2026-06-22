@@ -16,7 +16,7 @@
             width: 100%;
             overflow-x: hidden;
             color: #333;
-            background: linear-gradient(-45deg, #10b981, #facc15, #3b82f6, #06b6d4);
+            background: linear-gradient(-45deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 65%, white), color-mix(in srgb, var(--theme-color) 45%, black), color-mix(in srgb, var(--theme-color) 80%, #444));
             background-size: 400% 400%;
             animation: gradientBG 15s ease infinite;
             min-height: 100vh;
@@ -62,7 +62,7 @@
             align-items: center;
             gap: 10px;
             transition: transform 0.2s;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
         }
         #mobileMenuBtn:active { transform: scale(0.95); }
 
@@ -294,7 +294,7 @@
             font-weight: 700;
             color: #1e40af;
             margin-bottom: 20px;
-            background: linear-gradient(90deg, #1e40af, #3b82f6, #1e40af);
+            background: linear-gradient(90deg, color-mix(in srgb, var(--theme-color) 70%, black), var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, black));
             background-size: 200% auto;
             background-clip: text;
             -webkit-background-clip: text;
@@ -325,10 +325,10 @@
         .loading-dots span {
             width: 12px;
             height: 12px;
-            background: linear-gradient(135deg, var(--theme-color), #1d4ed8);
+            background: linear-gradient(135deg, color-mix(in srgb, var(--theme-color) 85%, white), var(--theme-color));
             border-radius: 50%;
             animation: bounce 1.4s infinite ease-in-out;
-            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 4px 8px color-mix(in srgb, var(--theme-color) 40%, transparent);
         }
 
         .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
@@ -382,7 +382,7 @@
         .loading-progress-bar-fill {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, var(--theme-color), #60a5fa);
+            background: linear-gradient(90deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, white));
             border-radius: 5px;
             transition: width 0.3s ease-out;
             position: relative;
@@ -1374,7 +1374,7 @@
         /* HERO */
         .landing-hero {
             position: relative;
-            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #1d4ed8 100%);
+            background: linear-gradient(135deg, color-mix(in srgb, var(--theme-color) 60%, #0f172a) 0%, var(--theme-color) 50%, color-mix(in srgb, var(--theme-color) 80%, black) 100%);
             border-radius: 24px;
             padding: 40px 30px;
             overflow: hidden;
@@ -1577,7 +1577,7 @@
         }
 
         .changelog-badge {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
             color: white;
             padding: 3px 12px;
             border-radius: 20px;
@@ -1722,7 +1722,7 @@
         }
         .changelog-panel-tag {
             display: inline-block;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
             color: white;
             padding: 2px 12px;
             border-radius: 20px;
@@ -1800,7 +1800,7 @@
             margin: 0;
         }
         .changelog-modal-version {
-            background: linear-gradient(135deg, #10b981, #059669);
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
             color: white;
             padding: 3px 12px;
             border-radius: 20px;
@@ -2013,7 +2013,7 @@
         }
         .carousel-btn-prev:hover { background: rgba(255,255,255,0.12); color: #e2e8f0; }
         .carousel-btn-next {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
             color: white;
         }
         .carousel-btn-next:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(59,130,246,0.3); }

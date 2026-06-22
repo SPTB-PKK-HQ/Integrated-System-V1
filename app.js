@@ -6262,6 +6262,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       renderFilteredList(activeListType);
     });
   }
+  
+  const btnClearPelulusFilter = document.getElementById('btnClearPelulusFilter');
+  if (btnClearPelulusFilter) {
+    btnClearPelulusFilter.addEventListener('click', () => {
+      document.querySelectorAll('#pelulusFilterButtonsContainer button').forEach(btn => {
+        btn.style.backgroundColor = '#f3f4f6';
+        btn.style.color = '#374151';
+        btn.style.fontWeight = 'normal';
+      });
+      storageWrapper.set({ 'stb_filter_pelulus': '' });
+      renderFilteredList(activeListType);
+    });
+  }
 
   function updatePengesyorFilter() {
     if (!pengesyorFilterButtonsContainer) return;
@@ -7462,11 +7475,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           submittedFiltersContainer.style.display = 'flex';
         }
         
-        // For KETUA SEKSYEN, also show pengesyor filter
-        if (currentUser.role === 'KETUA SEKSYEN') {
-          if (filterSection) {
-            filterSection.style.display = 'flex';
-            updatePengesyorFilter();
+        // For KETUA SEKSYEN/PENGARAH, show pelulus filter instead of pengesyor
+        if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+          if (pelulusFilterSection) {
+            pelulusFilterSection.style.display = 'flex';
+            updatePelulusFilter();
           }
         }
         
@@ -7479,8 +7492,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             tabList.classList.add('active');
         }
         
-        // V6.6.0: Buang filter pengesyor untuk Pelulus inbox
-        if (currentUser.role !== 'PELULUS' && filterSection) {
+        if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+          if (filterSection) {
+            filterSection.style.display = 'flex';
+            updatePengesyorFilter();
+          }
+          if (draftFiltersContainer) {
+            draftFiltersContainer.style.display = 'flex';
+          }
+          if (submittedFiltersContainer) {
+            submittedFiltersContainer.style.display = 'none';
+          }
+        } else if (currentUser.role !== 'PELULUS' && filterSection) {
             filterSection.style.display = 'flex';
             updatePengesyorFilter();
         }
@@ -7500,6 +7523,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (pelulusFilterSection) {
           pelulusFilterSection.style.display = 'flex';
           updatePelulusFilter();
+        }
+        // For KETUA SEKSYEN/PENGARAH, also show pengesyor filter in Sejarah
+        if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+          if (filterSection) {
+            filterSection.style.display = 'flex';
+            updatePengesyorFilter();
+          }
         }
         
         fetchAndRenderList('history');
@@ -8361,8 +8391,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
      else if (type === 'inbox') {
        	// Filter logic for inbox
-      if (currentUser.role === 'KETUA_SEKSYEN') {
-        // Untuk Ketua Seksyen, "Belum Syor" bermaksud semua rekod yang belum ada tarikh_syor (dari SEMUA pengesyor)
+      if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
         filtered = cachedData.filter(i => !i.tarikh_syor);
       } else if (currentUser.role === 'PELULUS') {
         // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya
@@ -8503,6 +8532,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
     
+    if ((type === 'inbox') && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
+      if (currentDraftFilter !== 'ALL') {
+        if (currentDraftFilter === 'SPI') {
+          filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
+        } else {
+          filtered = filtered.filter(item => item.jenis === currentDraftFilter);
+        }
+      }
+    }
+    
     if (type === 'history') {
       if (currentHistoryStatusFilter !== 'ALL') {
         if (currentHistoryStatusFilter === 'LULUS') {
@@ -8520,11 +8559,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     if ((type === 'inbox' || type === 'submitted' || type === 'history') && (currentUser.role === 'PELULUS' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
       storageWrapper.get(['stb_filter_pengesyor', 'stb_filter_pelulus']).then(result => {
-        if (type !== 'history' && result.stb_filter_pengesyor) {
+        if (type === 'inbox' && result.stb_filter_pengesyor) {
           filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+        }
+        if (type === 'submitted' && result.stb_filter_pelulus && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
+          filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
         }
         if (type === 'history' && result.stb_filter_pelulus) {
           filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
+        }
+        if (type === 'history' && result.stb_filter_pengesyor) {
+          filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
         }
         displayFilteredItems(filtered, type);
       });
