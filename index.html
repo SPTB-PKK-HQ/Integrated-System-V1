@@ -75,30 +75,6 @@
                 </div>
             </div>
 
-            <!-- Changelog Section -->
-            <div class="landing-changelog">
-                <div class="changelog-header">
-                    <span class="changelog-icon">✨</span>
-                    <span class="changelog-title">Apa Yang Baru?</span>
-                    <span class="changelog-badge" id="changelogCount">0</span>
-                </div>
-                <div class="changelog-carousel">
-                    <div class="changelog-slider-wrap">
-                        <div class="changelog-slider" id="changelogSlider"></div>
-                        <button class="changelog-arrow changelog-arrow-prev" id="clArrowPrev">‹</button>
-                        <button class="changelog-arrow changelog-arrow-next" id="clArrowNext">›</button>
-                    </div>
-                    <div class="changelog-dots" id="clDots"></div>
-                </div>
-                <div class="changelog-panel" id="changelogPanel" style="display:none;">
-                    <div class="changelog-panel-inner">
-                        <span class="changelog-panel-tag" id="panelVersionTag"></span>
-                        <span class="changelog-panel-date" id="panelDate"></span>
-                        <div class="changelog-panel-desc" id="panelDesc"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Feature Cards -->
             <div class="landing-features">
                 <div class="feature-card">
@@ -120,6 +96,18 @@
                     <div class="feature-icon">📁</div>
                     <div class="feature-title">Google Drive</div>
                     <div class="feature-desc">Folder automatik, simpanan PDF berwarna dan QR profile</div>
+                </div>
+            </div>
+
+            <!-- Changelog Section -->
+            <div class="landing-changelog">
+                <div class="changelog-header">
+                    <span class="changelog-icon">📢</span>
+                    <span class="changelog-title">Apa Yang Baru?</span>
+                    <span class="changelog-badge" id="changelogCount">0</span>
+                </div>
+                <div class="changelog-list" id="changelogList">
+                    <div class="changelog-loading">Memuatkan perubahan terkini...</div>
                 </div>
             </div>
 
@@ -821,42 +809,6 @@
                 </div>
             </div>
         </div>
-
-    <!-- V6.6.0: CHANGELOG WALKTHROUGH CAROUSEL MODAL -->
-    <div id="changelogOverlay" class="changelog-overlay" style="display:none;">
-        <div class="changelog-modal">
-            <div class="changelog-modal-header">
-                <span class="changelog-modal-icon">✨</span>
-                <h2 class="changelog-modal-title">Apa Yang Baru?</h2>
-                <span class="changelog-modal-version" id="clVersionBadge">V6.6.0</span>
-            </div>
-            <div class="changelog-carousel">
-                <div class="carousel-slide" id="carouselSlide">
-                    <div class="carousel-image-container" id="carouselImageContainer">
-                        <div class="carousel-image-placeholder" id="carouselImagePlaceholder">
-                            <span class="carousel-image-icon">🚀</span>
-                        </div>
-                    </div>
-                    <div class="carousel-content">
-                        <div class="carousel-stepper">
-                            <span class="step-indicator active"></span>
-                        </div>
-                        <div class="carousel-body" id="carouselBody">
-                            <h3 class="carousel-version">V6.6.0</h3>
-                            <div class="carousel-date" id="carouselDate">21 Jun 2026</div>
-                            <div class="carousel-desc" id="carouselDesc"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="changelog-modal-footer">
-                <button class="carousel-btn carousel-btn-prev" id="carouselPrev">← Sebelum</button>
-                <div class="carousel-dots" id="carouselDots"></div>
-                <button class="carousel-btn carousel-btn-next" id="carouselNext">Seterusnya →</button>
-                <button class="carousel-btn carousel-btn-close" id="carouselClose" style="display:none;">✕ Tutup</button>
-            </div>
-        </div>
-    </div>
 
     </div> <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
