@@ -379,6 +379,9 @@ function doGet(e) {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
       result = getApplicationsData(role, userName, '');
+    } else if (action === "getRow") {
+      const rowNum = parseInt(e.parameter.row);
+      result = getSingleRowData(rowNum);
     } else {
       result = getApplicationsData(role, userName, clientVersion);
     }
@@ -2244,6 +2247,37 @@ function getApplicationsData(role, userName, clientVersion) {
   // Filter dan return
   const filtered = filterRowsByRole(allRows, role, userName);
   return createJSONOutput({ cached: false, data: filtered, version: currentVersion });
+}
+
+function getSingleRowData(rowNum) {
+  if (!rowNum || rowNum < 2) return createJSONOutput({ status: 'error', message: 'Row tidak sah' });
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const lastRow = sheet.getLastRow();
+    if (rowNum > lastRow) return createJSONOutput({ status: 'error', message: 'Row melebihi had' });
+    const dataRange = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS);
+    const row = dataRange.getDisplayValues()[0];
+    if (!row[0] || row[0].toString().trim() === '') return createJSONOutput({ status: 'error', message: 'Row kosong' });
+    return createJSONOutput({
+      status: 'success',
+      data: {
+        row: rowNum,
+        syarikat: row[0], cidb: row[1], gred: row[2], jenis: row[3], negeri: row[4],
+        tarikh_surat_terdahulu: row[5], tatatertib: row[6], start_date: row[7],
+        syor_lawatan: row[8], date_submit: row[9], pautan: row[10], justifikasi: row[11],
+        pengesyor: row[12], syor_status: row[13], tarikh_syor: row[14],
+        status_hantar_spi: row[15] || "", tarikh_hantar_spi: row[16] || "",
+        lawatan_tarikh: row[17], lawatan_submit_sptb: row[18], lawatan_syor: row[19],
+        alamat_perniagaan: row[20], jenis_konsultansi: row[21] || "", alasan: row[22],
+        kelulusan: row[23], tarikh_lulus: row[24], pelulus: row[25],
+        ubah_maklumat: row[26], ubah_gred: row[27], borang_json: row[28] || "",
+        whatsapp_schedule: row[29] || "", inbox: row[30] || ""
+      }
+    });
+  } catch (e) {
+    return createJSONOutput({ status: 'error', message: e.toString() });
+  }
 }
 
 function filterRowsByRole(rows, role, userName) {

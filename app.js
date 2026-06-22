@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwANAxUpRJ8LxGInkU0Ul6AcPcMLn2enknF5zA0749x98fxvoqSXUrEbfH1nRLVlBjS/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxM-YkO74xwBume07BYN9TaD7OJxTXu8qyv9pOmH9UbWJATlDzwDTbkbLQH_lKbInsU/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -8221,12 +8221,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  function fetchAndRenderList(listType) {
+  function fetchAndRenderList(listType, silent) {
     if (!listStatus) return;
 
     activeListType = listType; 
 
-    simulateLoadingWithSteps(
+    if (!silent) simulateLoadingWithSteps(
       [
         'Menyambung ke pelayan...',
         'Memuat turun data terkini...',
@@ -12823,7 +12823,7 @@ async function fetchInbox() {
       if (currentUser.role === 'PELULUS') {
         window.pelulusForceRefresh = setTimeout(() => {
           activeListType = 'inbox';
-          fetchAndRenderList('inbox');
+          fetchAndRenderList('inbox', true);
         }, 500);
       }
     }
@@ -12871,8 +12871,15 @@ function renderInbox() {
   const toolbar = document.getElementById('inboxBatchToolbar');
   if (toolbar) toolbar.style.display = 'flex';
   
+  const searchVal = (document.getElementById('inboxSearchInput')?.value || '').toLowerCase().trim();
   let html = '';
   cachedInboxData.forEach((msg, index) => {
+    if (searchVal) {
+      const match = (msg.syarikat && msg.syarikat.toLowerCase().includes(searchVal)) ||
+        (msg.mesej && msg.mesej.toLowerCase().includes(searchVal)) ||
+        (msg.jenis && msg.jenis.toLowerCase().includes(searchVal));
+      if (!match) return;
+    }
     const isUnread = !msg.dibaca;
     const iconMap = { 'SUCCESS': '✅', 'ERROR': '❌', 'WARNING': '⚠️', 'INFO': 'ℹ️' };
     const icon = iconMap[msg.jenisMsg] || 'ℹ️';
@@ -12919,7 +12926,7 @@ function renderInbox() {
           </div>` : ''}
         </div>
         <div class="inbox-actions">
-          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>` : ''}
+          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
         </div>
       </div>
@@ -12933,8 +12940,9 @@ function renderInbox() {
   
   function updateSelectedCount() {
     const checked = inboxList.querySelectorAll('.inbox-item-cb:checked').length;
+    const total = inboxList.querySelectorAll('.inbox-item-cb').length;
     if (selectedCountEl) selectedCountEl.textContent = checked + ' dipilih';
-    if (selectAllCb) selectAllCb.checked = checked === cachedInboxData.length;
+    if (selectAllCb) selectAllCb.checked = total > 0 && checked === total;
   }
   
   if (selectAllCb) {
@@ -13013,8 +13021,17 @@ function renderInbox() {
       }
       closeInboxModal();
       const itemRow = parseInt(row);
-      if (!itemRow || !cachedData) return;
-      const item = cachedData.find(d => d.row === itemRow);
+      if (!itemRow) return;
+      let item = cachedData ? cachedData.find(d => d.row === itemRow) : null;
+      if (!item) {
+        try {
+          const resp = await fetchWithRetry(SCRIPT_URL + '?action=getRow&row=' + itemRow + '&t=' + Date.now(), { method: 'GET' }, 2, 1000);
+          const result = await resp.json();
+          if (result.status === 'success' && result.data) {
+            item = result.data;
+          }
+        } catch (e) {}
+      }
       if (item) viewRecordOnly(item);
     });
   });
@@ -13427,6 +13444,11 @@ if (inboxModal) {
 
 if (btnRefreshInbox) {
   btnRefreshInbox.addEventListener('click', fetchInbox);
+}
+
+const inboxSearchInput = document.getElementById('inboxSearchInput');
+if (inboxSearchInput) {
+  inboxSearchInput.addEventListener('input', () => renderInbox());
 }
 
 // V6.6.0: Butang Lihat Semua (tanda semua dibaca)
