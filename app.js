@@ -8485,7 +8485,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
     }
     
-    if ((type === 'drafts' || type === 'inbox') && currentDraftFilter !== 'ALL') {
+    if (type === 'drafts' && currentDraftFilter !== 'ALL') {
       if (currentDraftFilter === 'SPI') {
         filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
       } else {
