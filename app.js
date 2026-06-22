@@ -8245,9 +8245,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       hideLoading();
     }
 
+    const roleParam = currentUser ? `&role=${encodeURIComponent(currentUser.role)}&userName=${encodeURIComponent(currentUser.name)}` : '';
     const versionParam = (!isInboxPelulus && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
+    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + roleParam + versionParam, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -12816,6 +12817,16 @@ async function fetchInbox() {
     if (result.status === 'success') {
       cachedInboxData = result.inbox || [];
       renderInbox();
+      // V6.7.0: Bila inbox notification dapat data baru, paksa refresh data aplikasi untuk Pelulus
+      if (currentUser.role === 'PELULUS' && window.pelulusForceRefresh) {
+        clearTimeout(window.pelulusForceRefresh);
+      }
+      if (currentUser.role === 'PELULUS') {
+        window.pelulusForceRefresh = setTimeout(() => {
+          activeListType = 'inbox';
+          fetchAndRenderList('inbox');
+        }, 500);
+      }
     }
   } catch (e) {
     console.error('Gagal fetch inbox:', e);
@@ -13503,10 +13514,11 @@ function startTabAutoRefresh() {
     try {
       // Inbox: tanpa version param (paksa server baca fresh dari sheet)
       // Dashboard: guna version param untuk lightweight check
+      const roleParam = currentUser ? `&role=${encodeURIComponent(currentUser.role)}&userName=${encodeURIComponent(currentUser.name)}` : '';
       const versionParam = (!forceNoCache && dataCacheVersion)
         ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
       const response = await fetchWithRetry(
-        SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam,
+        SCRIPT_URL + '?action=getData&t=' + Date.now() + roleParam + versionParam,
         { method: 'GET', redirect: 'follow' }, 3, 1000
       );
       if (!response.ok) return;
