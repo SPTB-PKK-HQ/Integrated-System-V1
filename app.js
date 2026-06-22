@@ -8340,8 +8340,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (existingBadge) existingBadge.remove();
     if (count === undefined && currentUser && cachedData) {
       const user = currentUser.name.toUpperCase();
-      count = cachedData.filter(i => i.tarikh_syor && i.pelulus && i.pelulus.toUpperCase() === user
-        && (!i.tarikh_lulus || i.tarikh_lulus === '')).length;
+      count = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
+        && i.pelulus && String(i.pelulus).trim().toUpperCase() === user
+        && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === '')).length;
     }
     if (count > 0) {
       const badge = document.createElement('span');
@@ -8387,15 +8388,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         filtered = cachedData.filter(i => !i.tarikh_syor);
       } else if (currentUser.role === 'PELULUS') {
         // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya
-        filtered = cachedData.filter(i => i.tarikh_syor && i.pelulus && i.pelulus.toUpperCase() === user
-          && (!i.tarikh_lulus || i.tarikh_lulus === ''));
+        filtered = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
+          && i.pelulus && String(i.pelulus).trim().toUpperCase() === user
+          && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === ''));
       } else {
         // Original logic for Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
       }
     } else if (type === 'history') {
       if (currentUser.role === 'PELULUS') {
-        filtered = cachedData.filter(i => i.tarikh_lulus && i.pelulus && i.pelulus.toUpperCase() === user);
+        filtered = cachedData.filter(i => i.tarikh_lulus && String(i.tarikh_lulus).trim() !== ''
+          && i.pelulus && String(i.pelulus).trim().toUpperCase() === user);
       } else {
         filtered = cachedData.filter(i => i.tarikh_lulus);
       }
