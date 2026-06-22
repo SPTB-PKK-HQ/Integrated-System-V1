@@ -10118,6 +10118,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (waMasa) waMasa.value = '';
     if (waAyat) waAyat.value = '';
 
+    const alamatTextarea = document.getElementById('db_alamat_perniagaan');
+    if (alamatTextarea) { alamatTextarea.value = ''; alamatTextarea.style.display = 'none'; }
+    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
+    if (btnToggleAlamat) btnToggleAlamat.textContent = '\u{1F3E2} Papar/Sembunyi Alamat Perniagaan';
+
     const dbPerubahanContainer = document.getElementById('db_perubahan_container');
     if (dbPerubahanContainer) dbPerubahanContainer.style.display = 'none';
 
@@ -10891,8 +10896,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       console.log("V6.5.2 btnPergiCiptaProfile clicked - Navigating to Profile tab and copying Drive link");
       
       const dbPautanValue = document.getElementById('db_pautan')?.value || '';
+      const dbJustifikasiValue = document.getElementById('db_justifikasi')?.value || '';
       
       switchTab('profile');
+      
+      const profileJenisPerubahan = document.getElementById('profile_jenis_perubahan');
+      if (profileJenisPerubahan && dbJustifikasiValue.trim() !== '') {
+        profileJenisPerubahan.value = dbJustifikasiValue;
+      }
       
       if (dbPautanValue && dbPautanValue.trim() !== '') {
         const profilePautanDriveField = document.getElementById('profile_pautan_drive');
