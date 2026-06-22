@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyGXlZL1E6_9Nxcqbp3k1QOAwVN_MMUMynCjyHWCnCIkTWQRkE6I5145KBbVIL2X1GR/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwANAxUpRJ8LxGInkU0Ul6AcPcMLn2enknF5zA0749x98fxvoqSXUrEbfH1nRLVlBjS/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -13355,6 +13355,64 @@ if (inboxModal) {
 
 if (btnRefreshInbox) {
   btnRefreshInbox.addEventListener('click', fetchInbox);
+}
+
+// V6.6.0: Butang Lihat Semua (tanda semua dibaca)
+const btnMarkAllRead = document.getElementById('btnMarkAllRead');
+if (btnMarkAllRead) {
+  btnMarkAllRead.addEventListener('click', async () => {
+    const confirmed = await CustomAppModal.confirm(
+      'Tandakan SEMUA mesej sebagai dibaca?',
+      'Lihat Semua', 'info', 'Ya, Tandakan', true
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'markAllInboxRead', email: currentUser.email })
+      }, 3, 1000);
+      const result = await response.json();
+      if (result.status === 'success') {
+        cachedInboxData.forEach(m => m.dibaca = true);
+        renderInbox();
+        await CustomAppModal.alert('Semua mesej ditandakan sebagai dibaca', 'Selesai', 'success');
+      } else {
+        await CustomAppModal.alert('Gagal: ' + result.message, 'Ralat', 'error');
+      }
+    } catch (e) {
+      await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
+    }
+  });
+}
+
+// V6.6.0: Butang Padam Semua
+const btnDeleteAllInbox = document.getElementById('btnDeleteAllInbox');
+if (btnDeleteAllInbox) {
+  btnDeleteAllInbox.addEventListener('click', async () => {
+    const confirmed = await CustomAppModal.confirm(
+      'Padam SEMUA mesej inbox? Tindakan ini tidak boleh dikembalikan.',
+      'Padam Semua', 'warning', 'Ya, Padam Semua', false
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'deleteAllInbox', email: currentUser.email })
+      }, 3, 1000);
+      const result = await response.json();
+      if (result.status === 'success') {
+        cachedInboxData = [];
+        renderInbox();
+        await CustomAppModal.alert('Semua mesej berjaya dipadam', 'Selesai', 'success');
+      } else {
+        await CustomAppModal.alert('Gagal: ' + result.message, 'Ralat', 'error');
+      }
+    } catch (e) {
+      await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
+    }
+  });
 }
 
 // V6.6.0: Force refresh data dari sheet

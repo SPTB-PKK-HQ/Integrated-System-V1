@@ -523,6 +523,14 @@ function doPost(e) {
       return handleMarkInboxRead(data);
     }
     
+    // V6.6.0: Handler untuk markAllInboxRead & deleteAllInbox
+    if (data.action === 'markAllInboxRead') {
+      return handleMarkAllInboxRead(data);
+    }
+    if (data.action === 'deleteAllInbox') {
+      return handleDeleteAllInbox(data);
+    }
+    
     // V6.6.0: Handler untuk user version tracking
     if (data.action === 'getUserLastSeenVersion') {
       return handleGetUserLastSeenVersion(data.email);
@@ -1641,7 +1649,19 @@ function handleUpdateRecord(data, sheet) {
     if (isUndoSyor || isUndoLulus) {
       try {
         const syarikat = data.syarikat || existingData[0] || '';
-        addInboxToRow(rowNum, data.pelulus || existingData[25] || existingData[12] || '', `↩️ Undo: ${isUndoLulus ? 'Keputusan pelulus' : 'Syor'} untuk ${syarikat}`, 'INFO');
+        const pelulusName = data.pelulus || existingData[25] || '';
+        const pengesyorName = existingData[12] || '';
+        if (isUndoSyor) {
+          if (pengesyorName) {
+            addInboxToRow(rowNum, pengesyorName, '\u{1F519} Anda telah tarik balik syor untuk ' + syarikat, 'INFO');
+          }
+          if (pelulusName) {
+            addInboxToRow(rowNum, pelulusName, '\u{1F519} Permohonan ' + syarikat + ' telah ditarik balik oleh pengesyor', 'WARNING');
+          }
+        }
+        if (isUndoLulus) {
+          addInboxToRow(rowNum, pelulusName || existingData[12] || '', '\u{1F519} Anda telah undo keputusan untuk ' + syarikat, 'INFO');
+        }
       } catch (e) {}
     }
 
@@ -3544,6 +3564,136 @@ function handleMarkInboxRead(data) {
     sheet.getRange(row, 31).setValue(JSON.stringify(messages));
     
     return createJSONOutput({ status: 'success', message: 'Mesej ditandakan dibaca' });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi handleMarkAllInboxRead: Tandakan SEMUA inbox sebagai dibaca untuk pengguna ini
+ */
+function handleMarkAllInboxRead(data) {
+  try {
+    const email = data.email || '';
+    if (!email) {
+      return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
+    }
+    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ status: 'error', message: accessCheck.error });
+    }
+    const userRole = accessCheck.userProfile.role;
+    const userName = accessCheck.userProfile.name;
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return createJSONOutput({ status: 'success' });
+    
+    for (let r = 2; r <= lastRow; r++) {
+      const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getDisplayValues()[0];
+      if (!rowData[0] || rowData[0].toString().trim() === '') continue;
+      
+      const inboxStr = sheet.getRange(r, 31).getValue() || '[]';
+      let messages = [];
+      try { messages = JSON.parse(inboxStr); } catch (e) { continue; }
+      if (!messages.length) continue;
+      
+      let changed = false;
+      messages = messages.map(function(msg) {
+        var shouldShow = false;
+        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+          shouldShow = true;
+        } else if (msg.role === userRole) {
+          shouldShow = true;
+        } else if (msg.role === 'ALL') {
+          shouldShow = true;
+        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
+          shouldShow = true;
+        }
+        if (userRole === 'PENGESYOR') {
+          var rowPengesyor = rowData[12] || '';
+          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
+            shouldShow = false;
+          }
+        }
+        if (shouldShow && !msg.dibaca) {
+          msg.dibaca = true;
+          changed = true;
+        }
+        return msg;
+      });
+      
+      if (changed) {
+        sheet.getRange(r, 31).setValue(JSON.stringify(messages));
+      }
+    }
+    
+    return createJSONOutput({ status: 'success', message: 'Semua mesej ditandakan dibaca' });
+    
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi handleDeleteAllInbox: Padam SEMUA inbox untuk pengguna ini
+ */
+function handleDeleteAllInbox(data) {
+  try {
+    const email = data.email || '';
+    if (!email) {
+      return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
+    }
+    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ status: 'error', message: accessCheck.error });
+    }
+    const userRole = accessCheck.userProfile.role;
+    const userName = accessCheck.userProfile.name;
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return createJSONOutput({ status: 'success' });
+    
+    for (let r = 2; r <= lastRow; r++) {
+      const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getDisplayValues()[0];
+      if (!rowData[0] || rowData[0].toString().trim() === '') continue;
+      
+      const inboxStr = sheet.getRange(r, 31).getValue() || '[]';
+      let messages = [];
+      try { messages = JSON.parse(inboxStr); } catch (e) { continue; }
+      if (!messages.length) continue;
+      
+      var beforeCount = messages.length;
+      messages = messages.filter(function(msg) {
+        var shouldDelete = false;
+        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+          shouldDelete = true;
+        } else if (msg.role === userRole) {
+          shouldDelete = true;
+        } else if (msg.role === 'ALL') {
+          shouldDelete = true;
+        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
+          shouldDelete = true;
+        }
+        if (userRole === 'PENGESYOR') {
+          var rowPengesyor = rowData[12] || '';
+          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
+            shouldDelete = false;
+          }
+        }
+        return !shouldDelete;
+      });
+      
+      if (messages.length !== beforeCount) {
+        sheet.getRange(r, 31).setValue(JSON.stringify(messages));
+      }
+    }
+    
+    return createJSONOutput({ status: 'success', message: 'Semua mesej dipadam' });
     
   } catch (error) {
     return createJSONOutput({ status: 'error', message: error.toString() });
