@@ -8870,7 +8870,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     filtered.forEach((item, index) => {
       const wrapper = document.createElement('div');
-      wrapper.className = 'app-item-wrapper';
+      wrapper.className = 'app-item-wrapper' + (type === 'inbox' ? ' inbox-pending' : '');
       
       const numberDiv = document.createElement('div');
       numberDiv.className = 'app-item-number';
@@ -8923,8 +8923,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnContainer.appendChild(btnDelete);
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
-        btn.className = 'btn-sm btn-view';
-        btn.innerText = 'Proses';
+        btn.className = 'btn-sm btn-proses';
+        btn.innerText = '⚡ Proses';
         btn.onclick = function() { loadRecordToPelulus(item); }; 
         btnContainer.appendChild(btn);
       } else if (type === 'submitted') {

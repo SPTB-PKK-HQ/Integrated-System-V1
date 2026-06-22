@@ -869,7 +869,9 @@
 
         .app-item-wrapper { display: flex; align-items: stretch; padding: 15px; border-bottom: 1px solid #f3f4f6; transition: background 0.2s; }
         .app-item-wrapper:hover { background: #f0f9ff; }
-        .app-item-number { font-size: 1.2rem; font-weight: 800; color: #3b82f6; width: 35px; min-width: 35px; display: flex; align-items: center; justify-content: center; margin-right: 15px; border-right: 2px solid #e5e7eb; padding-right: 10px; }
+        .app-item-wrapper.inbox-pending { background: #fffbeb; border-left: 4px solid #f59e0b; }
+        .app-item-wrapper.inbox-pending:hover { background: #fef3c7; }
+        .app-item-number { font-size: 1.2rem; font-weight: 800; color: #3b82f6; width: 50px; min-width: 50px; display: flex; align-items: center; justify-content: center; margin-right: 15px; border-right: 2px solid #e5e7eb; padding-right: 10px; word-break: break-all; text-align: center; }
         .app-item-content { flex: 1; display: flex; justify-content: space-between; align-items: center; }
 
         .app-type-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: white; margin-top: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.1); }
@@ -885,6 +887,8 @@
 
         .btn-sm { padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; border: none; cursor: pointer; color: white; margin-left: 5px; }
         .btn-view { background: #0ea5e9; }
+        .btn-proses { background: #16a34a; font-weight: bold; box-shadow: 0 2px 8px rgba(22,163,74,0.3); }
+        .btn-proses:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.4); }
         .btn-edit { background: #f59e0b; }
         .btn-delete-sm { background: #ef4444; }
 
@@ -995,8 +999,8 @@
         .form-checker-spinner { width: 60px; height: 60px; border: 5px solid rgba(37, 99, 235, 0.1); border-top: 5px solid var(--theme-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
         .form-checker-loading-text { font-size: 1.2rem; font-weight: 600; color: #1e40af; }
 
-        #tab-checker, #tab-list, #tab-pelulus-view, #tab-pelulus-action, #tab-history, #personnelList { overflow-y: hidden !important; max-height: none !important; height: auto !important; }
-        .app-list { overflow-y: hidden !important; max-height: none !important; }
+        #tab-checker, #tab-pelulus-view, #tab-pelulus-action, #tab-history, #personnelList { overflow-y: hidden !important; max-height: none !important; height: auto !important; }
+        #tab-list, .app-list { overflow-y: visible !important; max-height: none !important; }
 
         /* Jadual Boleh Ditatal (Scrollable Table) */
         #detailedAnalysis {
@@ -1006,7 +1010,7 @@
         }
 
         @media (min-width: 900px) {
-            #applicationsList, #historyList { max-height: none !important; height: auto; min-height: auto; overflow-y: hidden !important; }
+            #applicationsList, #historyList { max-height: none !important; height: auto; min-height: auto; overflow-y: visible !important; }
             .dashboard-container { min-height: 80vh; }
             .card { width: 100%; box-sizing: border-box; }
             #personnelList { max-height: none; overflow-y: hidden; }
