@@ -6979,9 +6979,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       initAppBasedOnRole();
     }
     
-    // V6.6.0: Mula auto refresh inbox bila log masuk
+    // V6.6.0: Mula auto refresh inbox & tab bila log masuk
     fetchInbox();
     startInboxAutoRefresh();
+    startTabAutoRefresh();
     
     resetInactivityTimer();
 
@@ -7322,19 +7323,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       setTimeout(() => {
         initializeTickButtons();
         
-        if (!cachedData || cachedData.length === 0) {
-           console.log("V6.5.2 Dashboard: Cache kosong, memuat turun data...");
-           const listType = (currentUser.role === 'PENGESYOR') ? 'drafts' : 'inbox';
-           
-           fetchAndRenderList(listType).then(() => {
-             isDashboardFirstLoad = true; 
-             initializeDashboard();
-           }).catch(err => {
-             showDashboardNoData();
-           });
-        } else {
-           initializeDashboard();
-        }
+        console.log("V6.6.0 Dashboard: Memuat turun data terkini...");
+        const listType = (currentUser.role === 'PENGESYOR') ? 'drafts' : 'inbox';
+        
+        fetchAndRenderList(listType).then(() => {
+          isDashboardFirstLoad = true; 
+          initializeDashboard();
+        }).catch(err => {
+          if (cachedData && cachedData.length > 0) {
+            initializeDashboard();
+          } else {
+            showDashboardNoData();
+          }
+        });
         
         restoreActiveElement();
       }, 200);
@@ -13426,6 +13427,61 @@ function startInboxAutoRefresh() {
       fetchInbox();
     }
   }, 30000); // 30 saat
+}
+
+// V6.6.0: Auto refresh dashboard & inbox tab setiap 30 saat
+let tabAutoRefreshInterval = null;
+
+function startTabAutoRefresh() {
+  if (tabAutoRefreshInterval) clearInterval(tabAutoRefreshInterval);
+  tabAutoRefreshInterval = setInterval(async () => {
+    if (!currentUser || currentUser.role !== 'PELULUS') return;
+    const activeBtn = document.querySelector('.tab-btn.active');
+    if (!activeBtn) return;
+    const tabName = activeBtn.getAttribute('data-target');
+    if (tabName !== 'dashboard' && tabName !== 'inbox') return;
+
+    try {
+      const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+      const response = await fetchWithRetry(
+        SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam,
+        { method: 'GET', redirect: 'follow' }, 3, 1000
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+
+      if (data && data.cached === true) {
+        if (data.version) dataCacheVersion = data.version;
+        return;
+      }
+
+      const newData = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+      if (newData.length > 0) {
+        cachedData = newData;
+        if (data.version) dataCacheVersion = data.version;
+
+        storageWrapper.set({
+          'stb_data_cache': newData,
+          'stb_cache_timestamp': Date.now(),
+          'stb_data_version': dataCacheVersion
+        });
+
+        updateDynamicYears(newData);
+        if (['PELULUS', 'ADMIN', 'KETUA SEKSYEN', 'PENGARAH'].includes(currentUser.role)) {
+          updatePengesyorFilter();
+        }
+        updatePelulusInboxBadge();
+
+        if (tabName === 'dashboard') {
+          initializeDashboard();
+        } else if (tabName === 'inbox') {
+          renderFilteredList('inbox');
+        }
+      }
+    } catch (e) {
+      console.error('Auto refresh tab error:', e);
+    }
+  }, 30000);
 }
 
 }); // <--- PENUTUP UTAMA UNTUK DOMContentLoaded
