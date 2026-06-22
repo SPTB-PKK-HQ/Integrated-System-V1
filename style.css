@@ -2084,6 +2084,18 @@
             background: #eff6ff;
             border-left: 4px solid #2563eb;
         }
+        .inbox-check {
+            display: flex;
+            align-items: center;
+            min-width: 24px;
+            padding-top: 2px;
+        }
+        .inbox-check input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
         .inbox-icon {
             font-size: 1.5rem;
             min-width: 40px;

@@ -8341,7 +8341,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (existingBadge) existingBadge.remove();
     if (count === undefined && currentUser && cachedData) {
       const user = currentUser.name.toUpperCase();
-      count = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
+      count = cachedData.filter(i => i.syarikat && String(i.syarikat).trim() !== ''
+        && i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
         && i.pelulus && String(i.pelulus).trim().toUpperCase() === user
         && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === '')).length;
     }
@@ -8411,9 +8412,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       updateSubmittedBadges(filtered);
     }
     
-    // V6.6.0: Update badge inbox pelulus bila data berubah
-    updatePelulusInboxBadge();
-
     if (type === 'drafts' || (type === 'inbox' && currentUser.role !== 'PELULUS')) {
       const countAll = filtered.length;
       const countBaru = filtered.filter(item => item.jenis === 'BARU').length;
@@ -12875,6 +12873,8 @@ function renderInbox() {
     if (inboxEmpty) inboxEmpty.style.display = 'block';
     if (inboxCount) inboxCount.textContent = '0 mesej';
     updateInboxBadge();
+    const toolbar = document.getElementById('inboxBatchToolbar');
+    if (toolbar) toolbar.style.display = 'none';
     return;
   }
   
@@ -12883,6 +12883,9 @@ function renderInbox() {
   
   const unreadCount = cachedInboxData.filter(m => !m.dibaca).length;
   updateInboxBadge();
+  
+  const toolbar = document.getElementById('inboxBatchToolbar');
+  if (toolbar) toolbar.style.display = 'flex';
   
   let html = '';
   cachedInboxData.forEach((msg, index) => {
@@ -12907,7 +12910,6 @@ function renderInbox() {
       let m;
       while ((m = regex.exec(msg.mesej)) !== null) {
         const url = m[0];
-        // Extract phone number from URL for display
         const phoneMatch = url.match(/wa\.me\/(\d+)/);
         const phone = phoneMatch ? phoneMatch[1] : '';
         waLinks.push({ url, phone, sent: false });
@@ -12917,6 +12919,7 @@ function renderInbox() {
     
     html += `
       <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
+        <div class="inbox-check"><input type="checkbox" class="inbox-item-cb" data-index="${index}"></div>
         <div class="inbox-icon">${icon}</div>
         <div class="inbox-content">
           <div class="inbox-message" style="white-space:pre-line;">${msg.mesej}</div>
@@ -12941,20 +12944,39 @@ function renderInbox() {
   
   inboxList.innerHTML = html;
   
+  const selectAllCb = document.getElementById('inboxSelectAll');
+  const selectedCountEl = document.getElementById('inboxSelectedCount');
+  
+  function updateSelectedCount() {
+    const checked = inboxList.querySelectorAll('.inbox-item-cb:checked').length;
+    if (selectedCountEl) selectedCountEl.textContent = checked + ' dipilih';
+    if (selectAllCb) selectAllCb.checked = checked === cachedInboxData.length;
+  }
+  
+  if (selectAllCb) {
+    selectAllCb.addEventListener('change', () => {
+      inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => cb.checked = selectAllCb.checked);
+      updateSelectedCount();
+    });
+  }
+  
+  inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+  });
+  
+  updateSelectedCount();
+  
   // WhatsApp selection modal buttons
   inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      closeInboxModal(); // Tutup modal dulu
+      closeInboxModal();
       const idx = parseInt(e.currentTarget.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg) return;
       openWhatsAppPicker(msg, idx);
     });
   });
-  
-  // Pastikan DOM stabil sebelum attach event listeners lain
-  // (Tiada innerHTML kedua - guna DOM yang sedia ada)
   
   // Delete buttons
   inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
@@ -12963,7 +12985,7 @@ function renderInbox() {
       const row = e.target.getAttribute('data-row');
       const idx = parseInt(e.target.getAttribute('data-idx'));
       
-      closeInboxModal(); // Tutup modal dulu
+      closeInboxModal();
       
       const confirmed = await CustomAppModal.confirm('Padam mesej ini?', 'Padam Inbox', 'warning', 'Ya, Padam', true);
       if (!confirmed) return;
@@ -12988,13 +13010,12 @@ function renderInbox() {
     });
   });
   
-  // View buttons - navigate to record in pelulus view
+  // View buttons
   inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const msgId = e.target.getAttribute('data-msgid');
       const row = e.target.getAttribute('data-row');
       const idx = parseInt(e.target.getAttribute('data-idx'));
-      // Mark as read
       if (msgId && row && cachedInboxData[idx] && !cachedInboxData[idx].dibaca) {
         try {
           await fetchWithRetry(SCRIPT_URL, {
@@ -13018,7 +13039,8 @@ function renderInbox() {
   inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
     item.addEventListener('click', async (e) => {
       if (e.target.closest('.inbox-actions')) return;
-      if (e.target.closest('button')) return; // Jangan mark as read jika klik button
+      if (e.target.closest('button')) return;
+      if (e.target.closest('.inbox-check')) return;
       const idx = parseInt(item.getAttribute('data-index'));
       const msg = cachedInboxData[idx];
       if (!msg || msg.dibaca) return;
@@ -13035,6 +13057,72 @@ function renderInbox() {
       renderInbox();
     });
   });
+  
+  // Batch: Tandakan Dibaca
+  const btnMarkSelected = document.getElementById('btnMarkSelectedRead');
+  if (btnMarkSelected) {
+    btnMarkSelected.addEventListener('click', async () => {
+      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
+      if (!checked.length) {
+        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
+        return;
+      }
+      closeInboxModal();
+      let success = 0;
+      for (const cb of checked) {
+        const idx = parseInt(cb.getAttribute('data-index'));
+        const msg = cachedInboxData[idx];
+        if (msg && !msg.dibaca) {
+          try {
+            await fetchWithRetry(SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
+            }, 2, 500);
+            cachedInboxData[idx].dibaca = true;
+            success++;
+          } catch (e) {}
+        }
+      }
+      renderInbox();
+      await CustomAppModal.alert(success + ' mesej ditandakan dibaca', 'Selesai', 'success');
+    });
+  }
+  
+  // Batch: Padam Pilihan
+  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+  if (btnDeleteSelected) {
+    btnDeleteSelected.addEventListener('click', async () => {
+      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
+      if (!checked.length) {
+        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
+        return;
+      }
+      closeInboxModal();
+      const confirmed = await CustomAppModal.confirm('Padam ' + checked.length + ' mesej yang dipilih?', 'Padam Pilihan', 'warning', 'Ya, Padam', false);
+      if (!confirmed) return;
+      const indices = [];
+      for (const cb of checked) {
+        indices.push(parseInt(cb.getAttribute('data-index')));
+      }
+      indices.sort((a, b) => b - a);
+      for (const idx of indices) {
+        const msg = cachedInboxData[idx];
+        if (msg) {
+          try {
+            await fetchWithRetry(SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: 'deleteInbox', msgId: msg.id, row: msg.row, email: currentUser.email })
+            }, 2, 500);
+          } catch (e) {}
+          cachedInboxData.splice(idx, 1);
+        }
+      }
+      renderInbox();
+      await CustomAppModal.alert(indices.length + ' mesej berjaya dipadam', 'Selesai', 'success');
+    });
+  }
 }
 
 // =========================================================================
