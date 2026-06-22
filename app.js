@@ -7497,11 +7497,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           submittedFiltersContainer.style.display = 'flex';
         }
         
-        // For KETUA SEKSYEN/PENGARAH, show pengesyor filter for Telah Syor
+        // For KETUA SEKSYEN/PENGARAH, show pelulus filter for Telah Syor
         if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
-          if (filterSection) {
-            filterSection.style.display = 'flex';
-            updatePengesyorFilter();
+          if (pelulusFilterSection) {
+            pelulusFilterSection.style.display = 'flex';
+            updatePelulusFilter();
           }
         }
         
@@ -8404,9 +8404,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     else if (type === 'submitted') {
       if (currentUser.role === 'PENGESYOR') {
         filtered = cachedData.filter(i => i.tarikh_syor && i.pengesyor && i.pengesyor.toUpperCase() === user);
-      } else if (currentUser.role === 'KETUA SEKSYEN') {
-        // KETUA SEKSYEN: Telah disyor tetapi belum diluluskan (Inbox Pelulus)
-        filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
+      } else if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+        // Telah disyor, ada pelulus assigned, tetapi belum diluluskan
+        filtered = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
+          && i.pelulus && String(i.pelulus).trim() !== ''
+          && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === ''));
       } else {
         filtered = cachedData.filter(i => i.tarikh_syor && i.tarikh_lulus);
       }
@@ -8588,8 +8590,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (type === 'inbox' && result.stb_filter_pengesyor) {
           filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
         }
-        if (type === 'submitted' && result.stb_filter_pengesyor) {
-          filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+        if (type === 'submitted') {
+          if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+            if (result.stb_filter_pelulus) {
+              filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
+            }
+          } else if (result.stb_filter_pengesyor) {
+            filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+          }
         }
         if (type === 'history' && result.stb_filter_pelulus) {
           filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
@@ -13000,10 +13008,15 @@ function renderInbox() {
   }
   
   if (selectAllCb) {
-    selectAllCb.addEventListener('change', () => {
+    if (selectAllCb._inboxHandler) {
+      selectAllCb.removeEventListener('change', selectAllCb._inboxHandler);
+    }
+    const handler = () => {
       inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => cb.checked = selectAllCb.checked);
       updateSelectedCount();
-    });
+    };
+    selectAllCb._inboxHandler = handler;
+    selectAllCb.addEventListener('change', handler);
   }
   
   inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => {
@@ -13103,7 +13116,8 @@ function renderInbox() {
   
   // Batch: Tandakan Dibaca
   const btnMarkSelected = document.getElementById('btnMarkSelectedRead');
-  if (btnMarkSelected) {
+  if (btnMarkSelected && !btnMarkSelected._inboxHandler) {
+    btnMarkSelected._inboxHandler = true;
     btnMarkSelected.addEventListener('click', async () => {
       const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
       if (!checked.length) {
@@ -13134,7 +13148,8 @@ function renderInbox() {
   
   // Batch: Padam Pilihan
   const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  if (btnDeleteSelected) {
+  if (btnDeleteSelected && !btnDeleteSelected._inboxHandler) {
+    btnDeleteSelected._inboxHandler = true;
     btnDeleteSelected.addEventListener('click', async () => {
       const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
       if (!checked.length) {
