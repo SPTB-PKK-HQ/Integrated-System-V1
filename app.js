@@ -13429,20 +13429,44 @@ function startInboxAutoRefresh() {
   }, 30000); // 30 saat
 }
 
-// V6.6.0: Auto refresh dashboard & inbox tab setiap 30 saat
+// V6.6.0: Auto refresh dashboard & inbox tab
+// Inbox: refresh setiap 5 saat tanpa cache (buang cache di tab ini)
+// Dashboard: refresh setiap 30 saat guna version check
 let tabAutoRefreshInterval = null;
 
 function startTabAutoRefresh() {
   if (tabAutoRefreshInterval) clearInterval(tabAutoRefreshInterval);
+  
+  let lastInboxRefresh = 0;
+  let lastDashboardRefresh = 0;
+  
   tabAutoRefreshInterval = setInterval(async () => {
     if (!currentUser || currentUser.role !== 'PELULUS') return;
     const activeBtn = document.querySelector('.tab-btn.active');
     if (!activeBtn) return;
     const tabName = activeBtn.getAttribute('data-target');
-    if (tabName !== 'dashboard' && tabName !== 'inbox') return;
+    const now = Date.now();
+    
+    let shouldRefresh = false;
+    let forceNoCache = false;
+    
+    if (tabName === 'inbox' && now - lastInboxRefresh >= 5000) {
+      shouldRefresh = true;
+      forceNoCache = true;
+      lastInboxRefresh = now;
+    } else if (tabName === 'dashboard' && now - lastDashboardRefresh >= 30000) {
+      shouldRefresh = true;
+      forceNoCache = false;
+      lastDashboardRefresh = now;
+    }
+    
+    if (!shouldRefresh) return;
 
     try {
-      const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+      // Inbox: tanpa version param (paksa server baca fresh dari sheet)
+      // Dashboard: guna version param untuk lightweight check
+      const versionParam = (!forceNoCache && dataCacheVersion)
+        ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
       const response = await fetchWithRetry(
         SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam,
         { method: 'GET', redirect: 'follow' }, 3, 1000
@@ -13481,7 +13505,7 @@ function startTabAutoRefresh() {
     } catch (e) {
       console.error('Auto refresh tab error:', e);
     }
-  }, 30000);
+  }, 5000); // Check setiap 5 saat
 }
 
 }); // <--- PENUTUP UTAMA UNTUK DOMContentLoaded
