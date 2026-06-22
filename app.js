@@ -1046,6 +1046,8 @@ async function handleCredentialResponse(response) {
   const labelRejectElement = document.getElementById('label-reject');
   const processCountElement = document.getElementById('process-count');
   const labelStatusElement = document.getElementById('label-status');
+  const incompleteDocCard = document.getElementById('card-incomplete-doc');
+  const incompleteDocCountEl = document.getElementById('incomplete-doc-count');
 
   // WhatsApp Dropdown
   const dbPelulusWhatsapp = document.getElementById('db_pelulus_whatsapp');
@@ -1632,6 +1634,26 @@ async function handleCredentialResponse(response) {
     if (labelRejectElement) labelRejectElement.textContent = lblReject;
     if (processCountElement) processCountElement.textContent = card4Value;
     if (labelStatusElement) labelStatusElement.textContent = lblStatus;
+    
+    // Kira dokumen tidak lengkap untuk pengguna ini
+    const userIncData = userSpecificData.filter(item => {
+      const inc = countIncompleteInRecord(item);
+      return Object.values(inc).some(v => v > 0);
+    });
+    const userIncTotal = userIncData.reduce((sum, item) => {
+      const inc = countIncompleteInRecord(item);
+      return sum + Object.values(inc).reduce((a, b) => a + b, 0);
+    }, 0);
+    if (incompleteDocCountEl) incompleteDocCountEl.textContent = userIncTotal;
+    if (incompleteDocCard) {
+      if (userIncTotal > 0) {
+        incompleteDocCard.style.display = '';
+      } else {
+        incompleteDocCard.style.display = 'none';
+      }
+    }
+    // Simpan untuk modal
+    window.__dashboardIncompleteData = userIncData;
     
     updateApplicationTypeChart(userSpecificData);
     updateStatusChart(userSpecificData);
@@ -10879,7 +10901,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   }
 
-  const adminCardIncomplete = document.querySelector('.stat-card[style*="border-top-color: #f97316"]');
+  const adminCardIncomplete = document.getElementById('admin-incomplete-doc-count')?.closest('.stat-card');
   if (adminCardIncomplete) {
     adminCardIncomplete.style.cursor = 'pointer';
     adminCardIncomplete.title = 'Klik untuk lihat senarai permohonan';
@@ -10905,6 +10927,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const inc = countIncompleteInRecord(item);
         return Object.values(inc).some(v => v > 0);
       });
+      incompleteDocSearchQuery = '';
+      incompleteDocFilterJenis = 'ALL';
+      if (incompleteDocSearch) incompleteDocSearch.value = '';
+      incompleteDocFilterBtns.forEach(b => { if (b) b.style.border = '2px solid transparent'; });
+      if (filterIncompleteDocAll) filterIncompleteDocAll.style.border = '2px solid #f97316';
+      renderIncompleteDocModal();
+      if (incompleteDocModal) incompleteDocModal.style.display = 'flex';
+    });
+  }
+  if (incompleteDocCard) {
+    incompleteDocCard.addEventListener('click', () => {
+      const data = window.__dashboardIncompleteData || [];
+      if (data.length === 0) return;
+      incompleteDocFilteredData = data;
       incompleteDocSearchQuery = '';
       incompleteDocFilterJenis = 'ALL';
       if (incompleteDocSearch) incompleteDocSearch.value = '';
