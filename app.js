@@ -4944,10 +4944,6 @@ async function handleCredentialResponse(response) {
         cachedData = Array.isArray(raw) ? raw : (Array.isArray(raw && raw.data) ? raw.data : []);
         console.log("V6.5.2 Loaded data from cache:", cachedData.length);
         if (Array.isArray(cachedData)) updateDynamicYears(cachedData);
-        // V6.6.0: Update badge dari cache
-        if (currentUser && currentUser.role === 'PELULUS') {
-          updatePelulusInboxBadge();
-        }
       }
       
       if (storage.stb_data_version) {
@@ -8288,10 +8284,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
         
-        // V6.6.0: Update badge inbox pelulus setiap kali data ditukar
-        if (currentUser && currentUser.role === 'PELULUS') {
-          updatePelulusInboxBadge();
-        }
         
         storageWrapper.set({ 
           'stb_data_cache': newData,
@@ -8331,29 +8323,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
 
-  // V6.6.0: Update badge merah di tab inbox untuk pelulus
-  function updatePelulusInboxBadge(count) {
-    const tabBtn = currentUser && currentUser.role === 'PELULUS'
-      ? document.querySelector('.tab-btn[data-target="inbox"]')
-      : document.querySelector('.tab-btn[data-tab="tab-list"]');
-    if (!tabBtn) return;
-    const existingBadge = tabBtn.querySelector('.pelulus-inbox-badge');
-    if (existingBadge) existingBadge.remove();
-    if (count === undefined && currentUser && cachedData) {
-      const user = currentUser.name.toUpperCase();
-      count = cachedData.filter(i => i.syarikat && String(i.syarikat).trim() !== ''
-        && i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
-        && i.pelulus && String(i.pelulus).trim().toUpperCase() === user
-        && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === '')).length;
-    }
-    if (count > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'pelulus-inbox-badge';
-      badge.style.cssText = 'background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.65rem; margin-left:5px; font-weight:bold;';
-      badge.textContent = count > 99 ? '99+' : count;
-      tabBtn.appendChild(badge);
-    }
-  }
+  // V6.6.0: (Dah buang badge merah, guna nombor baris di sebelah kiri item)
 
   function renderFilteredList(type) {
     const listId = type === 'history' ? 'historyList' : 'applicationsList';
@@ -8432,7 +8402,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (type === 'inbox' && currentUser.role === 'PELULUS') {
       const countAll = filtered.length;
       if (listTitle) listTitle.textContent = `📋 Inbox Pelulus (${countAll})`;
-      updatePelulusInboxBadge(countAll);
     }
 
     if (type === 'history') {
@@ -8876,7 +8845,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       const numberDiv = document.createElement('div');
       numberDiv.className = 'app-item-number';
-      numberDiv.textContent = generateUniqueId(item.row) || (index + 1).toString();
+      numberDiv.textContent = (index + 1).toString();
       wrapper.appendChild(numberDiv);
       
       const contentDiv = document.createElement('div');
@@ -13446,62 +13415,6 @@ if (btnRefreshInbox) {
 }
 
 // V6.6.0: Butang Lihat Semua (tanda semua dibaca)
-const btnMarkAllRead = document.getElementById('btnMarkAllRead');
-if (btnMarkAllRead) {
-  btnMarkAllRead.addEventListener('click', async () => {
-    const confirmed = await CustomAppModal.confirm(
-      'Tandakan SEMUA mesej sebagai dibaca?',
-      'Lihat Semua', 'info', 'Ya, Tandakan', true
-    );
-    if (!confirmed) return;
-    try {
-      const response = await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'markAllInboxRead', email: currentUser.email })
-      }, 3, 1000);
-      const result = await response.json();
-      if (result.status === 'success') {
-        cachedInboxData.forEach(m => m.dibaca = true);
-        renderInbox();
-        await CustomAppModal.alert('Semua mesej ditandakan sebagai dibaca', 'Selesai', 'success');
-      } else {
-        await CustomAppModal.alert('Gagal: ' + result.message, 'Ralat', 'error');
-      }
-    } catch (e) {
-      await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
-    }
-  });
-}
-
-// V6.6.0: Butang Padam Semua
-const btnDeleteAllInbox = document.getElementById('btnDeleteAllInbox');
-if (btnDeleteAllInbox) {
-  btnDeleteAllInbox.addEventListener('click', async () => {
-    const confirmed = await CustomAppModal.confirm(
-      'Padam SEMUA mesej inbox? Tindakan ini tidak boleh dikembalikan.',
-      'Padam Semua', 'warning', 'Ya, Padam Semua', false
-    );
-    if (!confirmed) return;
-    try {
-      const response = await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'deleteAllInbox', email: currentUser.email })
-      }, 3, 1000);
-      const result = await response.json();
-      if (result.status === 'success') {
-        cachedInboxData = [];
-        renderInbox();
-        await CustomAppModal.alert('Semua mesej berjaya dipadam', 'Selesai', 'success');
-      } else {
-        await CustomAppModal.alert('Gagal: ' + result.message, 'Ralat', 'error');
-      }
-    } catch (e) {
-      await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
-    }
-  });
-}
 
 // V6.6.0: Force refresh data dari sheet
 const btnRefreshData = document.getElementById('btnRefreshData');
@@ -13614,7 +13527,6 @@ function startTabAutoRefresh() {
         if (['PELULUS', 'ADMIN', 'KETUA SEKSYEN', 'PENGARAH'].includes(currentUser.role)) {
           updatePengesyorFilter();
         }
-        updatePelulusInboxBadge();
 
         if (tabName === 'dashboard') {
           initializeDashboard();
