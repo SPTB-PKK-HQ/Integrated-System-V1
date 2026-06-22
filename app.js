@@ -9722,10 +9722,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         
         setTimeout(() => {
-          if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-          }
-          
           if(callback) callback(result);
         }, 500);
       })
@@ -10358,6 +10354,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         // Kembali ke tab inbox
         switchTab('inbox');
+
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'none';
+        }
       });
     });
   }
