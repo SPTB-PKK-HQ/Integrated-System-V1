@@ -10111,16 +10111,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (cbShowWa) { cbShowWa.checked = false; }
     const waContainer = document.getElementById('wa_schedule_container');
     if (waContainer) { waContainer.style.display = 'none'; }
-    document.querySelectorAll('input[name="wa_mode"]').forEach(r => { if (r.value === 'MANUAL') r.checked = true; });
-    const waManualFields = document.getElementById('wa_manual_fields');
-    const waAutoFields = document.getElementById('wa_auto_fields');
-    if (waManualFields) waManualFields.style.display = 'block';
-    if (waAutoFields) waAutoFields.style.display = 'none';
-    const waTarikhManual = document.getElementById('wa_tarikh_manual');
     const waTarikhAuto = document.getElementById('wa_tarikh_auto');
     const waMasa = document.getElementById('wa_masa');
     const waAyat = document.getElementById('wa_ayat');
-    if (waTarikhManual) waTarikhManual.value = '';
     if (waTarikhAuto) waTarikhAuto.value = '';
     if (waMasa) waMasa.value = '';
     if (waAyat) waAyat.value = '';
@@ -13246,7 +13239,6 @@ function createWAConfirmModal() {
 // =========================================================================
 
 function setupWhatsAppSchedulingUI() {
-  // Toggle container with checkbox
   const cbShow = document.getElementById('cb_show_wa_schedule');
   const container = document.getElementById('wa_schedule_container');
   if (cbShow && container) {
@@ -13254,46 +13246,17 @@ function setupWhatsAppSchedulingUI() {
       container.style.display = e.target.checked ? 'block' : 'none';
     });
   }
-
-  // Radio button toggle Manual/Auto
-  document.querySelectorAll('input[name="wa_mode"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const manualFields = document.getElementById('wa_manual_fields');
-      const autoFields = document.getElementById('wa_auto_fields');
-      if (e.target.value === 'AUTO') {
-        if (manualFields) manualFields.style.display = 'none';
-        if (autoFields) autoFields.style.display = 'block';
-      } else {
-        if (manualFields) manualFields.style.display = 'block';
-        if (autoFields) autoFields.style.display = 'none';
-      }
-    });
-  });
 }
 
 function getWhatsAppScheduleData() {
-  const selectedMode = document.querySelector('input[name="wa_mode"]:checked');
-  if (!selectedMode) return null;
+  const cbShow = document.getElementById('cb_show_wa_schedule');
+  if (!cbShow || !cbShow.checked) return null;
   
-  const mode = selectedMode.value;
-  const waTarikhManual = document.getElementById('wa_tarikh_manual')?.value || '';
   const waTarikhAuto = document.getElementById('wa_tarikh_auto')?.value || '';
   const waMasa = document.getElementById('wa_masa')?.value || '';
   const waAyat = document.getElementById('wa_ayat')?.value || '';
   
-  if (mode === 'MANUAL' && waTarikhManual) {
-    return JSON.stringify({
-      mode: 'MANUAL',
-      tarikh: waTarikhManual,
-      masa: 0,
-      ayat: '',
-      status: 'MANUAL',
-      no_hantar: '',
-      no_tujuan: ''
-    });
-  }
-  
-  if (mode === 'AUTO' && waTarikhAuto && waMasa && waAyat) {
+  if (waTarikhAuto && waMasa && waAyat) {
     return JSON.stringify({
       mode: 'AUTO',
       tarikh: waTarikhAuto,
