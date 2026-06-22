@@ -8245,10 +8245,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       hideLoading();
     }
 
-    const roleParam = currentUser ? `&role=${encodeURIComponent(currentUser.role)}&userName=${encodeURIComponent(currentUser.name)}` : '';
     const versionParam = (!isInboxPelulus && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + roleParam + versionParam, {
+    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -13514,11 +13513,10 @@ function startTabAutoRefresh() {
     try {
       // Inbox: tanpa version param (paksa server baca fresh dari sheet)
       // Dashboard: guna version param untuk lightweight check
-      const roleParam = currentUser ? `&role=${encodeURIComponent(currentUser.role)}&userName=${encodeURIComponent(currentUser.name)}` : '';
       const versionParam = (!forceNoCache && dataCacheVersion)
         ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
       const response = await fetchWithRetry(
-        SCRIPT_URL + '?action=getData&t=' + Date.now() + roleParam + versionParam,
+        SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam,
         { method: 'GET', redirect: 'follow' }, 3, 1000
       );
       if (!response.ok) return;
