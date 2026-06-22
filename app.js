@@ -8237,13 +8237,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       'Muat turun data'
     );
 
-    if (cachedData.length > 0) {
+    const isInboxPelulus = listType === 'inbox' && currentUser && currentUser.role === 'PELULUS';
+
+    if (!isInboxPelulus && cachedData.length > 0) {
       renderFilteredList(listType);
       listStatus.innerText = `Mengguna cache (${cachedData.length} rekod)`;
       hideLoading();
     }
 
-    const versionParam = dataCacheVersion ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+    const versionParam = (!isInboxPelulus && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
 
     return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
       method: 'GET',
@@ -8269,8 +8271,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // Jika server kata data tak berubah, guna cache sedia ada
         if (data && data.cached === true) {
           if (data.version) dataCacheVersion = data.version;
-          if (cachedData.length > 0) {
-            listStatus.innerText = `Terkini: ${cachedData.length} rekod (cache)`;
+          if (isInboxPelulus || cachedData.length > 0) {
+            renderFilteredList(listType);
+            listStatus.innerText = isInboxPelulus
+              ? `Memaparkan ${cachedData.length} rekod`
+              : `Terkini: ${cachedData.length} rekod (cache)`;
           } else {
             listStatus.innerText = "Data tidak berubah (cache)";
           }
