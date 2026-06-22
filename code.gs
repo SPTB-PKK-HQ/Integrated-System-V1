@@ -3,6 +3,7 @@ const SHEET_NAME = "Sheet1";
 const USERS_SHEET_NAME = "Users";
 const LOGS_SHEET_NAME = "Logs";
 const CHANGELOG_SHEET_NAME = "Changelog";
+const USER_META_SHEET_NAME = "UserMeta"; // V6.6.0
 
 // FOLDER INDUK ID - Disimpan di Script Properties (key: MAIN_FOLDER_ID)
 const MAIN_FOLDER_NAME = "STB MAIN FOLDER";
@@ -404,7 +405,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -520,6 +521,14 @@ function doPost(e) {
     // V6.6.0: Handler untuk markInboxRead
     if (data.action === 'markInboxRead') {
       return handleMarkInboxRead(data);
+    }
+    
+    // V6.6.0: Handler untuk user version tracking
+    if (data.action === 'getUserLastSeenVersion') {
+      return handleGetUserLastSeenVersion(data.email);
+    }
+    if (data.action === 'updateUserLastSeenVersion') {
+      return handleUpdateUserLastSeenVersion(data.email, data.version);
     }
     
     // Handler baharu: Cetak dan simpan PDF
@@ -3415,13 +3424,13 @@ function handleGetChangelog() {
     if (!sheet) {
       // Create sheet if not exists
       sheet = ss.insertSheet(CHANGELOG_SHEET_NAME);
-      const headers = [['Versi', 'Tarikh', 'Penerangan']];
-      sheet.getRange(1, 1, 1, 3).setValues(headers);
-      sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+      const headers = [['Versi', 'Tarikh', 'Penerangan', 'Imej']];
+      sheet.getRange(1, 1, 1, 4).setValues(headers);
+      sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
       sheet.setFrozenRows(1);
-      sheet.getRange(2, 1, 1, 3).setValues([['V6.6.0', '2026-06-21', '• WhatsApp Scheduling Manual/Auto\n• Inbox Notifikasi (kolum AE)\n• Pelulus Wajib Pilih + Kolum Z\n• WhatsApp Confirm Modal (ganti checkbox)\n• CallMeBot API per-user\n• Inbox Notifikasi Pelulus/Pengesyor\n• Landing Page & Changelog']]);
-      sheet.getRange(3, 1, 1, 3).setValues([['V6.5.2', '2026-04-01', '• Auto Email Authentication\n• Mobile UI Polish\n• QR Code Preview']]);
-      sheet.getRange(4, 1, 1, 3).setValues([['V6.5.0', '2026-03-01', '• API Keys di Script Properties\n• Firebase Integration\n• 3-Tier AI Fallback']]);
+      sheet.getRange(2, 1, 1, 4).setValues([['V6.6.0', '2026-06-21', '• WhatsApp Scheduling Manual/Auto\n• Inbox Notifikasi (kolum AE)\n• Pelulus Wajib Pilih + Kolum Z\n• WhatsApp Confirm Modal (ganti checkbox)\n• CallMeBot API per-user\n• Inbox Notifikasi Pelulus/Pengesyor\n• Landing Page & Changelog\n• Changelog Walkthrough', '']]);
+      sheet.getRange(3, 1, 1, 4).setValues([['V6.5.2', '2026-04-01', '• Auto Email Authentication\n• Mobile UI Polish\n• QR Code Preview', '']]);
+      sheet.getRange(4, 1, 1, 4).setValues([['V6.5.0', '2026-03-01', '• API Keys di Script Properties\n• Firebase Integration\n• 3-Tier AI Fallback', '']]);
     }
     
     const lastRow = sheet.getLastRow();
@@ -3429,19 +3438,82 @@ function handleGetChangelog() {
       return createJSONOutput({ status: 'success', changelog: [] });
     }
     
-    const data = sheet.getRange(2, 1, lastRow - 1, 3).getDisplayValues();
+    const cols = sheet.getLastColumn();
+    const data = sheet.getRange(2, 1, lastRow - 1, Math.max(cols, 4)).getDisplayValues();
     const changelog = data
       .filter(r => r[0] && r[0].toString().trim() !== '')
       .map(r => ({
         versi: r[0].toString().trim(),
         tarikh: r[1] || '',
-        penerangan: r[2] || ''
+        penerangan: r[2] || '',
+        imej: r[3] || ''
       }));
     
     return createJSONOutput({ status: 'success', changelog: changelog });
     
   } catch (error) {
     return createJSONOutput({ status: 'error', message: error.toString(), changelog: [] });
+  }
+}
+
+// V6.6.0: User version tracking
+function handleGetUserLastSeenVersion(email) {
+  try {
+    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(USER_META_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(USER_META_SHEET_NAME);
+      const headers = [['Email', 'LastSeenVersion']];
+      sheet.getRange(1, 1, 1, 2).setValues(headers);
+      sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: 'success', version: '' });
+    }
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    const found = data.find(r => r[0] && r[0].toString().trim().toLowerCase() === email.toLowerCase().trim());
+    return createJSONOutput({ status: 'success', version: found ? (found[1] || '') : '' });
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+function handleUpdateUserLastSeenVersion(email, version) {
+  try {
+    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(USER_META_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(USER_META_SHEET_NAME);
+      const headers = [['Email', 'LastSeenVersion']];
+      sheet.getRange(1, 1, 1, 2).setValues(headers);
+      sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      sheet.getRange(2, 1, 1, 2).setValues([[email, version]]);
+      return createJSONOutput({ status: 'success', message: 'Versi dikemaskini' });
+    }
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    let foundRow = -1;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] && data[i][0].toString().trim().toLowerCase() === email.toLowerCase().trim()) {
+        foundRow = i + 2;
+        break;
+      }
+    }
+    if (foundRow > 0) {
+      sheet.getRange(foundRow, 2).setValue(version);
+    } else {
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, 2).setValues([[email, version]]);
+    }
+    return createJSONOutput({ status: 'success', message: 'Versi dikemaskini' });
+  } catch (error) {
+    return createJSONOutput({ status: 'error', message: error.toString() });
   }
 }
 
