@@ -6346,11 +6346,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     allApprovers = Array.from(approvers).sort();
     storageWrapper.set({ 'stb_all_approvers': allApprovers });
     
+    // Populate pelulus filter buttons
     let buttonsHtml = '';
     allApprovers.forEach(name => {
       buttonsHtml += `<button class="filter-btn" data-name="${name}" style="padding:4px 12px; background:#f3f4f6; border:none; border-radius:16px; font-size:0.8rem; cursor:pointer; transition:all 0.2s;">${name}</button>`;
     });
     pelulusFilterButtonsContainer.innerHTML = buttonsHtml;
+    
+    // Also populate historyPelulusFilter select dropdown
+    const historyPelulusEl = document.getElementById('historyPelulusFilter');
+    if (historyPelulusEl) {
+      const curVal = historyPelulusEl.value;
+      historyPelulusEl.innerHTML = '<option value="">Semua Pelulus</option>';
+      allApprovers.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        historyPelulusEl.appendChild(opt);
+      });
+      if (curVal && allApprovers.includes(curVal)) historyPelulusEl.value = curVal;
+    }
     
     pelulusFilterButtonsContainer.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -6414,6 +6429,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   const historyYearFilter = document.getElementById('historyYearFilter');
   if (historyYearFilter) {
     historyYearFilter.addEventListener('change', () => {
+      if (activeListType) renderFilteredList(activeListType);
+    });
+  }
+
+  const historyPelulusEl = document.getElementById('historyPelulusFilter');
+  if (historyPelulusEl) {
+    historyPelulusEl.addEventListener('change', () => {
       if (activeListType) renderFilteredList(activeListType);
     });
   }
@@ -7475,11 +7497,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           submittedFiltersContainer.style.display = 'flex';
         }
         
-        // For KETUA SEKSYEN/PENGARAH, show pelulus filter instead of pengesyor
+        // For KETUA SEKSYEN/PENGARAH, show pengesyor filter for Telah Syor
         if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
-          if (pelulusFilterSection) {
-            pelulusFilterSection.style.display = 'flex';
-            updatePelulusFilter();
+          if (filterSection) {
+            filterSection.style.display = 'flex';
+            updatePengesyorFilter();
           }
         }
         
@@ -8438,6 +8460,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     if (type === 'history') {
+      const historyPelulusEl = document.getElementById('historyPelulusFilter');
+      if (historyPelulusEl && historyPelulusEl.value) {
+        filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === historyPelulusEl.value.toUpperCase());
+      }
       if (historyMonthFilter && historyYearFilter) {
         const selectedMonth = parseInt(historyMonthFilter.value);
         const selectedYear = parseInt(historyYearFilter.value);
@@ -8562,8 +8588,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (type === 'inbox' && result.stb_filter_pengesyor) {
           filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
         }
-        if (type === 'submitted' && result.stb_filter_pelulus && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
-          filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
+        if (type === 'submitted' && result.stb_filter_pengesyor) {
+          filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
         }
         if (type === 'history' && result.stb_filter_pelulus) {
           filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
