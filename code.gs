@@ -3141,7 +3141,7 @@ function processSingleWhatsApp() {
           if (clean.startsWith('0')) clean = '60' + clean.substring(1);
           else if (!clean.startsWith('60')) clean = '60' + clean;
           if (/^\d{9,15}$/.test(clean)) {
-            waLinks.push({ no: clean, url: `https://wa.me/${clean}?text=${encodeURIComponent(schedule.ayat)}` });
+            waLinks.push({ no: clean, url: `https://wa.me/${clean}?text=${encodeWhatsAppText(schedule.ayat)}` });
           }
         });
         
@@ -3244,7 +3244,7 @@ function hantarWhatsApp(row, schedule) {
     return { 
       success: false, 
       error: 'API WhatsApp tidak dikonfigurasi untuk pengesyor ini. Sila guna Manual.',
-      waUrl: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(schedule.ayat)}`
+      waUrl: `https://wa.me/${cleanPhone}?text=${encodeWhatsAppText(schedule.ayat)}`
     };
   } catch (error) {
     return { success: false, error: error.toString() };
@@ -3273,9 +3273,28 @@ function findUserByPengesyorName(name) {
   } catch (e) { return null; }
 }
 
+function encodeWhatsAppText(text) {
+  // Guna Utilities.newBlob().getBytes() untuk pastikan UTF-8 yang betul
+  // (GAS encodeURIComponent boleh hasilkan CESU-8 untuk emoji)
+  if (!text) return '';
+  var bytes = Utilities.newBlob(text).getBytes();
+  var result = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i];
+    // unreserved characters (RFC 3986): A-Z a-z 0-9 - _ . ~
+    if ((b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39)
+        || b === 0x2D || b === 0x5F || b === 0x2E || b === 0x7E) {
+      result += String.fromCharCode(b);
+    } else {
+      result += '%' + b.toString(16).toUpperCase().padStart(2, '0');
+    }
+  }
+  return result;
+}
+
 function hantarViaCallMeBot(phone, message, apiKey) {
   try {
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeWhatsAppText(message)}&apikey=${apiKey}`;
     const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
     const code = response.getResponseCode();
     
