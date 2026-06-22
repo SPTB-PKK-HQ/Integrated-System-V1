@@ -994,6 +994,13 @@
         .admin-stats-section { margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
         .admin-stats-section h3 { color: #1e40af; margin-bottom: 15px; font-size: 1.2rem; }
 
+        .view-toggle { display: inline-flex; gap: 4px; margin-left: 12px; vertical-align: middle; }
+        .toggle-btn { padding: 4px 14px; font-size: 0.75rem; font-weight: 600; border: 2px solid #cbd5e1; background: white; color: #64748b; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+        .toggle-btn.active { background: #1e40af; color: white; border-color: #1e40af; }
+        .toggle-btn:hover:not(.active) { border-color: #1e40af; color: #1e40af; }
+        .admin-chart-wrap { background: white; border-radius: 12px; padding: 15px; margin-top: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .admin-chart-wrap canvas { width: 100% !important; height: 100% !important; max-height: 400px; }
+
         .form-checker-loading-spinner { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
         .form-checker-loading-spinner.active { display: flex; }
         .form-checker-spinner { width: 60px; height: 60px; border: 5px solid rgba(37, 99, 235, 0.1); border-top: 5px solid var(--theme-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }

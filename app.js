@@ -741,6 +741,9 @@ async function handleCredentialResponse(response) {
   let typeYearlyChart = null;
   let approverMonthlyChart = null;
   let recommenderMonthlyChart = null;
+  let adminPengesyorChart = null;
+  let adminPelulusChart = null;
+  let adminMonthlyChart = null;
   
   let isDashboardFirstLoad = true;
   
@@ -989,6 +992,11 @@ async function handleCredentialResponse(response) {
   const adminIncompleteDocsTbody = document.getElementById('adminIncompleteDocsTbody');
   const adminPengesyorTbody = document.getElementById('admin-pengesyor-tbody');
   const adminPelulusTbody = document.getElementById('admin-pelulus-tbody');
+  const adminPengesyorChartCanvas = document.getElementById('adminPengesyorChart');
+  const adminPelulusChartCanvas = document.getElementById('adminPelulusChart');
+  const adminMonthlyChartCanvas = document.getElementById('adminMonthlyChart');
+  const adminPengesyorChartWrap = document.getElementById('admin-pengesyor-chart-wrap');
+  const adminPelulusChartWrap = document.getElementById('admin-pelulus-chart-wrap');
   const adminStatsModal = document.getElementById('adminStatsModal');
   const adminStatsClose = document.getElementById('adminStatsClose');
   const btnPrintAdminStats = document.getElementById('btnPrintAdminStats');
@@ -2563,6 +2571,9 @@ async function handleCredentialResponse(response) {
       if (adminJenisTbody) adminJenisTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Tiada data</td></tr>';
       if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = '0';
       if (adminIncompleteDocsTbody) adminIncompleteDocsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data</td></tr>';
+      adminPengesyorChart = safeDestroyChart(adminPengesyorChart, 'adminPengesyorChart');
+      adminPelulusChart = safeDestroyChart(adminPelulusChart, 'adminPelulusChart');
+      adminMonthlyChart = safeDestroyChart(adminMonthlyChart, 'adminMonthlyChart');
       return;
     }
     
@@ -2712,6 +2723,10 @@ async function handleCredentialResponse(response) {
     
     renderAdminRejectionReasons(filteredData);
     
+    renderAdminPengesyorChart(pengesyorStats);
+    renderAdminPelulusChart(pelulusStats);
+    renderAdminMonthlyChart(filteredData);
+    
     // Muat semula rekod dipadam dari Log
     if (typeof fetchDeletedLogs === 'function') fetchDeletedLogs();
   }
@@ -2803,6 +2818,113 @@ async function handleCredentialResponse(response) {
     }
     
     adminPelulusTbody.innerHTML = html;
+  }
+
+  function renderAdminPengesyorChart(stats) {
+    if (!adminPengesyorChartCanvas) return;
+    adminPengesyorChart = safeDestroyChart(adminPengesyorChart, 'adminPengesyorChart');
+    const entries = Object.entries(stats).filter(([_, d]) => d.total > 0).sort((a, b) => b[1].total - a[1].total);
+    if (entries.length === 0) return;
+    const labels = entries.map(([nama]) => nama);
+    const sokong = entries.map(([_, d]) => d.sokong);
+    const tidakSokong = entries.map(([_, d]) => d.tidak_sokong);
+    const ctx = adminPengesyorChartCanvas.getContext('2d');
+    adminPengesyorChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'SOKONG', data: sokong, backgroundColor: '#22c55e', borderRadius: 4 },
+          { label: 'TIDAK DISOKONG', data: tidakSokong, backgroundColor: '#ef4444', borderRadius: 4 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } }
+        },
+        scales: {
+          x: { stacked: false, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  function renderAdminPelulusChart(stats) {
+    if (!adminPelulusChartCanvas) return;
+    adminPelulusChart = safeDestroyChart(adminPelulusChart, 'adminPelulusChart');
+    const entries = Object.entries(stats).filter(([_, d]) => d.total > 0).sort((a, b) => b[1].total - a[1].total);
+    if (entries.length === 0) return;
+    const labels = entries.map(([nama]) => nama);
+    const lulus = entries.map(([_, d]) => d.lulus);
+    const tolak = entries.map(([_, d]) => d.tolak);
+    const ctx = adminPelulusChartCanvas.getContext('2d');
+    adminPelulusChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'LULUS', data: lulus, backgroundColor: '#22c55e', borderRadius: 4 },
+          { label: 'TOLAK', data: tolak, backgroundColor: '#ef4444', borderRadius: 4 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } }
+        },
+        scales: {
+          x: { stacked: false, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  function renderAdminMonthlyChart(filteredData) {
+    if (!adminMonthlyChartCanvas) return;
+    adminMonthlyChart = safeDestroyChart(adminMonthlyChart, 'adminMonthlyChart');
+    const monthNames = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'];
+    const totalByMonth = new Array(12).fill(0);
+    const lulusByMonth = new Array(12).fill(0);
+    const tolakByMonth = new Array(12).fill(0);
+    filteredData.forEach(item => {
+      const d = resolveRecordDate(item);
+      if (!d || isNaN(d)) return;
+      const m = d.getMonth();
+      totalByMonth[m]++;
+      if (item.kelulusan && item.kelulusan.includes('LULUS')) lulusByMonth[m]++;
+      else if (item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))) tolakByMonth[m]++;
+    });
+    if (totalByMonth.every(v => v === 0)) return;
+    const ctx = adminMonthlyChartCanvas.getContext('2d');
+    adminMonthlyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: monthNames,
+        datasets: [
+          { label: 'Jumlah', data: totalByMonth, backgroundColor: '#3b82f6', borderRadius: 4 },
+          { label: 'Lulus', data: lulusByMonth, backgroundColor: '#22c55e', borderRadius: 4 },
+          { label: 'Tolak', data: tolakByMonth, backgroundColor: '#ef4444', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
   }
   
   function renderAdminRejectionReasons(data) {
@@ -10676,6 +10798,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       loadAdminDashboard();
     });
   }
+  
+  document.querySelectorAll('.view-toggle').forEach(group => {
+    group.addEventListener('click', (e) => {
+      const btn = e.target.closest('.toggle-btn');
+      if (!btn) return;
+      const view = btn.dataset.view;
+      const section = btn.closest('.admin-stats-section');
+      if (!section) return;
+      section.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const isChart = view.startsWith('chart-');
+      const table = section.querySelector('.admin-stats-table');
+      const chartWrap = section.querySelector('.admin-chart-wrap');
+      if (table) table.style.display = isChart ? 'none' : '';
+      if (chartWrap) chartWrap.style.display = isChart ? '' : 'none';
+    });
+  });
   
   if (adminStatsModal) {
     adminStatsModal.addEventListener('click', (e) => {
