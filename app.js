@@ -7513,14 +7513,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           tabList.classList.add('active');
         }
         
+        // V6.6.0: Buang filter pengesyor untuk Pelulus
         if (filterSection) {
           filterSection.style.display = 'none';
         }
         
-        // V6.7.0: Tab inbox Pelulus papar notifikasi, bukan senarai permohonan
-        const searchBoxEl = document.querySelector('.search-box');
-        if (searchBoxEl) searchBoxEl.style.display = 'none';
-        fetchInbox().then(() => renderInboxAsTab());
+        fetchAndRenderList('inbox', true);
       }
       else if (tabName === 'pelulus-action') {
         if(!pelulusActiveItem) { 
@@ -12818,12 +12816,9 @@ async function fetchInbox() {
     if (result.status === 'success') {
       cachedInboxData = result.inbox || [];
       renderInbox();
-      // V6.7.0: Refresh tab inbox Pelulus jika sedang aktif
+      // V6.7.0: Bila inbox notification dapat data baru, paksa refresh data aplikasi untuk Pelulus
       if (currentUser.role === 'PELULUS') {
-        const activeBtn = document.querySelector('.tab-btn.active');
-        if (activeBtn && activeBtn.getAttribute('data-target') === 'inbox') {
-          renderInboxAsTab();
-        }
+        setTimeout(() => fetchAndRenderList('inbox', true), 500);
       }
     }
   } catch (e) {
@@ -13690,12 +13685,6 @@ function startTabAutoRefresh() {
     try {
       // Inbox: tanpa version param (paksa server baca fresh dari sheet)
       // Dashboard: guna version param untuk lightweight check
-      if (tabName === 'inbox') {
-        await fetchInbox();
-        renderInboxAsTab();
-        return;
-      }
-
       const versionParam = (!forceNoCache && dataCacheVersion)
         ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
       const response = await fetchWithRetry(
@@ -13728,6 +13717,8 @@ function startTabAutoRefresh() {
 
         if (tabName === 'dashboard') {
           initializeDashboard();
+        } else if (tabName === 'inbox') {
+          renderFilteredList('inbox');
         }
       }
     } catch (e) {
