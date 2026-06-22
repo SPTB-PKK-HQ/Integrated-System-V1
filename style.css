@@ -1074,6 +1074,13 @@
                 width: fit-content;
             }
 
+            .top-btn-group {
+                position: static !important;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-bottom: 10px;
+            }
+
             #app-container {
                 padding-top: 10px;
             }
