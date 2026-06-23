@@ -6193,10 +6193,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     // KOD KEMASKINI: Pastikan data Pelulus HANYA dipanggil jika borang sudah diluluskan/dipreviu 
     // (Elakkan 'ghosting' data pada borang draf Pengesyor di tab Borang Semakan)
+    const isBolehCetakPelulus = currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH';
     let namaPelulus = '';
     let keputusanPelulus = '';
     
-    if (lastActiveTab === 'pelulus-action' || lastActiveTab === 'pelulus-view' || lastActiveTab === 'history' || lastActiveTab === 'submitted' || lastActiveTab === 'youtube') {
+    if (isBolehCetakPelulus && (lastActiveTab === 'pelulus-action' || lastActiveTab === 'pelulus-view' || lastActiveTab === 'history' || lastActiveTab === 'submitted' || lastActiveTab === 'youtube')) {
         namaPelulus = document.getElementById('pelulus_nama')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.pelulus : '');
         keputusanPelulus = document.getElementById('pelulus_keputusan')?.value || (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem ? pelulusActiveItem.kelulusan : '');
     }
@@ -6229,34 +6230,52 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (el) el.setAttribute('class', ''); // Buang sebarang highlight sedia ada
     });
 
-    // V6.6.0: Set maklumat pelulus di print (luar usersList check)
-    const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : '';
-    let catatan = '';
-    if (pelulusActiveItem && pelulusActiveItem.borang_json) {
-        try { 
-            const parsed = JSON.parse(pelulusActiveItem.borang_json);
-            if (parsed.catatan_pelulus) catatan = parsed.catatan_pelulus;
-        } catch(e){}
+    if (isBolehCetakPelulus && keputusanPelulus && keputusanPelulus.trim() !== '') {
+        // V6.6.0: Set maklumat pelulus di print (luar usersList check)
+        const tLulus = pelulusActiveItem ? pelulusActiveItem.tarikh_lulus : '';
+        let catatan = '';
+        if (pelulusActiveItem && pelulusActiveItem.borang_json) {
+            try { 
+                const parsed = JSON.parse(pelulusActiveItem.borang_json);
+                if (parsed.catatan_pelulus) catatan = parsed.catatan_pelulus;
+            } catch(e){}
+        }
+        if (!catatan) {
+            catatan = document.getElementById('pelulus_catatan')?.value || document.getElementById('pelulus_alasan')?.value || (pelulusActiveItem ? pelulusActiveItem.alasan : '');
+        }
+        setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '________________');
+        setTxt('print_catatan_pelulus', catatan);
+        setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
+        
+        // Highlight Keputusan Pelulus di PDF (guna semula dari reset atas)
+        [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
+            if (el) el.setAttribute('class', 'syor-dimmed'); 
+        });
+        if (keputusanPelulus === 'LULUS' && elLulus) elLulus.setAttribute('class', 'syor-selected');
+        else if (keputusanPelulus === 'LULUS BERSYARAT' && elLulusSyarat) elLulusSyarat.setAttribute('class', 'syor-selected');
+        else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
+        else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
+
+        if (typeof usersList !== 'undefined' && usersList.length > 0) {
+            // Masukkan Sign Pelulus (Jika ada keputusan)
+            if (keputusanPelulus && keputusanPelulus.trim() !== '') {
+                const userPelulus = usersList.find(u => u.name.toUpperCase() === namaPelulus.toUpperCase());
+                if (userPelulus) {
+                    if (userPelulus.signUrl && userPelulus.signUrl.trim() !== '') { 
+                        imgSignPelulus.setAttribute('src', userPelulus.signUrl.trim()); 
+                        imgSignPelulus.style.display = 'block'; 
+                    }
+                    if (userPelulus.copUrl && userPelulus.copUrl.trim() !== '') { 
+                        imgCopPelulus.setAttribute('src', userPelulus.copUrl.trim()); 
+                        imgCopPelulus.style.display = 'block'; 
+                    }
+                }
+            }
+        }
     }
-    if (!catatan) {
-        catatan = document.getElementById('pelulus_catatan')?.value || document.getElementById('pelulus_alasan')?.value || (pelulusActiveItem ? pelulusActiveItem.alasan : '');
-    }
-    setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '________________');
-    setTxt('print_catatan_pelulus', catatan);
-    setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
-    
-    // Highlight Keputusan Pelulus di PDF (guna semula dari reset atas)
-    [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
-        if (el) el.setAttribute('class', 'syor-dimmed'); 
-    });
-    if (keputusanPelulus === 'LULUS' && elLulus) elLulus.setAttribute('class', 'syor-selected');
-    else if (keputusanPelulus === 'LULUS BERSYARAT' && elLulusSyarat) elLulusSyarat.setAttribute('class', 'syor-selected');
-    else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
-    else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
 
     if (typeof usersList !== 'undefined' && usersList.length > 0) {
-        
-        // Sign/Cop hanya muncul jika syorPilihan (SOKONG/SIASAT/TIDAK DISOKONG) sudah dipilih
+        // Sign/Cop Pengesyor hanya muncul jika syorPilihan (SOKONG/SIASAT/TIDAK DISOKONG) sudah dipilih
         if (namaPengesyor && syorPilihan) { 
             const userPengesyor = usersList.find(u => u.name.toUpperCase() === namaPengesyor.toUpperCase());
             if (userPengesyor) {
@@ -6267,21 +6286,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 if (userPengesyor.copUrl && userPengesyor.copUrl.trim() !== '') { 
                     imgCopPengesyor.setAttribute('src', userPengesyor.copUrl.trim()); 
                     imgCopPengesyor.style.display = 'block'; 
-                }
-            }
-        }
-
-        // 2. Masukkan Sign Pelulus (Jika ada keputusan)
-        if (keputusanPelulus && keputusanPelulus.trim() !== '') {
-            const userPelulus = usersList.find(u => u.name.toUpperCase() === namaPelulus.toUpperCase());
-            if (userPelulus) {
-                if (userPelulus.signUrl && userPelulus.signUrl.trim() !== '') { 
-                    imgSignPelulus.setAttribute('src', userPelulus.signUrl.trim()); 
-                    imgSignPelulus.style.display = 'block'; 
-                }
-                if (userPelulus.copUrl && userPelulus.copUrl.trim() !== '') { 
-                    imgCopPelulus.setAttribute('src', userPelulus.copUrl.trim()); 
-                    imgCopPelulus.style.display = 'block'; 
                 }
             }
         }
@@ -12698,7 +12702,28 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   email: currentUser ? currentUser.email : ''
               };
               
-              simulateLoadingWithSteps(['Menjana dokumen PDF...', 'Memuat naik ke Google Drive...', 'Merekodkan status kemaskini...'], 'Sila Tunggu Sebentar');
+              if (loadingOverlay) {
+                loadingOverlay.style.display = 'flex';
+                loadingText.textContent = 'Menyimpan ke Drive';
+                if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
+                const pBar = document.getElementById('loading-progress-bar');
+                const pPct = document.getElementById('loading-progress-percent');
+                const pLbl = document.getElementById('loading-progress-label');
+                if (pBar) { pBar.style.display = 'block'; pBar.style.width = '0%'; }
+                if (pPct) pPct.textContent = '0%';
+                if (pLbl) pLbl.textContent = 'Menjana dokumen PDF...';
+                let prog = 0;
+                if (loadingProgressInterval) { clearInterval(loadingProgressInterval); loadingProgressInterval = null; }
+                loadingProgressInterval = setInterval(() => {
+                  if (prog < 90) {
+                    prog += Math.floor(Math.random() * 5) + 1;
+                    if (prog > 90) prog = 90;
+                    if (pBar) pBar.style.width = `${prog}%`;
+                    if (pPct) pPct.textContent = `${prog}%`;
+                    if (pLbl) pLbl.textContent = prog < 30 ? 'Menjana dokumen PDF...' : prog < 60 ? 'Memuat naik ke Google Drive...' : 'Menyimpan fail...';
+                  }
+                }, 200);
+              }
               
               const response = await fetchWithRetry(SCRIPT_URL, {
                   method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
@@ -13143,9 +13168,11 @@ function renderInbox() {
     
     const cleanMesej = msg.mesej
       ? msg.mesej
+          .replace(/✅\s*https?:\/\/wa\.me\/[^\s\n]+/g, '')
           .replace(/https?:\/\/wa\.me\/[^\s\n]+/g, '')
           .replace(/\n\nMesej:[\s\S]*/, '')
           .replace(/\n*📱 Klik link untuk hantar:[\s\S]*/, '')
+          .replace(/✅/g, '')
           .trim()
       : '';
     
