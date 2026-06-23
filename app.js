@@ -13149,6 +13149,8 @@ function renderInbox() {
           .trim()
       : '';
     
+    const hasWALink = msg.mesej && /https?:\/\/wa\.me\/\d+/g.test(msg.mesej);
+    
     html += `
       <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
         <div class="inbox-check"><input type="checkbox" class="inbox-item-cb" data-index="${index}"></div>
@@ -13164,6 +13166,7 @@ function renderInbox() {
         </div>
         <div class="inbox-actions">
           ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>` : ''}
+          ${hasWALink ? `<button class="inbox-btn inbox-btn-wa-pilih" data-idx="${index}">💬 Hantar WA</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
         </div>
       </div>
@@ -13263,6 +13266,16 @@ function renderInbox() {
         } catch (e) {}
       }
       if (item) viewRecordOnly(item);
+    });
+  });
+  
+  // WhatsApp buttons
+  inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(e.target.getAttribute('data-idx'));
+      const msg = cachedInboxData[idx];
+      if (msg) openWhatsAppPicker(msg, idx);
     });
   });
   
