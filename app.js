@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx90RIWGgV4FJEOWZDut1AyCcSRsSQysPZ26d60DoWD60vJQY8iTXmDT4OHWnR0wHDp/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxSJwMs4ToBtytlXjDerPlgmzjyAoA6PpuS8LSgaOdJEzbuGU47vexaaTBnhDy83ud_/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -9834,7 +9834,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }, 100);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
       
       fetchWithRetry(SCRIPT_URL, {
         method: 'POST',
@@ -9901,7 +9901,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
     } else {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
       
       fetchWithRetry(SCRIPT_URL, {
         method: 'POST',
