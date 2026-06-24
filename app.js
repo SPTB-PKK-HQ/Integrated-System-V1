@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxSJwMs4ToBtytlXjDerPlgmzjyAoA6PpuS8LSgaOdJEzbuGU47vexaaTBnhDy83ud_/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqRHc3HgHv3d9Ut0fXIpo40J6A2eLUaoLsH4VyWNbo4OsqqL6lStDwNiQfk1XuQENN/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';

@@ -2204,15 +2204,8 @@ function getApplicationsData(role, userName, clientVersion) {
   try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
 
   const dataRange = sheet.getRange(1, 1, lastRow, sheet.getLastColumn());
-  const raw = dataRange.getValues();
-  const headers = raw.shift();
-  const data = raw.map(r => r.map(cell => {
-    if (cell instanceof Date) {
-      const d = Utilities.formatDate(cell, Session.getScriptTimeZone(), 'dd/MM/yyyy');
-      return d;
-    }
-    return cell !== null && cell !== undefined ? String(cell) : '';
-  }));
+  const data = dataRange.getDisplayValues();
+  const headers = data.shift();
 
   // Transform ALL rows (unfiltered) untuk cache
   const allRows = [];
@@ -2264,12 +2257,7 @@ function getSingleRowData(rowNum) {
     const lastRow = sheet.getLastRow();
     if (rowNum > lastRow) return createJSONOutput({ status: 'error', message: 'Row melebihi had' });
     const dataRange = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS);
-    const row = dataRange.getValues()[0].map(cell => {
-      if (cell instanceof Date) {
-        return Utilities.formatDate(cell, Session.getScriptTimeZone(), 'dd/MM/yyyy');
-      }
-      return cell !== null && cell !== undefined ? String(cell) : '';
-    });
+    const row = dataRange.getDisplayValues()[0];
     if (!row[0] || row[0].toString().trim() === '') return createJSONOutput({ status: 'error', message: 'Row kosong' });
     return createJSONOutput({
       status: 'success',
