@@ -412,7 +412,7 @@ function doPost(e) {
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
-      lock.waitLock(15000);
+      lock.waitLock(28000);
       locked = true;
     }
     
@@ -1516,141 +1516,123 @@ function handleUpdateRecord(data, sheet) {
       sheet.getRange(rowNum, 31).setValue(data.inbox);
     }
     
-    // AUTO EMAIL LOGIC
-    let syorLawatanValue = data.syor_lawatan_baru !== undefined ? data.syor_lawatan_baru : (data.syor_lawatan !== undefined ? data.syor_lawatan : existingData[8]);
-    let dateSubmitValue = data.date_submit !== undefined ? data.date_submit : existingData[9];
-    
-    const syorLawatanYA = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'YA';
-    const dateSubmitExists = dateSubmitValue && dateSubmitValue.toString().trim() !== '';
-    const hantarEmelSPI = data.hantar_emel_spi === true;
+    // === OPERASI PASCA-TULISAN (TIDAK KRITIKAL) ===
+    // Jika mana-mana gagal, data sheet sudah selamat. Jangan bagi error.
+    let pascaActionType = 'UPDATE_RECORD';
+    try {
+      // AUTO EMAIL LOGIC
+      let syorLawatanValue = data.syor_lawatan_baru !== undefined ? data.syor_lawatan_baru : (data.syor_lawatan !== undefined ? data.syor_lawatan : existingData[8]);
+      let dateSubmitValue = data.date_submit !== undefined ? data.date_submit : existingData[9];
+      
+      const syorLawatanYA = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'YA';
+      const dateSubmitExists = dateSubmitValue && dateSubmitValue.toString().trim() !== '';
+      const hantarEmelSPI = data.hantar_emel_spi === true;
 
-    if (syorLawatanYA && dateSubmitExists && hantarEmelSPI) {
-      let alamatPerniagaanValue = data.alamat_perniagaan !== undefined ? data.alamat_perniagaan : existingData[20];
-      const emailData = {
-        row: rowNum,
-        syarikat: data.syarikat !== undefined ? data.syarikat : existingData[0],
-        cidb: data.cidb !== undefined ? data.cidb : existingData[1],
-        gred: data.gred !== undefined ? data.gred : existingData[2],
-        jenis: data.jenis !== undefined ? data.jenis : existingData[3],
-        alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
-        pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
-        justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
-        pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
-        date_submit: dateSubmitValue,
-        syor_lawatan: syorLawatanValue
-      };
-
-      try {
+      if (syorLawatanYA && dateSubmitExists && hantarEmelSPI) {
+        let alamatPerniagaanValue = data.alamat_perniagaan !== undefined ? data.alamat_perniagaan : existingData[20];
+        const emailData = {
+          row: rowNum,
+          syarikat: data.syarikat !== undefined ? data.syarikat : existingData[0],
+          cidb: data.cidb !== undefined ? data.cidb : existingData[1],
+          gred: data.gred !== undefined ? data.gred : existingData[2],
+          jenis: data.jenis !== undefined ? data.jenis : existingData[3],
+          alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
+          pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
+          justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
+          pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
+          date_submit: dateSubmitValue,
+          syor_lawatan: syorLawatanValue
+        };
         addToSiasatQueue(emailData);
-        console.log(`[V6.5.0] SPI SIASAT queued for daily 10AM for row ${rowNum}: ${emailData.syarikat}`);
-      } catch (queueError) {
-        console.error(`[V6.5.0] Failed to queue SPI SIASAT on update: ${queueError.toString()}`);
       }
-    }
-    
-    const syorLawatanPemutihan = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN';
-    const tarikhLulusValue = data.tarikh_lulus !== undefined ? data.tarikh_lulus : existingData[24];
-    const tarikhLulusExists = tarikhLulusValue && tarikhLulusValue.toString().trim() !== '';
-    const hantarEmelSPIPemutihan = data.hantar_emel_spi_pemutihan === true;
-    
-    if (syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan) {
-      let alamatPerniagaanValue = data.alamat_perniagaan !== undefined ? data.alamat_perniagaan : existingData[20];
-      const emailDataPemutihan = {
-        row: rowNum,
-        syarikat: data.syarikat !== undefined ? data.syarikat : existingData[0],
-        cidb: data.cidb !== undefined ? data.cidb : existingData[1],
-        gred: data.gred !== undefined ? data.gred : existingData[2],
-        jenis: data.jenis !== undefined ? data.jenis : existingData[3],
-        alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
-        pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
-        pelulus: data.pelulus !== undefined ? data.pelulus : existingData[25], // KOD BARU DITAMBAH
-        justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
-        pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
-        date_submit: dateSubmitValue,
-        syor_lawatan: syorLawatanValue
-      };
-
-      try {
+      
+      const syorLawatanPemutihan = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN';
+      const tarikhLulusValue = data.tarikh_lulus !== undefined ? data.tarikh_lulus : existingData[24];
+      const tarikhLulusExists = tarikhLulusValue && tarikhLulusValue.toString().trim() !== '';
+      const hantarEmelSPIPemutihan = data.hantar_emel_spi_pemutihan === true;
+      
+      if (syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan) {
+        let alamatPerniagaanValue = data.alamat_perniagaan !== undefined ? data.alamat_perniagaan : existingData[20];
+        const emailDataPemutihan = {
+          row: rowNum,
+          syarikat: data.syarikat !== undefined ? data.syarikat : existingData[0],
+          cidb: data.cidb !== undefined ? data.cidb : existingData[1],
+          gred: data.gred !== undefined ? data.gred : existingData[2],
+          jenis: data.jenis !== undefined ? data.jenis : existingData[3],
+          alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
+          pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
+          pelulus: data.pelulus !== undefined ? data.pelulus : existingData[25],
+          justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
+          pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
+          date_submit: dateSubmitValue,
+          syor_lawatan: syorLawatanValue
+        };
         addToPemutihanQueue(emailDataPemutihan);
-        console.log(`[V6.5.0] SPI PEMUTIHAN queued for Friday 11AM for row ${rowNum}: ${emailDataPemutihan.syarikat}`);
-      } catch (queueError) {
-        console.error(`[V6.5.0] Failed to queue SPI PEMUTIHAN on update: ${queueError.toString()}`);
       }
-    }
-    
-    // === UPDATE KE DALAM QUEUE - Kolum P & Q (16 & 17) ===
-    if (data.date_submit === '') {
-        sheet.getRange(rowNum, 16, 1, 2).clearContent();
-        removeFromQueue(existingData[0], 'SIASAT_QUEUE');
-        removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
-    } else {
-        if (syorLawatanYA && dateSubmitExists && hantarEmelSPI) {
-            sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
-        }
-        if (syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan) {
-            sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
-        }
-    }
-    
-    // V6.6.0: Auto inbox notification untuk pelulus bila syor diupdate dengan pelulus
-    const syorBaruDisahkan = data.syor_status && data.syor_status.toString().trim() !== '' 
-      && data.pelulus && (!existingData[13] || existingData[13].toString().trim() === '');
-    if (syorBaruDisahkan) {
-      try {
+      
+      // === UPDATE KE DALAM QUEUE - Kolum P & Q (16 & 17) ===
+      if (data.date_submit === '') {
+          sheet.getRange(rowNum, 16, 1, 2).clearContent();
+          removeFromQueue(existingData[0], 'SIASAT_QUEUE');
+          removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
+      } else {
+          if (syorLawatanYA && dateSubmitExists && hantarEmelSPI) {
+              sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+          }
+          if (syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan) {
+              sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+          }
+      }
+      
+      // V6.6.0: Auto inbox notification untuk pelulus bila syor diupdate dengan pelulus
+      const syorBaruDisahkan = data.syor_status && data.syor_status.toString().trim() !== '' 
+        && data.pelulus && (!existingData[13] || existingData[13].toString().trim() === '');
+      if (syorBaruDisahkan) {
         const inboxMsg = `📋 Permohonan *${data.syarikat || existingData[0] || ''}* (${data.jenis || existingData[3] || ''}) menunggu keputusan anda. Sila semak di tab Keputusan.`;
         addInboxToRow(rowNum, data.pelulus, inboxMsg, 'INFO');
-      } catch (e) {}
-    }
-    
-    // V6.6.0: Auto inbox notification untuk pengesyor bila pelulus buat keputusan
-    const keputusanBaru = data.kelulusan && data.kelulusan.toString().trim() !== '' 
-      && (!existingData[23] || existingData[23].toString().trim() === '');
-    if (keputusanBaru) {
-      const pengesyorName = existingData[12] || '';
-      const pelulusName = data.pelulus || existingData[25] || '';
-      const statusKeputusan = data.kelulusan;
-      try {
+      }
+      
+      // V6.6.0: Auto inbox notification untuk pengesyor bila pelulus buat keputusan
+      const keputusanBaru = data.kelulusan && data.kelulusan.toString().trim() !== '' 
+        && (!existingData[23] || existingData[23].toString().trim() === '');
+      if (keputusanBaru) {
+        const pengesyorName = existingData[12] || '';
+        const pelulusName = data.pelulus || existingData[25] || '';
+        const statusKeputusan = data.kelulusan;
         const inboxMsg = `📬 Keputusan untuk *${data.syarikat || existingData[0] || ''}*: *${statusKeputusan}* oleh ${pelulusName}.`;
         addInboxToRow(rowNum, pengesyorName, inboxMsg, statusKeputusan.includes('LULUS') ? 'SUCCESS' : 'INFO');
-      } catch (e) {}
-    }
-    
-    // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU (elak duplicate)
-    const kelulusanValue = data.kelulusan || existingData[23] || '';
-    if ((kelulusanValue === 'TOLAK & BEKU 3 BULAN' || kelulusanValue === 'TOLAK & BEKU 6 BULAN') && keputusanBaru) {
-      const bulanBeku = kelulusanValue === 'TOLAK & BEKU 3 BULAN' ? 3 : 6;
-      const tarikhLulus = data.tarikh_lulus || existingData[24] || new Date().toISOString().split('T')[0];
-      const mula = new Date(tarikhLulus);
-      const tamat = new Date(mula);
-      tamat.setMonth(tamat.getMonth() + bulanBeku);
-      const mulaStr = Utilities.formatDate(mula, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
-      const tamatStr = Utilities.formatDate(tamat, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
-      const bekuNote = `TARIKH MULA BEKU: ${mulaStr} HINGGA TAMAT BEKU: ${tamatStr}`;
+      }
       
-      let borangJson = data.borang_json || existingData[28] || '{}';
-      try {
+      // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU (elak duplicate)
+      const kelulusanValue = data.kelulusan || existingData[23] || '';
+      if ((kelulusanValue === 'TOLAK & BEKU 3 BULAN' || kelulusanValue === 'TOLAK & BEKU 6 BULAN') && keputusanBaru) {
+        const bulanBeku = kelulusanValue === 'TOLAK & BEKU 3 BULAN' ? 3 : 6;
+        const tarikhLulus = data.tarikh_lulus || existingData[24] || new Date().toISOString().split('T')[0];
+        const mula = new Date(tarikhLulus);
+        const tamat = new Date(mula);
+        tamat.setMonth(tamat.getMonth() + bulanBeku);
+        const mulaStr = Utilities.formatDate(mula, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+        const tamatStr = Utilities.formatDate(tamat, "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+        const bekuNote = `TARIKH MULA BEKU: ${mulaStr} HINGGA TAMAT BEKU: ${tamatStr}`;
+        
+        let borangJson = data.borang_json || existingData[28] || '{}';
         const parsed = JSON.parse(borangJson);
-        // Cegah duplicate: hanya tambah jika belum ada
         if (!parsed.catatan_pelulus || !parsed.catatan_pelulus.includes('TARIKH MULA BEKU')) {
           parsed.catatan_pelulus = parsed.catatan_pelulus 
             ? parsed.catatan_pelulus + '\n' + bekuNote 
             : bekuNote;
           sheet.getRange(rowNum, 29).setValue(JSON.stringify(parsed));
         }
-      } catch (e) {
-        logActivity('System', 'ERROR_BEKU', `Gagal set catatan beku: ${e.toString()}`, '');
       }
-    }
 
-    // V6.6.0: Inbox notification bila undo
-    const existingSyor = existingData[13] ? existingData[13].toString().trim() : '';
-    const existingKelulusan = existingData[23] ? existingData[23].toString().trim() : '';
-    const newSyor = data.syor_status !== undefined ? data.syor_status.toString().trim() : undefined;
-    const newKelulusan = data.kelulusan !== undefined ? data.kelulusan.toString().trim() : undefined;
-    const isUndoSyor = newSyor === '' && existingSyor !== '';
-    const isUndoLulus = newKelulusan === '' && existingKelulusan !== '' && (newSyor === undefined || newSyor === existingSyor);
-    if (isUndoSyor || isUndoLulus) {
-      try {
+      // V6.6.0: Inbox notification bila undo
+      const existingSyor = existingData[13] ? existingData[13].toString().trim() : '';
+      const existingKelulusan = existingData[23] ? existingData[23].toString().trim() : '';
+      const newSyor = data.syor_status !== undefined ? data.syor_status.toString().trim() : undefined;
+      const newKelulusan = data.kelulusan !== undefined ? data.kelulusan.toString().trim() : undefined;
+      const isUndoSyor = newSyor === '' && existingSyor !== '';
+      const isUndoLulus = newKelulusan === '' && existingKelulusan !== '' && (newSyor === undefined || newSyor === existingSyor);
+      if (isUndoSyor || isUndoLulus) {
         const syarikat = data.syarikat || existingData[0] || '';
         const pelulusName = data.pelulus || existingData[25] || '';
         const pengesyorName = existingData[12] || '';
@@ -1665,21 +1647,24 @@ function handleUpdateRecord(data, sheet) {
         if (isUndoLulus) {
           addInboxToRow(rowNum, pelulusName || existingData[12] || '', '\u{1F519} Anda telah undo keputusan untuk ' + syarikat, 'INFO');
         }
-      } catch (e) {}
+      }
+
+      pascaActionType = isUndoSyor ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
+      const actionDesc = pascaActionType === 'UNDO_RECOMMENDATION' 
+        ? `Undo syor di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`
+        : `Rekod dikemaskini di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`;
+      logActivity(userName, pascaActionType, actionDesc, '');
+
+      invalidateDataCache();
+    } catch (postError) {
+      console.error(`[V6.6.0] Operasi pasca-tulisan gagal (data sheet sudah selamat): ${postError.toString()}`);
     }
 
-    const actionType = isUndoSyor ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
-    const actionDesc = actionType === 'UNDO_RECOMMENDATION' 
-      ? `Undo syor di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`
-      : `Rekod dikemaskini di baris ${rowNum} untuk ${data.syarikat || existingData[0] || 'syarikat'}`;
-    logActivity(userName, actionType, actionDesc, '');
-
-    invalidateDataCache();
     return createJSONOutput({ 
       status: "success", 
       action: "updated", 
       row: rowNum,
-      message: actionType === 'UNDO_RECOMMENDATION' ? "Syor berjaya dibatalkan" : "Rekod berjaya dikemaskini"
+      message: pascaActionType === 'UNDO_RECOMMENDATION' ? "Syor berjaya dibatalkan" : "Rekod berjaya dikemaskini"
     });
 
   } catch (error) {

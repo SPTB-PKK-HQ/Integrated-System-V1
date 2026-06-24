@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqRHc3HgHv3d9Ut0fXIpo40J6A2eLUaoLsH4VyWNbo4OsqqL6lStDwNiQfk1XuQENN/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyuvxw8pH43tvILlhOuOPetrRAxu0n8SQjzpmfj0qJ0ivd2YT1PetWo8M7nJ0k64OFc/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -6204,7 +6204,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     // KOD KEMASKINI: Pastikan data Pelulus HANYA dipanggil jika borang sudah diluluskan/dipreviu 
     // (Elakkan 'ghosting' data pada borang draf Pengesyor di tab Borang Semakan)
-    const isBolehCetakPelulus = currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH';
+    const isBolehCetakPelulus = currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH' || currentUser.role === 'PENGESYOR';
     let namaPelulus = '';
     let keputusanPelulus = '';
     
@@ -13794,7 +13794,7 @@ function startTabAutoRefresh() {
   let lastDashboardRefresh = 0;
   
   tabAutoRefreshInterval = setInterval(async () => {
-    if (!currentUser || currentUser.role !== 'PELULUS') return;
+    if (!currentUser || (currentUser.role !== 'PELULUS' && currentUser.role !== 'PENGESYOR')) return;
     const activeBtn = document.querySelector('.tab-btn.active');
     if (!activeBtn) return;
     const tabName = activeBtn.getAttribute('data-target');
