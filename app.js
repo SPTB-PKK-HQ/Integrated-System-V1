@@ -710,9 +710,8 @@ async function handleCredentialResponse(response) {
 
   // --- FUNGSI BARU: MENENTUKAN TARIKH TINDAKAN SEBENAR REKOD ---
   function resolveRecordDate(item) {
-    if (item.tarikh_lulus && String(item.tarikh_lulus).trim() !== '') {
-      return new Date(item.tarikh_lulus);
-    } else if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '') {
+    // Utamakan tarikh tetap — tarikh_lulus diguna hanya untuk carta khusus
+    if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '') {
       return new Date(item.tarikh_syor);
     } 
     
@@ -732,7 +731,19 @@ async function handleCredentialResponse(response) {
     } else if (item.date_submit && String(item.date_submit).trim() !== '') {
       return new Date(item.date_submit);
     }
+    // tarikh_lulus sebagai pilihan terakhir (supaya rekod tidak lompat tarikh)
+    if (item.tarikh_lulus && String(item.tarikh_lulus).trim() !== '') {
+      return new Date(item.tarikh_lulus);
+    }
     return null;
+  }
+
+  // Guna tarikh_lulus sebagai keutamaan (khas untuk carta Pelulus)
+  function resolveApprovalDate(item) {
+    if (item.tarikh_lulus && String(item.tarikh_lulus).trim() !== '') {
+      return new Date(item.tarikh_lulus);
+    }
+    return resolveRecordDate(item);
   }
 
   // --- GLOBAL VARIABLES ---
@@ -814,7 +825,7 @@ async function handleCredentialResponse(response) {
   const appContainer = document.getElementById('app-container');
   const loginPin = document.getElementById('login_pin');
   const btnLogin = document.getElementById('btnLogin');
-  const loginError = document.getElementById('loginError');
+  const loginError = document.getElementById('authError');
   const loginLoadingText = document.getElementById('loginLoadingText');
   const userBadge = document.getElementById('userBadge');
   const listStatus = document.getElementById('listStatus');
@@ -2130,8 +2141,8 @@ async function handleCredentialResponse(response) {
     }
     
     filteredData.forEach(item => {
-      // Gunakan tarikh dinamik berdasarkan status tindakan
-      let dateToUse = resolveRecordDate(item);
+      // Guna tarikh_lulus (khas carta Pelulus) — rekod dikira tarikh ia dilulus/ditolak
+      let dateToUse = resolveApprovalDate(item);
       if (dateToUse && !isNaN(dateToUse)) {
         const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
