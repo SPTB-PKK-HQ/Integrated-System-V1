@@ -6365,23 +6365,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }).length;
     const jumlahSelesai = jumlahLulus + jumlahTolak;
 
-    // Kira konsultansi untuk hari tersebut (pengesyor sahaja)
-    // Format dalam kolum jenis_konsultansi: "Emel, DD/MM/YYYY - WhatsApp, DD/MM/YYYY - Call, DD/MM/YYYY - Due Date: DD/MM/YYYY"
-    const targetDateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    // Kira konsultansi untuk hari tersebut
+    // Format dalam kolum jenis_konsultansi: "Emel, D/M/YYYY - WhatsApp, D/M/YYYY - Call, D/M/YYYY - Due Date: D/M/YYYY"
+    // Guna regex yang sama seperti kod sedia ada (app.js line 9585)
+    const konsultansiPattern = /(Emel|WhatsApp|Whatsapp|Call),?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
+    const selectedDateObj = new Date(year, month - 1, day);
     let countEmel = 0, countWA = 0, countCall = 0;
     userRecords.forEach(item => {
       const konsultansiStr = item.jenis_konsultansi || '';
       if (konsultansiStr) {
-        // Parse each entry: "Type, DD/MM/YYYY"
-        const entries = konsultansiStr.split(' - ');
-        entries.forEach(entry => {
-          if (entry.includes(targetDateStr)) {
-            const upper = entry.toUpperCase();
-            if (upper.includes('EMEL')) countEmel++;
-            else if (upper.includes('WHATSAPP')) countWA++;
-            else if (upper.includes('CALL') || upper.includes('PANGGILAN')) countCall++;
+        let match;
+        while ((match = konsultansiPattern.exec(konsultansiStr)) !== null) {
+          const type = match[1].toLowerCase();
+          const dateParts = match[2].split('/');
+          const konsultDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+          // Bandingkan tarikh (ignore masa)
+          if (konsultDate.getFullYear() === selectedDateObj.getFullYear() &&
+              konsultDate.getMonth() === selectedDateObj.getMonth() &&
+              konsultDate.getDate() === selectedDateObj.getDate()) {
+            if (type === 'emel') countEmel++;
+            else if (type === 'whatsapp') countWA++;
+            else if (type === 'call') countCall++;
           }
-        });
+        }
       }
     });
 
