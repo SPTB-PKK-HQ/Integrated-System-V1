@@ -639,50 +639,47 @@
 
         <!-- PRINT LAPORAN HARIAN -->
         <div id="printLaporanHarian" class="print-only-container">
-            <div class="header">
+            <div class="lh-header-strip" style="height:6px; background:var(--theme-color);"></div>
+            <div class="header" style="border-bottom:3px solid var(--theme-color);">
                 <h1>BORANG PELAPORAN HARIAN</h1>
                 <h2>PEMPROSESAN PERMOHONAN STB (KERJA)</h2>
                 <div class="date" id="lh_tarikh_laporan"></div>
             </div>
             <div class="section">
-                <div class="section-title">MAKLUMAT PEGAWAI</div>
+                <div class="section-title" style="border-bottom:2px solid var(--theme-color); color:var(--theme-color);">MAKLUMAT PEGAWAI</div>
                 <div class="field-row"><span class="field-label">Nama Pegawai :</span><span class="field-value" id="lh_nama_pegawai"></span></div>
                 <div class="field-row"><span class="field-label">Jawatan :</span><span class="field-value" id="lh_jawatan"></span></div>
                 <div class="field-row"><span class="field-label">Tarikh :</span><span class="field-value" id="lh_tarikh"></span></div>
                 <div class="field-row"><span class="field-label">Waktu Mula / Tamat Bekerja :</span><span class="field-value" id="lh_waktu"></span></div>
             </div>
             <div class="section">
-                <div class="section-title">RINGKASAN AKTIVITI UTAMA</div>
+                <div class="section-title" style="border-bottom:2px solid var(--theme-color); color:var(--theme-color);">RINGKASAN AKTIVITI UTAMA</div>
                 <div class="field-row"><span class="field-label">Jumlah permohonan disemak :</span><span class="field-value" id="lh_jumlah_disemak"></span></div>
                 <div class="field-row"><span class="field-label">Jumlah semakan selesai :</span><span class="field-value" id="lh_jumlah_selesai"></span></div>
                 <div class="field-row"><span class="field-label">Jumlah syor / keputusan lulus :</span><span class="field-value" id="lh_jumlah_lulus"></span></div>
                 <div class="field-row"><span class="field-label">Jumlah syor / keputusan tolak :</span><span class="field-value" id="lh_jumlah_tolak"></span></div>
                 <div class="field-row"><span class="field-label">Jumlah notifikasi / konsultansi (hari ini) :</span><span class="field-value" id="lh_jumlah_konsultansi"></span></div>
-                <div class="konsultansi-grid">
-                    <div class="konsultansi-item">Emel<span id="lh_konsultansi_emel">0</span></div>
-                    <div class="konsultansi-item">WhatsApp<span id="lh_konsultansi_wa">0</span></div>
-                    <div class="konsultansi-item">Panggilan Telefon<span id="lh_konsultansi_call">0</span></div>
-                </div>
             </div>
             <div class="section">
-                <div class="section-title">ISU DAN CABARAN</div>
+                <div class="section-title" style="border-bottom:2px solid var(--theme-color); color:var(--theme-color);">ISU DAN CABARAN</div>
                 <div class="field-row"><span class="field-value" id="lh_isu" style="min-height:50px;"></span></div>
             </div>
+            <div class="verification-separator" style="border-bottom:2px solid var(--theme-color); margin:15px 0;"></div>
             <div class="signature-area">
-                <div class="signature-box">
-                    <div class="label">DISEDIAKAN OLEH,</div>
-                    <div class="line" id="lh_sign_pengesyor">
-                        <img id="lh_pengesyor_sign_img" src="" style="display:none; max-height:60px; position:absolute; bottom:15px; left:0; right:0; margin:auto;">
-                        <img id="lh_pengesyor_cop_img" src="" style="display:none; max-height:70px; position:absolute; bottom:0; left:0; right:0; margin:auto; opacity:0.85;">
+                <div class="signature-box" style="width:45%;">
+                    <div class="ver-title" style="font-weight:900; font-size:13pt; margin-bottom:8px; color:var(--theme-color);">DISEDIAKAN OLEH,</div>
+                    <div style="position:relative; height:110px; width:100%; border-bottom:1px solid #000; margin-bottom:5px;">
+                        <img id="lh_pengesyor_cop_img" src="" style="display:none; position:absolute; bottom:0px; left:0; right:0; margin:auto; height:80px; width:auto; z-index:0; opacity:0.85;">
+                        <img id="lh_pengesyor_sign_img" src="" style="display:none; position:absolute; bottom:75px; left:0; right:0; margin:auto; height:50px; width:auto; z-index:1;">
                     </div>
-                    <div class="caption" id="lh_nama_pengesyor"></div>
-                    <div class="caption">Tarikh: <span id="lh_tarikh_pengesyor"></span></div>
+                    <div class="caption" style="font-weight:bold; font-size:11pt; text-align:center;" id="lh_nama_pengesyor"></div>
+                    <div class="caption" style="font-size:10pt; text-align:center;">Tarikh: <span id="lh_tarikh_pengesyor"></span></div>
                 </div>
-                <div class="signature-box">
-                    <div class="label">DISEMAK OLEH,</div>
-                    <div class="line"></div>
-                    <div class="caption" id="lh_disemak_oleh"></div>
-                    <div class="caption">Tarikh: <span id="lh_tarikh_disemak"></span></div>
+                <div class="signature-box" style="width:45%;">
+                    <div class="ver-title" style="font-weight:900; font-size:13pt; margin-bottom:8px; color:var(--theme-color);">DISEMAK OLEH,</div>
+                    <div style="position:relative; height:110px; width:100%; border-bottom:1px solid #000; margin-bottom:5px;"></div>
+                    <div class="caption" style="font-weight:bold; font-size:11pt; text-align:center;" id="lh_disemak_oleh"></div>
+                    <div class="caption" style="font-size:10pt; text-align:center;">Tarikh: <span id="lh_tarikh_disemak"></span></div>
                 </div>
             </div>
             <div class="footer-note">

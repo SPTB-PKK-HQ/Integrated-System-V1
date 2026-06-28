@@ -6355,7 +6355,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     // Kira statistik
     const jumlahDisemak = userRecords.length;
-    const jumlahSelesai = userRecords.filter(item => item.syor_status && item.syor_status.trim() !== '').length;
     const jumlahLulus = userRecords.filter(item => {
       if (currentUser.role === 'PENGESYOR') return item.syor_status === 'SOKONG';
       return item.kelulusan && item.kelulusan.includes('LULUS');
@@ -6364,6 +6363,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (currentUser.role === 'PENGESYOR') return item.syor_status === 'TIDAK DISOKONG' || item.syor_status === 'SIASAT';
       return item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'));
     }).length;
+    const jumlahSelesai = jumlahLulus + jumlahTolak;
 
     // Kira konsultansi untuk hari tersebut (pengesyor sahaja)
     // Format dalam kolum jenis_konsultansi: "Emel, DD/MM/YYYY - WhatsApp, DD/MM/YYYY - Call, DD/MM/YYYY - Due Date: DD/MM/YYYY"
@@ -6427,23 +6427,34 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     setText('lh_jumlah_selesai', data.jumlahSelesai);
     setText('lh_jumlah_lulus', data.jumlahLulus);
     setText('lh_jumlah_tolak', data.jumlahTolak);
-    const totalKonsultansi = (data.countEmel || 0) + (data.countWA || 0) + (data.countCall || 0);
-    setText('lh_jumlah_konsultansi', totalKonsultansi);
-    setText('lh_konsultansi_emel', data.countEmel || 0);
-    setText('lh_konsultansi_wa', data.countWA || 0);
-    setText('lh_konsultansi_call', data.countCall || 0);
+    const countEmel = data.countEmel || 0;
+    const countWA = data.countWA || 0;
+    const countCall = data.countCall || 0;
+    const totalKonsultansi = countEmel + countWA + countCall;
+    const konsultansiStr = `${countEmel} Emel - ${countWA} WhatsApp - ${countCall} Call`;
+    setText('lh_jumlah_konsultansi', konsultansiStr);
 
     // ISU DAN CABARAN - kosong
     setText('lh_isu', '');
 
-    // DISEDIAKAN OLEH - Pengesyor
+    // Guna warna tema pengesyor
     const namaPengesyor = data.namaPengesyor || currentUser.name;
+    let themeColor = getUserColorHex(currentUser.color);
+    if (typeof usersList !== 'undefined' && usersList.length > 0) {
+      const userPengesyor = usersList.find(u => u.name.toUpperCase() === namaPengesyor.toUpperCase());
+      if (userPengesyor && userPengesyor.color) {
+        themeColor = getUserColorHex(userPengesyor.color);
+      }
+    }
+    document.documentElement.style.setProperty('--theme-color', themeColor);
+
+    // DISEDIAKAN OLEH - Pengesyor
     setText('lh_nama_pengesyor', namaPengesyor);
     const today = new Date();
     const todayFormatted = today.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
     setText('lh_tarikh_pengesyor', todayFormatted);
 
-    // Sign dan Cop Pengesyor
+    // Sign dan Cop Pengesyor (guna positioning macam borang semakan)
     const signImg = document.getElementById('lh_pengesyor_sign_img');
     const copImg = document.getElementById('lh_pengesyor_cop_img');
     if (signImg) { signImg.style.display = 'none'; signImg.removeAttribute('src'); }
@@ -6467,6 +6478,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     setText('lh_disemak_oleh', '');
     setText('lh_tarikh_disemak', '');
 
+    // Simpan warna tema asal untuk dipulihkan selepas cetak
+    const originalThemeColor = currentUser.color ? getUserColorHex(currentUser.color) : '#2563eb';
+
     // Papar laporan dan cetak
     const laporanEl = document.getElementById('printLaporanHarian');
     const printLayoutEl = document.getElementById('printLayout');
@@ -6477,10 +6491,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       // Trigger cetakan
       setTimeout(() => {
         window.print();
-        // Selepas cetak/cancel, sembunyikan semula
+        // Selepas cetak/cancel, pulihkan dan sembunyikan
         setTimeout(() => {
           laporanEl.style.display = 'none';
           if (printLayoutEl) printLayoutEl.style.display = '';
+          document.documentElement.style.setProperty('--theme-color', originalThemeColor);
         }, 500);
       }, 300);
     }
