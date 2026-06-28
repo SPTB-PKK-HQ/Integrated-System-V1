@@ -1247,12 +1247,39 @@
         }
 
         .print-only-container { display: none; }
+        #printLaporanHarian { font-family: 'Arial', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #000; font-size: 11pt; }
+        #printLaporanHarian .header { text-align: center; border-bottom: 3px solid #000; margin-bottom: 20px; padding-bottom: 15px; }
+        #printLaporanHarian .header h1 { font-size: 18pt; margin: 0 0 5px 0; text-transform: uppercase; }
+        #printLaporanHarian .header h2 { font-size: 14pt; margin: 0 0 5px 0; font-weight: normal; }
+        #printLaporanHarian .header .date { font-size: 11pt; font-weight: bold; }
+        #printLaporanHarian .section { margin-bottom: 20px; }
+        #printLaporanHarian .section-title { font-size: 13pt; font-weight: bold; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 3px; text-transform: uppercase; }
+        #printLaporanHarian .field-row { display: flex; margin-bottom: 6px; font-size: 11pt; }
+        #printLaporanHarian .field-label { font-weight: bold; min-width: 250px; }
+        #printLaporanHarian .field-value { font-weight: normal; border-bottom: 1px solid #999; flex: 1; padding: 0 5px; }
+        #printLaporanHarian .konsultansi-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 5px; }
+        #printLaporanHarian .konsultansi-item { border: 1px solid #000; padding: 8px; text-align: center; font-weight: bold; font-size: 11pt; }
+        #printLaporanHarian .konsultansi-item span { display: block; font-size: 16pt; margin-top: 3px; }
+        #printLaporanHarian .signature-area { display: flex; justify-content: space-between; margin-top: 30px; }
+        #printLaporanHarian .signature-box { width: 45%; text-align: center; }
+        #printLaporanHarian .signature-box .label { font-weight: bold; font-size: 11pt; margin-bottom: 3px; }
+        #printLaporanHarian .signature-box .line { border-bottom: 1px solid #000; height: 80px; position: relative; margin-bottom: 5px; }
+        #printLaporanHarian .signature-box .line img { max-height: 70px; max-width: 100%; position: absolute; bottom: 5px; left: 0; right: 0; margin: auto; }
+        #printLaporanHarian .signature-box .caption { font-size: 10pt; }
+        #printLaporanHarian .footer-note { margin-top: 25px; font-size: 9pt; color: #666; border-top: 1px solid #ccc; padding-top: 8px; font-style: italic; }
 
         @media print {
             body { background: white !important; padding: 0; margin: 0; font-size: 14pt; font-family: 'Arial Narrow', 'Arial', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: black !important; animation: none !important; }
             @page { margin: 0.5cm; size: A4; }
             .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay { display: none !important; }
             .print-only-container { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; }
+            #printLaporanHarian { font-size: 11pt; padding: 0; max-width: 100%; }
+            #printLaporanHarian .header h1 { font-size: 16pt; }
+            #printLaporanHarian .header h2 { font-size: 12pt; }
+            #printLaporanHarian .section-title { font-size: 12pt; }
+            #printLaporanHarian .field-row, #printLaporanHarian .konsultansi-item { font-size: 10pt; }
+            #printLaporanHarian .konsultansi-item span { font-size: 14pt; }
+            #printLaporanHarian .footer-note { font-size: 8pt; }
             h1, h2 { color: black !important; font-size: 10pt; margin: 2px 0; border-bottom: 1px solid #000; text-transform: uppercase; line-height: 1.1; font-weight: 900; }
             .print-table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
             .print-table td, .print-table th { padding: 1px 3px; vertical-align: middle; border: 1px solid #000; font-size: 13pt; font-weight: 600; }

@@ -509,7 +509,7 @@
             <div class="dashboard-container">
                 <div class="dashboard-loading" id="dashboardLoading"><div class="dashboard-spinner"></div><div class="dashboard-loading-text">Memuatkan data dashboard...</div></div>
                 <div class="card">
-                    <div class="dashboard-header"><h2>📊 Dashboard Analisis Permohonan</h2><div class="dashboard-filter"><label>Tempoh:</label><select id="dashboardPeriod"><option value="daily">Harian</option><option value="monthly">Bulanan</option><option value="yearly">Tahunan</option></select><select id="dashboardYear"><option value="">Semua Tahun</option></select><select id="dashboardMonth" style="display: none;"><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select><select id="dashboardDay" style="display: none;"></select><button id="btnDashboardCsv" class="btn" style="background-color: #10b981; color: white;">⬇️ Muat Turun CSV</button></div></div>
+                    <div class="dashboard-header"><h2>📊 Dashboard Analisis Permohonan</h2><div class="dashboard-filter"><label>Tempoh:</label><select id="dashboardPeriod"><option value="daily">Harian</option><option value="monthly">Bulanan</option><option value="yearly">Tahunan</option></select><select id="dashboardYear"><option value="">Semua Tahun</option></select><select id="dashboardMonth" style="display: none;"><option value="01">Januari</option><option value="02">Februari</option><option value="03">Mac</option><option value="04">April</option><option value="05">Mei</option><option value="06">Jun</option><option value="07">Julai</option><option value="08">Ogos</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Disember</option></select>                <select id="dashboardDay" style="display: none;"></select><button id="btnDashboardCsv" class="btn" style="background-color: #10b981; color: white;">⬇️ Muat Turun CSV</button><button id="btnLaporanHarian" class="btn" style="background-color: #f59e0b; color: white; display: none;">📄 Papar Laporan Harian</button></div></div>
                     <div id="dashboardUserInfo" style="background: #f0f9ff; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2563eb;"><p style="margin: 0; font-weight: 600; color: #1e40af;">👤 Anda melihat dashboard sebagai: <span id="dashboardUserRole">Pengesyor</span></p><p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #64748b;"><span id="dashboardUserSpecificInfo">Statistik berdasarkan syor anda (SOKONG/TIDAK DISOKONG)</span></p></div>
                     <div class="dashboard-stats"><div class="stat-card" id="card_total"><div class="stat-value" id="total-count">0</div><div class="stat-label" id="label-total">JUMLAH</div></div><div class="stat-card" id="card_success"><div class="stat-value" id="success-count">0</div><div class="stat-label" id="label-success">-</div></div><div class="stat-card" id="card_reject"><div class="stat-value" id="reject-count">0</div><div class="stat-label" id="label-reject">-</div></div><div class="stat-card" id="card_status"><div class="stat-value" id="process-count">0</div><div class="stat-label" id="label-status">-</div></div><div class="stat-card" id="card-incomplete-doc" style="border-top-color:#f97316; cursor:pointer; display:none;" title="Klik untuk lihat senarai permohonan"><div class="stat-value" id="incomplete-doc-count">0</div><div class="stat-label">DOKUMEN TIDAK LENGKAP</div></div></div>
                     <div class="dashboard-charts">
@@ -636,6 +636,59 @@
 
         <!-- MODAL SENARAI DOKUMEN TIDAK LENGKAP -->
         <div class="admin-stats-modal" id="incompleteDocModal" style="display: none;"><div class="admin-stats-content" style="max-width: 95%;"><span class="admin-stats-close" id="incompleteDocModalClose">×</span><h2 style="color: #f97316; text-align: center;">📋 Senarai Permohonan Dokumen Tidak Lengkap</h2><div id="incompleteDocModalInfo" style="text-align:center; color:#64748b; margin-bottom:10px;"></div><div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;"><input type="text" id="incompleteDocSearch" placeholder="Cari nama syarikat atau CIDB..." style="flex:1; min-width:200px; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem;"><button class="btn-sm" id="filterIncompleteDocAll" style="background:#1e293b; color:white; border:2px solid transparent; font-weight:bold;">SEMUA</button><button class="btn-sm" id="filterIncompleteDocBaru" style="background:#2563eb; color:white; border:2px solid transparent;">BARU</button><button class="btn-sm" id="filterIncompleteDocPembaharuan" style="background:#059669; color:white; border:2px solid transparent;">PEMBAHARUAN</button><button class="btn-sm" id="filterIncompleteDocUbahMaklumat" style="background:#d97706; color:white; border:2px solid transparent;">UBAH MAKLUMAT</button><button class="btn-sm" id="filterIncompleteDocUbahGred" style="background:#7c3aed; color:white; border:2px solid transparent;">UBAH GRED</button></div><div style="overflow-x: auto; max-height: 55vh; overflow-y: auto;"><table class="admin-stats-table" id="incompleteDocModalTable"><thead><tr><th>Syarikat</th><th>CIDB</th><th>Gred</th><th>Tarikh Mohon</th><th>Jenis</th><th>Dokumen Tidak Lengkap</th><th>Tindakan</th></tr></thead><tbody id="incompleteDocModalTbody"><tr><td colspan="7" style="text-align:center;">Tiada data</td></tr></tbody></table></div><div style="text-align: center; margin-top: 15px;"><button class="btn" id="btnCloseIncompleteModal" style="background-color: #f97316; color: white;">Tutup</button></div></div></div>
+
+        <!-- PRINT LAPORAN HARIAN -->
+        <div id="printLaporanHarian" class="print-only-container">
+            <div class="header">
+                <h1>BORANG PELAPORAN HARIAN</h1>
+                <h2>PEMPROSESAN PERMOHONAN STB (KERJA)</h2>
+                <div class="date" id="lh_tarikh_laporan"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">MAKLUMAT PEGAWAI</div>
+                <div class="field-row"><span class="field-label">Nama Pegawai :</span><span class="field-value" id="lh_nama_pegawai"></span></div>
+                <div class="field-row"><span class="field-label">Jawatan :</span><span class="field-value" id="lh_jawatan"></span></div>
+                <div class="field-row"><span class="field-label">Tarikh :</span><span class="field-value" id="lh_tarikh"></span></div>
+                <div class="field-row"><span class="field-label">Waktu Mula / Tamat Bekerja :</span><span class="field-value" id="lh_waktu"></span></div>
+            </div>
+            <div class="section">
+                <div class="section-title">RINGKASAN AKTIVITI UTAMA</div>
+                <div class="field-row"><span class="field-label">Jumlah permohonan disemak :</span><span class="field-value" id="lh_jumlah_disemak"></span></div>
+                <div class="field-row"><span class="field-label">Jumlah semakan selesai :</span><span class="field-value" id="lh_jumlah_selesai"></span></div>
+                <div class="field-row"><span class="field-label">Jumlah syor / keputusan lulus :</span><span class="field-value" id="lh_jumlah_lulus"></span></div>
+                <div class="field-row"><span class="field-label">Jumlah syor / keputusan tolak :</span><span class="field-value" id="lh_jumlah_tolak"></span></div>
+                <div class="field-row"><span class="field-label">Jumlah notifikasi / konsultansi (hari ini) :</span><span class="field-value" id="lh_jumlah_konsultansi"></span></div>
+                <div class="konsultansi-grid">
+                    <div class="konsultansi-item">Emel<span id="lh_konsultansi_emel">0</span></div>
+                    <div class="konsultansi-item">WhatsApp<span id="lh_konsultansi_wa">0</span></div>
+                    <div class="konsultansi-item">Panggilan Telefon<span id="lh_konsultansi_call">0</span></div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">ISU DAN CABARAN</div>
+                <div class="field-row"><span class="field-value" id="lh_isu" style="min-height:50px;"></span></div>
+            </div>
+            <div class="signature-area">
+                <div class="signature-box">
+                    <div class="label">DISEDIAKAN OLEH,</div>
+                    <div class="line" id="lh_sign_pengesyor">
+                        <img id="lh_pengesyor_sign_img" src="" style="display:none; max-height:60px; position:absolute; bottom:15px; left:0; right:0; margin:auto;">
+                        <img id="lh_pengesyor_cop_img" src="" style="display:none; max-height:70px; position:absolute; bottom:0; left:0; right:0; margin:auto; opacity:0.85;">
+                    </div>
+                    <div class="caption" id="lh_nama_pengesyor"></div>
+                    <div class="caption">Tarikh: <span id="lh_tarikh_pengesyor"></span></div>
+                </div>
+                <div class="signature-box">
+                    <div class="label">DISEMAK OLEH,</div>
+                    <div class="line"></div>
+                    <div class="caption" id="lh_disemak_oleh"></div>
+                    <div class="caption">Tarikh: <span id="lh_tarikh_disemak"></span></div>
+                </div>
+            </div>
+            <div class="footer-note">
+                PERINGATAN: Borang hendaklah dilengkapkan 30 minit sebelum waktu kerja tamat bagi memastikan ketepatan data dan hantar kepada Penyelia. Simpan salinan digital (PDF) sebagai bukti pencapaian KPI bulanan anda.
+            </div>
+        </div>
 
         <!-- PRINT LAYOUTS -->
         <div id="printLayout" class="print-only-container">

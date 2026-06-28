@@ -1943,6 +1943,8 @@ async function handleCredentialResponse(response) {
         dashboardData.currentPeriod = e.target.value;
         if (dashboardMonth) dashboardMonth.style.display = (e.target.value === 'monthly' || e.target.value === 'daily') ? 'block' : 'none';
         if (dashboardDay) dashboardDay.style.display = (e.target.value === 'daily') ? 'block' : 'none';
+        const btnLh = document.getElementById('btnLaporanHarian');
+        if (btnLh) btnLh.style.display = (e.target.value === 'daily') ? 'inline-block' : 'none';
         updateDashboard(true);
       });
     }
@@ -1999,6 +2001,8 @@ async function handleCredentialResponse(response) {
       dashboardDay.value = dayStr;
       dashboardDay.style.display = (dashboardData.currentPeriod === 'daily') ? 'block' : 'none';
     }
+    const btnLh = document.getElementById('btnLaporanHarian');
+    if (btnLh) btnLh.style.display = (dashboardData.currentPeriod === 'daily') ? 'inline-block' : 'none';
     
     updateDashboard(false);
   }
@@ -6300,6 +6304,185 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
             }
         }
+    }
+  }
+
+  // =========================================================================
+  // FUNGSI LAPORAN HARIAN PENGESYOR
+  // =========================================================================
+
+  function generateAndShowLaporanHarian() {
+    const period = dashboardData.currentPeriod;
+    if (period !== 'daily') {
+      CustomAppModal.alert('Sila pilih tempoh "Harian" di dashboard untuk menggunakan laporan ini.', 'Makluman', 'warning');
+      return;
+    }
+
+    const year = dashboardData.currentYear;
+    const month = dashboardData.currentMonth;
+    const day = dashboardData.currentDay;
+    const selectedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateObj = new Date(year, month - 1, day);
+    const formattedDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (!cachedData || cachedData.length === 0) {
+      CustomAppModal.alert('Tiada data untuk dianalisis.', 'Makluman', 'warning');
+      return;
+    }
+
+    // Tapis data untuk tarikh yang dipilih
+    const dailyRecords = cachedData.filter(item => {
+      let dateToUse = resolveRecordDate(item);
+      if (!dateToUse || isNaN(dateToUse)) return false;
+      return dateToUse.getFullYear() === year &&
+             dateToUse.getMonth() + 1 === month &&
+             dateToUse.getDate() === day;
+    });
+
+    // Tapis untuk pengguna semasa (pengesyor)
+    let userRecords = [];
+    if (currentUser.role === 'PENGESYOR') {
+      userRecords = dailyRecords.filter(item =>
+        item.pengesyor && item.pengesyor.trim().toUpperCase() === currentUser.name.trim().toUpperCase()
+      );
+    } else if (currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+      userRecords = dailyRecords;
+    } else {
+      userRecords = dailyRecords.filter(item =>
+        item.pelulus && item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase()
+      );
+    }
+
+    // Kira statistik
+    const jumlahDisemak = userRecords.length;
+    const jumlahSelesai = userRecords.filter(item => item.syor_status && item.syor_status.trim() !== '').length;
+    const jumlahLulus = userRecords.filter(item => {
+      if (currentUser.role === 'PENGESYOR') return item.syor_status === 'SOKONG';
+      return item.kelulusan && item.kelulusan.includes('LULUS');
+    }).length;
+    const jumlahTolak = userRecords.filter(item => {
+      if (currentUser.role === 'PENGESYOR') return item.syor_status === 'TIDAK DISOKONG' || item.syor_status === 'SIASAT';
+      return item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'));
+    }).length;
+
+    // Kira konsultansi untuk hari tersebut (pengesyor sahaja)
+    // Format dalam kolum jenis_konsultansi: "Emel, DD/MM/YYYY - WhatsApp, DD/MM/YYYY - Call, DD/MM/YYYY - Due Date: DD/MM/YYYY"
+    const targetDateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+    let countEmel = 0, countWA = 0, countCall = 0;
+    userRecords.forEach(item => {
+      const konsultansiStr = item.jenis_konsultansi || '';
+      if (konsultansiStr) {
+        // Parse each entry: "Type, DD/MM/YYYY"
+        const entries = konsultansiStr.split(' - ');
+        entries.forEach(entry => {
+          if (entry.includes(targetDateStr)) {
+            const upper = entry.toUpperCase();
+            if (upper.includes('EMEL')) countEmel++;
+            else if (upper.includes('WHATSAPP')) countWA++;
+            else if (upper.includes('CALL') || upper.includes('PANGGILAN')) countCall++;
+          }
+        });
+      }
+    });
+
+    // Isi laporan
+    isiLaporanHarian({
+      tarikhLaporan: formattedDate,
+      tarikh: selectedDate,
+      namaPengesyor: currentUser.name,
+      jumlahDisemak,
+      jumlahSelesai,
+      jumlahLulus,
+      jumlahTolak,
+      countEmel,
+      countWA,
+      countCall
+    });
+  }
+
+  function isiLaporanHarian(data) {
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val || '';
+    };
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
+    };
+
+    // Header
+    const dateObj = data.tarikh ? new Date(data.tarikh + 'T00:00:00') : new Date();
+    const dayName = dateObj.toLocaleDateString('ms-MY', { weekday: 'long' });
+    const dateStr = `${dayName.toUpperCase()}, ${data.tarikhLaporan}`;
+    setText('lh_tarikh_laporan', dateStr);
+
+    // MAKLUMAT PEGAWAI - Kosong (seperti diminta)
+    setText('lh_nama_pegawai', '');
+    setText('lh_jawatan', '');
+    setText('lh_tarikh', '');
+    setText('lh_waktu', '');
+
+    // RINGKASAN AKTIVITI UTAMA
+    setText('lh_jumlah_disemak', data.jumlahDisemak);
+    setText('lh_jumlah_selesai', data.jumlahSelesai);
+    setText('lh_jumlah_lulus', data.jumlahLulus);
+    setText('lh_jumlah_tolak', data.jumlahTolak);
+    const totalKonsultansi = (data.countEmel || 0) + (data.countWA || 0) + (data.countCall || 0);
+    setText('lh_jumlah_konsultansi', totalKonsultansi);
+    setText('lh_konsultansi_emel', data.countEmel || 0);
+    setText('lh_konsultansi_wa', data.countWA || 0);
+    setText('lh_konsultansi_call', data.countCall || 0);
+
+    // ISU DAN CABARAN - kosong
+    setText('lh_isu', '');
+
+    // DISEDIAKAN OLEH - Pengesyor
+    const namaPengesyor = data.namaPengesyor || currentUser.name;
+    setText('lh_nama_pengesyor', namaPengesyor);
+    const today = new Date();
+    const todayFormatted = today.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+    setText('lh_tarikh_pengesyor', todayFormatted);
+
+    // Sign dan Cop Pengesyor
+    const signImg = document.getElementById('lh_pengesyor_sign_img');
+    const copImg = document.getElementById('lh_pengesyor_cop_img');
+    if (signImg) { signImg.style.display = 'none'; signImg.removeAttribute('src'); }
+    if (copImg) { copImg.style.display = 'none'; copImg.removeAttribute('src'); }
+
+    if (typeof usersList !== 'undefined' && usersList.length > 0) {
+      const userPengesyor = usersList.find(u => u.name.toUpperCase() === namaPengesyor.toUpperCase());
+      if (userPengesyor) {
+        if (userPengesyor.signUrl && userPengesyor.signUrl.trim() !== '') {
+          signImg.setAttribute('src', userPengesyor.signUrl.trim());
+          signImg.style.display = 'block';
+        }
+        if (userPengesyor.copUrl && userPengesyor.copUrl.trim() !== '') {
+          copImg.setAttribute('src', userPengesyor.copUrl.trim());
+          copImg.style.display = 'block';
+        }
+      }
+    }
+
+    // DISEMAK OLEH - kosong
+    setText('lh_disemak_oleh', '');
+    setText('lh_tarikh_disemak', '');
+
+    // Papar laporan dan cetak
+    const laporanEl = document.getElementById('printLaporanHarian');
+    const printLayoutEl = document.getElementById('printLayout');
+    if (laporanEl) {
+      laporanEl.style.display = 'block';
+      if (printLayoutEl) printLayoutEl.style.display = 'none';
+      
+      // Trigger cetakan
+      setTimeout(() => {
+        window.print();
+        // Selepas cetak/cancel, sembunyikan semula
+        setTimeout(() => {
+          laporanEl.style.display = 'none';
+          if (printLayoutEl) printLayoutEl.style.display = '';
+        }, 500);
+      }, 300);
     }
   }
 
@@ -11172,6 +11355,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   if (btnDownloadDashboardCsv) {
     btnDownloadDashboardCsv.addEventListener('click', downloadDashboardCSV);
+  }
+
+  const btnLaporanHarian = document.getElementById('btnLaporanHarian');
+  if (btnLaporanHarian) {
+    btnLaporanHarian.addEventListener('click', generateAndShowLaporanHarian);
   }
 
   setTimeout(() => {
