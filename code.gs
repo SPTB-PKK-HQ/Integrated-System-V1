@@ -1270,7 +1270,8 @@ function embedAllImagesAsBase64(htmlContent) {
         // Muat turun imej menggunakan UrlFetchApp
         const response = UrlFetchApp.fetch(imgUrl, { 
           muteHttpExceptions: true,
-          validateHttpsCertificates: false
+          validateHttpsCertificates: false,
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
         });
         
         const responseCode = response.getResponseCode();
@@ -1381,7 +1382,17 @@ function handleCetakDanSimpanPDF(data) {
     const fileName = data.custom_file_name ? data.custom_file_name + '.pdf' : 'Borang_Semakan_' + data.company_name + '.pdf';
     blob.setName(fileName);
     
-    const pdfFile = targetFolder.createFile(blob);
+    let pdfFile;
+    if (data.overwrite_file_id) {
+      try {
+        pdfFile = DriveApp.getFileById(data.overwrite_file_id);
+        pdfFile.setBlob(blob);
+      } catch (e) {
+        pdfFile = targetFolder.createFile(blob);
+      }
+    } else {
+      pdfFile = targetFolder.createFile(blob);
+    }
     
     const isProfile = data.custom_file_name && data.custom_file_name.includes('Profile Syarikat');
     const logAction = isProfile ? 'CETAK_PROFILE' : 'CETAK_PDF';
@@ -3421,6 +3432,8 @@ function handleGetInbox(data) {
             syarikat: row[0] || '',
             cidb: row[1] || '',
             jenis: row[3] || '',
+            kelulusan: row[23] || '',
+            whatsapp_schedule: row[29] || '',
             masa: msg.masa,
             mesej: msg.mesej,
             jenisMsg: msg.jenis || 'INFO',

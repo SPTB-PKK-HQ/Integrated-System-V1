@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO0RM4qRnJKY6QeIXv5eC5ZceVaCLkXmDOBAypjTsy7235U0IvZvAEwx4eBNj_DUEL/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMh9NqJvImRkL3BvAKf1ThdAdgxkNzjPZxR1L4U6gw_jkQxFJHpGHBSV4RtJbpLRux/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -4934,7 +4934,7 @@ async function handleCredentialResponse(response) {
       
       if (driveUrl && printProfileQrCodeImg) {
         const encodedUrl = encodeURIComponent(driveUrl);
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedUrl}`;
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedUrl}`;
         printProfileQrCodeImg.src = qrApiUrl;
         printProfileQrCodeImg.style.display = 'block';
       } else if (printProfileQrCodeImg) {
@@ -5010,24 +5010,28 @@ async function handleCredentialResponse(response) {
         const subfolderName = appType ? `${appType}${specificType} - ${formattedDate}` : '';
         
         const profileCss = `
-          #printProfileLayout { font-family: 'Arial', sans-serif; padding: 5px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt; }
+          body { padding: 0 !important; margin: 0 !important; background: #fff; }
+          .print-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff; }
+          .print-container > .footer { display: none !important; }
+          #printProfileLayout { font-family: 'Arial', sans-serif; padding: 20px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt !important; }
           #printProfileLayout .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
           #printProfileLayout .info-row { margin-bottom: 6px; border-bottom: 1px dotted #ccc; padding-bottom: 4px; break-inside: avoid; }
-          #printProfileLayout .info-label { font-weight: bold; font-size: 11pt; min-width: 130px; display: inline-block; color: ${themeColorHex}; }
-          #printProfileLayout .info-value { font-size: 11pt; font-weight: 500; word-break: break-word; }
-          #printProfileLayout .section-title { font-size: 14pt; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid ${themeColorHex}; padding-left: 10px; background-color: #eff6ff; color: ${themeColorHex}; }
+          #printProfileLayout .info-label { font-weight: bold; font-size: 11pt !important; min-width: 130px; display: inline-block; color: ${themeColorHex}; }
+          #printProfileLayout .info-value { font-size: 11pt !important; font-weight: 500; word-break: break-word; }
+          #printProfileLayout .section-title { font-size: 14pt !important; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid ${themeColorHex}; padding-left: 10px; background-color: #eff6ff; color: ${themeColorHex}; }
           #printProfileLayout .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
           #printProfileLayout .qr-code { text-align: right; }
-          #printProfileLayout .qr-code img { width: 80px; height: 80px; border: 1px solid #000; padding: 3px; }
-          #printProfileLayout .date-generated { font-size: 10pt; color: #555; }
-          .profile-theme-bg { background-color: ${themeColorHex}; color: white; }
-          .profile-theme-border { border: 2px solid ${themeColorHex}; }
-          .profile-company-header { text-align: center; margin-bottom: 15px; background-color: ${themeColorHex}; color: white; padding: 10px; border-radius: 6px; }
-          .profile-company-name { font-size: 18pt; font-weight: bold; text-transform: uppercase; }
-          .profile-company-cidb { font-size: 12pt; font-weight: normal; }
-          .profile-company-grade { font-size: 12pt; font-weight: bold; margin-top: 4px; color: #facc15; }
+          #printProfileLayout .qr-code img { width: 100px !important; height: 100px !important; border: 1px solid #000; padding: 3px; }
+          #printProfileLayout .date-generated { font-size: 10pt !important; color: #555; }
+          .profile-theme-bg { background-color: ${themeColorHex} !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .profile-theme-border { border: 2px solid ${themeColorHex} !important; }
+          .profile-company-header { text-align: center; margin-bottom: 15px; background-color: ${themeColorHex} !important; color: white !important; padding: 10px; border-radius: 6px; }
+          .profile-company-name { font-size: 18pt !important; font-weight: bold; text-transform: uppercase; }
+          .profile-company-cidb { font-size: 12pt !important; font-weight: normal; }
+          .profile-company-grade { font-size: 12pt !important; font-weight: bold; margin-top: 4px; color: #facc15; }
           .footer-info-group { display: flex; flex-direction: column; gap: 4px; }
           .full-width { grid-column: 1 / -1; }
+          #printProfileLayout .jenis-perubahan-info { font-size: 11pt !important; font-weight: bold; margin-top: 8px; }
         `;
         const printHTMLForDrive = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
         
@@ -5093,6 +5097,33 @@ async function handleCredentialResponse(response) {
           
           if (result.success) {
             await playSuccessSound();
+            if (profilePautanDrive && result.folder_url) {
+              profilePautanDrive.value = result.folder_url;
+            }
+            if (printProfileQrCodeImg && result.folder_url) {
+              const encodedUrl = encodeURIComponent(result.folder_url);
+              printProfileQrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedUrl}`;
+              printProfileQrCodeImg.style.display = 'block';
+            }
+            // Simpan semula dengan QR code yang telah dikemaskini (overwrite file)
+            if (result.folder_url && result.file_id) {
+              const updatedPrintHTML = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
+              const updatedPayload = {
+                action: 'cetak_dan_simpan_pdf',
+                company_name: companyName,
+                custom_file_name: `Profile Syarikat-${companyName}`,
+                application_type: subfolderName,
+                user_name: currentUser.name,
+                user_color: themeColorHex,
+                main_folder_id: mainFolderId,
+                htmlContent: updatedPrintHTML,
+                overwrite_file_id: result.file_id,
+                email: currentUser ? currentUser.email : ''
+              };
+              await fetchWithRetry(SCRIPT_URL, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(updatedPayload)
+              }, 3, 1000);
+            }
             if (loadingOverlay) loadingOverlay.style.display = 'none';
             await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
           } else {
@@ -13562,7 +13593,19 @@ function renderInbox() {
           </div>
         </div>
         <div class="inbox-actions">
-          ${msg.row ? `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>` : ''}
+          ${(() => {
+            if (!msg.row) return '';
+            const kelulusan = (msg.kelulusan || '').toUpperCase();
+            const waScheduled = msg.whatsapp_schedule && msg.whatsapp_schedule.trim() !== '';
+            if (waScheduled) return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
+            if (kelulusan.includes('LULUS')) {
+              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
+            }
+            if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
+              return `<span style="color:#ef4444; font-size:20px; font-weight:bold; margin-right:5px;" title="Ditolak">✗</span><button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
+            }
+            return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>`;
+          })()}
           ${hasWALink ? `<button class="inbox-btn inbox-btn-wa-pilih" data-idx="${index}">💬 Hantar WA</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
         </div>
