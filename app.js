@@ -934,8 +934,6 @@ async function handleCredentialResponse(response) {
   const btnClearProfileData = document.getElementById('btnClearProfileData');
   const btnCetakProfile = document.getElementById('btnCetakProfile');
   const btnResetProfile = document.getElementById('btnResetProfile');
-  const btnPreviewQR = document.getElementById('btnPreviewQR');
-  const previewQrCode = document.getElementById('previewQrCode');
   
   // Profile Tab Input Elements
   const profileSyarikat = document.getElementById('profile_syarikat');
@@ -954,7 +952,6 @@ async function handleCredentialResponse(response) {
   const profileNoFax = document.getElementById('profile_no_fax');
   const profileEmailSyarikat = document.getElementById('profile_email_syarikat');
   const profileWeb = document.getElementById('profile_web');
-  const profilePautanDrive = document.getElementById('profile_pautan_drive');
   const profileJenisPerubahan = document.getElementById('profile_jenis_perubahan');
   const cbSsmBerdaftar = document.getElementById('cb_ssm_berdaftar');
   const cbSsmSurat = document.getElementById('cb_ssm_surat');
@@ -4417,18 +4414,12 @@ async function handleCredentialResponse(response) {
     if (profileNoFax) profileNoFax.value = '';
     if (profileEmailSyarikat) profileEmailSyarikat.value = '';
     if (profileWeb) profileWeb.value = '';
-    if (profilePautanDrive) profilePautanDrive.value = '';
     if (profileJenisPerubahan) profileJenisPerubahan.value = '';
     
     if (cbSsmBerdaftar) cbSsmBerdaftar.checked = false;
     if (cbSsmSurat) cbSsmSurat.checked = false;
     
     if (labelAlamatBerdaftar) labelAlamatBerdaftar.textContent = 'Alamat Berdaftar';
-    
-    if (previewQrCode) {
-      previewQrCode.style.display = 'none';
-      previewQrCode.src = '';
-    }
     
     if (profilePdfInput) {
       profilePdfInput.value = ''; // Kosongkan fail tanpa buang fungsi AI
@@ -4457,25 +4448,7 @@ async function handleCredentialResponse(response) {
     console.log("V6.5.2 Profile form reset completed");
   }
 
-  if (btnPreviewQR) {
-    btnPreviewQR.addEventListener('click', async () => {
-      const driveUrl = profilePautanDrive ? profilePautanDrive.value.trim() : '';
-      
-      if (!driveUrl) {
-        await CustomAppModal.alert("Sila masukkan Pautan Drive terlebih dahulu.", "Pautan Diperlukan", "warning");
-        return;
-      }
-      
-      const encodedUrl = encodeURIComponent(driveUrl);
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedUrl}`;
-      
-      if (previewQrCode) {
-        previewQrCode.src = qrApiUrl;
-        previewQrCode.style.display = 'block';
-        console.log("V6.5.2 QR Code generated for URL:", driveUrl);
-      }
-    });
-  }
+
 
   async function processProfileWithAI() {
     if (!profilePdfInput.files.length) {
@@ -5083,9 +5056,6 @@ async function handleCredentialResponse(response) {
           
           if (result.success) {
             await playSuccessSound();
-            if (profilePautanDrive && result.folder_url) {
-              profilePautanDrive.value = result.folder_url;
-            }
             if (loadingOverlay) loadingOverlay.style.display = 'none';
             await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
           } else {
@@ -11468,9 +11438,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   if (btnPergiCiptaProfile) {
     btnPergiCiptaProfile.addEventListener('click', () => {
-      console.log("V6.5.2 btnPergiCiptaProfile clicked - Navigating to Profile tab and copying Drive link");
+      console.log("V6.5.2 btnPergiCiptaProfile clicked - Navigating to Profile tab");
       
-      const dbPautanValue = document.getElementById('db_pautan')?.value || '';
       const dbJustifikasiValue = document.getElementById('db_justifikasi')?.value || '';
       
       switchTab('profile');
@@ -11480,28 +11449,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         profileJenisPerubahan.value = dbJustifikasiValue;
       }
       
-      if (dbPautanValue && dbPautanValue.trim() !== '') {
-        const profilePautanDriveField = document.getElementById('profile_pautan_drive');
-        if (profilePautanDriveField) {
-          profilePautanDriveField.value = dbPautanValue;
-          console.log("V6.5.2 Drive link copied to profile form:", dbPautanValue);
-          
-          const successMsg = document.createElement('div');
-          successMsg.textContent = '✓ Pautan Drive telah disalin ke borang Profile';
-          successMsg.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#10b981; color:white; padding:8px 16px; border-radius:8px; z-index:10000; font-size:0.9rem;';
-          document.body.appendChild(successMsg);
-          setTimeout(() => successMsg.remove(), 2000);
-        } else {
-          console.warn("V6.5.2 Profile Drive link input field not found");
-        }
-      } else {
-        console.log("V6.5.2 No Drive link found in Input Database tab");
-        const warningMsg = document.createElement('div');
-        warningMsg.textContent = '⚠ Tiada pautan Drive di Input Database untuk disalin';
-        warningMsg.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#f59e0b; color:white; padding:8px 16px; border-radius:8px; z-index:10000; font-size:0.9rem;';
-        document.body.appendChild(warningMsg);
-        setTimeout(() => warningMsg.remove(), 2000);
-      }
     });
   }
 
