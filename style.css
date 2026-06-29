@@ -1633,7 +1633,7 @@
 
         .changelog-slider {
             display: flex;
-            transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
             will-change: transform;
         }
 
@@ -1647,6 +1647,24 @@
             background: rgba(0,0,0,0.25);
             cursor: pointer;
             position: relative;
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .changelog-slide.exit-left { opacity: 0; transform: translateX(-40px) scale(0.95); }
+        .changelog-slide.exit-right { opacity: 0; transform: translateX(40px) scale(0.95); }
+        .changelog-slide.exit-fade { opacity: 0; transform: scale(0.92); }
+        .changelog-slide.exit-slideup { opacity: 0; transform: translateY(30px) scale(0.97); }
+        .changelog-slide.enter-left { opacity: 0; transform: translateX(40px) scale(0.95); }
+        .changelog-slide.enter-right { opacity: 0; transform: translateX(-40px) scale(0.95); }
+        .changelog-slide.enter-fade { opacity: 0; transform: scale(0.92); }
+        .changelog-slide.enter-slideup { opacity: 0; transform: translateY(-30px) scale(0.97); }
+        .changelog-slide.enter-rotate { opacity: 0; transform: rotate(6deg) scale(0.9); }
+        .changelog-slide.enter-zoom { opacity: 0; transform: scale(0.7); }
+        .changelog-slide.enter-swoosh { opacity: 0; transform: translateX(60px) rotate(4deg) scale(0.85); }
+        .changelog-slide.active {
+            opacity: 1;
+            transform: translateX(0) translateY(0) rotate(0) scale(1);
         }
         .changelog-slide img {
             width: 100%;

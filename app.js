@@ -5408,22 +5408,63 @@ async function handleCredentialResponse(response) {
     startChangelogAutoScroll();
   }
 
+  const transitions = ['fade', 'left', 'right', 'slideup', 'rotate', 'zoom', 'swoosh'];
+  let lastTransition = '';
+
+  function pickTransition() {
+    let t;
+    do { t = transitions[Math.floor(Math.random() * transitions.length)]; }
+    while (t === lastTransition && transitions.length > 1);
+    lastTransition = t;
+    return t;
+  }
+
   function goToSlide(idx, noAnim) {
     const slider = document.getElementById('changelogSlider');
     if (!slider || !changelogData.length) return;
 
     if (idx < 0) idx = changelogData.length - 1;
     if (idx >= changelogData.length) idx = 0;
+    const prevIdx = changelogCurrentIdx;
     changelogCurrentIdx = idx;
 
     const percent = -idx * 100;
-    slider.style.transition = noAnim ? 'none' : 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    const easing = 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)';
+    slider.style.transition = noAnim ? 'none' : easing;
     slider.style.transform = `translateX(${percent}%)`;
-
     if (noAnim) {
       slider.offsetHeight;
-      slider.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      slider.style.transition = easing;
     }
+
+    const allSlides = slider.querySelectorAll('.changelog-slide');
+    const trans = noAnim ? 'fade' : pickTransition();
+
+    allSlides.forEach(slide => {
+      slide.classList.remove(
+        'active', 'exit-left', 'exit-right', 'exit-fade', 'exit-slideup',
+        'enter-left', 'enter-right', 'enter-fade', 'enter-slideup',
+        'enter-rotate', 'enter-zoom', 'enter-swoosh'
+      );
+    });
+
+    allSlides.forEach((slide, i) => {
+      if (i === idx) {
+        if (noAnim) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.add(`enter-${trans}`);
+          requestAnimationFrame(() => {
+            slide.classList.remove(`enter-${trans}`);
+            slide.classList.add('active');
+          });
+        }
+      } else if (i === prevIdx && !noAnim && prevIdx !== idx) {
+        const exitMap = { fade: 'exit-fade', left: 'exit-left', right: 'exit-right', slideup: 'exit-slideup' };
+        slide.classList.add(exitMap[trans] || 'exit-fade');
+        setTimeout(() => slide.classList.remove(exitMap[trans] || 'exit-fade'), 500);
+      }
+    });
 
     // Update dots
     document.querySelectorAll('.changelog-dot').forEach(dot => {
