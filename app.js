@@ -4969,6 +4969,9 @@ async function handleCredentialResponse(response) {
       if (mainPrintLayout) mainPrintLayout.style.display = 'none';
       if (profilePrintLayout) profilePrintLayout.style.display = 'block';
       
+      const laporanHarianEl = document.getElementById('printLaporanHarian');
+      if (laporanHarianEl) laporanHarianEl.style.display = 'none';
+      
       window.print();
       
       setTimeout(() => {
@@ -5807,6 +5810,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if(triggerPrintBtn) {
     triggerPrintBtn.addEventListener('click', async () => {
       preparePrintView();
+
+      // Sembunyikan container cetakan lain supaya tidak bertindih semasa @media print
+      const laporanHarianEl = document.getElementById('printLaporanHarian');
+      if (laporanHarianEl) laporanHarianEl.style.display = 'none';
+      const profilePrintEl = document.getElementById('printProfileLayout');
+      if (profilePrintEl) profilePrintEl.style.display = 'none';
       
       const dbPautanValue = document.getElementById('db_pautan')?.value || '';
       const isDriveAlreadyCreated = driveFolderCreated === true || (dbPautanValue && dbPautanValue.trim() !== '');
@@ -6490,9 +6499,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     // Papar laporan dan cetak
     const laporanEl = document.getElementById('printLaporanHarian');
     const printLayoutEl = document.getElementById('printLayout');
+    const profilePrintEl = document.getElementById('printProfileLayout');
     if (laporanEl) {
       laporanEl.style.display = 'block';
       if (printLayoutEl) printLayoutEl.style.display = 'none';
+      if (profilePrintEl) profilePrintEl.style.display = 'none';
       
       // Trigger cetakan
       setTimeout(() => {
@@ -6501,6 +6512,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         setTimeout(() => {
           laporanEl.style.display = 'none';
           if (printLayoutEl) printLayoutEl.style.display = '';
+          if (profilePrintEl) profilePrintEl.style.display = '';
           document.documentElement.style.setProperty('--theme-color', originalThemeColor);
         }, 500);
       }, 300);
