@@ -4972,6 +4972,70 @@ async function handleCredentialResponse(response) {
       const laporanHarianEl = document.getElementById('printLaporanHarian');
       if (laporanHarianEl) laporanHarianEl.style.display = 'none';
       
+      // Tanya pengguna sama ada nak simpan ke Drive dulu
+      const saveToDrive = await CustomAppModal.confirm(
+        "Adakah anda ingin menyimpan Profile Syarikat ini ke Google Drive sebelum mencetak?",
+        "Simpan ke Drive",
+        "info",
+        "Ya, Simpan"
+      );
+      
+      if (saveToDrive) {
+        const companyName = profileSyarikat.value.trim();
+        const profileCss = `
+          #printProfileLayout { font-family: 'Arial', sans-serif; padding: 5px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt; }
+          #printProfileLayout .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+          #printProfileLayout .info-row { margin-bottom: 6px; border-bottom: 1px dotted #ccc; padding-bottom: 4px; break-inside: avoid; }
+          #printProfileLayout .info-label { font-weight: bold; font-size: 11pt; min-width: 130px; display: inline-block; color: ${themeColorHex}; }
+          #printProfileLayout .info-value { font-size: 11pt; font-weight: 500; word-break: break-word; }
+          #printProfileLayout .section-title { font-size: 14pt; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid ${themeColorHex}; padding-left: 10px; background-color: #eff6ff; color: ${themeColorHex}; }
+          #printProfileLayout .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
+          #printProfileLayout .qr-code { text-align: right; }
+          #printProfileLayout .qr-code img { width: 80px; height: 80px; border: 1px solid #000; padding: 3px; }
+          #printProfileLayout .date-generated { font-size: 10pt; color: #555; }
+          .profile-theme-bg { background-color: ${themeColorHex}; color: white; }
+          .profile-theme-border { border: 2px solid ${themeColorHex}; }
+          .profile-company-header { text-align: center; margin-bottom: 15px; background-color: ${themeColorHex}; color: white; padding: 10px; border-radius: 6px; }
+          .profile-company-name { font-size: 18pt; font-weight: bold; text-transform: uppercase; }
+          .profile-company-cidb { font-size: 12pt; font-weight: normal; }
+          .profile-company-grade { font-size: 12pt; font-weight: bold; margin-top: 4px; color: #facc15; }
+          .footer-info-group { display: flex; flex-direction: column; gap: 4px; }
+          .full-width { grid-column: 1 / -1; }
+        `;
+        const printHTMLForDrive = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
+        const payload = {
+          action: 'cetak_dan_simpan_pdf',
+          company_name: companyName,
+          custom_file_name: `Profile Syarikat-${companyName}`,
+          application_type: 'PROFILE',
+          user_name: currentUser.name,
+          user_color: themeColorHex,
+          main_folder_id: mainFolderId,
+          htmlContent: printHTMLForDrive,
+          email: currentUser ? currentUser.email : ''
+        };
+        
+        try {
+          const response = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
+          }, 3, 1000);
+          
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const result = await response.json();
+          
+          if (result.success) {
+            await playSuccessSound();
+            await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
+          } else {
+            throw new Error(result.message || 'Gagal menyimpan ke Drive');
+          }
+        } catch (error) {
+          console.error("Profile Drive save error:", error);
+          await playErrorSound();
+          await CustomAppModal.alert(`Gagal menyimpan ke Drive: ${error.message}<br><br>Cetakan akan diteruskan tanpa simpanan Drive.`, "Ralat Drive", "error");
+        }
+      }
+      
       window.print();
       
       setTimeout(() => {
@@ -6374,30 +6438,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }).length;
     const jumlahSelesai = jumlahLulus + jumlahTolak;
 
-    // Kira konsultansi untuk hari tersebut
-    // Format dalam kolum jenis_konsultansi: "Emel, D/M/YYYY - WhatsApp, D/M/YYYY - Call, D/M/YYYY - Due Date: D/M/YYYY"
-    // Guna regex yang sama seperti kod sedia ada (app.js line 9585)
-    const konsultansiPattern = /(Emel|WhatsApp|Whatsapp|Call),?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
-    const selectedDateObj = new Date(year, month - 1, day);
+    // Kira konsultansi (guna method sama seperti dashboard chart)
     let countEmel = 0, countWA = 0, countCall = 0;
     userRecords.forEach(item => {
-      const konsultansiStr = item.jenis_konsultansi || '';
-      if (konsultansiStr) {
-        let match;
-        while ((match = konsultansiPattern.exec(konsultansiStr)) !== null) {
-          const type = match[1].toLowerCase();
-          const dateParts = match[2].split('/');
-          const konsultDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
-          // Bandingkan tarikh (ignore masa)
-          if (konsultDate.getFullYear() === selectedDateObj.getFullYear() &&
-              konsultDate.getMonth() === selectedDateObj.getMonth() &&
-              konsultDate.getDate() === selectedDateObj.getDate()) {
-            if (type === 'emel') countEmel++;
-            else if (type === 'whatsapp') countWA++;
-            else if (type === 'call') countCall++;
-          }
-        }
-      }
+      const konsultansi = (item.jenis_konsultansi || '').toLowerCase();
+      if (konsultansi.includes('emel')) countEmel++;
+      if (konsultansi.includes('whatsapp')) countWA++;
+      if (konsultansi.includes('call') || konsultansi.includes('panggilan')) countCall++;
     });
 
     // Isi laporan
@@ -6418,7 +6465,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function isiLaporanHarian(data) {
     const setText = (id, val) => {
       const el = document.getElementById(id);
-      if (el) el.textContent = val || '';
+      if (el) el.textContent = val ?? '';
     };
     const setVal = (id, val) => {
       const el = document.getElementById(id);
