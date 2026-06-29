@@ -1382,17 +1382,7 @@ function handleCetakDanSimpanPDF(data) {
     const fileName = data.custom_file_name ? data.custom_file_name + '.pdf' : 'Borang_Semakan_' + data.company_name + '.pdf';
     blob.setName(fileName);
     
-    let pdfFile;
-    if (data.overwrite_file_id) {
-      try {
-        pdfFile = DriveApp.getFileById(data.overwrite_file_id);
-        pdfFile.setBlob(blob);
-      } catch (e) {
-        pdfFile = targetFolder.createFile(blob);
-      }
-    } else {
-      pdfFile = targetFolder.createFile(blob);
-    }
+    const pdfFile = targetFolder.createFile(blob);
     
     const isProfile = data.custom_file_name && data.custom_file_name.includes('Profile Syarikat');
     const logAction = isProfile ? 'CETAK_PROFILE' : 'CETAK_PDF';

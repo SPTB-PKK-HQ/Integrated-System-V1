@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMh9NqJvImRkL3BvAKf1ThdAdgxkNzjPZxR1L4U6gw_jkQxFJHpGHBSV4RtJbpLRux/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBHLwXjde7eKP-7TE7K3DjpJXlb1_f-4PJZ71Px7_Fn0fJLpdTAVsn2CFDFl1RlXxC/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -4929,18 +4929,6 @@ async function handleCredentialResponse(response) {
       const printProfileDate = document.getElementById('printProfile_date');
       if (printProfileDate) printProfileDate.innerText = dateStr;
       
-      const driveUrl = profilePautanDrive ? profilePautanDrive.value.trim() : '';
-      const printProfileQrCodeImg = document.getElementById('printProfileQrCode');
-      
-      if (driveUrl && printProfileQrCodeImg) {
-        const encodedUrl = encodeURIComponent(driveUrl);
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedUrl}`;
-        printProfileQrCodeImg.src = qrApiUrl;
-        printProfileQrCodeImg.style.display = 'block';
-      } else if (printProfileQrCodeImg) {
-        printProfileQrCodeImg.style.display = 'none';
-      }
-      
       const userColor = getUserColorHex(currentUser.color);
       let themeColorHex = userColor;
       
@@ -5020,8 +5008,6 @@ async function handleCredentialResponse(response) {
           #printProfileLayout .info-value { font-size: 11pt !important; font-weight: 500; word-break: break-word; }
           #printProfileLayout .section-title { font-size: 14pt !important; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid ${themeColorHex}; padding-left: 10px; background-color: #eff6ff; color: ${themeColorHex}; }
           #printProfileLayout .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
-          #printProfileLayout .qr-code { text-align: right; }
-          #printProfileLayout .qr-code img { width: 100px !important; height: 100px !important; border: 1px solid #000; padding: 3px; }
           #printProfileLayout .date-generated { font-size: 10pt !important; color: #555; }
           .profile-theme-bg { background-color: ${themeColorHex} !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .profile-theme-border { border: 2px solid ${themeColorHex} !important; }
@@ -5099,30 +5085,6 @@ async function handleCredentialResponse(response) {
             await playSuccessSound();
             if (profilePautanDrive && result.folder_url) {
               profilePautanDrive.value = result.folder_url;
-            }
-            if (printProfileQrCodeImg && result.folder_url) {
-              const encodedUrl = encodeURIComponent(result.folder_url);
-              printProfileQrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedUrl}`;
-              printProfileQrCodeImg.style.display = 'block';
-            }
-            // Simpan semula dengan QR code yang telah dikemaskini (overwrite file)
-            if (result.folder_url && result.file_id) {
-              const updatedPrintHTML = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
-              const updatedPayload = {
-                action: 'cetak_dan_simpan_pdf',
-                company_name: companyName,
-                custom_file_name: `Profile Syarikat-${companyName}`,
-                application_type: subfolderName,
-                user_name: currentUser.name,
-                user_color: themeColorHex,
-                main_folder_id: mainFolderId,
-                htmlContent: updatedPrintHTML,
-                overwrite_file_id: result.file_id,
-                email: currentUser ? currentUser.email : ''
-              };
-              await fetchWithRetry(SCRIPT_URL, {
-                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(updatedPayload)
-              }, 3, 1000);
             }
             if (loadingOverlay) loadingOverlay.style.display = 'none';
             await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
