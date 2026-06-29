@@ -1318,7 +1318,6 @@ function handleCetakDanSimpanPDF(data) {
     if (!data.user_name) return createJSONOutput({ success: false, message: "Nama pengguna tidak disediakan" });
     
     const appType = data.application_type || data.subfolder_name;
-    if (!appType) return createJSONOutput({ success: false, message: "Jenis permohonan tidak disediakan" });
     
     let mainFolder;
     try {
@@ -1332,16 +1331,22 @@ function handleCetakDanSimpanPDF(data) {
     let userFolder = findFolderInParent(mainFolder, data.user_name);
     if (!userFolder) userFolder = mainFolder.createFolder(data.user_name);
     
-    // Ganti fungsi carian folder syarikat menggunakan penapis kurungan
     let companyFolder = findCompanyFolderInParent(userFolder, data.company_name);
     if (!companyFolder) companyFolder = userFolder.createFolder(data.company_name);
     
-    let typeFolder = findFolderInParent(companyFolder, appType.toUpperCase());
-    if (!typeFolder) typeFolder = companyFolder.createFolder(appType.toUpperCase());
+    // Jika appType ada, cipta subfolder jenis permohonan; jika tiada, simpan terus dalam folder syarikat
+    let targetFolder = companyFolder;
+    let folderPath = `${MAIN_FOLDER_NAME} > ${data.user_name} > ${data.company_name}`;
+    if (appType && appType.trim() !== '') {
+      let typeFolder = findFolderInParent(companyFolder, appType.toUpperCase());
+      if (!typeFolder) typeFolder = companyFolder.createFolder(appType.toUpperCase());
+      targetFolder = typeFolder;
+      folderPath += ` > ${appType}`;
+    }
     
     const themeColor = data.user_color && data.user_color.trim() !== "" ? data.user_color : "#1a73e8";
     
-    // V6.5.2: Tukar semua imej luaran kepada Base64 SEBELUM membina HTML penuh
+    // Tukar semua imej luaran kepada Base64 SEBELUM membina HTML penuh
     Logger.log(`[V6.5.2] Memproses imej dalam HTML untuk ${data.company_name}...`);
     const embeddedHtmlContent = embedAllImagesAsBase64(data.htmlContent);
     
@@ -1371,29 +1376,29 @@ function handleCetakDanSimpanPDF(data) {
 </body>
 </html>
     `;
-
+    
     const blob = Utilities.newBlob(validHtmlContent, MimeType.HTML).getAs(MimeType.PDF);
     const fileName = data.custom_file_name ? data.custom_file_name + '.pdf' : 'Borang_Semakan_' + data.company_name + '.pdf';
     blob.setName(fileName);
     
-    const pdfFile = typeFolder.createFile(blob);
-
-    logActivity(
-      data.user_name, 
-      'CETAK_PDF', 
-      `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor}) - Imej Base64`, 
-      typeFolder.getId()
-    );
-
+    const pdfFile = targetFolder.createFile(blob);
+    
+    const isProfile = data.custom_file_name && data.custom_file_name.includes('Profile Syarikat');
+    const logAction = isProfile ? 'CETAK_PROFILE' : 'CETAK_PDF';
+    const logDesc = isProfile
+      ? `PDF Profile Syarikat disimpan untuk ${data.company_name} (Warna: ${themeColor})`
+      : `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`;
+    logActivity(data.user_name, logAction, logDesc, targetFolder.getId());
+    
     invalidateDataCache();
     return createJSONOutput({
       success: true,
-      folder_url: typeFolder.getUrl(),
-      folder_id: typeFolder.getId(),
+      folder_url: targetFolder.getUrl(),
+      folder_id: targetFolder.getId(),
       file_url: pdfFile.getUrl(),
       file_id: pdfFile.getId(),
       file_name: fileName,
-      folder_path: `${MAIN_FOLDER_NAME} > ${data.user_name} > ${data.company_name} > ${appType}`,
+      folder_path: folderPath,
       message: "PDF berjaya disimpan dengan imej tertanam dan folder disiapkan"
     });
 

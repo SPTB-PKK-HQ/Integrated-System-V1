@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyuvxw8pH43tvILlhOuOPetrRAxu0n8SQjzpmfj0qJ0ivd2YT1PetWo8M7nJ0k64OFc/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzO0RM4qRnJKY6QeIXv5eC5ZceVaCLkXmDOBAypjTsy7235U0IvZvAEwx4eBNj_DUEL/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -4982,6 +4982,33 @@ async function handleCredentialResponse(response) {
       
       if (saveToDrive) {
         const companyName = profileSyarikat.value.trim();
+        
+        // Bina nama subfolder sama seperti Borang Semakan (contoh: "PEMBAHARUAN - 21-04-2026")
+        const applicationTypeRadio = document.querySelector('input[name="jenisApp"]:checked');
+        let appType = '';
+        if (applicationTypeRadio) {
+          if (applicationTypeRadio.value === 'baru') appType = 'BARU';
+          else if (applicationTypeRadio.value === 'pembaharuan') appType = 'PEMBAHARUAN';
+          else if (applicationTypeRadio.value === 'ubah_maklumat') appType = 'UBAH MAKLUMAT';
+          else if (applicationTypeRadio.value === 'ubah_gred') appType = 'UBAH GRED';
+        }
+        const tarikhMohon = document.getElementById('borang_tarikh_mohon')?.value;
+        let formattedDate = '';
+        if (tarikhMohon) {
+          try {
+            const tarikhDate = new Date(tarikhMohon);
+            formattedDate = tarikhDate.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+          } catch (e) {
+            formattedDate = tarikhMohon;
+          }
+        }
+        const ubahMaklumatVal = document.getElementById('input_ubah_maklumat')?.value || '';
+        const ubahGredVal = document.getElementById('input_ubah_gred')?.value || '';
+        let specificType = '';
+        if (appType === 'UBAH MAKLUMAT' && ubahMaklumatVal) specificType = ` (${ubahMaklumatVal})`;
+        if (appType === 'UBAH GRED' && ubahGredVal) specificType = ` (${ubahGredVal})`;
+        const subfolderName = appType ? `${appType}${specificType} - ${formattedDate}` : '';
+        
         const profileCss = `
           #printProfileLayout { font-family: 'Arial', sans-serif; padding: 5px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt; }
           #printProfileLayout .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
@@ -5003,11 +5030,43 @@ async function handleCredentialResponse(response) {
           .full-width { grid-column: 1 / -1; }
         `;
         const printHTMLForDrive = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
+        
+        // Papar loading progress
+        if (loadingOverlay) {
+          loadingOverlay.style.display = 'flex';
+          loadingText.textContent = 'Menyimpan Profile ke Drive';
+          if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
+          
+          const progressBar = document.getElementById('loading-progress-bar');
+          const progressPercent = document.getElementById('loading-progress-percent');
+          const progressLabel = document.getElementById('loading-progress-label');
+          
+          if (progressBar) { progressBar.style.display = 'block'; progressBar.style.width = '0%'; }
+          if (progressPercent) progressPercent.textContent = '0%';
+          if (progressLabel) progressLabel.textContent = 'Menyediakan dokumen PDF...';
+          
+          const progressSteps = document.getElementById('loading-progress-steps');
+          if (progressSteps) progressSteps.style.display = 'flex';
+          
+          let currentProgress = 0;
+          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
+          
+          loadingProgressInterval = setInterval(() => {
+            if (currentProgress < 90) {
+              currentProgress += Math.floor(Math.random() * 5) + 1;
+              if (currentProgress > 90) currentProgress = 90;
+              if (progressBar) progressBar.style.width = `${currentProgress}%`;
+              if (progressPercent) progressPercent.textContent = `${currentProgress}%`;
+              if (progressLabel) progressLabel.textContent = currentProgress < 30 ? 'Menyediakan dokumen PDF...' : currentProgress < 60 ? 'Menyimpan ke folder...' : 'Hampir selesai...';
+            }
+          }, 200);
+        }
+        
         const payload = {
           action: 'cetak_dan_simpan_pdf',
           company_name: companyName,
           custom_file_name: `Profile Syarikat-${companyName}`,
-          application_type: 'PROFILE',
+          application_type: subfolderName,
           user_name: currentUser.name,
           user_color: themeColorHex,
           main_folder_id: mainFolderId,
@@ -5020,19 +5079,33 @@ async function handleCredentialResponse(response) {
             method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
           }, 3, 1000);
           
+          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
+          const progressBar = document.getElementById('loading-progress-bar');
+          const progressPercent = document.getElementById('loading-progress-percent');
+          const progressLabel = document.getElementById('loading-progress-label');
+          
+          if (progressBar) progressBar.style.width = '100%';
+          if (progressPercent) progressPercent.textContent = '100%';
+          if (progressLabel) progressLabel.textContent = 'Selesai!';
+          
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const result = await response.json();
           
           if (result.success) {
             await playSuccessSound();
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
             await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
           } else {
             throw new Error(result.message || 'Gagal menyimpan ke Drive');
           }
         } catch (error) {
           console.error("Profile Drive save error:", error);
+          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
           await playErrorSound();
           await CustomAppModal.alert(`Gagal menyimpan ke Drive: ${error.message}<br><br>Cetakan akan diteruskan tanpa simpanan Drive.`, "Ralat Drive", "error");
+        } finally {
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
         }
       }
       
