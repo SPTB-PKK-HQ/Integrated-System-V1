@@ -11152,6 +11152,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   
   if (btnPrintStatsModal) {
     btnPrintStatsModal.addEventListener('click', () => {
+      const lhEl = document.getElementById('printLaporanHarian');
+      if (lhEl) lhEl.style.display = 'none';
+      const ppEl = document.getElementById('printProfileLayout');
+      if (ppEl) ppEl.style.display = 'none';
+      const plEl = document.getElementById('printLayout');
+      if (plEl) plEl.style.display = 'none';
       window.print();
     });
   }
@@ -12953,6 +12959,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           
           // --- 3. JANA REKAAN CETAKAN ---
           preparePrintView(); 
+
+          // Sembunyikan container cetakan lain supaya tidak bertindih
+          const lhEl = document.getElementById('printLaporanHarian');
+          if (lhEl) lhEl.style.display = 'none';
+          const ppEl = document.getElementById('printProfileLayout');
+          if (ppEl) ppEl.style.display = 'none';
           
           // --- 4. RESTORE: KEMBALIKAN BORANG KEPADA KEADAAN ASAL ---
           pelulusActiveItem = oldActiveItem;
@@ -13182,6 +13194,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           
           // --- 3. JANA REKAAN CETAKAN ---
           preparePrintView();
+
+          // Sembunyikan container cetakan lain supaya tidak bertindih
+          const lhEl = document.getElementById('printLaporanHarian');
+          if (lhEl) lhEl.style.display = 'none';
+          const ppEl = document.getElementById('printProfileLayout');
+          if (ppEl) ppEl.style.display = 'none';
           
           // KOD BARU: Dapatkan warna Pengesyor dan tukar warna tema cetakan sementara
           let pengesyorColor = currentUser.color || '#2563eb';
