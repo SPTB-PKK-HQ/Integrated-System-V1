@@ -196,19 +196,9 @@
         <div id="tab-checker" class="tab-content active no-print">
 
             <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <h2>🚀 Ekstrak Borang</h2>
+                <h2>🚀 Auto-Ekstrak Borang (AI)</h2>
                 
-                <div style="margin-bottom: 15px; display: inline-flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 8px 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <label style="font-weight: 800; color: #1e40af; margin: 0;">⚙️ Mod:</label>
-                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 12px; border-radius: 20px; background: #e0f2fe; font-weight: 600; font-size: 0.85rem;">
-                        <input type="radio" name="borangExtractMode" value="manual" checked class="borang-mode-radio"> 📝 Kod Manual
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 12px; border-radius: 20px; background: #fef3c7; font-weight: 600; font-size: 0.85rem;">
-                        <input type="radio" name="borangExtractMode" value="ai" class="borang-mode-radio"> 🤖 AI
-                    </label>
-                </div>
-                
-                <div id="borangAiModelContainer" style="margin-bottom: 15px; display: none; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
                     <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
                     <select id="aiModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
                         <option value="auto">Auto (Disyorkan)</option>
@@ -411,27 +401,17 @@
     <div style="margin-bottom: 15px;">
         <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
     </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-         <h2>🚀 Ekstrak Profil</h2>
-         
-         <div style="margin-bottom: 15px; display: inline-flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 8px 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-             <label style="font-weight: 800; color: #1e40af; margin: 0;">⚙️ Mod:</label>
-             <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 12px; border-radius: 20px; background: #e0f2fe; font-weight: 600; font-size: 0.85rem;">
-                 <input type="radio" name="profileExtractMode" value="manual" checked class="profile-mode-radio"> 📝 Kod Manual
-             </label>
-             <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 12px; border-radius: 20px; background: #fef3c7; font-weight: 600; font-size: 0.85rem;">
-                 <input type="radio" name="profileExtractMode" value="ai" class="profile-mode-radio"> 🤖 AI
-             </label>
-         </div>
-         
-         <div id="profileAiModelContainer" style="margin-bottom: 15px; display: none; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0;">
-             <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
-             <select id="aiProfileModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
-                 <option value="auto">Auto (Disyorkan)</option>
-                 <option value="deepseek">Satu</option>
-                 <option value="gemini">Dua</option>
-                 <option value="openrouter">Tiga</option>
-             </select>
-         </div>
+        <h2>🚀 Auto-Ekstrak Profil (AI)</h2>
+        
+        <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
+            <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
+            <select id="aiProfileModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
+                <option value="auto">Auto (Disyorkan)</option>
+                <option value="deepseek">Satu</option>
+                <option value="gemini">Dua</option>
+                <option value="openrouter">Tiga</option>
+            </select>
+        </div>
 
                 <div id="profilePdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
                     <div id="status-box-profile" class="morph-box morph-circle">
@@ -938,7 +918,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
-    <script src="pdf-extractor.js?v=202606301"></script>
     <script src="app.js?v=20260622"></script>
 </body>
 </html>
