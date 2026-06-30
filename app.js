@@ -1,5 +1,5 @@
-// app.js - V6.5.2 (WEB APP VERSION)
-// (UPDATED: Auto Email Authentication, Removed PIN Login, Dynamic URL Routing, Anonymous Access, Mobile UI Polish, Unique ID, Fixed CORS & WhatsApp Popup, Pemutihan Email Confirmation, Ketua Seksyen Tab Fixes, GIS Integration)
+// app.js - V6.6.1 (WEB APP VERSION)
+// (UPDATED: V6.6.0 PdfExtractor Module, V6.6.1 Upgraded Manual Extraction)
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
@@ -914,6 +914,48 @@ async function handleCredentialResponse(response) {
   const loadingText = document.getElementById('loading-text');
   const loadingSubtext = document.getElementById('loading-subtext');
   
+  // =========================================================================
+  // V6.6.0: PDF EXTRACTOR MODULE INITIALIZATION
+  // =========================================================================
+  PdfExtractor.init({
+    fetchFn: fetchWithRetry,
+    scriptUrl: SCRIPT_URL,
+    currentUser: currentUser,
+    storage: storageWrapper,
+    modal: CustomAppModal,
+    playSuccess: playSuccessSound,
+    playError: playErrorSound
+  });
+
+  // V6.6.0: Setup extraction mode toggles (AI vs Manual Kod)
+  setupExtractionModeToggles();
+
+  function setupExtractionModeToggles() {
+    // Borang mode radios
+    const borangRadios = document.querySelectorAll('.borang-mode-radio');
+    const borangAiContainer = document.getElementById('borangAiModelContainer');
+    borangRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        PdfExtractor.setBorangMode(radio.value);
+        if (borangAiContainer) {
+          borangAiContainer.style.display = (radio.value === 'ai') ? 'inline-flex' : 'none';
+        }
+      });
+    });
+
+    // Profile mode radios
+    const profileRadios = document.querySelectorAll('.profile-mode-radio');
+    const profileAiContainer = document.getElementById('profileAiModelContainer');
+    profileRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        PdfExtractor.setProfileMode(radio.value);
+        if (profileAiContainer) {
+          profileAiContainer.style.display = (radio.value === 'ai') ? 'inline-flex' : 'none';
+        }
+      });
+    });
+  }
+  
   // PDF Upload Elements for Main Form
   const pdfUploadArea = document.getElementById('pdfUploadArea');
   const pdfFileName = document.getElementById('pdfFileName');
@@ -929,7 +971,6 @@ async function handleCredentialResponse(response) {
   const profilePdfProcessing = document.getElementById('profilePdfProcessing');
   const profilePdfResult = document.getElementById('profilePdfResult');
   const profilePdfExtractedData = document.getElementById('profilePdfExtractedData');
-  const btnProsesProfileAI = document.getElementById('btnProsesProfileAI');
   const btnApplyProfileData = document.getElementById('btnApplyProfileData');
   const btnClearProfileData = document.getElementById('btnClearProfileData');
   const btnCetakProfile = document.getElementById('btnCetakProfile');
@@ -959,10 +1000,6 @@ async function handleCredentialResponse(response) {
   
   // Profile PDF Input
   let profilePdfInput = document.getElementById('profilePdfInput');
-  
-  // PDF Processing Buttons
-  const btnProcessManual = document.getElementById('btnProcessManual');
-  const btnProcessAI = document.getElementById('btnProcessAI');
   
   // PDF File Input
   let pdfFileInput = document.getElementById('pdfFileInput');
@@ -3618,27 +3655,23 @@ async function handleCredentialResponse(response) {
   if (pdfFileInput) {
     pdfFileInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
-        updateFileName(e.target.files[0].name);
+        const file = e.target.files[0];
+        updateFileName(file.name);
         
-        // --- KOD BARU: Arahkan sistem terus proses AI ---
-        processPdfWithAI();
-        // ----------------------------------------------
+        // V6.6.0: Proses guna mod yang dipilih (AI atau Manual Kod)
+        const mode = PdfExtractor.getBorangMode();
+        PdfExtractor.processBorangPdf(file, mode, {
+          resultEl: pdfResult,
+          dataContainer: pdfExtractedData,
+          onDone: (data) => {
+            extractedPdfData = data;
+            if (data) storageWrapper.set({ 'stb_extracted_pdf_data': data });
+          }
+        });
         
       } else {
         updateFileName('Tiada fail dipilih');
       }
-    });
-  }
-
-  if (btnProcessManual) {
-    btnProcessManual.addEventListener('click', () => {
-      processPdfManual();
-    });
-  }
-
-  if (btnProcessAI) {
-    btnProcessAI.addEventListener('click', () => {
-      processPdfWithAI();
     });
   }
 
@@ -3656,488 +3689,13 @@ async function handleCredentialResponse(response) {
       pdfFileName.style.fontWeight = 'bold';
       pdfFileName.style.color = '#3b82f6';
     }
-    if (btnProcessManual) {
-      btnProcessManual.disabled = fileName === 'Tiada fail dipilih';
-    }
-    if (btnProcessAI) {
-      btnProcessAI.disabled = fileName === 'Tiada fail dipilih';
-    }
   }
 
-  async function processPdfManual() {
-    if (!pdfFileInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
-    }
+  // V6.6.0: extractDataFromPdfSimple dipindahkan ke pdf-extractor.js
 
-    const file = pdfFileInput.files[0];
-    
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar. Sila pilih fail kurang daripada 10MB.", "Ralat Saiz", "error");
-      return;
-    }
-
-    if (pdfProcessing) {
-      pdfProcessing.style.display = 'block';
-      pdfProcessing.textContent = 'Memproses PDF... Sila tunggu.';
-    }
-    if (pdfResult) {
-      pdfResult.style.display = 'none';
-    }
-
-    try {
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        console.error("V6.5.2 PDF.js library not loaded");
-        await CustomAppModal.alert("PDF processing library tidak dimuatkan. Sila muat semula halaman.", "Ralat Sistem", "error");
-        return;
-      }
-
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
-      }
-
-      console.log("V6.5.2 PDF Text extracted (first 5000 chars):", fullText.substring(0, 5000));
-      
-      extractedPdfData = extractDataFromPdfSimple(fullText);
-      
-      displayExtractedData(extractedPdfData);
-      
-      if (pdfResult) {
-        pdfResult.style.display = 'block';
-      }
-      
-      storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
-      
-    } catch (error) {
-      console.error("V6.5.2 Error processing PDF:", error);
-      await playErrorSound();
-      await CustomAppModal.alert("Ralat memproses PDF: " + error.message, "Ralat Sistem", "error");
-    }
-}
-
-  async function processPdfWithAI() {
-    if (!pdfFileInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
-    }
-
-    const file = pdfFileInput.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
-      return;
-    }
-
-    let aiInterval = null;
-
-    // --- KOD ANIMASI BARU (Morphing & Outliner) ---
-    const updateProgress = (percent, message) => {
-      const statusBox = document.getElementById('status-box-main');
-      const progressRing = document.getElementById('progress-ring-main');
-      const percentageText = document.getElementById('percentage-main');
-      const progressMsg = document.getElementById('pdfProgressMsg');
-
-      // 1. Morph bentuk: Bulat -> Petak bila proses mula
-      if (statusBox.classList.contains('morph-circle')) {
-        statusBox.classList.replace('morph-circle', 'morph-square');
-      }
-
-      // 2. Kemaskini teks peratusan & mesej
-      percentageText.innerHTML = `${percent}%`;
-      progressMsg.style.display = 'block';
-      progressMsg.innerText = message;
-
-      // 3. Gerakkan outliner SVG (Panjang garisan ialah 440)
-      const circumference = 440;
-      const offset = circumference - (percent / 100) * circumference;
-      progressRing.style.strokeDashoffset = offset;
-
-      if (pdfResult) pdfResult.style.display = 'none';
-    };
-
-    try {
-      updateProgress(5, "Membaca fail...");
-      
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        throw new Error("PDF.js library not loaded");
-      }
-
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      const totalPages = pdf.numPages;
-
-      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
-      const maxPagesToRead = Math.min(totalPages, 4); 
-
-      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
-        
-        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
-      }
-
-      console.log("V6.5.2 PDF Extracted. Length:", fullText.length);
-      
-      updateProgress(45, "Menganalisis dengan AI...");
-      
-      let aiProgress = 45;
-      aiInterval = setInterval(() => {
-        if (aiProgress < 95) {
-          aiProgress += 1;
-          updateProgress(aiProgress, "Menganalisis dengan AI...");
-        }
-      }, 300); // Bergerak lebih pantas
-
-      extractedPdfData = await processPdfTextWithAI(fullText);
-      
-      if (aiInterval) clearInterval(aiInterval);
-      
-      updateProgress(100, "Selesai!");
-      
-      // MEMAINKAN BUNYI SUCCESS KETIKA MENCAPAI 100%
-      await playSuccessSound(); 
-      
-      // Tunggu 1 saat untuk bagi pengguna lihat "100% Selesai" sebelum memaparkan kotak hijau
-      setTimeout(() => {
-        // Kembalikan kotak ke keadaan asal
-        document.getElementById('status-box-main').classList.replace('morph-square', 'morph-circle');
-        document.getElementById('progress-ring-main').style.strokeDashoffset = 440;
-        document.getElementById('percentage-main').innerHTML = `📄<br><span>Pilih PDF</span>`;
-        document.getElementById('pdfProgressMsg').style.display = 'none';
-
-        displayExtractedData(extractedPdfData);
-        if (pdfResult) {
-          pdfResult.style.display = 'block';
-        }
-      }, 1000);
-      
-      storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
-      
-    } catch (error) {
-      console.error("V6.5.2 AI Error:", error);
-      if (aiInterval) clearInterval(aiInterval);
-      await playErrorSound();
-
-      document.getElementById('pdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      await CustomAppModal.alert("Gagal memproses: " + error.message, "Ralat Sistem", "error");
-    }
-  }
-
-  async function processPdfTextWithAI(pdfText) {
-    const maxTextLength = 30000;
-    const truncatedText = pdfText.length > maxTextLength
-      ? pdfText.substring(0, maxTextLength) + "... [text truncated]"
-      : pdfText;
-
-    console.log("V6.5.2 (Web) Menghantar teks borang ke backend untuk AI processing...");
-    
-    // Dapatkan nilai dari dropdown model AI
-    const selectedModel = document.getElementById('aiModelSelect') ? document.getElementById('aiModelSelect').value : 'auto';
-    
-    const payload = {
-      action: 'processAI',
-      type: 'borang',
-      text: truncatedText,
-      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '' 
-    };
-
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 3, 1000);
-
-    const result = await response.json();
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || result.error || 'Gagal mengekstrak data dari pelayan AI.');
-    }
-    
-    return result.data;
-  }
-
-  function extractDataFromPdfSimple(pdfText) {
-    const extractedData = {
-      companyName: '',
-      cidbNumber: '',
-      grade: '',
-      spkkStartDate: '',
-      spkkEndDate: '',
-      stbStartDate: '',
-      stbEndDate: '',
-      directors: [],
-      shareholders: [],
-      spkkPersons: [],
-      chequeSignatories: [],
-      phoneNumbers: [],
-      alamatPerniagaan: ''
-    };
-
-    console.log("V6.5.2 Mula mengekstrak data...");
-
-    const rawText = pdfText.toUpperCase().replace(/\s+/g, ' ');
-    const cleanHeaderText = rawText.replace(/TEL\s*:\s*[\d-]+\s*/g, '');
-
-    const companyMatch = cleanHeaderText.match(/([A-Z0-9\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z0-9]+\)/);
-    if (companyMatch && companyMatch[1]) {
-      let name = companyMatch[1].trim();
-      name = name.replace(/.*(?:ADDR|ALAMAT|LUMPUR|SELANGOR|JOHOR|KUALA)[:\s]*/, '').trim();
-      extractedData.companyName = name;
-    }
-
-    const cidbMatch = rawText.match(/(\d{6,}-[A-Z]{2,}\d{5,})/);
-    if (cidbMatch) extractedData.cidbNumber = cidbMatch[1];
-    
-    const gradeMatches = rawText.match(/\b(G[1-7])\b/gi);
-    if (gradeMatches && gradeMatches.length > 0) {
-      extractedData.grade = gradeMatches[0].toUpperCase();
-    }
-
-    const spkkMatch = rawText.match(/KERJA KERAJAAN \(SPKK\)\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}\/\d{2}\/\d{4})/);
-    if (spkkMatch) { 
-      extractedData.spkkStartDate = spkkMatch[1]; 
-      extractedData.spkkEndDate = spkkMatch[2]; 
-    }
-
-    const stbMatch = rawText.match(/TARAF BUMIPUTERA \(STB\)\s*(\d{2}\/\d{2}\/\d{4})\s*(\d{2}\/\d{2}\/\d{4})/);
-    if (stbMatch) { 
-      extractedData.stbStartDate = stbMatch[1]; 
-      extractedData.stbEndDate = stbMatch[2]; 
-    }
-    
-    const phoneRegex = /(?:TEL|H\/P|PHONE)[\s:]*([\d\s\-\(\)\+]+)/gi;
-    let phoneMatch;
-    const phones = new Set();
-    while ((phoneMatch = phoneRegex.exec(rawText)) !== null) {
-      let phoneNum = phoneMatch[1].trim();
-      phoneNum = phoneNum.replace(/\s+/g, '');
-      if (phoneNum.length >= 6) {
-        phones.add(phoneNum);
-      }
-    }
-    extractedData.phoneNumbers = Array.from(phones);
-
-    function sanitizeName(rawName) {
-      let name = rawName.trim();
-      
-      const cutOffWords = [
-        " PENGARAH", " PENGURUS", " MANAGER", " SECRETARY", " SETIAUSAHA",
-        " PEMEGANG", " SAHAM", " SHARES", " EKUITI", " EQUITY",
-        " LEMBAGA", " JAWATAN", " POSITION", " APPOINTMENT", " LANTIKAN", 
-        " WARGANEGARA", " MALAYSIA", " MELAYU", " LELAKI", " PEREMPUAN",
-        " NO.", " BIL", " IC", " KP", " PASSPORT", " MANAGING", " EXECUTIVE"
-      ];
-
-      for (let word of cutOffWords) {
-        const idx = name.indexOf(word);
-        if (idx !== -1) {
-          name = name.substring(0, idx).trim();
-        }
-      }
-      
-      name = name.replace(/[^A-Z0-9\)\.\@\&\-\/\s]*$/, ''); 
-      name = name.replace(/^[\d\.\)\-\s]+/, '');   
-      
-      return name.trim();
-    }
-
-    function extractNamesFromStream(streamText) {
-      if (!streamText) return [];
-
-      let cleanStream = streamText.replace(/NO\.?\s+NAME\s+IC\s+NO.*?DATE/g, ''); 
-      cleanStream = cleanStream.replace(/NO\.?\s+NAMA\s+NO\.\s+KAD.*?TARIKH/g, '');
-
-      const headerBlocklist = [
-        "DIRECTOR", "PENGARAH", "SHAREHOLDER", "PEMEGANG SAHAM",
-        "SPKK RESPONSIBLE", "PENAMA SPKK", "CHEQUE SIGNATORIES", "PENANDATANGAN CEK",
-        "KEY MANAGEMENT", "PERSONEL PENGURUSAN", "TECHNICAL PERSONNEL", "PERSONEL TEKNIKAL",
-        "COMPETENT PERSON", "ORANG KOMPETEN", "JOINT VENTURE", "KONSORTIUM", 
-        "INTERNATIONAL REGISTERED", "REGISTRATION NO", "APPLICATION NO",
-        "EQUITY", "BUMIPUTERA", "ASING", "BUKAN BUMIPUTERA", "AGENSI BERKAITAN"
-      ];
-
-      const regex = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z\s\.\'\@\&\-\(\)\/]+?)(?=\s+(?:\d{6,}|\d{5,}[A-Z]|[A-Z]\d{5,}|MALAYSIA|MELAYU|CINA|INDIA|LELAKI|PEREMPUAN|DIRECTOR|PENGARAH|MANAGING|WARGANEGARA))/g;
-
-      let match;
-      const names = [];
-      
-      while ((match = regex.exec(cleanStream)) !== null) {
-        let potentialName = match[2].trim();
-        
-        let isHeader = false;
-        for (let block of headerBlocklist) {
-          if (potentialName.includes(block)) { 
-            isHeader = true; 
-            break; 
-          }
-        }
-        if (isHeader) continue;
-
-        if (potentialName.length > 80 || potentialName.length < 3) continue;
-
-        let clean = sanitizeName(potentialName);
-
-        if (clean.length > 3 && /[A-Z]/.test(clean) && !names.includes(clean)) {
-          if (!/^[\W\d]+$/.test(clean)) {
-            names.push(clean);
-          }
-        }
-      }
-      return names;
-    }
-
-    const getIndex = (pattern) => {
-      const m = rawText.match(pattern);
-      return m ? m.index : -1;
-    };
-
-    const idxDir = getIndex(/4\.\s*(?:DIRECTORS|PENGARAH)/);
-    const idxShare = getIndex(/5\.\s*(?:SHAREHOLDERS|PEMEGANG)/);
-
-    let idxNext = getIndex(/6\.\s*(?:KEY|PERSONEL)/);
-    if (idxNext === -1) idxNext = getIndex(/7\.\s*(?:TECHNICAL|TEKNIKAL)/);
-
-    const idxSpkk = getIndex(/(\d+\.\s+SPKK\s+(?:RESPONSIBLE|PENAMA))/);
-    const idxCheque = getIndex(/(\d+\.\s+CHEQUE\s+(?:SIGNATORIES|PENANDATANGAN))/);
-
-    let idxStopCheque = getIndex(/(?:MANDATORY|JOINT VENTURE|INTERNATIONAL|DISCLAIMER|20\.|21\.)/);
-    if (idxStopCheque === -1 || idxStopCheque < idxCheque) idxStopCheque = rawText.length;
-
-    const strDirectors = (idxDir !== -1 && idxShare !== -1) ? rawText.substring(idxDir + 15, idxShare) : "";
-    const strShareholders = (idxShare !== -1 && idxNext !== -1) ? rawText.substring(idxShare + 15, idxNext) : "";
-
-    let strSpkk = "";
-    if (idxSpkk !== -1) {
-      const endSpkk = (idxCheque !== -1) ? idxCheque : rawText.length;
-      strSpkk = rawText.substring(idxSpkk + 25, endSpkk); 
-    }
-
-    let strCheque = "";
-    if (idxCheque !== -1) {
-      strCheque = rawText.substring(idxCheque + 25, idxStopCheque);
-    }
-
-    extractedData.directors = extractNamesFromStream(strDirectors);
-    extractedData.shareholders = extractNamesFromStream(strShareholders);
-    extractedData.spkkPersons = extractNamesFromStream(strSpkk);
-    extractedData.chequeSignatories = extractNamesFromStream(strCheque);
-
-    console.log("V6.5.2 Final Clean Data:", extractedData);
-    return extractedData;
-  }
-
+  // V6.6.0: Wrapper - guna PdfExtractor untuk render data borang
   function displayExtractedData(data) {
-    if (!pdfExtractedData) return;
-
-    let html = '';
-
-    if (data.companyName) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nama Syarikat:</span>
-        <span class="extracted-value">${data.companyName}</span>
-      </div>`;
-    }
-
-    if (data.cidbNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. CIDB:</span>
-        <span class="extracted-value">${data.cidbNumber}</span>
-      </div>`;
-    }
-    
-    if (data.grade) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Gred:</span>
-        <span class="extracted-value">${data.grade}</span>
-      </div>`;
-    }
-
-    if (data.spkkStartDate && data.spkkEndDate) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Tempoh SPKK:</span>
-        <span class="extracted-value">${data.spkkStartDate} - ${data.spkkEndDate}</span>
-      </div>`;
-    }
-
-    if (data.stbStartDate && data.stbEndDate) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Tempoh STB:</span>
-        <span class="extracted-value">${data.stbStartDate} - ${data.stbEndDate}</span>
-      </div>`;
-    }
-
-    if (data.phoneNumbers && data.phoneNumbers.length > 0) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nombor Telefon (${data.phoneNumbers.length}):</span>
-        <span class="extracted-value">${data.phoneNumbers.join(', ')}</span>
-      </div>`;
-    } else {
-      html += `<div class="extracted-item">
-        <span class="extracted-label" style="color: #dc2626;">Nombor Telefon:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada nombor telefon dapat diekstrak</span>
-      </div>`;
-    }
-
-    if (data.alamatPerniagaan) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Alamat Perniagaan:</span>
-        <span class="extracted-value">${data.alamatPerniagaan}</span>
-      </div>`;
-    }
-
-    if (data.directors.length > 0) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Pengarah (${data.directors.length}):</span>
-        <span class="extracted-value">${data.directors.join(', ')}</span>
-      </div>`;
-    } else {
-      html += `<div class="extracted-item">
-        <span class="extracted-label" style="color: #dc2626;">Pengarah:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada nama dapat diekstrak</span>
-      </div>`;
-    }
-
-    if (data.shareholders.length > 0) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Pemegang Saham (${data.shareholders.length}):</span>
-        <span class="extracted-value">${data.shareholders.join(', ')}</span>
-      </div>`;
-    }
-
-    if (data.spkkPersons.length > 0) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Penama SPKK (${data.spkkPersons.length}):</span>
-        <span class="extracted-value">${data.spkkPersons.join(', ')}</span>
-      </div>`;
-    }
-
-    if (data.chequeSignatories.length > 0) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Penandatangan Cek (${data.chequeSignatories.length}):</span>
-        <span class="extracted-value">${data.chequeSignatories.join(', ')}</span>
-      </div>`;
-    }
-
-    pdfExtractedData.innerHTML = html;
+    PdfExtractor.renderBorangData(data, pdfExtractedData);
   }
 
   async function applyPdfDataToForm() {
@@ -4292,12 +3850,6 @@ async function handleCredentialResponse(response) {
     if (pdfExtractedData) {
       pdfExtractedData.innerHTML = '';
     }
-    if (btnProcessManual) {
-      btnProcessManual.disabled = true;
-    }
-    if (btnProcessAI) {
-      btnProcessAI.disabled = true;
-    }
     extractedPdfData = null;
 
     storageWrapper.remove(['stb_extracted_pdf_data']);
@@ -4344,11 +3896,19 @@ async function handleCredentialResponse(response) {
   if (profilePdfInput) {
     profilePdfInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
-        updateProfileFileName(e.target.files[0].name);
+        const file = e.target.files[0];
+        updateProfileFileName(file.name);
         
-        // --- KOD BARU: Arahkan sistem terus proses AI Profile ---
-        processProfileWithAI();
-        // ------------------------------------------------------
+        // V6.6.0: Proses guna mod yang dipilih (AI atau Manual Kod)
+        const mode = PdfExtractor.getProfileMode();
+        PdfExtractor.processProfilePdf(file, mode, {
+          resultEl: profilePdfResult,
+          dataContainer: profilePdfExtractedData,
+          onDone: (data) => {
+            extractedProfileData = data;
+            if (data) storageWrapper.set({ 'stb_extracted_profile_data': data });
+          }
+        });
         
       } else {
         updateProfileFileName('Tiada fail dipilih');
@@ -4362,15 +3922,6 @@ async function handleCredentialResponse(response) {
       profilePdfFileName.style.fontWeight = 'bold';
       profilePdfFileName.style.color = '#3b82f6';
     }
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = fileName === 'Tiada fail dipilih';
-    }
-  }
-
-  if (btnProsesProfileAI) {
-    btnProsesProfileAI.addEventListener('click', () => {
-      processProfileWithAI();
-    });
   }
 
   if (btnApplyProfileData) {
@@ -4436,9 +3987,6 @@ async function handleCredentialResponse(response) {
     if (profilePdfExtractedData) {
       profilePdfExtractedData.innerHTML = '';
     }
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = true;
-    }
     
     extractedProfileData = null;
     
@@ -4450,280 +3998,12 @@ async function handleCredentialResponse(response) {
 
 
 
-  async function processProfileWithAI() {
-    if (!profilePdfInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
-    }
 
-    const file = profilePdfInput.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
-      return;
-    }
+  // V6.6.0: processProfileWithAI & processProfileTextWithAI dipindahkan ke pdf-extractor.js
 
-    let aiInterval = null;
-
-    // --- KOD ANIMASI BARU (Morphing & Outliner) UNTUK PROFILE ---
-    const updateProgress = (percent, message) => {
-      const statusBox = document.getElementById('status-box-profile');
-      const progressRing = document.getElementById('progress-ring-profile');
-      const percentageText = document.getElementById('percentage-profile');
-      const progressMsg = document.getElementById('profilePdfProgressMsg');
-
-      // 1. Morph bentuk: Bulat -> Petak bila proses mula
-      if (statusBox.classList.contains('morph-circle')) {
-        statusBox.classList.replace('morph-circle', 'morph-square');
-      }
-
-      // 2. Kemaskini teks peratusan & mesej
-      percentageText.innerHTML = `${percent}%`;
-      progressMsg.style.display = 'block';
-      progressMsg.innerText = message;
-
-      // 3. Gerakkan outliner SVG (Panjang garisan ialah 440)
-      const circumference = 440;
-      const offset = circumference - (percent / 100) * circumference;
-      progressRing.style.strokeDashoffset = offset;
-
-      if (profilePdfResult) profilePdfResult.style.display = 'none';
-    };
-
-    try {
-      updateProgress(5, "Membaca fail...");
-
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        throw new Error("PDF.js library not loaded");
-      }
-
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      const totalPages = pdf.numPages;
-
-      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
-      const maxPagesToRead = Math.min(totalPages, 4); 
-
-      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
-        
-        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
-      }
-
-      console.log("V6.5.2 Profile PDF extracted. Length:", fullText.length);
-      
-      updateProgress(45, "Menganalisis dengan AI...");
-      
-      let aiProgress = 45;
-      aiInterval = setInterval(() => {
-        if (aiProgress < 95) {
-          aiProgress += 1;
-          updateProgress(aiProgress, "Menganalisis dengan AI...");
-        }
-      }, 300);
-
-      extractedProfileData = await processProfileTextWithAI(fullText);
-      
-      if (aiInterval) clearInterval(aiInterval);
-      
-      updateProgress(100, "Selesai!");
-      
-      // MEMAINKAN BUNYI SUCCESS KETIKA MENCAPAI 100%
-      await playSuccessSound();
-      
-      // Tunggu 1 saat untuk paparkan "100% Selesai" sebelum memaparkan borang Profile
-      setTimeout(() => {
-        // Kembalikan kotak ke keadaan asal (bulat semula)
-        document.getElementById('status-box-profile').classList.replace('morph-square', 'morph-circle');
-        document.getElementById('progress-ring-profile').style.strokeDashoffset = 440;
-        document.getElementById('percentage-profile').innerHTML = `🏢<br><span>Pilih Profil</span>`;
-        document.getElementById('profilePdfProgressMsg').style.display = 'none';
-
-        displayProfileExtractedData(extractedProfileData);
-        if (profilePdfResult) {
-          profilePdfResult.style.display = 'block';
-        }
-      }, 1000);
-      
-      storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
-      
-    } catch (error) {
-      console.error("V6.5.2 Profile AI Error:", error);
-      if (aiInterval) clearInterval(aiInterval);
-      
-      // MEMAINKAN BUNYI ERROR JIKA GAGAL
-      await playErrorSound();
-      
-      document.getElementById('profilePdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
-    }
-  }
-
-  async function processProfileTextWithAI(pdfText) {
-    const maxTextLength = 30000;
-    const truncatedText = pdfText.length > maxTextLength
-      ? pdfText.substring(0, maxTextLength) + "... [text truncated]"
-      : pdfText;
-
-    console.log("V6.5.2 (Web) Menghantar teks profil ke backend untuk AI processing...");
-    
-    // Dapatkan nilai dari dropdown model AI profil
-    const selectedModel = document.getElementById('aiProfileModelSelect') ? document.getElementById('aiProfileModelSelect').value : 'auto';
-    
-    const payload = {
-      action: 'processAI',
-      type: 'profile',
-      text: truncatedText,
-      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '' 
-    };
-
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 3, 1000);
-
-    const result = await response.json();
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || result.error || 'Gagal mengekstrak data dari pelayan AI.');
-    }
-    
-    return result.data;
-  }
-
+  // V6.6.0: Wrapper - guna PdfExtractor untuk render data profil
   function displayProfileExtractedData(data) {
-    if (!profilePdfExtractedData) return;
-
-    let html = '';
-
-    if (data.applicantName) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nama Pemohon:</span>
-        <span class="extracted-value">${data.applicantName}</span>
-      </div>`;
-    }
-
-    if (data.jawatan) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Jawatan:</span>
-        <span class="extracted-value">${data.jawatan}</span>
-      </div>`;
-    }
-
-    if (data.icNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. IC Pemohon:</span>
-        <span class="extracted-value">${data.icNumber}</span>
-      </div>`;
-    }
-
-    if (data.phoneNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Telefon Pemohon:</span>
-        <span class="extracted-value">${data.phoneNumber}</span>
-      </div>`;
-    }
-
-    if (data.email) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Emel Pemohon:</span>
-        <span class="extracted-value">${data.email}</span>
-      </div>`;
-    }
-
-    if (data.companyName) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nama Syarikat:</span>
-        <span class="extracted-value">${data.companyName}</span>
-      </div>`;
-    }
-
-    if (data.registrationNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Pendaftaran/CIDB:</span>
-        <span class="extracted-value">${data.registrationNumber}</span>
-      </div>`;
-    }
-
-    if (data.grade) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Gred:</span>
-        <span class="extracted-value">${data.grade}</span>
-      </div>`;
-    }
-
-    if (data.registrationDate) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Tarikh Daftar:</span>
-        <span class="extracted-value">${data.registrationDate}</span>
-      </div>`;
-    }
-
-    if (data.jenisPendaftaran) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Jenis Pendaftaran:</span>
-        <span class="extracted-value">${data.jenisPendaftaran}</span>
-      </div>`;
-    }
-
-    if (data.alamatUtama) {
-      const labelText = data.labelAlamatUtama || 'Alamat';
-      html += `<div class="extracted-item">
-        <span class="extracted-label">${labelText}:</span>
-        <span class="extracted-value">${data.alamatUtama}</span>
-      </div>`;
-    }
-
-    if (data.alamatSuratMenyurat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Alamat Surat-menyurat:</span>
-        <span class="extracted-value">${data.alamatSuratMenyurat}</span>
-      </div>`;
-    }
-
-    if (data.noTelefonSyarikat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Telefon Syarikat:</span>
-        <span class="extracted-value">${data.noTelefonSyarikat}</span>
-      </div>`;
-    }
-
-    if (data.noFax) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Fax:</span>
-        <span class="extracted-value">${data.noFax}</span>
-      </div>`;
-    }
-
-    if (data.emailSyarikat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Emel Syarikat:</span>
-        <span class="extracted-value">${data.emailSyarikat}</span>
-      </div>`;
-    }
-
-    if (data.webAddress) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Web Address:</span>
-        <span class="extracted-value">${data.webAddress}</span>
-      </div>`;
-    }
-
-    if (html === '') {
-      html = '<div class="extracted-item"><span class="extracted-label">Tiada data diekstrak</span></div>';
-    }
-
-    profilePdfExtractedData.innerHTML = html;
+    PdfExtractor.renderProfileData(data, profilePdfExtractedData);
   }
 
   async function applyProfileDataToForm() {
@@ -4835,9 +4115,6 @@ async function handleCredentialResponse(response) {
     }
     if (profilePdfExtractedData) {
       profilePdfExtractedData.innerHTML = '';
-    }
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = true;
     }
     extractedProfileData = null;
 
