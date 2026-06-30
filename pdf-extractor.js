@@ -105,6 +105,48 @@ const PdfExtractor = (function() {
     return text.toUpperCase().replace(/\s+/g, ' ').trim();
   }
 
+  /** 
+   * Bersihkan nama syarikat — buang nombor telefon & label, 
+   * tapi KEKALKAN nombor yg memang sebahagian dari nama syarikat
+   * (contoh: "88 ENERGY SDN BHD", "7-ELEVEN", "3M MALAYSIA")
+   */
+  function cleanCompanyName(name) {
+    if (!name) return '';
+    let cleaned = name.trim();
+    
+    // 1. Buang LABEL di depan: TEL:, FAX:, NO. TELEFON:, ADDR:, ALAMAT:, dsb
+    cleaned = cleaned.replace(/^(?:TELEFON|TEL|FAX|PHONE|H\/P|HANDPHONE|NO\.?\s*TELEFON|ADDR|ALAMAT)\s*:?\s*/i, '').trim();
+    
+    // 2. Buang prefix NEGERI jika ada di depan (biasanya selepas alamat)
+    cleaned = cleaned.replace(/^(?:W\.?P\.?\s*)?(?:KUALA\s*LUMPUR|SELANGOR|JOHOR|PULAU\s*PINANG|PENANG|PERAK|KEDAH|KELANTAN|TERENGGANU|PAHANG|NEGERI\s*SEMBILAN|MELAKA|SABAH|SARAWAK|PERLIS|LABUAN|PUTRAJAYA)[\s:]+/i, '').trim();
+    
+    // 3. Buang NOMBOR TELEFON sahaja di depan (format Malaysia: 0X-XXXX XXXX atau 0XXXXXXXXX)
+    //    TAPI kekalkan nombor pendek yang merupakan sebahagian dari nama (88, 7-, 3M, dll.)
+    //    Syarat nombor telefon: sekurang-kurangnya 8 digit berturut-turut
+    cleaned = cleaned.replace(/^0\d{1,2}[\-\s]?\d{3,4}[\-\s]?\d{3,4}(?:\s*,\s*0\d{1,2}[\-\s]?\d{3,4}[\-\s]?\d{3,4})*\s*/i, '').trim();
+    //    Juga buang format antarabangsa: +60XXXXXXXXX
+    cleaned = cleaned.replace(/^\+\d{2,3}[\-\s]?\d{2,3}[\-\s]?\d{3,4}[\-\s]?\d{3,4}\s*/i, '').trim();
+    //    Buang FAX: 03-XXXXXXXX
+    cleaned = cleaned.replace(/^FAX\s*:?\s*[\d\-\s]{7,18}\s*/i, '').trim();
+    
+    // 4. Buang rentetan digit panjang yg jelas bukan nama syarikat (5+ digit berterusan di depan)
+    //    Tapi JANGAN buang jika selepas digit ada huruf yang membentuk nama
+    //    Contoh: "88 ENERGY" — kekalkan. "1234567 ABC" — buang 1234567.
+    cleaned = cleaned.replace(/^(\d{5,})\s+(?=[A-Z]{2})/, '').trim();
+    
+    // 5. Akhir sekali: jika masih ada nombor + ruang + huruf (macam "03 5567 3300 NAME"),
+    //    dan nombor tu ≥8 digit, buang bahagian nombor sahaja
+    const phonePreMatch = cleaned.match(/^(0\d{1,2}[\-\s]?\d{4,}\s*\d{2,}[\-\s]?\d{2,})\s+(.{3,})$/i);
+    if (phonePreMatch) {
+      const digitsOnly = phonePreMatch[1].replace(/[^\d]/g, '');
+      if (digitsOnly.length >= 8) {
+        cleaned = phonePreMatch[2].trim();
+      }
+    }
+    
+    return cleaned.trim();
+  }
+
   /** Try multiple regex patterns, return first match group */
   function tryPatterns(text, patterns) {
     for (const pat of patterns) {
@@ -164,7 +206,7 @@ const PdfExtractor = (function() {
    * Ekstrak data dari teks PDF Borang CIDB/STB secara manual
    * V6.6.1: Multi-strategy fallback, position-aware name extraction, confidence
    */
-  function extractBorangData(pdfText, pdfItems = null) {
+  function extractBorangData(pdfText, pdfItems = null, hints = {}) {
     const data = {
       companyName: '',
       cidbNumber: '',
@@ -185,27 +227,53 @@ const PdfExtractor = (function() {
     const raw = normalize(pdfText);
     const lines = pdfItems ? buildLines(pdfItems) : raw.split(/\.\s+/).filter(l => l.trim());
     const conf = data._confidence;
+    const existingName = (hints.companyName || '').trim(); // Dari bakul / borang sedia ada
 
     // =====================================================================
     // NAMA SYARIKAT (3 strategi)
     // =====================================================================
     const namePatterns = [
       // Strategi 1: "SYARIKAT SDN BHD (YYYYMMDD-XX-YYYYY)" — CIDB format
-      /([A-Z0-9\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z]{2,}[-\s]?\d{4,}\)/,
+      /([A-Z\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z]{2,}[-\s]?\d{4,}\)/,
       // Strategi 2: "NAMA SYARIKAT:" atau "COMPANY NAME:" diikuti nama
       /(?:NAMA\s*SYARIKAT|COMPANY\s*NAME)[\s:]+([A-Z\s\.\&\-\(\)\/]{5,80}?)(?=\s*(?:NO\.|CIDB|GRED|ALAMAT|TARIKH|\d{6}))/,
-      // Strategi 3: Cari line yang mengandungi SDN BHD / ENTERPRISE / TRADING
-      /([A-Z0-9\s\.\&\-\(\)\/]+\s(?:SDN|BHD|ENTERPRISE|TRADING|CORPORATION|RESOURCES|HOLDINGS)[A-Z\s\.\&\-\(\)\/]*)/,
+      // Strategi 3: Cari line yang mengandungi SDN BHD / ENTERPRISE / TRADING (tolak yg bermula nombor)
+      /([A-Z][A-Z\s\.\&\-\(\)\/]{5,80}?\s(?:SDN|BHD|ENTERPRISE|TRADING|CORPORATION|RESOURCES|HOLDINGS)[A-Z\s\.\&\-\(\)\/]*)/,
     ];
 
     let companyName = tryPatterns(raw, namePatterns);
     if (companyName) {
-      // Bersihkan prefix yg tak diingini
-      companyName = companyName.replace(/.*(?:ADDR|ALAMAT|LUMPUR|SELANGOR|JOHOR|KUALA|TEL)[\s:]*/i, '').trim();
+      companyName = cleanCompanyName(companyName);
+      
+      // V6.6.1: Cross-reference dengan nama sedia ada dari bakul
+      if (existingName && companyName.length > 3) {
+        const normalizedExisting = normalize(existingName);
+        const normalizedExtracted = normalize(companyName);
+        
+        // Jika nama dari bakul wujud sebagai substring dalam teks diekstrak, guna nama bakul
+        if (normalizedExtracted.includes(normalizedExisting)) {
+          companyName = existingName; // Guna versi asal dari bakul (preserve case)
+          conf.companyName = 'high';
+        } else if (normalizedExisting.includes(normalizedExtracted)) {
+          // Extracted adalah subset dari nama bakul — mungkin partial match
+          conf.companyName = 'medium';
+        } else {
+          // Tiada padanan jelas — gunakan extracted, tapi tanda confidence medium
+          conf.companyName = companyName.length > 3 ? 'medium' : 'low';
+        }
+      } else {
+        conf.companyName = companyName.length > 3 ? 'high' : 'low';
+      }
+      
       data.companyName = companyName;
-      conf.companyName = 'high';
     } else {
-      conf.companyName = 'low';
+      // Tiada hasil dari pattern — guna nama bakul jika ada
+      if (existingName) {
+        data.companyName = existingName;
+        conf.companyName = 'medium';
+      } else {
+        conf.companyName = 'low';
+      }
     }
 
     // =====================================================================
@@ -284,19 +352,28 @@ const PdfExtractor = (function() {
     }
 
     // =====================================================================
-    // NOMBOR TELEFON
+    // NOMBOR TELEFON (improved)
     // =====================================================================
-    const phoneRegex = /(?:TEL|H\/P|PHONE|NO\.?\s*TELEFON)[\s:]*([\d\s\-\(\)\+]{6,18})/gi;
+    const phonePatterns = [
+      /(?:TEL|H\/P|PHONE|NO\.?\s*TELEFON|TELEFON|FAX)[\s:]*([\d\s\-\(\)\+]{6,18})/gi,
+      /(?:^|\s)(0\d{1,2}[\-\s]\d{3,4}[\-\s]?\d{3,4})(?:\s|,|$)/gm,
+      /(?:^|\s)(\+\d{2,3}[\-\s]\d{2,3}[\-\s]\d{3,4}[\-\s]?\d{3,4})(?:\s|,|$)/gm,
+    ];
     const phones = new Set();
-    let pm;
-    while ((pm = phoneRegex.exec(raw)) !== null) {
-      let num = pm[1].trim().replace(/\s+/g, '');
-      if (num.length >= 6 && num.length <= 18) phones.add(num);
-    }
-    // Juga cuba tangkap nombor telefon tanpa label (contoh: 03-XXXXXXXX)
-    if (phones.size === 0) {
-      const barePhone = raw.match(/(?:^|\s)(0\d{1,2}[\-]\d{6,9})(?:\s|$)/g);
-      if (barePhone) barePhone.forEach(p => phones.add(p.trim()));
+    for (const regex of phonePatterns) {
+      let pm;
+      while ((pm = regex.exec(raw)) !== null) {
+        let num = (pm[1] || pm[0]).trim().replace(/\s+/g, '');
+        // Elakkan ambil nombor CIDB sebagai telefon
+        if (/^\d{6,}[A-Z]{2,}\d{4,}$/i.test(num)) continue;
+        if (num.length >= 6 && num.length <= 18) {
+          // Format semula: 03XXXXXXXX -> 03-XXXXXXXX 
+          if (/^0\d{1,2}\d{7,8}$/.test(num)) {
+            num = num.substring(0, 3) + '-' + num.substring(3);
+          }
+          phones.add(num);
+        }
+      }
     }
     data.phoneNumbers = Array.from(phones);
     conf.phoneNumbers = data.phoneNumbers.length > 0 ? 'high' : 'low';
@@ -449,7 +526,7 @@ const PdfExtractor = (function() {
    * Ekstrak data dari teks PDF Profil Syarikat secara manual
    * V6.6.1: Multi-strategy field-value matching
    */
-  function extractProfileData(pdfText, pdfItems = null) {
+  function extractProfileData(pdfText, pdfItems = null, hints = {}) {
     const data = {
       applicantName: '',
       jawatan: '',
@@ -473,6 +550,7 @@ const PdfExtractor = (function() {
 
     const raw = normalize(pdfText);
     const conf = data._confidence;
+    const existingName = (hints.companyName || '').trim();
 
     // =====================================================================
     // Helper: cari nilai selepas label
@@ -494,12 +572,39 @@ const PdfExtractor = (function() {
     // NAMA SYARIKAT (3 strategi)
     // =====================================================================
     const coPatterns = [
-      /([A-Z0-9\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z]{2,}[-\s]?\d{4,}\)/,
+      /([A-Z\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z]{2,}[-\s]?\d{4,}\)/,
       /(?:NAMA\s*SYARIKAT|COMPANY\s*NAME|SYARIKAT)[\s:]+([A-Z\s\.\&\-\(\)\/]{5,80}?)(?=\s*(?:NO\.|CIDB|GRED|ROC|ROB|ALAMAT|TARIKH|\d{6}))/,
-      /([A-Z0-9\s\.\&\-\(\)\/]+\s(?:SDN|BHD|ENTERPRISE|TRADING)[A-Z\s\.\&\-\(\)\/]*)/,
+      /([A-Z][A-Z\s\.\&\-\(\)\/]{5,80}?\s(?:SDN|BHD|ENTERPRISE|TRADING)[A-Z\s\.\&\-\(\)\/]*)/,
     ];
-    data.companyName = tryPatterns(raw, coPatterns);
-    conf.companyName = data.companyName ? 'high' : 'low';
+    let coName = tryPatterns(raw, coPatterns);
+    if (coName) {
+      coName = cleanCompanyName(coName);
+      
+      // V6.6.1: Cross-reference dengan nama sedia ada dari bakul/profil
+      if (existingName && coName.length > 3) {
+        const normalizedExisting = normalize(existingName);
+        const normalizedExtracted = normalize(coName);
+        if (normalizedExtracted.includes(normalizedExisting)) {
+          coName = existingName;
+          conf.companyName = 'high';
+        } else if (normalizedExisting.includes(normalizedExtracted)) {
+          conf.companyName = 'medium';
+        } else {
+          conf.companyName = coName.length > 3 ? 'medium' : 'low';
+        }
+      } else {
+        conf.companyName = coName.length > 3 ? 'high' : 'low';
+      }
+      
+      data.companyName = coName;
+    } else {
+      if (existingName) {
+        data.companyName = existingName;
+        conf.companyName = 'medium';
+      } else {
+        conf.companyName = 'low';
+      }
+    }
 
     // =====================================================================
     // CIDB / NO. PENDAFTARAN
@@ -556,14 +661,23 @@ const PdfExtractor = (function() {
     conf.icNumber = data.icNumber ? 'high' : 'low';
 
     // =====================================================================
-    // TELEFON PEMOHON
+    // TELEFON PEMOHON (cari H/P atau label pemohon dahulu)
     // =====================================================================
     const hpPatterns = [
-      /(?:NO\.?\s*(?:TELEFON|TEL|H\/P|HANDPHONE))[\s:]*([\d\s\-\+\(\)]{7,15})/,
-      /(?:H\/P|HANDPHONE)[\s:]*([\d\s\-\+\(\)]{7,15})/,
+      // Strategi 1: Label spesifik - H/P, HANDPHONE, TELEFON PEMOHON
+      /(?:H\/P|HANDPHONE|TELEFON\s*PEMOHON)[\s:]*([\d\s\-\+\(\)]{7,15})/i,
+      // Strategi 2: "NO. TELEFON:" berdekatan dengan maklumat pemohon (cari sebelum NAMA SYARIKAT)
+      /(?:NO\.?\s*TELEFON)[\s:]*([\d\s\-\+\(\)]{7,15})(?=[\s\S]{0,200}?(?:NAMA\s*SYARIKAT|COMPANY\s*NAME))/i,
+      // Strategi 3: "NO. TELEFON:" pertama dijumpai (sebelum NO. TELEFON SYARIKAT)
+      /(?:NO\.?\s*TELEFON|TEL)[\s:]*([\d\s\-\+\(\)]{7,15})(?![\s\S]{0,50}SYARIKAT)/i,
     ];
-    data.phoneNumber = tryPatterns(raw, hpPatterns).replace(/\s+/g, '');
-    conf.phoneNumber = data.phoneNumber ? 'high' : 'low';
+    let applicantPhone = tryPatterns(raw, hpPatterns).replace(/\s+/g, '');
+    // Format semula
+    if (applicantPhone && /^0\d{1,2}\d{7,8}$/.test(applicantPhone)) {
+      applicantPhone = applicantPhone.substring(0, 3) + '-' + applicantPhone.substring(3);
+    }
+    data.phoneNumber = applicantPhone;
+    conf.phoneNumber = applicantPhone ? 'high' : 'low';
 
     // =====================================================================
     // EMEL PEMOHON
@@ -648,11 +762,24 @@ const PdfExtractor = (function() {
     }
 
     // =====================================================================
-    // TELEFON SYARIKAT
+    // TELEFON SYARIKAT (cari label spesifik syarikat)
     // =====================================================================
-    const telCoMatch = raw.match(/(?:NO\.?\s*(?:TELEFON|TEL)\s*(?:SYARIKAT|PEJABAT|COMPANY|OFFICE)?)[\s:]*([\d\s\-\+\(\)]{7,15})/i);
-    if (telCoMatch) {
-      data.noTelefonSyarikat = telCoMatch[1].trim().replace(/\s+/g, '');
+    const telCoPatterns = [
+      /(?:NO\.?\s*(?:TELEFON|TEL)\s*(?:SYARIKAT|PEJABAT|COMPANY|OFFICE))[\s:]*([\d\s\-\+\(\)]{7,15})/i,
+      // Fallback: TELEFON selepas bahagian ALAMAT SYARIKAT
+      /(?:TELEFON|TEL)[\s:]*([\d\s\-\+\(\)]{7,15})(?=[\s\S]{0,100}?(?:FAX|EMEL|EMAIL|WEB))/i,
+    ];
+    let companyPhone = tryPatterns(raw, telCoPatterns).replace(/\s+/g, '');
+    // Format semula
+    if (companyPhone && /^0\d{1,2}\d{7,8}$/.test(companyPhone)) {
+      companyPhone = companyPhone.substring(0, 3) + '-' + companyPhone.substring(3);
+    }
+    // Elak duplicate dengan phone pemohon
+    if (companyPhone && companyPhone === data.phoneNumber) {
+      companyPhone = ''; // Sama dengan pemohon - mungkin false match
+      conf.noTelefonSyarikat = 'low';
+    } else if (companyPhone) {
+      data.noTelefonSyarikat = companyPhone;
       conf.noTelefonSyarikat = 'high';
     } else {
       conf.noTelefonSyarikat = 'low';
@@ -930,6 +1057,10 @@ const PdfExtractor = (function() {
       const { plainText, items } = await readPdfPages(file, 4, (pct, msg) => progress.update(pct, msg));
       console.log("V6.6.1 PdfExtractor: PDF text length =", plainText.length);
 
+      // V6.6.1: Ambil nama syarikat sedia ada dari borang (diisi dari bakul) sebagai hint
+      const existingCompany = (document.getElementById('borang_syarikat')?.value || '').trim();
+      const hints = { companyName: existingCompany };
+
       let extractedData = null;
 
       if (mode === 'ai') {
@@ -938,13 +1069,21 @@ const PdfExtractor = (function() {
         extractedData = await processBorangWithAI(plainText);
       } else {
         progress.update(45, "Mengekstrak data secara manual...");
-        extractedData = extractBorangData(plainText, items);
-        let p = 45;
-        const iv = setInterval(() => {
-          if (p < 95) { p += 2; progress.update(p, "Mengekstrak data secara manual..."); }
-          else { clearInterval(iv); }
-        }, 100);
-        await new Promise(r => setTimeout(r, 600));
+        extractedData = extractBorangData(plainText, items, hints);
+        // Animasi progress lancar: 45% → 95% dalam ~1.5 saat
+        await new Promise(resolve => {
+          let p = 45;
+          const iv = setInterval(() => {
+            if (p < 95) {
+              p += Math.ceil((95 - p) / 6); // Bergerak pantas ke 95
+              if (p > 95) p = 95;
+              progress.update(p, "Mengekstrak data secara manual...");
+            } else {
+              clearInterval(iv);
+              resolve();
+            }
+          }, 80);
+        });
       }
 
       progress.update(100, "Selesai!");
@@ -986,6 +1125,10 @@ const PdfExtractor = (function() {
       const { plainText, items } = await readPdfPages(file, 4, (pct, msg) => progress.update(pct, msg));
       console.log("V6.6.1 PdfExtractor: Profile PDF text length =", plainText.length);
 
+      // V6.6.1: Ambil nama syarikat sedia ada dari borang profil sebagai hint
+      const existingCompany = (document.getElementById('profile_syarikat')?.value || '').trim();
+      const hints = { companyName: existingCompany };
+
       let extractedData = null;
 
       if (mode === 'ai') {
@@ -994,13 +1137,21 @@ const PdfExtractor = (function() {
         extractedData = await processProfileWithAI(plainText);
       } else {
         progress.update(45, "Mengekstrak data secara manual...");
-        extractedData = extractProfileData(plainText, items);
-        let p = 45;
-        const iv = setInterval(() => {
-          if (p < 95) { p += 2; progress.update(p, "Mengekstrak data secara manual..."); }
-          else { clearInterval(iv); }
-        }, 100);
-        await new Promise(r => setTimeout(r, 600));
+        extractedData = extractProfileData(plainText, items, hints);
+        // Animasi progress lancar: 45% → 95% dalam ~1.5 saat
+        await new Promise(resolve => {
+          let p = 45;
+          const iv = setInterval(() => {
+            if (p < 95) {
+              p += Math.ceil((95 - p) / 6);
+              if (p > 95) p = 95;
+              progress.update(p, "Mengekstrak data secara manual...");
+            } else {
+              clearInterval(iv);
+              resolve();
+            }
+          }, 80);
+        });
       }
 
       progress.update(100, "Selesai!");
