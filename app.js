@@ -5660,22 +5660,42 @@ async function handleCredentialResponse(response) {
   }
 
   function populateWhatsAppDropdown() {
-    if (!dbPelulusWhatsapp) return;
-    
+    const buttonGroup = document.getElementById('pelulus_button_group');
+    if (!buttonGroup) return;
+
     const pelulusList = usersList.filter(user => user.role === 'PELULUS');
-    
-    dbPelulusWhatsapp.innerHTML = '<option value="">- Tiada Notifikasi / Pilih Pelulus -</option>';
-    
+    const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
+    const hiddenName = document.getElementById('db_pelulus_name');
+
+    buttonGroup.innerHTML = '';
+
     pelulusList.forEach(pelulus => {
       const phone = pelulus.phone || '';
       const name = pelulus.name || '';
-      const option = document.createElement('option');
-      option.value = phone;
-      option.textContent = `${name} ${phone ? '(' + phone + ')' : ''}`;
-      dbPelulusWhatsapp.appendChild(option);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = name + (phone ? '\n' + phone : '');
+      btn.style.cssText = 'flex:1; min-width:100px; padding:10px 12px; border:2px solid #93c5fd; border-radius:8px; background:white; color:#1e40af; font-weight:600; cursor:pointer; font-size:0.85rem; text-align:center; transition:all 0.2s; white-space:normal; line-height:1.3;';
+      btn.onmouseenter = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = '#3b82f6'; btn.style.background = '#eff6ff'; } };
+      btn.onmouseleave = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = '#93c5fd'; btn.style.background = 'white'; } };
+      btn.onclick = () => {
+        buttonGroup.querySelectorAll('.selected').forEach(b => {
+          b.classList.remove('selected');
+          b.style.borderColor = '#93c5fd';
+          b.style.background = 'white';
+          b.style.boxShadow = 'none';
+        });
+        btn.classList.add('selected');
+        btn.style.borderColor = '#2563eb';
+        btn.style.background = '#dbeafe';
+        btn.style.boxShadow = '0 2px 8px rgba(37,99,235,0.3)';
+        if (hiddenPhone) hiddenPhone.value = phone;
+        if (hiddenName) hiddenName.value = name;
+      };
+      buttonGroup.appendChild(btn);
     });
-    
-    console.log(`V6.5.2 WhatsApp dropdown populated with ${pelulusList.length} pelulus`);
+
+    console.log(`V6.6.0 Pelulus button group populated with ${pelulusList.length} pelulus`);
   }
 
   function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone) {
@@ -10366,14 +10386,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       let selectedPelulusName = '';
       let selectedPelulusPhone = '';
       if (isConfirmed) {
-        const pelulusDropdown = document.getElementById('db_pelulus_whatsapp');
-        if (pelulusDropdown) {
-          selectedPelulusPhone = pelulusDropdown.value;
-          const selectedText = pelulusDropdown.options[pelulusDropdown.selectedIndex]?.text || '';
-          // Extract name from "ALI BIN AHMAD (0123456789)" format
-          const nameMatch = selectedText.match(/^(.+?)\s*\(/);
-          selectedPelulusName = nameMatch ? nameMatch[1].trim() : selectedText.split('(')[0].trim();
-        }
+        selectedPelulusPhone = document.getElementById('db_pelulus_whatsapp')?.value || '';
+        selectedPelulusName = document.getElementById('db_pelulus_name')?.value || '';
         if (!selectedPelulusName) {
           await CustomAppModal.alert("Sila pilih nama Pelulus di ruangan 'Pilih Pelulus' sebelum sahkan syor.", "Pelulus Diperlukan", "warning");
           return;
@@ -10693,7 +10707,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     // V6.6.0: cb_notify_whatsapp tidak digunakan lagi
     if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
-    if (dbPelulusWhatsapp) dbPelulusWhatsapp.value = '';
+    const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
+    const hiddenName = document.getElementById('db_pelulus_name');
+    if (hiddenPhone) hiddenPhone.value = '';
+    if (hiddenName) hiddenName.value = '';
+    const buttonGroup = document.getElementById('pelulus_button_group');
+    if (buttonGroup) {
+      buttonGroup.querySelectorAll('.selected').forEach(b => {
+        b.classList.remove('selected');
+        b.style.borderColor = '#93c5fd';
+        b.style.background = 'white';
+        b.style.boxShadow = 'none';
+      });
+    }
     
     // V6.6.0: Reset WhatsApp scheduling fields
     const cbShowWa = document.getElementById('cb_show_wa_schedule');
