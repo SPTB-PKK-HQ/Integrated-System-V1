@@ -10406,9 +10406,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               "🏢 <b>Alamat Perniagaan:</b><br>" +
               (document.getElementById('db_alamat_perniagaan')?.value || 'Tiada alamat') +
               "<br><br>" +
-              "<div style='width:100%;height:250px;border-radius:8px;overflow:hidden;border:1px solid #ccc;margin-bottom:8px;'>" +
-              "<iframe width='100%' height='100%' frameborder='0' style='border:0;' allowfullscreen src='https://www.google.com/maps?q=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "&output=embed'></iframe>" +
-              "</div>" +
               "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
               "<br><br>Sila pastikan alamat adalah terkini.",
               "Hantar Emel SPI",
@@ -10416,6 +10413,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               "Ya, Hantar",
               false
           );
+          if (!confirmHantarEmel) {
+              await CustomAppModal.alert("Sila ubah alamat perniagaan terlebih dahulu sebelum hantar semula.", "Alamat Diperlukan", "warning");
+              return;
+          }
         }
       }
       
