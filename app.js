@@ -8617,12 +8617,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       'stb_database_persistence'
     ]);
 
-    document.querySelectorAll('input, select').forEach(el => {
+    document.querySelectorAll('input, select, textarea').forEach(el => {
       if (el.id !== 'db_pengesyor' && el.id !== 'pelulus_nama' && !el.id.startsWith('login')) {
         if(el.type === 'checkbox' || el.type === 'radio') el.checked = false;
         else el.value = '';
       }
     });
+
+    const mapsContainer = document.getElementById('mapsContainer');
+    const mapsIframe = document.getElementById('mapsIframe');
+    if (mapsContainer) mapsContainer.style.display = 'none';
+    if (mapsIframe) mapsIframe.src = '';
+    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
+    if (btnToggleAlamat) btnToggleAlamat.textContent = '🏢 Papar/Sembunyi Alamat Perniagaan';
 
     if (dbPautanInput) {
       dbPautanInput.style.backgroundColor = '';
@@ -8708,7 +8715,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       'kwsp_date_1', 'kwsp_s1', 'kwsp_date_2', 'kwsp_s2', 'kwsp_date_3', 'kwsp_s3',
       'db_status_hantar_spi',
       'borang_no_telefon',
-      'input_ubah_maklumat', 'input_ubah_gred'
+      'input_ubah_maklumat', 'input_ubah_gred',
+      'db_alamat_perniagaan'
     ];
 
     fieldsToClear.forEach(id => {
@@ -8732,6 +8740,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (personnelListEl) personnelListEl.innerHTML = '';
 
     addPerson();
+
+    const mapsContainer = document.getElementById('mapsContainer');
+    const mapsIframe = document.getElementById('mapsIframe');
+    if (mapsContainer) mapsContainer.style.display = 'none';
+    if (mapsIframe) mapsIframe.src = '';
+    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
+    if (btnToggleAlamat) btnToggleAlamat.textContent = '\u{1F3E2} Papar/Sembunyi Alamat Perniagaan';
 
     await storageWrapper.remove([
       'stb_form_data', 
@@ -10693,6 +10708,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const alamatTextarea = document.getElementById('db_alamat_perniagaan');
     if (alamatTextarea) { alamatTextarea.value = ''; alamatTextarea.style.display = 'none'; }
+    const mapsContainer = document.getElementById('mapsContainer');
+    const mapsIframe = document.getElementById('mapsIframe');
+    if (mapsContainer) mapsContainer.style.display = 'none';
+    if (mapsIframe) mapsIframe.src = '';
     const btnToggleAlamat = document.getElementById('btnToggleAlamat');
     if (btnToggleAlamat) btnToggleAlamat.textContent = '\u{1F3E2} Papar/Sembunyi Alamat Perniagaan';
 
