@@ -7328,14 +7328,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbSahSyor.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       
-      // V6.6.0: Papar dropdown pelulus serta-merta bila sah syor (wajib pilih)
+      // V6.6.0: Papar butang pelulus serta-merta bila sah syor (wajib pilih)
       if (pelulusWhatsappContainer) {
         pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
       }
       
       if (!isChecked) {
-        if (dbPelulusWhatsapp) {
-          dbPelulusWhatsapp.value = '';
+        const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
+        const hiddenName = document.getElementById('db_pelulus_name');
+        if (hiddenPhone) hiddenPhone.value = '';
+        if (hiddenName) hiddenName.value = '';
+        const buttonGroup = document.getElementById('pelulus_button_group');
+        if (buttonGroup) {
+          buttonGroup.querySelectorAll('.selected').forEach(b => {
+            b.classList.remove('selected');
+            b.style.borderColor = '#93c5fd';
+            b.style.background = 'white';
+            b.style.boxShadow = 'none';
+          });
         }
       }
     });
