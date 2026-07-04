@@ -10390,6 +10390,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               "Adakah anda ingin hantar emel syarikat ini ke SPI?<br><br>" +
               "🏢 <b>Alamat Perniagaan:</b><br>" +
               (document.getElementById('db_alamat_perniagaan')?.value || 'Tiada alamat') +
+              "<br><br>" +
+              "<div style='width:100%;height:250px;border-radius:8px;overflow:hidden;border:1px solid #ccc;margin-bottom:8px;'>" +
+              "<iframe width='100%' height='100%' frameborder='0' style='border:0;' allowfullscreen src='https://www.google.com/maps?q=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "&output=embed'></iframe>" +
+              "</div>" +
+              "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
               "<br><br>Sila pastikan alamat adalah terkini.",
               "Hantar Emel SPI",
               "info",
@@ -11131,13 +11136,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if (btnToggleAlamat) {
     btnToggleAlamat.addEventListener('click', () => {
       const dbAlamatPerniagaan = document.getElementById('db_alamat_perniagaan');
+      const mapsContainer = document.getElementById('mapsContainer');
+      const mapsIframe = document.getElementById('mapsIframe');
       if (dbAlamatPerniagaan) {
         if (dbAlamatPerniagaan.style.display === 'none') {
           dbAlamatPerniagaan.style.display = 'block';
           btnToggleAlamat.textContent = 'Sembunyi Alamat';
+          if (mapsIframe && dbAlamatPerniagaan.value.trim()) {
+            mapsIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(dbAlamatPerniagaan.value.trim()) + '&output=embed';
+          }
+          if (mapsContainer) mapsContainer.style.display = 'block';
         } else {
           dbAlamatPerniagaan.style.display = 'none';
           btnToggleAlamat.textContent = 'Tunjuk Alamat';
+          if (mapsContainer) mapsContainer.style.display = 'none';
+          if (mapsIframe) mapsIframe.src = '';
         }
       }
     });
