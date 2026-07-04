@@ -9690,7 +9690,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_pautan').value = item.pautan || '';
     document.getElementById('db_justifikasi').value = item.justifikasi || '';
     document.getElementById('db_syor_status').value = item.syor_status || '';
-    
+
+    // V6.6.0: SEMAK STATUS BEKU
+    if (item.cidb) {
+        checkFrozenStatus(item.cidb, item.syarikat);
+    }
+
     const ubahMakInput = document.getElementById('input_ubah_maklumat');
     if(ubahMakInput) ubahMakInput.value = item.ubah_maklumat || '';
     const ubahGredInput = document.getElementById('input_ubah_gred');
@@ -10313,7 +10318,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           false
       );
       if(!isConfirmedAct) return;
-      
+
+      // V6.6.0: Pre-check - Jika syor_status dipilih tapi checkbox pengesahan tidak ditanda
+      const preSyorVal = document.getElementById('db_syor_status')?.value || '';
+      if (preSyorVal.trim() !== '' && (dbSahSyor ? !dbSahSyor.checked : true)) {
+          await CustomAppModal.alert(
+              'Anda telah memilih keputusan syor (<b>' + preSyorVal + '</b>) tetapi belum menandakan pengesahan.<br><br>' +
+              'Sila:<br>' +
+              '1. Tandakan checkbox <b>"Dengan ini saya mengesahkan..."</b><br>' +
+              '2. Pilih <b>nama Pelulus</b> di ruangan yang tertera<br><br>' +
+              'Kemudian tekan hantar semula.',
+              'Pengesahan & Pelulus Diperlukan',
+              'warning'
+          );
+          return;
+      }
+
       let targetRow = document.getElementById('db_row_index')?.value || '';
       let isGapFill = false;
 
@@ -10367,7 +10387,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // HANYA MINTA POPUP JIKA: Ia belum dihantar ke queue DAN sudah tekan SOKONG.
         if (!hasSyorAndConfirmed && !isTelahDihantar) {
           confirmHantarEmel = await CustomAppModal.confirm(
-              "Adakah anda ingin hantar emel syarikat ini ke SPI?",
+              "Adakah anda ingin hantar emel syarikat ini ke SPI?<br><br>" +
+              "🏢 <b>Alamat Perniagaan:</b><br>" +
+              (document.getElementById('db_alamat_perniagaan')?.value || 'Tiada alamat') +
+              "<br><br>Sila pastikan alamat adalah terkini.",
               "Hantar Emel SPI",
               "info",
               "Ya, Hantar",
@@ -12448,6 +12471,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   await resetFormForEdit();
               }
 
+              // V6.6.0: SEMAK STATUS BEKU SEBELUM ISI BORANG
+              const isFrozen = await checkFrozenStatus(cidb, company);
+              if (isFrozen) {
+                  return;
+              }
+
               // 1. Set Borang Semakan (Tab Checker)
               document.getElementById('borang_syarikat').value = company;
               document.getElementById('borang_cidb').value = cidb;
@@ -13907,6 +13936,64 @@ function createWAPickerModal() {
   div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
   
   return div;
+}
+
+// =========================================================================
+// V6.6.0: FUNGSI SEMAKAN STATUS BEKU
+// =========================================================================
+
+async function checkFrozenStatus(cidb, companyName) {
+    if (!cidb || !Array.isArray(cachedData) || cachedData.length === 0) return false;
+
+    const frozenRecords = cachedData.filter(item => {
+        let kelulusan = (item.kelulusan || '').toUpperCase();
+        if (!kelulusan.includes('BEKU')) return false;
+        if (item.cidb !== cidb) return false;
+        return true;
+    });
+
+    if (frozenRecords.length === 0) return false;
+
+    let masihBeku = false;
+    let tamatBekuDate = null;
+    let mulaBekuDate = null;
+
+    for (const rec of frozenRecords) {
+        if (rec.borang_json) {
+            try {
+                const parsed = JSON.parse(rec.borang_json);
+                const catatan = parsed.catatan_pelulus || '';
+                const matchMula = catatan.match(/TARIKH MULA BEKU:\s*(\d{4}-\d{2}-\d{2})/);
+                const matchTamat = catatan.match(/TAMAT BEKU:\s*(\d{4}-\d{2}-\d{2})/);
+                if (matchMula) mulaBekuDate = new Date(matchMula[1] + 'T00:00:00');
+                if (matchTamat) {
+                    tamatBekuDate = new Date(matchTamat[1] + 'T00:00:00');
+                    if (new Date() <= tamatBekuDate) {
+                        masihBeku = true;
+                        break;
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+
+    if (masihBeku) {
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        const mulaStr = mulaBekuDate ? mulaBekuDate.toLocaleDateString('ms-MY', options) : '?';
+        const tamatStr = tamatBekuDate ? tamatBekuDate.toLocaleDateString('ms-MY', options) : '?';
+        const companyDisplay = companyName || 'Syarikat ini';
+
+        await CustomAppModal.alert(
+            '⚠️ AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
+            '📅 Mula Beku: ' + mulaStr + '<br>' +
+            '📅 Tamat Beku: ' + tamatStr + '<br><br>' +
+            'Permohonan baharu tidak boleh diproses sehingga tempoh beku tamat. Sila rujuk pentadbir jika perlu.',
+            '🚫 Syarikat Dalam Tempoh Beku',
+            'warning'
+        );
+        return true;
+    }
+    return false;
 }
 
 // =========================================================================
