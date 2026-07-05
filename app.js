@@ -6844,7 +6844,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     modal.style.display = 'flex';
     modal.classList.add('show');
-    folderInfo.textContent = '📁 Memuatkan...';
+    folderInfo.innerHTML = '📁 Memuatkan...';
     listEl.innerHTML = '';
     loadingEl.style.display = 'block';
 
@@ -6878,15 +6878,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       loadingEl.style.display = 'none';
 
       if (result.success) {
-        folderInfo.textContent = '📁 ' + (result.folderName || 'Folder');
+        const driveUrl = `https://drive.google.com/drive/folders/${folderId}`;
+        folderInfo.innerHTML = `<span style="cursor:pointer; color:#2563eb; text-decoration:underline;" onclick="window.open('${driveUrl}','_blank')">📁 ${result.folderName || 'Folder'}</span> <span style="font-size:0.8rem; color:#94a3b8;">(klik untuk buka di Drive)</span>`;
         renderDriveFiles(result.files, folderId);
       } else {
-        folderInfo.textContent = '📁 Folder';
+        folderInfo.innerHTML = '📁 Folder';
         listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ ${result.error || 'Gagal memuatkan fail'}</p>`;
       }
     } catch (error) {
       loadingEl.style.display = 'none';
-      folderInfo.textContent = '📁 Folder';
+      folderInfo.innerHTML = '📁 Folder';
       listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ Ralat: ${error.message}</p>`;
       console.error("V6.7.0 Error loading drive files:", error);
     }
@@ -10660,7 +10661,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let link = '-';
     if (i.pautan) {
       const pautanId = extractFolderIdFromUrl(i.pautan) || '';
-      link = `<a href="${i.pautan}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:none;">BUKA DOKUMEN</a> <button class="btn-file-mgr" data-pautan="${i.pautan}" style="padding:4px 10px; font-size:0.75rem; background:#dbeafe; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; color:#1e40af; font-weight:600;">📂 Urus Fail</button>`;
+      link = `<button class="btn-file-mgr" data-pautan="${i.pautan}" style="padding:4px 10px; font-size:0.75rem; background:#dbeafe; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; color:#1e40af; font-weight:600;">📂 Dokumen Drive</button>`;
     }
 
     let statusBadge = `<span class="status-badge bg-blue">${safe(i.syor_status)}</span>`;
@@ -14243,9 +14244,15 @@ function renderInbox() {
     }
     const isUnread = !msg.dibaca;
     const iconMap = { 'SUCCESS': '✅', 'ERROR': '❌', 'WARNING': '⚠️', 'INFO': 'ℹ️' };
-    const icon = iconMap[msg.jenisMsg] || 'ℹ️';
+    let icon = iconMap[msg.jenisMsg] || 'ℹ️';
     const badgeClass = { 'SUCCESS': 'inbox-badge-success', 'ERROR': 'inbox-badge-error', 'WARNING': 'inbox-badge-warning', 'INFO': 'inbox-badge-info' };
     const badge = badgeClass[msg.jenisMsg] || 'inbox-badge-info';
+    
+    const kelulusan = (msg.kelulusan || '').toUpperCase();
+    if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
+      icon = '✗';
+    }
+    const isRejected = icon === '✗';
     
     let masaStr = '';
     if (msg.masa) {
@@ -14270,7 +14277,7 @@ function renderInbox() {
     html += `
       <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
         <div class="inbox-check"><input type="checkbox" class="inbox-item-cb" data-index="${index}"></div>
-        <div class="inbox-icon">${icon}</div>
+        <div class="inbox-icon ${isRejected ? 'inbox-icon-rejected' : ''}">${icon}</div>
         <div class="inbox-content">
           <div class="inbox-message" style="white-space:pre-line;">${cleanMesej}</div>
           <div class="inbox-meta">
@@ -14290,7 +14297,7 @@ function renderInbox() {
               return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
             }
             if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
-              return `<span style="color:#ef4444; font-size:20px; font-weight:bold; margin-right:5px;" title="Ditolak">✗</span><button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
+              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
             }
             return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>`;
           })()}

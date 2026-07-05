@@ -2182,6 +2182,10 @@
             text-align: center;
             padding-top: 2px;
         }
+        .inbox-icon.inbox-icon-rejected {
+            color: #ef4444;
+            font-weight: bold;
+        }
         .inbox-content {
             flex: 1;
         }
