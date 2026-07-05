@@ -9997,6 +9997,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             btnView.onclick = function() { processLihatBorangPreview(item); }; 
             btnContainer.appendChild(btnView);
         }
+        
+        if (item.pautan) {
+          const btnDrive = document.createElement('button');
+          btnDrive.className = 'btn-sm';
+          btnDrive.style.backgroundColor = '#2563eb';
+          btnDrive.style.color = 'white';
+          btnDrive.innerText = '📂 Fail';
+          btnDrive.title = 'Urus Fail Drive';
+          btnDrive.onclick = function() {
+            const fid = extractFolderIdFromUrl(item.pautan);
+            if (fid) createdFolderId = fid;
+            openFileManager(item.pautan);
+          };
+          btnContainer.appendChild(btnDrive);
+        }
 
         const btnEdit = document.createElement('button');
         btnEdit.className = 'btn-sm btn-edit';
@@ -10052,6 +10067,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnView.onclick = function() { viewRecordOnly(item); }; 
         btnContainer.appendChild(btnView);
         
+        if (item.pautan) {
+          const btnDrive = document.createElement('button');
+          btnDrive.className = 'btn-sm';
+          btnDrive.style.backgroundColor = '#2563eb';
+          btnDrive.style.color = 'white';
+          btnDrive.innerText = '📂 Fail';
+          btnDrive.title = 'Urus Fail Drive';
+          btnDrive.onclick = function() {
+            const fid = extractFolderIdFromUrl(item.pautan);
+            if (fid) createdFolderId = fid;
+            openFileManager(item.pautan);
+          };
+          btnContainer.appendChild(btnDrive);
+        }
+        
         // --- TAMBAH KOD INI UNTUK BUTANG CETAK ---
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
@@ -10096,6 +10126,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btn.onclick = function() { viewRecordOnly(item); }; 
         btnContainer.appendChild(btn);
         
+        if (item.pautan) {
+          const btnDrive = document.createElement('button');
+          btnDrive.className = 'btn-sm';
+          btnDrive.style.backgroundColor = '#2563eb';
+          btnDrive.style.color = 'white';
+          btnDrive.innerText = '📂 Fail';
+          btnDrive.title = 'Urus Fail Drive';
+          btnDrive.onclick = function() {
+            const fid = extractFolderIdFromUrl(item.pautan);
+            if (fid) createdFolderId = fid;
+            openFileManager(item.pautan);
+          };
+          btnContainer.appendChild(btnDrive);
+        }
+        
         if (item.borang_json && item.borang_json.trim() !== '') {
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
@@ -10117,22 +10162,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           };
           btnContainer.appendChild(btnUndo);
         }
-      }
-
-      // V6.7.2: Butang Urus Fail untuk semua jenis (jika ada pautan)
-      if (item.pautan && type !== 'inbox') {
-        const btnDrive = document.createElement('button');
-        btnDrive.className = 'btn-sm';
-        btnDrive.style.backgroundColor = '#2563eb';
-        btnDrive.style.color = 'white';
-        btnDrive.innerText = '📂 Fail';
-        btnDrive.title = 'Urus Fail Drive';
-        btnDrive.onclick = function() {
-          const fid = extractFolderIdFromUrl(item.pautan);
-          if (fid) createdFolderId = fid;
-          openFileManager(item.pautan);
-        };
-        btnContainer.appendChild(btnDrive);
       }
 
       let jenisBadge = '';
