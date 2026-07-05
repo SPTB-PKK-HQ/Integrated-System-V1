@@ -770,7 +770,6 @@ async function handleCredentialResponse(response) {
   let driveFolderCreated = false;
   let createdFolderUrl = '';
   let createdFolderId = '';
-  let fileManagerContextItem = null;
   let userFolderUrl = '';
   let dataCacheVersion = '';
   let allRecommenders = [];
@@ -6899,7 +6898,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const role = currentUser.role;
     if (role === 'ADMIN' || role === 'KETUA SEKSYEN' || role === 'PENGARAH') return true;
     
-    const item = pelulusActiveItem || fileManagerContextItem;
+    const item = pelulusActiveItem;
     if (!item) {
       if (role === 'PENGESYOR') {
         const pengesyorField = document.getElementById('db_pengesyor')?.value;
@@ -7122,14 +7121,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if (fileManagerClose && fileManagerModal) {
     fileManagerClose.addEventListener('click', () => {
       fileManagerModal.classList.remove('show');
-      fileManagerContextItem = null;
       setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
     });
 
     fileManagerModal.addEventListener('click', (e) => {
       if (e.target === fileManagerModal) {
         fileManagerModal.classList.remove('show');
-        fileManagerContextItem = null;
         setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
       }
     });
@@ -10021,7 +10018,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
-            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10058,7 +10054,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
-            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10092,7 +10087,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
-            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10152,7 +10146,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
-            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
