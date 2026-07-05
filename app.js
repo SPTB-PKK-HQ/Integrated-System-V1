@@ -6935,7 +6935,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function canEditDriveFiles() {
     if (!currentUser) return false;
     const role = currentUser.role;
-    if (role === 'ADMIN' || role === 'KETUA SEKSYEN' || role === 'PENGARAH') return true;
     
     const item = pelulusActiveItem;
     if (!item) {
