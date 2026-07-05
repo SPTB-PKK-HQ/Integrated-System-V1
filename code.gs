@@ -3828,7 +3828,11 @@ function handleListDriveFiles(data) {
     });
     
   } catch (error) {
-    return createJSONOutput({ success: false, error: error.toString() });
+    var msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1 || msg.indexOf('permission to access') > -1) {
+      msg = "Folder Drive tidak dapat diakses. Mungkin folder ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
   }
 }
 
@@ -3866,7 +3870,11 @@ function handleUploadDriveFile(data) {
     });
     
   } catch (error) {
-    return createJSONOutput({ success: false, error: error.toString() });
+    var msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1) {
+      msg = "Fail tidak dapat diakses. Mungkin fail ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
   }
 }
 
@@ -3889,7 +3897,11 @@ function handleDeleteDriveFile(data) {
     });
     
   } catch (error) {
-    return createJSONOutput({ success: false, error: error.toString() });
+    var msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1) {
+      msg = "Fail tidak dapat diakses. Mungkin fail ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
   }
 }
 
@@ -3922,6 +3934,10 @@ function handleRenameDriveFile(data) {
     });
     
   } catch (error) {
-    return createJSONOutput({ success: false, error: error.toString() });
+    var msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1) {
+      msg = "Fail tidak dapat diakses. Mungkin fail ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
   }
 }
