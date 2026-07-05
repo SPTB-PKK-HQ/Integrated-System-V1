@@ -6878,8 +6878,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       loadingEl.style.display = 'none';
 
       if (result.success) {
-        const driveUrl = `https://drive.google.com/drive/folders/${folderId}`;
-        folderInfo.innerHTML = `<span style="cursor:pointer; color:#2563eb; text-decoration:underline;" onclick="window.open('${driveUrl}','_blank')">📁 ${result.folderName || 'Folder'}</span> <span style="font-size:0.8rem; color:#94a3b8;">(klik untuk buka di Drive)</span>`;
+        folderInfo.innerHTML = `📁 ${result.folderName || 'Folder'} <span class="btn-open-drive-folder" data-folderid="${folderId}" style="cursor:pointer; color:#2563eb; text-decoration:none; font-size:1.2rem;" title="Buka di Drive">🔗</span>`;
         renderDriveFiles(result.files, folderId);
       } else {
         folderInfo.innerHTML = '📁 Folder';
@@ -7289,6 +7288,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         await CustomAppModal.alert("Ralat semasa memadam fail: " + err.message, "Ralat", "error");
         console.error("V6.7.0 Error deleting file:", err);
       }
+      return;
+    }
+
+    const driveBtn = e.target.closest('.btn-open-drive-folder');
+    if (driveBtn) {
+      e.preventDefault();
+      const fid = driveBtn.getAttribute('data-folderid');
+      if (fid) window.open(`https://drive.google.com/drive/folders/${fid}`, '_blank');
       return;
     }
   });
