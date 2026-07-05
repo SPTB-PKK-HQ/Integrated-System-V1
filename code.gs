@@ -1172,7 +1172,7 @@ function sendAutoEmailSPI(data) {
         
         <div class="info-row">
           <div class="info-label">Alamat Perniagaan Syarikat:</div>
-          <div class="info-value">📍 ${alamatPerniagaan}</div>
+          <div class="info-value">📍 ${alamatPerniagaan}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}" target="_blank" style="font-size:12px; color:#1a73e8;">🗺️ Buka Google Maps</a></div>
         </div>
         
         <div class="info-row">
@@ -1229,6 +1229,7 @@ Nama Syarikat       : ${syarikat}${isPemutihan ? ' [PEMUTIHAN]' : ''}
 No. CIDB            : ${cidb}
 Gred                : ${gred}
 Alamat Perniagaan Syarikat: ${alamatPerniagaan}
+Peta: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}
 Pengesyor           : ${pengesyor}
 Jenis Permohonan    : ${jenisPermohonan}${isPemutihan ? ' (PEMUTIHAN)' : ''}
 

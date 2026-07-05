@@ -10119,6 +10119,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
       }
 
+      // V6.7.2: Butang Urus Fail untuk semua jenis (jika ada pautan)
+      if (item.pautan && type !== 'inbox') {
+        const btnDrive = document.createElement('button');
+        btnDrive.className = 'btn-sm';
+        btnDrive.style.backgroundColor = '#2563eb';
+        btnDrive.style.color = 'white';
+        btnDrive.innerText = '📂 Fail';
+        btnDrive.title = 'Urus Fail Drive';
+        btnDrive.onclick = function() {
+          const fid = extractFolderIdFromUrl(item.pautan);
+          if (fid) createdFolderId = fid;
+          openFileManager(item.pautan);
+        };
+        btnContainer.appendChild(btnDrive);
+      }
+
       let jenisBadge = '';
       let perubahanRowHtml = '';
       
