@@ -10716,8 +10716,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             </div>
             ${i.alamat_perniagaan ? `
             <div class="view-row full-width">
-              <button id="btnToggleMapView" style="background:#e0f2fe; border:1px solid #7dd3fc; border-radius:8px; padding:6px 14px; cursor:pointer; color:#0369a1; font-weight:600; font-size:0.85rem; width:100%; text-align:center;">🗺️ Papar Peta</button>
-              <div id="mapViewContainer" style="display:none; margin-top:8px; width:100%; height:250px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
+              <div id="mapViewContainer" style="margin-top:4px; width:100%; height:250px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
                 <iframe id="mapViewIframe" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen></iframe>
               </div>
             </div>` : ''}
@@ -10810,24 +10809,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             };
         }
         
-        const btnToggleMap = document.getElementById('btnToggleMapView');
+        // Load map automatically
         const mapContainer = document.getElementById('mapViewContainer');
         const mapIframe = document.getElementById('mapViewIframe');
-        if (btnToggleMap && mapContainer && mapIframe) {
-            btnToggleMap.onclick = function() {
-                if (mapContainer.style.display === 'none' || mapContainer.style.display === '') {
-                    mapContainer.style.display = 'block';
-                    const alamat = (i.alamat_perniagaan || '').trim();
-                    if (alamat) {
-                        mapIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(alamat) + '&output=embed';
-                    }
-                    btnToggleMap.textContent = '\u{1F5FA}\uFE0F Sembunyi Peta';
-                } else {
-                    mapContainer.style.display = 'none';
-                    mapIframe.src = '';
-                    btnToggleMap.textContent = '\u{1F5FA}\uFE0F Papar Peta';
-                }
-            };
+        if (mapContainer && mapIframe) {
+            const alamat = (i.alamat_perniagaan || '').trim();
+            if (alamat) {
+                mapIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(alamat) + '&output=embed';
+            }
         }
     }, 100);
 
