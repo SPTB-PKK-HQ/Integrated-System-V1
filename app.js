@@ -770,6 +770,7 @@ async function handleCredentialResponse(response) {
   let driveFolderCreated = false;
   let createdFolderUrl = '';
   let createdFolderId = '';
+  let fileManagerContextItem = null;
   let userFolderUrl = '';
   let dataCacheVersion = '';
   let allRecommenders = [];
@@ -6809,6 +6810,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     listEl.innerHTML = '';
     loadingEl.style.display = 'block';
 
+    const canEdit = canEditDriveFiles();
+    const uploadBtn = document.getElementById('btnFileManagerUpload');
+    if (uploadBtn) uploadBtn.style.display = canEdit ? '' : 'none';
+
     await loadDriveFiles(folderId);
   }
 
@@ -6854,7 +6859,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (!listEl) return;
 
     if (!files || files.length === 0) {
-      listEl.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>';
+      const canEdit = canEditDriveFiles();
+      listEl.innerHTML = canEdit
+        ? '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>'
+        : '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong.</p>';
       return;
     }
 
@@ -6891,7 +6899,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const role = currentUser.role;
     if (role === 'ADMIN' || role === 'KETUA SEKSYEN' || role === 'PENGARAH') return true;
     
-    const item = pelulusActiveItem;
+    const item = pelulusActiveItem || fileManagerContextItem;
     if (!item) {
       if (role === 'PENGESYOR') {
         const pengesyorField = document.getElementById('db_pengesyor')?.value;
@@ -7114,12 +7122,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if (fileManagerClose && fileManagerModal) {
     fileManagerClose.addEventListener('click', () => {
       fileManagerModal.classList.remove('show');
+      fileManagerContextItem = null;
       setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
     });
 
     fileManagerModal.addEventListener('click', (e) => {
       if (e.target === fileManagerModal) {
         fileManagerModal.classList.remove('show');
+        fileManagerContextItem = null;
         setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
       }
     });
@@ -10011,6 +10021,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
+            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10047,6 +10058,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
+            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10080,6 +10092,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
+            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
@@ -10139,6 +10152,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
             if (fid) createdFolderId = fid;
+            fileManagerContextItem = item;
             openFileManager(item.pautan);
           };
           btnContainer.appendChild(btnDrive);
