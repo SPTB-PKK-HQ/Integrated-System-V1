@@ -6966,75 +6966,122 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  async function handleUploadFiles(fileList) {
+    const files = fileList;
+    if (!files || files.length === 0) return;
+
+    const progressEl = document.getElementById('fileManagerUploadProgress');
+    const progressBar = document.getElementById('fileManagerProgressBar');
+    const progressText = document.getElementById('fileManagerProgressText');
+    if (progressEl) progressEl.style.display = 'block';
+
+    let folderId = createdFolderId;
+    if (!folderId) {
+      const pautan = document.getElementById('db_pautan')?.value;
+      folderId = extractFolderIdFromUrl(pautan);
+    }
+
+    if (!folderId) {
+      await CustomAppModal.alert("Tiada folder Drive. Sila cipta folder dahulu.", "Ralat", "error");
+      if (progressEl) progressEl.style.display = 'none';
+      if (fileManagerUploadInput) fileManagerUploadInput.value = '';
+      return;
+    }
+
+    let uploaded = 0;
+    const total = files.length;
+
+    for (let i = 0; i < total; i++) {
+      const file = files[i];
+      if (progressText) progressText.textContent = `Memuat naik ${i + 1}/${total}: ${file.name}`;
+      if (progressBar) progressBar.style.width = `${((i) / total) * 100}%`;
+
+      try {
+        const base64 = await fileToBase64(file);
+        const response = await fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'uploadDriveFile',
+            folderId: folderId,
+            fileName: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            fileData: base64.split(',')[1] || base64,
+            email: currentUser ? currentUser.email : ''
+          })
+        }, 3, 2000);
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+        if (result.success) {
+          uploaded++;
+        } else {
+          console.error("V6.7.0 Upload failed for", file.name, result.error);
+        }
+      } catch (err) {
+        console.error("V6.7.0 Error uploading", file.name, err);
+      }
+
+      if (progressBar) progressBar.style.width = `${((i + 1) / total) * 100}%`;
+    }
+
+    if (progressEl) progressEl.style.display = 'none';
+    if (fileManagerUploadInput) fileManagerUploadInput.value = '';
+
+    if (uploaded > 0) {
+      await loadDriveFiles(folderId);
+      await playSuccessSound();
+    }
+    if (uploaded < total) {
+      await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik. Yang gagal mungkin saiz terlalu besar.`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
+    }
+  }
+
   if (fileManagerUploadInput) {
     fileManagerUploadInput.addEventListener('change', async (e) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+      await handleUploadFiles(e.target.files);
+    });
+  }
 
-      const progressEl = document.getElementById('fileManagerUploadProgress');
-      const progressBar = document.getElementById('fileManagerProgressBar');
-      const progressText = document.getElementById('fileManagerProgressText');
-      if (progressEl) progressEl.style.display = 'block';
+  // Drag & Drop untuk file manager
+  const fileManagerList = document.getElementById('fileManagerList');
+  const dropOverlay = document.getElementById('fileManagerDropOverlay');
 
-      let folderId = createdFolderId;
-      if (!folderId) {
-        const pautan = document.getElementById('db_pautan')?.value;
-        folderId = extractFolderIdFromUrl(pautan);
+  if (fileManagerList && dropOverlay) {
+    let dragCounter = 0;
+
+    fileManagerList.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter++;
+      if (dragCounter === 1) {
+        dropOverlay.style.display = 'flex';
       }
+    });
 
-      if (!folderId) {
-        await CustomAppModal.alert("Tiada folder Drive. Sila cipta folder dahulu.", "Ralat", "error");
-        if (progressEl) progressEl.style.display = 'none';
-        fileManagerUploadInput.value = '';
-        return;
+    fileManagerList.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    fileManagerList.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter--;
+      if (dragCounter === 0) {
+        dropOverlay.style.display = 'none';
       }
+    });
 
-      let uploaded = 0;
-      const total = files.length;
+    fileManagerList.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter = 0;
+      dropOverlay.style.display = 'none';
 
-      for (let i = 0; i < total; i++) {
-        const file = files[i];
-        if (progressText) progressText.textContent = `Memuat naik ${i + 1}/${total}: ${file.name}`;
-        if (progressBar) progressBar.style.width = `${((i) / total) * 100}%`;
-
-        try {
-          const base64 = await fileToBase64(file);
-          const response = await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'uploadDriveFile',
-              folderId: folderId,
-              fileName: file.name,
-              mimeType: file.type || 'application/octet-stream',
-              fileData: base64.split(',')[1] || base64,
-              email: currentUser ? currentUser.email : ''
-            })
-          }, 3, 2000);
-
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          const result = await response.json();
-          if (result.success) {
-            uploaded++;
-          } else {
-            console.error("V6.7.0 Upload failed for", file.name, result.error);
-          }
-        } catch (err) {
-          console.error("V6.7.0 Error uploading", file.name, err);
-        }
-
-        if (progressBar) progressBar.style.width = `${((i + 1) / total) * 100}%`;
-      }
-
-      if (progressEl) progressEl.style.display = 'none';
-      fileManagerUploadInput.value = '';
-
-      if (uploaded > 0) {
-        await loadDriveFiles(folderId);
-        await playSuccessSound();
-      }
-      if (uploaded < total) {
-        await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik. Yang gagal mungkin saiz terlalu besar.`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
+      const droppedFiles = e.dataTransfer.files;
+      if (droppedFiles && droppedFiles.length > 0) {
+        await handleUploadFiles(droppedFiles);
       }
     });
   }
@@ -8368,6 +8415,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         if (driveSection) {
           driveSection.style.display = 'block';
+          updateDriveSectionVisibility();
           
           if (driveFolderInfo) {
             driveFolderInfo.style.display = 'block';
@@ -8705,6 +8753,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       } else {
         btnOpenDrive.disabled = true;
         btnOpenDrive.title = "Sila cipta folder terlebih dahulu";
+      }
+    }
+  }
+
+  function updateDriveSectionVisibility() {
+    const pautan = document.getElementById('db_pautan')?.value;
+    const hasPautan = pautan && pautan.trim() !== '';
+    
+    const cbCreate = document.getElementById('cbCreateDriveFolder');
+    const btnCreate = document.getElementById('btnCreateDriveFolder');
+    const driveFolderInfoEl = document.getElementById('driveFolderInfo');
+    
+    if (cbCreate) cbCreate.style.display = hasPautan ? 'none' : '';
+    if (btnCreate) btnCreate.style.display = hasPautan ? 'none' : '';
+    if (driveFolderInfoEl) {
+      if (hasPautan && !driveFolderCreated) {
+        driveFolderInfoEl.style.display = 'none';
+      } else {
+        driveFolderInfoEl.style.display = 'block';
       }
     }
   }
@@ -9049,6 +9116,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (btnSyncToDb) {
       btnSyncToDb.style.display = 'none';
     }
+
+    updateDriveSectionVisibility();
 
     hasPrinted = false;
     driveFolderCreated = false;
@@ -9905,6 +9974,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btn.innerText = '⚡ Proses';
         btn.onclick = function() { loadRecordToPelulus(item); }; 
         btnContainer.appendChild(btn);
+        
+        if (item.pautan) {
+          const btnDrive = document.createElement('button');
+          btnDrive.className = 'btn-sm';
+          btnDrive.style.backgroundColor = '#2563eb';
+          btnDrive.style.color = 'white';
+          btnDrive.innerText = '📂 Fail';
+          btnDrive.title = 'Urus Fail Drive';
+          btnDrive.onclick = function() {
+            const fid = extractFolderIdFromUrl(item.pautan);
+            if (fid) createdFolderId = fid;
+            openFileManager(item.pautan);
+          };
+          btnContainer.appendChild(btnDrive);
+        }
       } else if (type === 'submitted') {
         const btnView = document.createElement('button');
         
@@ -10114,6 +10198,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_syor').value = item.syor_lawatan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    updateDriveSectionVisibility();
     document.getElementById('db_justifikasi').value = item.justifikasi || '';
     document.getElementById('db_syor_status').value = item.syor_status || '';
 
