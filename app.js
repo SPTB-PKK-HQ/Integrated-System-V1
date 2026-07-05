@@ -6878,7 +6878,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       loadingEl.style.display = 'none';
 
       if (result.success) {
-        folderInfo.innerHTML = `📁 ${result.folderName || 'Folder'} <span class="btn-open-drive-folder" data-folderid="${folderId}" style="cursor:pointer; color:#2563eb; text-decoration:none; font-size:1.2rem;" title="Buka di Drive">🔗</span>`;
+        folderInfo.innerHTML = `📁 ${result.folderName || 'Folder'} <span class="btn-open-drive-folder" data-folderid="${folderId}" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive ↗</span>`;
         renderDriveFiles(result.files, folderId);
       } else {
         folderInfo.innerHTML = '📁 Folder';
