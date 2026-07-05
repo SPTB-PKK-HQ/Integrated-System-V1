@@ -6876,6 +6876,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           <p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">${formatFileSize(file.size)}</p>
           <div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">
             <button class="btn-file-view" data-url="${file.webViewLink}" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>
+            ${canEdit ? `<button class="btn-file-rename" data-id="${file.id}" data-name="${escapeHtml(file.name)}" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>` : ''}
             ${canEdit ? `<button class="btn-file-delete" data-id="${file.id}" data-name="${escapeHtml(file.name)}" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>` : ''}
           </div>
         </div>`;
@@ -7143,6 +7144,49 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       e.preventDefault();
       const url = viewBtn.getAttribute('data-url');
       if (url) window.open(url, '_blank');
+      return;
+    }
+
+    const renameBtn = e.target.closest('.btn-file-rename');
+    if (renameBtn) {
+      e.preventDefault();
+      const fileId = renameBtn.getAttribute('data-id');
+      const currentName = renameBtn.getAttribute('data-name');
+      if (!fileId) return;
+      
+      const newName = window.prompt('Nama baru untuk fail ini:', currentName || '');
+      if (!newName || newName.trim() === '' || newName.trim() === currentName) return;
+      
+      try {
+        const response = await fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'renameDriveFile',
+            fileId: fileId,
+            newName: newName.trim(),
+            email: currentUser ? currentUser.email : ''
+          })
+        }, 3, 1000);
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          await playSuccessSound();
+          let folderId = createdFolderId;
+          if (!folderId) {
+            const pautan = document.getElementById('db_pautan')?.value;
+            folderId = extractFolderIdFromUrl(pautan);
+          }
+          if (folderId) await loadDriveFiles(folderId);
+        } else {
+          await CustomAppModal.alert(result.error || "Gagal menamakan semula fail.", "Ralat", "error");
+        }
+      } catch (err) {
+        await CustomAppModal.alert("Ralat semana menamakan semula fail: " + err.message, "Ralat", "error");
+        console.error("V6.7.2 Error renaming file:", err);
+      }
       return;
     }
 
@@ -10561,6 +10605,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               <span class="view-label">ALAMAT PERNIAGAAN</span>
               <span class="view-value">${safe(i.alamat_perniagaan)}</span>
             </div>
+            ${i.alamat_perniagaan ? `
+            <div class="view-row full-width">
+              <button id="btnToggleMapView" style="background:#e0f2fe; border:1px solid #7dd3fc; border-radius:8px; padding:6px 14px; cursor:pointer; color:#0369a1; font-weight:600; font-size:0.85rem; width:100%; text-align:center;">🗺️ Papar Peta</button>
+              <div id="mapViewContainer" style="display:none; margin-top:8px; width:100%; height:250px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
+                <iframe id="mapViewIframe" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen></iframe>
+              </div>
+            </div>` : ''}
             <div class="view-row full-width">
               <span class="view-label">JENIS KONSULTANSI</span>
               <span class="view-value">${safe(i.jenis_konsultansi)}</span>
@@ -10647,6 +10698,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (btnLihat) {
             btnLihat.onclick = function() {
                 processLihatBorangPreview(pelulusActiveItem);
+            };
+        }
+        
+        const btnToggleMap = document.getElementById('btnToggleMapView');
+        const mapContainer = document.getElementById('mapViewContainer');
+        const mapIframe = document.getElementById('mapViewIframe');
+        if (btnToggleMap && mapContainer && mapIframe) {
+            btnToggleMap.onclick = function() {
+                if (mapContainer.style.display === 'none' || mapContainer.style.display === '') {
+                    mapContainer.style.display = 'block';
+                    const alamat = (i.alamat_perniagaan || '').trim();
+                    if (alamat) {
+                        mapIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(alamat) + '&output=embed';
+                    }
+                    btnToggleMap.textContent = '\u{1F5FA}\uFE0F Sembunyi Peta';
+                } else {
+                    mapContainer.style.display = 'none';
+                    mapIframe.src = '';
+                    btnToggleMap.textContent = '\u{1F5FA}\uFE0F Papar Peta';
+                }
             };
         }
     }, 100);

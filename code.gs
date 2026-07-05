@@ -527,6 +527,18 @@ function doPost(e) {
       return handleDeleteDriveFile(data);
     }
     
+    // V6.7.2: Handler untuk renameDriveFile
+    if (data.action === 'renameDriveFile') {
+      if (!data.email) {
+        return createJSONOutput({ success: false, error: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ success: false, error: accessCheck.error });
+      }
+      return handleRenameDriveFile(data);
+    }
+    
     // V6.6.0: Handler untuk scheduleWhatsApp
     if (data.action === 'scheduleWhatsApp') {
       if (!data.email) {
@@ -3873,6 +3885,39 @@ function handleDeleteDriveFile(data) {
     return createJSONOutput({
       success: true,
       message: 'Fail "' + fileName + '" berjaya dipadam.'
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
+  }
+}
+
+function handleRenameDriveFile(data) {
+  try {
+    const fileId = data.fileId;
+    const newName = data.newName;
+    if (!fileId || !newName) {
+      return createJSONOutput({ success: false, error: "fileId dan newName diperlukan." });
+    }
+    
+    const file = DriveApp.getFileById(fileId);
+    file.setName(newName);
+    
+    logActivity(data.email || 'System', 'RENAME_FILE', 'Fail dinamakan semula: ' + newName, '');
+    
+    return createJSONOutput({
+      success: true,
+      file: {
+        id: file.getId(),
+        name: file.getName(),
+        mimeType: file.getMimeType(),
+        size: file.getSize(),
+        lastUpdated: file.getLastUpdated().toISOString(),
+        webViewLink: file.getUrl(),
+        thumbnailLink: file.getMimeType().startsWith('image/') 
+          ? 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=s200'
+          : ''
+      }
     });
     
   } catch (error) {
