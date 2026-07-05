@@ -9150,6 +9150,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (mapsIframe) mapsIframe.src = '';
     const btnToggleAlamat = document.getElementById('btnToggleAlamat');
     if (btnToggleAlamat) btnToggleAlamat.textContent = '🏢 Papar/Sembunyi Alamat Perniagaan';
+    
+    const statusDisp = document.getElementById('db_status_hantar_display');
+    if (statusDisp) statusDisp.style.display = 'none';
 
     if (dbPautanInput) {
       dbPautanInput.style.backgroundColor = '';
