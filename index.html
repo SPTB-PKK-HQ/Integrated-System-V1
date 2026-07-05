@@ -316,7 +316,7 @@
                     <h3 style="margin-top: 0; display: flex; align-items: center;">📁 Google Drive (User Folder System)<span id="driveStatus" class="drive-status drive-creating" style="display: none;">Mencipta...</span></h3>
                     <div style="margin-bottom: 10px;"><label><input type="checkbox" id="cbCreateDriveFolder" checked>Cipta folder dalam User Folder untuk syarikat ini</label></div>
                     <div id="driveFolderInfo" style="display: block;"><div id="driveResult" style="margin-top: 10px;"></div></div>
-                    <div class="btn-drive-container"><button class="btn btn-orange" id="btnCreateDriveFolder" style="margin-top: 10px;">📁 Cipta Folder Drive</button><button class="btn btn-drive" id="btnOpenMyDriveFolder" style="margin-top: 10px;">📂 Buka Folder Saya</button></div>
+                    <div class="btn-drive-container"><button class="btn btn-orange" id="btnCreateDriveFolder" style="margin-top: 10px;">📁 Cipta Folder Drive</button><button class="btn btn-drive" id="btnOpenMyDriveFolder" style="margin-top: 10px;">📂 Buka Folder Saya</button><button class="btn btn-blue" id="btnFileManagerFromDb" style="margin-top: 10px;">📂 Urus Fail</button></div>
                 </div>
                 <div class="grid-2"><div><label>Nama Syarikat</label><input type="text" id="db_syarikat"></div><div><label>No. CIDB</label><input type="text" id="db_cidb"></div></div>
                 <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -385,7 +385,7 @@
                             <div style="flex:1; min-width:120px;"><label>SYOR SPI</label><select id="db_lawatan_syor" style="width:100%;"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
                         </div>
                     </div>
-                <label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-drive" id="btnOpenDriveFolder" style="padding: 8px 12px; font-size: 0.8rem;" title="Buka Folder Drive">📂 Drive</button></div>
+                <label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-drive" id="btnOpenDriveFolder" style="padding: 8px 12px; font-size: 0.8rem;" title="Buka Folder Drive">📂 Drive</button><button class="btn btn-blue" id="btnFileManagerFromPautan" style="padding: 8px 12px; font-size: 0.8rem;" title="Urus Fail">📂 Urus Fail</button></div>
                 <label>Justifikasi Lawatan</label><input type="text" id="db_justifikasi">
                 <div style="margin-top:15px; border-top: 2px dashed #ccc; padding-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
@@ -877,6 +877,34 @@
                 <div style="display: flex; gap: 10px; justify-content: center;">
                     <button id="btnCancelBakulModal" class="btn btn-white" style="flex: 1; padding: 12px; font-size: 1rem;">Batal</button>
                     <button id="btnConfirmBakulModal" class="btn btn-blue" style="flex: 1; padding: 12px; font-size: 1rem;">Simpan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILE MANAGER MODAL -->
+        <div class="custom-modal-overlay" id="fileManagerModal">
+            <div class="custom-modal-card" style="max-width: 800px; width: 95%; text-align: left; position: relative; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px;">
+                <span class="admin-stats-close" id="fileManagerClose" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #64748b;">×</span>
+                <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                    📂 Pengurusan Fail
+                </h2>
+                <div id="fileManagerHeader" style="margin: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <span id="fileManagerFolderInfo" style="color:#64748b; font-weight:600;">Tiada folder dipilih</span>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input type="file" id="fileManagerUploadInput" multiple style="display:none;" accept="*/*">
+                        <button class="btn btn-blue" id="btnFileManagerUpload" style="padding: 8px 16px; font-size: 0.9rem;">⬆️ Muat Naik</button>
+                        <button class="btn btn-white" id="btnFileManagerRefresh" style="padding: 8px 16px; font-size: 0.9rem;">🔄 Segar Semula</button>
+                    </div>
+                </div>
+                <div id="fileManagerLoading" style="text-align:center; padding:30px; color:#94a3b8; display:none;">⏳ Memuatkan senarai fail...</div>
+                <div id="fileManagerList" style="min-height: 200px; max-height: 55vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #f8fafc;">
+                    <p style="text-align:center; color:#94a3b8; padding:40px;">📂 Tiada fail — pilih folder dahulu atau folder masih kosong</p>
+                </div>
+                <div id="fileManagerUploadProgress" style="margin-top:10px; display:none;">
+                    <div style="background:#e2e8f0; border-radius:10px; height:6px; overflow:hidden;">
+                        <div id="fileManagerProgressBar" style="background:#2563eb; height:100%; width:0%; transition: width 0.3s;"></div>
+                    </div>
+                    <p id="fileManagerProgressText" style="font-size:0.8rem; color:#64748b; margin-top:4px;"></p>
                 </div>
             </div>
         </div>

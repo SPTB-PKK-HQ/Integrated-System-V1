@@ -769,6 +769,7 @@ async function handleCredentialResponse(response) {
   let isFetching = false;
   let driveFolderCreated = false;
   let createdFolderUrl = '';
+  let createdFolderId = '';
   let userFolderUrl = '';
   let dataCacheVersion = '';
   let allRecommenders = [];
@@ -5180,6 +5181,7 @@ async function handleCredentialResponse(response) {
       
       if (storage.stb_drive_folder_url) {
         createdFolderUrl = storage.stb_drive_folder_url;
+        createdFolderId = extractFolderIdFromUrl(storage.stb_drive_folder_url) || '';
         driveFolderCreated = true;
       }
       
@@ -6185,6 +6187,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             
             driveFolderCreated = true;
             createdFolderUrl = folderUrl;
+            createdFolderId = result.folder_id || extractFolderIdFromUrl(folderUrl) || '';
             userFolderUrl = result.user_folder_url || '';
             
             if (cbCreateDriveFolder) cbCreateDriveFolder.checked = false;
@@ -6769,6 +6772,381 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
   }
+
+  // =====================================================================
+  // V6.7.0: FILE MANAGER — URUS FAIL DALAM FOLDER DRIVE
+  // =====================================================================
+
+  function extractFolderIdFromUrl(url) {
+    if (!url) return null;
+    const match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+  }
+
+  async function openFileManager(folderUrl) {
+    const modal = document.getElementById('fileManagerModal');
+    const listEl = document.getElementById('fileManagerList');
+    const folderInfo = document.getElementById('fileManagerFolderInfo');
+    const loadingEl = document.getElementById('fileManagerLoading');
+    if (!modal || !listEl || !folderInfo || !loadingEl) return;
+
+    let folderId = folderUrl || createdFolderId;
+    if (!folderId) {
+      const pautan = document.getElementById('db_pautan')?.value;
+      folderId = extractFolderIdFromUrl(pautan) || createdFolderId;
+    }
+    if (folderUrl && folderUrl.length > 50) {
+      folderId = extractFolderIdFromUrl(folderUrl);
+    }
+    if (!folderId) {
+      await CustomAppModal.alert("Tiada folder Drive untuk rekod ini. Sila cipta folder terlebih dahulu.", "Makluman", "warning");
+      return;
+    }
+
+    modal.style.display = 'flex';
+    modal.classList.add('show');
+    folderInfo.textContent = '📁 Memuatkan...';
+    listEl.innerHTML = '';
+    loadingEl.style.display = 'block';
+
+    await loadDriveFiles(folderId);
+  }
+
+  async function loadDriveFiles(folderId) {
+    const listEl = document.getElementById('fileManagerList');
+    const folderInfo = document.getElementById('fileManagerFolderInfo');
+    const loadingEl = document.getElementById('fileManagerLoading');
+    if (!listEl || !folderInfo || !loadingEl) return;
+
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'listDriveFiles',
+          folderId: folderId,
+          email: currentUser ? currentUser.email : ''
+        })
+      }, 3, 1000);
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      loadingEl.style.display = 'none';
+
+      if (result.success) {
+        folderInfo.textContent = '📁 ' + (result.folderName || 'Folder');
+        renderDriveFiles(result.files, folderId);
+      } else {
+        folderInfo.textContent = '📁 Folder';
+        listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ ${result.error || 'Gagal memuatkan fail'}</p>`;
+      }
+    } catch (error) {
+      loadingEl.style.display = 'none';
+      folderInfo.textContent = '📁 Folder';
+      listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ Ralat: ${error.message}</p>`;
+      console.error("V6.7.0 Error loading drive files:", error);
+    }
+  }
+
+  function renderDriveFiles(files, folderId) {
+    const listEl = document.getElementById('fileManagerList');
+    if (!listEl) return;
+
+    if (!files || files.length === 0) {
+      listEl.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>';
+      return;
+    }
+
+    const canEdit = canEditDriveFiles();
+
+    let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">';
+    
+    files.forEach(file => {
+      const isImage = file.mimeType && file.mimeType.startsWith('image/');
+      const thumbnailUrl = isImage ? file.thumbnailLink : getFileIcon(file.mimeType, file.name);
+      const displayIcon = isImage 
+        ? `<img src="${thumbnailUrl}" alt="${escapeHtml(file.name)}" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">`
+        : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">${thumbnailUrl}</div>`;
+      
+      html += `
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          ${displayIcon}
+          <p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; min-height:2.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(file.name)}</p>
+          <p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">${formatFileSize(file.size)}</p>
+          <div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">
+            <button class="btn-file-view" data-url="${file.webViewLink}" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>
+            ${canEdit ? `<button class="btn-file-delete" data-id="${file.id}" data-name="${escapeHtml(file.name)}" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>` : ''}
+          </div>
+        </div>`;
+    });
+    
+    html += '</div>';
+    listEl.innerHTML = html;
+  }
+
+  function canEditDriveFiles() {
+    if (!currentUser) return false;
+    const role = currentUser.role;
+    if (role === 'ADMIN' || role === 'KETUA SEKSYEN' || role === 'PENGARAH') return true;
+    
+    const item = pelulusActiveItem;
+    if (!item) {
+      if (role === 'PENGESYOR') {
+        const pengesyorField = document.getElementById('db_pengesyor')?.value;
+        return pengesyorField && pengesyorField.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+      }
+      return false;
+    }
+    
+    if (role === 'PENGESYOR' && item.pengesyor) {
+      return item.pengesyor.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+    }
+    if (role === 'PELULUS' && item.pelulus) {
+      return item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+    }
+    return false;
+  }
+
+  function getFileIcon(mimeType, fileName) {
+    if (!mimeType && fileName) {
+      const ext = fileName.split('.').pop().toLowerCase();
+      if (['jpg','jpeg','png','gif','bmp','webp','svg'].includes(ext)) return '🖼️';
+      if (ext === 'pdf') return '📄';
+      if (['doc','docx'].includes(ext)) return '📝';
+      if (['xls','xlsx','csv'].includes(ext)) return '📊';
+      if (['ppt','pptx'].includes(ext)) return '📑';
+      if (['zip','rar','7z'].includes(ext)) return '🗜️';
+      return '📎';
+    }
+    if (mimeType.startsWith('image/')) return '🖼️';
+    if (mimeType === 'application/pdf') return '📄';
+    if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) return '📊';
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return '📑';
+    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z')) return '🗜️';
+    return '📎';
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Event listeners for file manager
+  const btnFileManagerFromDb = document.getElementById('btnFileManagerFromDb');
+  const btnFileManagerFromPautan = document.getElementById('btnFileManagerFromPautan');
+  const btnFileManagerUpload = document.getElementById('btnFileManagerUpload');
+  const fileManagerUploadInput = document.getElementById('fileManagerUploadInput');
+  const btnFileManagerRefresh = document.getElementById('btnFileManagerRefresh');
+  const fileManagerClose = document.getElementById('fileManagerClose');
+  const fileManagerModal = document.getElementById('fileManagerModal');
+
+  if (btnFileManagerFromDb) {
+    btnFileManagerFromDb.addEventListener('click', () => openFileManager());
+  }
+
+  if (btnFileManagerFromPautan) {
+    btnFileManagerFromPautan.addEventListener('click', () => openFileManager());
+  }
+
+  if (btnFileManagerUpload && fileManagerUploadInput) {
+    btnFileManagerUpload.addEventListener('click', () => {
+      fileManagerUploadInput.click();
+    });
+  }
+
+  if (fileManagerUploadInput) {
+    fileManagerUploadInput.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      const progressEl = document.getElementById('fileManagerUploadProgress');
+      const progressBar = document.getElementById('fileManagerProgressBar');
+      const progressText = document.getElementById('fileManagerProgressText');
+      if (progressEl) progressEl.style.display = 'block';
+
+      let folderId = createdFolderId;
+      if (!folderId) {
+        const pautan = document.getElementById('db_pautan')?.value;
+        folderId = extractFolderIdFromUrl(pautan);
+      }
+
+      if (!folderId) {
+        await CustomAppModal.alert("Tiada folder Drive. Sila cipta folder dahulu.", "Ralat", "error");
+        if (progressEl) progressEl.style.display = 'none';
+        fileManagerUploadInput.value = '';
+        return;
+      }
+
+      let uploaded = 0;
+      const total = files.length;
+
+      for (let i = 0; i < total; i++) {
+        const file = files[i];
+        if (progressText) progressText.textContent = `Memuat naik ${i + 1}/${total}: ${file.name}`;
+        if (progressBar) progressBar.style.width = `${((i) / total) * 100}%`;
+
+        try {
+          const base64 = await fileToBase64(file);
+          const response = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'uploadDriveFile',
+              folderId: folderId,
+              fileName: file.name,
+              mimeType: file.type || 'application/octet-stream',
+              fileData: base64.split(',')[1] || base64,
+              email: currentUser ? currentUser.email : ''
+            })
+          }, 3, 2000);
+
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const result = await response.json();
+          if (result.success) {
+            uploaded++;
+          } else {
+            console.error("V6.7.0 Upload failed for", file.name, result.error);
+          }
+        } catch (err) {
+          console.error("V6.7.0 Error uploading", file.name, err);
+        }
+
+        if (progressBar) progressBar.style.width = `${((i + 1) / total) * 100}%`;
+      }
+
+      if (progressEl) progressEl.style.display = 'none';
+      fileManagerUploadInput.value = '';
+
+      if (uploaded > 0) {
+        await loadDriveFiles(folderId);
+        await playSuccessSound();
+      }
+      if (uploaded < total) {
+        await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik. Yang gagal mungkin saiz terlalu besar.`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
+      }
+    });
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (btnFileManagerRefresh) {
+    btnFileManagerRefresh.addEventListener('click', async () => {
+      let folderId = createdFolderId;
+      if (!folderId) {
+        const pautan = document.getElementById('db_pautan')?.value;
+        folderId = extractFolderIdFromUrl(pautan);
+      }
+      if (folderId) {
+        const loadingEl = document.getElementById('fileManagerLoading');
+        if (loadingEl) loadingEl.style.display = 'block';
+        await loadDriveFiles(folderId);
+      }
+    });
+  }
+
+  if (fileManagerClose && fileManagerModal) {
+    fileManagerClose.addEventListener('click', () => {
+      fileManagerModal.classList.remove('show');
+      setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
+    });
+
+    fileManagerModal.addEventListener('click', (e) => {
+      if (e.target === fileManagerModal) {
+        fileManagerModal.classList.remove('show');
+        setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
+      }
+    });
+  }
+
+  // Delegated events for file manager buttons (Buka / Padam / Urus Fail)
+  document.addEventListener('click', async (e) => {
+    const mgrBtn = e.target.closest('.btn-file-mgr');
+    if (mgrBtn) {
+      e.preventDefault();
+      const pautan = mgrBtn.getAttribute('data-pautan');
+      if (pautan) {
+        const folderId = extractFolderIdFromUrl(pautan);
+        if (folderId) createdFolderId = folderId;
+        await openFileManager(pautan);
+      }
+      return;
+    }
+
+    const viewBtn = e.target.closest('.btn-file-view');
+    if (viewBtn) {
+      e.preventDefault();
+      const url = viewBtn.getAttribute('data-url');
+      if (url) window.open(url, '_blank');
+      return;
+    }
+
+    const deleteBtn = e.target.closest('.btn-file-delete');
+    if (deleteBtn) {
+      e.preventDefault();
+      const fileId = deleteBtn.getAttribute('data-id');
+      const fileName = deleteBtn.getAttribute('data-name');
+      if (!fileId) return;
+
+      const confirmDel = await CustomAppModal.confirm(
+        `Padamkan fail "${fileName}"? Fail akan dipindahkan ke tong sampah Drive.`,
+        "Padam Fail",
+        "warning",
+        "Ya, Padam",
+        true
+      );
+      if (!confirmDel) return;
+
+      try {
+        const response = await fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'deleteDriveFile',
+            fileId: fileId,
+            email: currentUser ? currentUser.email : ''
+          })
+        }, 3, 1000);
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+
+        if (result.success) {
+          await playSuccessSound();
+          let folderId = createdFolderId;
+          if (!folderId) {
+            const pautan = document.getElementById('db_pautan')?.value;
+            folderId = extractFolderIdFromUrl(pautan);
+          }
+          if (folderId) await loadDriveFiles(folderId);
+        } else {
+          await CustomAppModal.alert(result.error || "Gagal memadam fail.", "Ralat", "error");
+        }
+      } catch (err) {
+        await CustomAppModal.alert("Ralat semasa memadam fail: " + err.message, "Ralat", "error");
+        console.error("V6.7.0 Error deleting file:", err);
+      }
+      return;
+    }
+  });
 
   if (btnClearFilter) {
     btnClearFilter.addEventListener('click', () => {
@@ -8234,6 +8612,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         driveFolderCreated = true;
         createdFolderUrl = result.folder_url;
+        createdFolderId = result.folder_id || extractFolderIdFromUrl(result.folder_url) || '';
         userFolderUrl = result.user_folder_url;
         
         await storageWrapper.set({ 
@@ -8674,6 +9053,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     hasPrinted = false;
     driveFolderCreated = false;
     createdFolderUrl = '';
+    createdFolderId = '';
     userFolderUrl = '';
     extractedPdfData = null;
 
@@ -9733,6 +10113,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_tatatertib').value = item.tatatertib || '';
     document.getElementById('db_syor').value = item.syor_lawatan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
+    createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
     document.getElementById('db_justifikasi').value = item.justifikasi || '';
     document.getElementById('db_syor_status').value = item.syor_status || '';
 
@@ -10048,7 +10429,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     let link = '-';
     if (i.pautan) {
-      link = `<a href="${i.pautan}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:none;">BUKA DOKUMEN</a>`;
+      const pautanId = extractFolderIdFromUrl(i.pautan) || '';
+      link = `<a href="${i.pautan}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:none;">BUKA DOKUMEN</a> <button class="btn-file-mgr" data-pautan="${i.pautan}" style="padding:4px 10px; font-size:0.75rem; background:#dbeafe; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; color:#1e40af; font-weight:600;">📂 Urus Fail</button>`;
     }
 
     let statusBadge = `<span class="status-badge bg-blue">${safe(i.syor_status)}</span>`;
@@ -10782,6 +11164,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     hasPrinted = false;
     driveFolderCreated = false;
     createdFolderUrl = '';
+    createdFolderId = '';
     userFolderUrl = '';
 
     if (cbCreateDriveFolder) {

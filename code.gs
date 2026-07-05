@@ -408,7 +408,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -496,6 +496,35 @@ function doPost(e) {
       }
       logActivity(data.user, data.actionType, data.description, data.folderId);
       return createJSONOutput({ status: "success", message: "Activity logged" });
+    }
+    
+    // V6.7.0: Handler untuk listDriveFiles (papar fail dalam folder)
+    if (data.action === 'listDriveFiles') {
+      return handleListDriveFiles(data);
+    }
+    
+    // V6.7.0: Handler untuk uploadDriveFile
+    if (data.action === 'uploadDriveFile') {
+      if (!data.email) {
+        return createJSONOutput({ success: false, error: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ success: false, error: accessCheck.error });
+      }
+      return handleUploadDriveFile(data);
+    }
+    
+    // V6.7.0: Handler untuk deleteDriveFile
+    if (data.action === 'deleteDriveFile') {
+      if (!data.email) {
+        return createJSONOutput({ success: false, error: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ success: false, error: accessCheck.error });
+      }
+      return handleDeleteDriveFile(data);
     }
     
     // V6.6.0: Handler untuk scheduleWhatsApp
@@ -3743,5 +3772,110 @@ function handleDeleteAllInbox(data) {
     
   } catch (error) {
     return createJSONOutput({ status: 'error', message: error.toString() });
+  }
+}
+
+// =========================================================================
+// V6.7.0: FILE MANAGER — SENARAI FAIL DALAM FOLDER DRIVE
+// =========================================================================
+
+function handleListDriveFiles(data) {
+  try {
+    const folderId = data.folderId;
+    if (!folderId) {
+      return createJSONOutput({ success: false, error: "folderId diperlukan." });
+    }
+    
+    const folder = DriveApp.getFolderById(folderId);
+    const folderName = folder.getName();
+    const files = [];
+    const fileIterator = folder.getFiles();
+    
+    while (fileIterator.hasNext()) {
+      const file = fileIterator.next();
+      files.push({
+        id: file.getId(),
+        name: file.getName(),
+        mimeType: file.getMimeType(),
+        size: file.getSize(),
+        lastUpdated: file.getLastUpdated().toISOString(),
+        webViewLink: file.getUrl(),
+        thumbnailLink: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=s200',
+        iconLink: file.getMimeType().startsWith('image/') 
+          ? 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=s200'
+          : ''
+      });
+    }
+    
+    return createJSONOutput({ 
+      success: true, 
+      files: files, 
+      folderName: folderName,
+      folderId: folderId
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
+  }
+}
+
+function handleUploadDriveFile(data) {
+  try {
+    const folderId = data.folderId;
+    const fileName = data.fileName;
+    const mimeType = data.mimeType;
+    const fileData = data.fileData;
+    
+    if (!folderId || !fileName || !fileData) {
+      return createJSONOutput({ success: false, error: "folderId, fileName, dan fileData diperlukan." });
+    }
+    
+    const folder = DriveApp.getFolderById(folderId);
+    const bytes = Utilities.base64Decode(fileData);
+    const blob = Utilities.newBlob(bytes, mimeType, fileName);
+    const createdFile = folder.createFile(blob);
+    
+    logActivity(data.email || 'System', 'UPLOAD_FILE', 'Fail dimuat naik: ' + fileName + ' ke folder ' + folder.getName(), folderId);
+    
+    return createJSONOutput({
+      success: true,
+      file: {
+        id: createdFile.getId(),
+        name: createdFile.getName(),
+        mimeType: createdFile.getMimeType(),
+        size: createdFile.getSize(),
+        lastUpdated: createdFile.getLastUpdated().toISOString(),
+        webViewLink: createdFile.getUrl(),
+        thumbnailLink: createdFile.getMimeType().startsWith('image/') 
+          ? 'https://drive.google.com/thumbnail?id=' + createdFile.getId() + '&sz=s200'
+          : ''
+      }
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
+  }
+}
+
+function handleDeleteDriveFile(data) {
+  try {
+    const fileId = data.fileId;
+    if (!fileId) {
+      return createJSONOutput({ success: false, error: "fileId diperlukan." });
+    }
+    
+    const file = DriveApp.getFileById(fileId);
+    const fileName = file.getName();
+    file.setTrashed(true);
+    
+    logActivity(data.email || 'System', 'DELETE_FILE', 'Fail dipadam: ' + fileName, '');
+    
+    return createJSONOutput({
+      success: true,
+      message: 'Fail "' + fileName + '" berjaya dipadam.'
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
   }
 }
