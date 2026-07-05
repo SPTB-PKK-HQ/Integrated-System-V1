@@ -2288,3 +2288,66 @@
         .inbox-item.unread .inbox-content {
             cursor: pointer;
         }
+
+        /* Toast notification */
+        #toastContainer {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            background: #1e293b;
+            color: #f1f5f9;
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            font-size: 0.9rem;
+            max-width: 380px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toastSlideIn 0.35s ease, toastFadeOut 0.4s ease forwards;
+            animation-duration: 0.35s, 0.4s;
+            animation-delay: 0s, 2.6s;
+            animation-fill-mode: forwards, forwards;
+        }
+        .toast.toast-success { border-left: 4px solid #10b981; }
+        .toast.toast-error { border-left: 4px solid #ef4444; }
+        .toast.toast-info { border-left: 4px solid #3b82f6; }
+        .toast.toast-warning { border-left: 4px solid #f59e0b; }
+        .toast .toast-icon { font-size: 1.2rem; flex-shrink: 0; }
+        .toast .toast-body { flex: 1; min-width: 0; }
+        .toast .toast-title { font-weight: 600; font-size: 0.85rem; }
+        .toast .toast-msg { font-size: 0.8rem; color: #cbd5e1; margin-top: 2px; }
+        .toast .toast-progress-track {
+            margin-top: 6px;
+            height: 4px;
+            background: #334155;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .toast .toast-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #10b981;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .toast.toast-progress {
+            animation: toastSlideIn 0.35s ease;
+            animation-fill-mode: forwards;
+        }
+        @keyframes toastSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toastFadeOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }

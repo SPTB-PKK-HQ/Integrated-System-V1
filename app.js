@@ -307,6 +307,45 @@ document.addEventListener('DOMContentLoaded', () => {
     await playSoundEffect('error_buzz.mp3');
   }
 
+  // Toast notification system
+  function showToast(message, type = 'success', duration = 2800) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const icons = { success: '✓', error: '✗', info: 'ℹ', warning: '⚠' };
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><div class="toast-body"><div class="toast-msg">${message}</div></div>`;
+    container.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, duration + 400);
+  }
+
+  function showProgressToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast-info toast-progress';
+    el.innerHTML = `<span class="toast-icon">⬆</span><div class="toast-body"><div class="toast-msg">${message}</div><div class="toast-progress-track"><div class="toast-progress-bar"></div></div></div>`;
+    container.appendChild(el);
+    return {
+      update(pct, msg) {
+        const bar = el.querySelector('.toast-progress-bar');
+        const msgEl = el.querySelector('.toast-msg');
+        if (bar) bar.style.width = `${Math.round(pct)}%`;
+        if (msgEl) msgEl.textContent = msg;
+      },
+      done(successMsg, isError) {
+        const bar = el.querySelector('.toast-progress-bar');
+        if (bar) { bar.style.width = '100%'; bar.style.background = isError ? '#ef4444' : '#10b981'; }
+        const msgEl = el.querySelector('.toast-msg');
+        if (msgEl) msgEl.textContent = successMsg;
+        const icon = el.querySelector('.toast-icon');
+        if (icon) icon.textContent = isError ? '✗' : '✓';
+        el.style.borderLeftColor = isError ? '#ef4444' : '#10b981';
+        setTimeout(() => { if (el.parentNode) el.remove(); }, 2200);
+      }
+    };
+  }
+
   // =========================================================================
   // V6.5.2: DAILY GREETING & LOGOUT QUOTES
   // =========================================================================
@@ -6998,11 +7037,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     let uploaded = 0;
     const total = files.length;
+    const progressToast = showProgressToast(`Muat naik 0/${total} fail...`);
 
     for (let i = 0; i < total; i++) {
       const file = files[i];
+      const pct = (i / total) * 100;
       if (progressText) progressText.textContent = `Memuat naik ${i + 1}/${total}: ${file.name}`;
-      if (progressBar) progressBar.style.width = `${((i) / total) * 100}%`;
+      if (progressBar) progressBar.style.width = `${pct}%`;
+      progressToast.update(pct, `Memuat naik ${i + 1}/${total}: ${file.name}`);
 
       try {
         const base64 = await fileToBase64(file);
@@ -7039,6 +7081,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (uploaded > 0) {
       await loadDriveFiles(folderId);
       await playSuccessSound();
+      progressToast.done(`${uploaded}/${total} fail berjaya dimuat naik`);
+    } else {
+      progressToast.done("Muat naik gagal", true);
     }
     if (uploaded < total) {
       await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik. Yang gagal mungkin saiz terlalu besar.`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
@@ -7181,6 +7226,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         
         if (result.success) {
           await playSuccessSound();
+          showToast(`Fail "${newName.trim()}" dinamakan semula`, 'success');
           let folderId = createdFolderId;
           if (!folderId) {
             const pautan = document.getElementById('db_pautan')?.value;
@@ -7229,6 +7275,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
         if (result.success) {
           await playSuccessSound();
+          showToast(`Fail "${fileName}" dipadam`, 'success');
           let folderId = createdFolderId;
           if (!folderId) {
             const pautan = document.getElementById('db_pautan')?.value;
@@ -14307,7 +14354,7 @@ function renderInbox() {
         if (result.status === 'success') {
           cachedInboxData.splice(idx, 1);
           renderInbox();
-          await CustomAppModal.alert('Mesej berjaya dipadam', 'Berjaya', 'success');
+          showToast('Mesej dipadam', 'success');
         } else {
           await CustomAppModal.alert('Gagal padam: ' + result.message, 'Ralat', 'error');
         }
@@ -14381,6 +14428,7 @@ function renderInbox() {
       
       cachedInboxData[idx].dibaca = true;
       renderInbox();
+      showToast('Mesej ditandakan dibaca', 'success');
     });
   });
   
@@ -14395,24 +14443,24 @@ function renderInbox() {
         return;
       }
       closeInboxModal();
-      let success = 0;
+      const promises = [];
       for (const cb of checked) {
         const idx = parseInt(cb.getAttribute('data-index'));
         const msg = cachedInboxData[idx];
         if (msg && !msg.dibaca) {
-          try {
-            await fetchWithRetry(SCRIPT_URL, {
+          promises.push(
+            fetchWithRetry(SCRIPT_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
               body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
-            }, 2, 500);
-            cachedInboxData[idx].dibaca = true;
-            success++;
-          } catch (e) {}
+            }, 2, 500).then(() => { cachedInboxData[idx].dibaca = true; }).catch(() => {})
+          );
         }
       }
+      const results = await Promise.allSettled(promises);
+      const success = results.filter(r => r.status === 'fulfilled').length;
       renderInbox();
-      await CustomAppModal.alert(success + ' mesej ditandakan dibaca', 'Selesai', 'success');
+      showToast(success + ' mesej ditandakan dibaca', 'success');
     });
   }
   
@@ -14433,22 +14481,22 @@ function renderInbox() {
       for (const cb of checked) {
         indices.push(parseInt(cb.getAttribute('data-index')));
       }
+      const promises = indices.map(idx => {
+        const msg = cachedInboxData[idx];
+        if (!msg) return Promise.resolve();
+        return fetchWithRetry(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'deleteInbox', msgId: msg.id, row: msg.row, email: currentUser.email })
+        }, 2, 500).catch(() => {});
+      });
+      await Promise.allSettled(promises);
       indices.sort((a, b) => b - a);
       for (const idx of indices) {
-        const msg = cachedInboxData[idx];
-        if (msg) {
-          try {
-            await fetchWithRetry(SCRIPT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ action: 'deleteInbox', msgId: msg.id, row: msg.row, email: currentUser.email })
-            }, 2, 500);
-          } catch (e) {}
-          cachedInboxData.splice(idx, 1);
-        }
+        if (cachedInboxData[idx]) cachedInboxData.splice(idx, 1);
       }
       renderInbox();
-      await CustomAppModal.alert(indices.length + ' mesej berjaya dipadam', 'Selesai', 'success');
+      showToast(indices.length + ' mesej dipadam', 'success');
     });
   }
 }
