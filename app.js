@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJGAXpv2FCevx0XKl2LFLcUD8Fod_FOMEja3EnBDoQ83qB03PSbL09A28XdExTC6Oe/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbziQHptjRALz6THvhM73mZEd77e2rXSNQXWP8Zb4IkEDpFg2l9Fspwx3t31AE19JsUO/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -1437,12 +1437,15 @@ async function handleCredentialResponse(response) {
             if (el) {
               if (el.type === 'checkbox' || el.type === 'radio') {
                 el.checked = fields[key];
-              } else if (el.type !== 'file') { // <-- TAMBAH SYARAT INI
+              } else if (el.type !== 'file') {
                 el.value = fields[key];
               }
             }
           }
         });
+        
+        toggleDateSubmitSpi();
+        toggleUrusFailButton();
         
         console.log('V6.5.2 Database form data restored from persistence');
       })
@@ -3929,7 +3932,8 @@ async function handleCredentialResponse(response) {
       spkkPersons: [],
       chequeSignatories: [],
       phoneNumbers: [],
-      alamatPerniagaan: ''
+      alamatPerniagaan: '',
+      alamatSuratMenyurat: ''
     };
 
     console.log("V6.5.2 Mula mengekstrak data...");
@@ -4137,10 +4141,12 @@ async function handleCredentialResponse(response) {
       </div>`;
     }
 
-    if (data.alamatPerniagaan) {
+    const alamatDisplay = data.alamatPerniagaan || data.alamatSuratMenyurat || '';
+    if (alamatDisplay) {
+      const labelAlamat = data.alamatPerniagaan ? 'Alamat Perniagaan' : 'Alamat Surat-menyurat';
       html += `<div class="extracted-item">
-        <span class="extracted-label">Alamat Perniagaan:</span>
-        <span class="extracted-value">${data.alamatPerniagaan}</span>
+        <span class="extracted-label">${labelAlamat}:</span>
+        <span class="extracted-value">${alamatDisplay}</span>
       </div>`;
     }
 
@@ -4235,12 +4241,13 @@ async function handleCredentialResponse(response) {
       setValueAndTrigger('borang_no_telefon', extractedPdfData.phoneNumbers.join(', '));
     }
 
-    if (extractedPdfData.alamatPerniagaan) {
-      setValueAndTrigger('db_alamat_perniagaan', extractedPdfData.alamatPerniagaan);
+    const alamatToUse = extractedPdfData.alamatPerniagaan || extractedPdfData.alamatSuratMenyurat || '';
+    if (alamatToUse) {
+      setValueAndTrigger('db_alamat_perniagaan', alamatToUse);
       
       const negeriSelect = document.getElementById('db_negeri');
-      if (negeriSelect && extractedPdfData.alamatPerniagaan) {
-        const alamatUpper = extractedPdfData.alamatPerniagaan.toUpperCase();
+      if (negeriSelect && alamatToUse) {
+        const alamatUpper = alamatToUse.toUpperCase();
         const stateMap = {
           'JOHOR': 'JOHOR', 'KEDAH': 'KEDAH', 'KELANTAN': 'KELANTAN', 'MELAKA': 'MELAKA',
           'NEGERI SEMBILAN': 'NEGERI SEMBILAN', 'PAHANG': 'PAHANG', 'PERAK': 'PERAK',
@@ -6019,8 +6026,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const profilePrintEl = document.getElementById('printProfileLayout');
       if (profilePrintEl) profilePrintEl.style.display = 'none';
       
-      const dbPautanValue = document.getElementById('db_pautan')?.value || '';
-      const isDriveAlreadyCreated = driveFolderCreated === true || (dbPautanValue && dbPautanValue.trim() !== '');
+      const dbPautanDriveValue = document.getElementById('db_pautan_drive')?.value || '';
+      const isDriveAlreadyCreated = driveFolderCreated === true || (dbPautanDriveValue && dbPautanDriveValue.trim() !== '');
       
       let proceedToDrive = false;
 
@@ -6221,6 +6228,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           if (result.success) {
             await playSuccessSound();
             const folderUrl = result.folder_url;
+            const dbPautanDriveField = document.getElementById('db_pautan_drive');
+            if (dbPautanDriveField) dbPautanDriveField.value = folderUrl;
             const dbPautanField = document.getElementById('db_pautan');
             if (dbPautanField) dbPautanField.value = folderUrl;
             
@@ -6749,14 +6758,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if(dbSyor) {
     dbSyor.addEventListener('change', (e) => {
       const val = e.target.value;
-      if (val === 'YA' && dbPautanInput) {
-        dbPautanInput.style.backgroundColor = '#fffbeb';
-        dbPautanInput.style.borderColor = '#f59e0b';
-        dbPautanInput.style.borderWidth = '2px';
-      } else if (dbPautanInput) {
-        dbPautanInput.style.backgroundColor = '';
-        dbPautanInput.style.borderColor = '';
-        dbPautanInput.style.borderWidth = '';
+      const dbPautanDriveEl = document.getElementById('db_pautan_drive');
+      if (val === 'YA' && dbPautanDriveEl) {
+        dbPautanDriveEl.style.backgroundColor = '#fffbeb';
+        dbPautanDriveEl.style.borderColor = '#f59e0b';
+        dbPautanDriveEl.style.borderWidth = '2px';
+      } else if (dbPautanDriveEl) {
+        dbPautanDriveEl.style.backgroundColor = '';
+        dbPautanDriveEl.style.borderColor = '';
+        dbPautanDriveEl.style.borderWidth = '';
       }
       
       if(currentUser && (currentUser.role === 'PENGESYOR' || currentUser.role === 'ADMIN') && !isRestoring) {
@@ -6788,28 +6798,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   async function openDriveFolder() {
-    const dbPautan = document.getElementById('db_pautan')?.value;
+    const dbPautanDrive = document.getElementById('db_pautan_drive')?.value;
     
-    if (!dbPautan || dbPautan.trim() === '') {
+    if (!dbPautanDrive || dbPautanDrive.trim() === '') {
       await CustomAppModal.alert("Tiada pautan folder Drive. Sila cipta folder terlebih dahulu.", "Makluman", "warning");
       return;
     }
     
-    window.open(dbPautan, '_blank');
+    window.open(dbPautanDrive, '_blank');
   }
 
   if (btnOpenDriveFolder) {
     btnOpenDriveFolder.addEventListener('click', openDriveFolder);
-  }
-
-  if (btnOpenMyDriveFolder) {
-    btnOpenMyDriveFolder.addEventListener('click', async () => {
-      if (userFolderUrl) {
-        window.open(userFolderUrl, '_blank');
-      } else {
-        await CustomAppModal.alert("Folder user anda belum dicipta. Sila cipta folder untuk syarikat ini terlebih dahulu.", "Makluman", "warning");
-      }
-    });
   }
 
   // =====================================================================
@@ -6831,8 +6831,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     let folderId = folderUrl || createdFolderId;
     if (!folderId) {
-      const pautan = document.getElementById('db_pautan')?.value;
-      folderId = extractFolderIdFromUrl(pautan) || createdFolderId;
+      const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+      folderId = extractFolderIdFromUrl(pautanDrive) || createdFolderId;
     }
     if (folderUrl && folderUrl.length > 50) {
       folderId = extractFolderIdFromUrl(folderUrl);
@@ -7023,8 +7023,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     let folderId = createdFolderId;
     if (!folderId) {
-      const pautan = document.getElementById('db_pautan')?.value;
-      folderId = extractFolderIdFromUrl(pautan);
+      const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+      folderId = extractFolderIdFromUrl(pautanDrive);
     }
 
     if (!folderId) {
@@ -7151,8 +7151,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     btnFileManagerRefresh.addEventListener('click', async () => {
       let folderId = createdFolderId;
       if (!folderId) {
-        const pautan = document.getElementById('db_pautan')?.value;
-        folderId = extractFolderIdFromUrl(pautan);
+        const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+        folderId = extractFolderIdFromUrl(pautanDrive);
       }
       if (folderId) {
         const loadingEl = document.getElementById('fileManagerLoading');
@@ -7228,8 +7228,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           showToast(`Fail "${newName.trim()}" dinamakan semula`, 'success');
           let folderId = createdFolderId;
           if (!folderId) {
-            const pautan = document.getElementById('db_pautan')?.value;
-            folderId = extractFolderIdFromUrl(pautan);
+            const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+            folderId = extractFolderIdFromUrl(pautanDrive);
           }
           if (folderId) await loadDriveFiles(folderId);
         } else {
@@ -7277,8 +7277,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           showToast(`Fail "${fileName}" dipadam`, 'success');
           let folderId = createdFolderId;
           if (!folderId) {
-            const pautan = document.getElementById('db_pautan')?.value;
-            folderId = extractFolderIdFromUrl(pautan);
+            const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+            folderId = extractFolderIdFromUrl(pautanDrive);
           }
           if (folderId) await loadDriveFiles(folderId);
         } else {
@@ -7840,6 +7840,36 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  const dbSyorSelect = document.getElementById('db_syor');
+  const dbSubmitDateContainer = document.getElementById('db_submit_date_container');
+  function toggleDateSubmitSpi() {
+    if (dbSyorSelect && dbSubmitDateContainer) {
+      const syorVal = dbSyorSelect.value;
+      if (syorVal === 'YA') {
+        dbSubmitDateContainer.style.display = '';
+      } else {
+        dbSubmitDateContainer.style.display = 'none';
+        document.getElementById('db_submit_date').value = '';
+      }
+    }
+  }
+  if (dbSyorSelect) {
+    dbSyorSelect.addEventListener('change', toggleDateSubmitSpi);
+  }
+
+  const dbPautanDriveInput = document.getElementById('db_pautan_drive');
+  const btnFileManagerFromDb = document.getElementById('btnFileManagerFromDb');
+  function toggleUrusFailButton() {
+    if (dbPautanDriveInput && btnFileManagerFromDb) {
+      const hasLink = dbPautanDriveInput.value && dbPautanDriveInput.value.trim() !== '';
+      btnFileManagerFromDb.style.display = hasLink ? '' : 'none';
+    }
+  }
+  if (dbPautanDriveInput) {
+    dbPautanDriveInput.addEventListener('input', toggleUrusFailButton);
+    dbPautanDriveInput.addEventListener('change', toggleUrusFailButton);
+  }
+
   // V6.6.0: cb_notify_whatsapp tidak digunakan lagi - diganti dengan modal WhatsApp
 
   // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
@@ -7958,10 +7988,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     const syorVal = document.getElementById('db_syor')?.value;
-    if (syorVal === 'YA' && dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '#fffbeb';
-      dbPautanInput.style.borderColor = '#f59e0b';
-      dbPautanInput.style.borderWidth = '2px';
+    const dbPautanDriveEl = document.getElementById('db_pautan_drive');
+    if (syorVal === 'YA' && dbPautanDriveEl) {
+      dbPautanDriveEl.style.backgroundColor = '#fffbeb';
+      dbPautanDriveEl.style.borderColor = '#f59e0b';
+      dbPautanDriveEl.style.borderWidth = '2px';
     }
 
     isRestoring = false;
@@ -8773,6 +8804,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           'stb_user_folder_url': userFolderUrl 
         });
         
+        const dbPautanDrive = document.getElementById('db_pautan_drive');
+        if (dbPautanDrive) {
+          dbPautanDrive.value = createdFolderUrl;
+        }
         const dbPautan = document.getElementById('db_pautan');
         if (dbPautan) {
           dbPautan.value = createdFolderUrl;
@@ -8848,23 +8883,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   function updateOpenDriveButton() {
-    const dbPautan = document.getElementById('db_pautan')?.value;
-    const btnOpenDrive = document.getElementById('btnOpenDriveFolder');
+    const dbPautanDrive = document.getElementById('db_pautan_drive')?.value;
+    const btnFileManager = document.getElementById('btnFileManagerFromDb');
 
-    if (btnOpenDrive) {
-      if (dbPautan && dbPautan.trim() !== '') {
-        btnOpenDrive.disabled = false;
-        btnOpenDrive.title = "Buka Folder Drive";
+    if (btnFileManager) {
+      if (dbPautanDrive && dbPautanDrive.trim() !== '') {
+        btnFileManager.style.display = '';
       } else {
-        btnOpenDrive.disabled = true;
-        btnOpenDrive.title = "Sila cipta folder terlebih dahulu";
+        btnFileManager.style.display = 'none';
       }
     }
   }
 
   function updateDriveSectionVisibility() {
-    const pautan = document.getElementById('db_pautan')?.value;
-    const hasPautan = pautan && pautan.trim() !== '';
+    const pautanDrive = document.getElementById('db_pautan_drive')?.value;
+    const hasPautan = pautanDrive && pautanDrive.trim() !== '';
     
     const cbCreate = document.getElementById('cbCreateDriveFolder');
     const btnCreate = document.getElementById('btnCreateDriveFolder');
@@ -8879,6 +8912,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         driveFolderInfoEl.style.display = 'block';
       }
     }
+    updateOpenDriveButton();
   }
 
   function savePelulusState() {
@@ -9025,10 +9059,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     const syorVal = document.getElementById('db_syor')?.value;
-    if (syorVal === 'YA' && dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '#fffbeb';
-      dbPautanInput.style.borderColor = '#f59e0b';
-      dbPautanInput.style.borderWidth = '2px';
+    const dbPautanDriveEl = document.getElementById('db_pautan_drive');
+    if (syorVal === 'YA' && dbPautanDriveEl) {
+      dbPautanDriveEl.style.backgroundColor = '#fffbeb';
+      dbPautanDriveEl.style.borderColor = '#f59e0b';
+      dbPautanDriveEl.style.borderWidth = '2px';
     }
 
     updateOpenDriveButton();
@@ -9215,16 +9250,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
 
-    if (dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '';
-      dbPautanInput.style.borderColor = '';
-      dbPautanInput.style.borderWidth = '';
-    }
-
     if (btnSyncToDb) {
       btnSyncToDb.style.display = 'none';
     }
 
+    toggleDateSubmitSpi();
+    toggleUrusFailButton();
     updateDriveSectionVisibility();
 
     hasPrinted = false;
@@ -10349,8 +10380,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_negeri').value = item.negeri || '';
     document.getElementById('db_tatatertib').value = item.tatatertib || '';
     document.getElementById('db_syor').value = item.syor_lawatan || '';
+    document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    toggleDateSubmitSpi();
+    toggleUrusFailButton();
     updateDriveSectionVisibility();
     document.getElementById('db_justifikasi').value = item.justifikasi || '';
     document.getElementById('db_syor_status').value = item.syor_status || '';
@@ -10462,10 +10496,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       tarikhSyorInput.value = new Date(item.tarikh_syor).toISOString().split('T')[0];
     }
 
-    if (item.syor_lawatan === 'YA' && dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '#fffbeb';
-      dbPautanInput.style.borderColor = '#f59e0b';
-      dbPautanInput.style.borderWidth = '2px';
+    if (item.syor_lawatan === 'YA') {
+      const dbPautanDriveEl = document.getElementById('db_pautan_drive');
+      if (dbPautanDriveEl) {
+        dbPautanDriveEl.style.backgroundColor = '#fffbeb';
+        dbPautanDriveEl.style.borderColor = '#f59e0b';
+        dbPautanDriveEl.style.borderWidth = '2px';
+      }
     }
 
     const startDateInput = document.getElementById('db_start_date');
@@ -11203,7 +11240,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         tatatertib: document.getElementById('db_tatatertib')?.value || '',
         syor_lawatan: dbSyorValue,
         date_submit: dbSubmitDateValue,
-        pautan: document.getElementById('db_pautan')?.value || '',
+        pautan: document.getElementById('db_pautan_drive')?.value || document.getElementById('db_pautan')?.value || '',
         justifikasi: document.getElementById('db_justifikasi')?.value || '',
         pengesyor: document.getElementById('db_pengesyor')?.value || '',
         createFolder: document.getElementById('cbCreateDriveFolder')?.checked || false,
@@ -11405,10 +11442,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     addPerson();
 
-    if (dbPautanInput) {
-      dbPautanInput.style.backgroundColor = '';
-      dbPautanInput.style.borderColor = '';
-      dbPautanInput.style.borderWidth = '';
+    const dbPautanDriveEl = document.getElementById('db_pautan_drive');
+    if (dbPautanDriveEl) {
+      dbPautanDriveEl.style.backgroundColor = '';
+      dbPautanDriveEl.style.borderColor = '';
+      dbPautanDriveEl.style.borderWidth = '';
     }
 
     if (btnSyncToDb) {
@@ -12549,7 +12587,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           
           fields.forEach(field => {
               // Abaikan field tertentu yang kita tak nak ubah warnanya (contoh: readonly, field status ✔/✗)
-              if (field.readOnly || field.disabled || field.classList.contains('status-input') || field.id === 'db_pautan') {
+              if (field.readOnly || field.disabled || field.classList.contains('status-input') || field.id === 'db_pautan' || field.id === 'db_pautan_drive') {
                   field.classList.remove('form-empty', 'form-filled');
                   return;
               }

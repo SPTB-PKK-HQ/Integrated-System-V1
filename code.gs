@@ -847,8 +847,10 @@ function buildBorangPrompt(truncatedText) {
     "checkSignatories": ["Array of names only"],
     "spkkNominees": ["Array of names only"],
     "phoneNumbers": ["Pejabat/individus numbers only. Ignore Fax"],
-    "alamatPerniagaan": "Full address or ''"
+    "alamatPerniagaan": "Full business address or ''",
+    "alamatSuratMenyurat": "Full correspondence address or ''"
   }
+  Priority: If BUSINESS ADDRESS exists in the PDF, return it as alamatPerniagaan. Otherwise, return CORRESPONDENCE ADDRESS as alamatSuratMenyurat.
   PDF Text: ${truncatedText}`;
 }
 
@@ -1031,7 +1033,8 @@ function processBorangResponse(aiResponse) {
     spkkPersons: cleanList(aiData.spkkNominees),
     chequeSignatories: cleanList(aiData.checkSignatories),
     phoneNumbers: phoneNumbers,
-    alamatPerniagaan: aiData.alamatPerniagaan || ''
+    alamatPerniagaan: aiData.alamatPerniagaan || '',
+    alamatSuratMenyurat: aiData.alamatSuratMenyurat || ''
   };
   
   if (aiData.spkkDuration && typeof aiData.spkkDuration === 'string' && aiData.spkkDuration.includes('-')) {

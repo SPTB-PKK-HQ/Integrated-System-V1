@@ -316,7 +316,7 @@
                     <h3 style="margin-top: 0; display: flex; align-items: center;">📁 Google Drive (User Folder System)<span id="driveStatus" class="drive-status drive-creating" style="display: none;">Mencipta...</span></h3>
                     <div style="margin-bottom: 10px;"><label><input type="checkbox" id="cbCreateDriveFolder" checked>Cipta folder dalam User Folder untuk syarikat ini</label></div>
                     <div id="driveFolderInfo" style="display: block;"><div id="driveResult" style="margin-top: 10px;"></div></div>
-                    <div class="btn-drive-container"><button class="btn btn-orange" id="btnCreateDriveFolder" style="margin-top: 10px;">📁 Cipta Folder Drive</button><button class="btn btn-drive" id="btnOpenMyDriveFolder" style="margin-top: 10px;">📂 Buka Folder Saya</button><button class="btn btn-blue" id="btnFileManagerFromDb" style="margin-top: 10px;">📂 Urus Fail</button></div>
+                    <div class="btn-drive-container"><button class="btn btn-orange" id="btnCreateDriveFolder" style="margin-top: 10px;">📁 Cipta Folder Drive</button></div>
                 </div>
                 <div class="grid-2"><div><label>Nama Syarikat</label><input type="text" id="db_syarikat"></div><div><label>No. CIDB</label><input type="text" id="db_cidb"></div></div>
                 <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -373,10 +373,10 @@
                 <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
                     <div style="flex:1; min-width:120px;"><label>Tatatertib STB</label><select id="db_tatatertib" style="width:100%;"><option value="">Pilih</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select></div>
                     <div style="flex:1; min-width:120px;"><label>Syor Lawatan</label><select id="db_syor" style="width:100%;"><option value="">Pilih</option><option value="YA">YA</option><option value="TIDAK">TIDAK</option><option value="PEMUTIHAN">PEMUTIHAN</option></select></div>
-                    <div style="flex:1; min-width:120px;"><label>Date Submit to SPI</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><input type="date" id="db_submit_date" style="flex:1; min-width:100px;"><span id="db_status_hantar_display" style="font-weight:bold; font-size:0.75rem; border-radius:12px; padding:4px 10px; display:none; border:1px solid; white-space:nowrap;"></span></div></div>
+                    <div id="db_submit_date_container" style="flex:1; min-width:120px;"><label>Date Submit to SPI</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><input type="date" id="db_submit_date" style="flex:1; min-width:100px;"><span id="db_status_hantar_display" style="font-weight:bold; font-size:0.75rem; border-radius:12px; padding:4px 10px; display:none; border:1px solid; white-space:nowrap;"></span></div></div>
                 </div>
                 <input type="hidden" id="db_status_hantar_spi">
-                <div id="pautanDriveContainer" class="pautan-required" style="margin-top: 10px;"><label>Pautan Google Drive</label><input type="text" id="db_pautan_drive" placeholder="https://drive.google.com/..."></div>
+                <div id="pautanDriveContainer" class="pautan-required" style="margin-top: 10px;"><label>Pautan Google Drive</label><div style="display:flex; gap:5px; align-items:center;"><input type="text" id="db_pautan_drive" placeholder="https://drive.google.com/..." style="flex:1;"><button class="btn btn-blue" id="btnFileManagerFromDb" style="padding:8px 12px; font-size:0.8rem; display:none;" title="Urus Fail">📂 Urus Fail</button></div></div>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="cb_selesai_lawatan"><span style="font-weight: 600;">Telah Selesai Lawatan</span></label>
                     <div id="container_lawatan" style="display:none; margin-top:10px; padding:10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">
                         <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -385,7 +385,7 @@
                             <div style="flex:1; min-width:120px;"><label>SYOR SPI</label><select id="db_lawatan_syor" style="width:100%;"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
                         </div>
                     </div>
-                <label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-drive" id="btnOpenDriveFolder" style="padding: 8px 12px; font-size: 0.8rem;" title="Buka Folder Drive">📂 Drive</button><button class="btn btn-blue" id="btnFileManagerFromPautan" style="padding: 8px 12px; font-size: 0.8rem;" title="Urus Fail">📂 Urus Fail</button></div>
+                <div id="pautanDokumenContainer" style="display:none;"><label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-blue" id="btnFileManagerFromPautan" style="padding: 8px 12px; font-size: 0.8rem;" title="Urus Fail">📂 Urus Fail</button></div></div>
                 <label>Justifikasi Lawatan</label><input type="text" id="db_justifikasi">
                 <div style="margin-top:15px; border-top: 2px dashed #ccc; padding-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
