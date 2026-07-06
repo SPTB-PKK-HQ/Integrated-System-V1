@@ -7858,11 +7858,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   const dbPautanDriveInput = document.getElementById('db_pautan_drive');
-  const btnFileManagerFromDb = document.getElementById('btnFileManagerFromDb');
   function toggleUrusFailButton() {
-    if (dbPautanDriveInput && btnFileManagerFromDb) {
+    const btnFileManagerDb = document.getElementById('btnFileManagerFromDb');
+    if (dbPautanDriveInput && btnFileManagerDb) {
       const hasLink = dbPautanDriveInput.value && dbPautanDriveInput.value.trim() !== '';
-      btnFileManagerFromDb.style.display = hasLink ? '' : 'none';
+      btnFileManagerDb.style.display = hasLink ? '' : 'none';
     }
   }
   if (dbPautanDriveInput) {
