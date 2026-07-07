@@ -4244,6 +4244,7 @@ async function handleCredentialResponse(response) {
     const alamatToUse = extractedPdfData.alamatPerniagaan || extractedPdfData.alamatSuratMenyurat || '';
     if (alamatToUse) {
       setValueAndTrigger('db_alamat_perniagaan', alamatToUse);
+      refreshMaps();
       
       const negeriSelect = document.getElementById('db_negeri');
       if (negeriSelect && alamatToUse) {
@@ -9233,12 +9234,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
 
-    const mapsContainer = document.getElementById('mapsContainer');
     const mapsIframe = document.getElementById('mapsIframe');
-    if (mapsContainer) mapsContainer.style.display = 'none';
     if (mapsIframe) mapsIframe.src = '';
-    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
-    if (btnToggleAlamat) btnToggleAlamat.textContent = '🏢 Papar/Sembunyi Alamat Perniagaan';
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
@@ -9352,12 +9349,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     addPerson();
 
-    const mapsContainer = document.getElementById('mapsContainer');
     const mapsIframe = document.getElementById('mapsIframe');
-    if (mapsContainer) mapsContainer.style.display = 'none';
     if (mapsIframe) mapsIframe.src = '';
-    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
-    if (btnToggleAlamat) btnToggleAlamat.textContent = '\u{1F3E2} Papar/Sembunyi Alamat Perniagaan';
 
     await storageWrapper.remove([
       'stb_form_data', 
@@ -10412,7 +10405,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     if (item.alamat_perniagaan) {
       const el = document.getElementById('db_alamat_perniagaan');
-      if (el) el.value = item.alamat_perniagaan;
+      if (el) {
+        el.value = item.alamat_perniagaan;
+        refreshMaps();
+      }
     }
 
     if (item.jenis_konsultansi) {
@@ -11410,13 +11406,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (waAyat) waAyat.value = '';
 
     const alamatTextarea = document.getElementById('db_alamat_perniagaan');
-    if (alamatTextarea) { alamatTextarea.value = ''; alamatTextarea.style.display = 'none'; }
-    const mapsContainer = document.getElementById('mapsContainer');
+    if (alamatTextarea) alamatTextarea.value = '';
     const mapsIframe = document.getElementById('mapsIframe');
-    if (mapsContainer) mapsContainer.style.display = 'none';
     if (mapsIframe) mapsIframe.src = '';
-    const btnToggleAlamat = document.getElementById('btnToggleAlamat');
-    if (btnToggleAlamat) btnToggleAlamat.textContent = '\u{1F3E2} Papar/Sembunyi Alamat Perniagaan';
 
     const dbPerubahanContainer = document.getElementById('db_perubahan_container');
     if (dbPerubahanContainer) dbPerubahanContainer.style.display = 'none';
@@ -11856,28 +11848,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   });
 
-  const btnToggleAlamat = document.getElementById('btnToggleAlamat');
-  if (btnToggleAlamat) {
-    btnToggleAlamat.addEventListener('click', () => {
-      const dbAlamatPerniagaan = document.getElementById('db_alamat_perniagaan');
-      const mapsContainer = document.getElementById('mapsContainer');
-      const mapsIframe = document.getElementById('mapsIframe');
-      if (dbAlamatPerniagaan) {
-        if (dbAlamatPerniagaan.style.display === 'none') {
-          dbAlamatPerniagaan.style.display = 'block';
-          btnToggleAlamat.textContent = 'Sembunyi Alamat';
-          if (mapsIframe && dbAlamatPerniagaan.value.trim()) {
-            mapsIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(dbAlamatPerniagaan.value.trim()) + '&output=embed';
-          }
-          if (mapsContainer) mapsContainer.style.display = 'block';
-        } else {
-          dbAlamatPerniagaan.style.display = 'none';
-          btnToggleAlamat.textContent = 'Tunjuk Alamat';
-          if (mapsContainer) mapsContainer.style.display = 'none';
-          if (mapsIframe) mapsIframe.src = '';
-        }
-      }
-    });
+  function refreshMaps() {
+    const dbAlamatPerniagaan = document.getElementById('db_alamat_perniagaan');
+    const mapsIframe = document.getElementById('mapsIframe');
+    if (mapsIframe && dbAlamatPerniagaan && dbAlamatPerniagaan.value.trim()) {
+      mapsIframe.src = 'https://www.google.com/maps?q=' + encodeURIComponent(dbAlamatPerniagaan.value.trim()) + '&output=embed';
+    }
+  }
+  const btnRefreshMaps = document.getElementById('btnRefreshMaps');
+  if (btnRefreshMaps) {
+    btnRefreshMaps.addEventListener('click', refreshMaps);
+  }
+  const dbAlamatPerniagaanEl = document.getElementById('db_alamat_perniagaan');
+  if (dbAlamatPerniagaanEl) {
+    dbAlamatPerniagaanEl.addEventListener('input', refreshMaps);
   }
 
   function formatKWSP(dateStr, status) {
