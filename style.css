@@ -924,7 +924,7 @@
         .btn-view-approved { background: #22c55e !important; }
         .btn-view-pending { background: #f59e0b !important; }
         .btn-view-rejected { background: #ef4444 !important; }
-        .pautan-required { display: none; margin-top: 5px; }
+        .pautan-required { margin-top: 5px; }
         .pautan-required input { border: 2px solid #f59e0b !important; background-color: #fffbeb !important; }
 
         .radio-group { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1; }
