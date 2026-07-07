@@ -7862,6 +7862,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const btnFileManagerDb = document.getElementById('btnFileManagerFromDb');
     if (dbPautanDriveInput && btnFileManagerDb) {
       const hasLink = dbPautanDriveInput.value && dbPautanDriveInput.value.trim() !== '';
+      dbPautanDriveInput.style.display = hasLink ? 'none' : '';
       btnFileManagerDb.style.display = hasLink ? '' : 'none';
     }
   }
@@ -7869,6 +7870,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbPautanDriveInput.addEventListener('input', toggleUrusFailButton);
     dbPautanDriveInput.addEventListener('change', toggleUrusFailButton);
   }
+  toggleUrusFailButton();
 
   // V6.6.0: cb_notify_whatsapp tidak digunakan lagi - diganti dengan modal WhatsApp
 
@@ -8883,16 +8885,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   function updateOpenDriveButton() {
-    const dbPautanDrive = document.getElementById('db_pautan_drive')?.value;
-    const btnFileManager = document.getElementById('btnFileManagerFromDb');
-
-    if (btnFileManager) {
-      if (dbPautanDrive && dbPautanDrive.trim() !== '') {
-        btnFileManager.style.display = '';
-      } else {
-        btnFileManager.style.display = 'none';
-      }
-    }
+    toggleUrusFailButton();
   }
 
   function updateDriveSectionVisibility() {
