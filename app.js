@@ -5747,7 +5747,7 @@ async function handleCredentialResponse(response) {
     console.log(`V6.6.0 Pelulus button group populated with ${pelulusList.length} pelulus`);
   }
 
-  function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone) {
+  function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone, ubahMaklumat, ubahGred) {
     if (!pelulusPhone || pelulusPhone.trim() === '') {
       console.log("V6.5.2 No phone number provided for WhatsApp notification");
       return null;
@@ -5765,11 +5765,18 @@ async function handleCredentialResponse(response) {
       return null;
     }
     
+    let jenisText = jenisPermohonan || 'Tiada';
+    if (jenisText === 'UBAH MAKLUMAT' && ubahMaklumat) {
+      jenisText += ` (${ubahMaklumat})`;
+    } else if (jenisText === 'UBAH GRED' && ubahGred) {
+      jenisText += ` (${ubahGred})`;
+    }
+    
     const message = `*NOTIFIKASI PERMOHONAN STB*
     
 Syarikat: ${companyName}
 No. CIDB: ${cidb || 'Tiada'}
-Jenis Permohonan: ${jenisPermohonan || 'Tiada'}
+Jenis Permohonan: ${jenisText}
 Status Syor: ${syorStatus || 'Tiada'}
 Tarikh Syor: ${tarikhSyor || 'Tiada'}
 
@@ -11329,7 +11336,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (isConfirmed && selectedPelulusPhone) {
           const waUrl = sendWhatsAppNotification(
             payload.syarikat, payload.cidb, payload.jenis,
-            payload.syor_status, payload.tarikh_syor, selectedPelulusPhone
+            payload.syor_status, payload.tarikh_syor, selectedPelulusPhone,
+            payload.ubah_maklumat, payload.ubah_gred
           );
           if (waUrl) {
             showWhatsAppConfirmModal(waUrl, payload.syarikat, selectedPelulusName);
