@@ -5772,15 +5772,15 @@ async function handleCredentialResponse(response) {
       jenisText += ` (${ubahGred})`;
     }
     
-    const message = `*NOTIFIKASI PERMOHONAN STB*
+    const message = `🔔 *NOTIFIKASI PERMOHONAN STB* 🔔
     
-Syarikat: ${companyName}
-No. CIDB: ${cidb || 'Tiada'}
-Jenis Permohonan: ${jenisText}
-Status Syor: ${syorStatus || 'Tiada'}
-Tarikh Syor: ${tarikhSyor || 'Tiada'}
+🏢 *Syarikat:* ${companyName}
+🆔 *No. CIDB:* ${cidb || 'Tiada'}
+📋 *Jenis:* ${jenisText}
+✅ *Status Syor:* ${syorStatus || 'Tiada'}
+📅 *Tarikh Syor:* ${tarikhSyor || 'Tiada'}
 
-Sila semak sistem STB untuk tindakan selanjutnya.`;
+⚠️ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     
