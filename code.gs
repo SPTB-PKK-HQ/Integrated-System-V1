@@ -847,10 +847,11 @@ function buildBorangPrompt(truncatedText) {
     "checkSignatories": ["Array of names only"],
     "spkkNominees": ["Array of names only"],
     "phoneNumbers": ["Pejabat/individus numbers only. Ignore Fax"],
-    "alamatPerniagaan": "Full business address or ''",
-    "alamatSuratMenyurat": "Full correspondence address or ''"
+    "alamatPerniagaan": "Full BUSINESS ADDRESS only or ''",
+    "alamatSuratMenyurat": "Full CORRESPONDENCE ADDRESS only or ''"
   }
-  Priority: If BUSINESS ADDRESS exists in the PDF, return it as alamatPerniagaan. Otherwise, return CORRESPONDENCE ADDRESS as alamatSuratMenyurat.
+  IMPORTANT: Ignore REGISTERED ADDRESS. Only extract BUSINESS ADDRESS (Alamat Perniagaan) or CORRESPONDENCE ADDRESS (Alamat Surat-menyurat).
+  Priority: Return BUSINESS ADDRESS as alamatPerniagaan if found. Otherwise, return CORRESPONDENCE ADDRESS as alamatSuratMenyurat.
   PDF Text: ${truncatedText}`;
 }
 
