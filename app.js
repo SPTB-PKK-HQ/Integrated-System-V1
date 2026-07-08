@@ -7796,6 +7796,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         dbPerubahanInput.value = '';
       }
       
+      updateDefaultWaMessage();
+      const dbPerubahanInputEl = document.getElementById('db_perubahan_input');
+      if (dbPerubahanInputEl) {
+        dbPerubahanInputEl.removeEventListener('input', updateDefaultWaMessage);
+        dbPerubahanInputEl.addEventListener('input', updateDefaultWaMessage);
+      }
       saveDatabaseFormData();
     });
   }
@@ -14788,12 +14794,53 @@ function createWAConfirmModal() {
 // V6.6.0: WHATSAPP SCHEDULING UI (Manual/Auto)
 // =========================================================================
 
+function getJenisPerubahanText() {
+  const jenis = document.getElementById('db_jenis')?.value || '';
+  if (jenis === 'UBAH MAKLUMAT') {
+    const ubah = document.getElementById('db_perubahan_input')?.value || document.getElementById('input_ubah_maklumat')?.value || '';
+    return ubah ? `ubah maklumat (${ubah})` : 'ubah maklumat';
+  }
+  if (jenis === 'UBAH GRED') {
+    const ubah = document.getElementById('db_perubahan_input')?.value || document.getElementById('input_ubah_gred')?.value || '';
+    return ubah ? `ubah gred (${ubah})` : 'ubah gred';
+  }
+  return '';
+}
+
+function updateDefaultWaMessage() {
+  const waAyat = document.getElementById('wa_ayat');
+  const cbShow = document.getElementById('cb_show_wa_schedule');
+  if (waAyat && cbShow && cbShow.checked) {
+    const defaultMsg = generateDefaultWaMessage();
+    const currentMsg = waAyat.value.trim();
+    if (currentMsg === '' || currentMsg.startsWith('Tuan/Puan,\n\nPermohonan')) {
+      waAyat.value = defaultMsg;
+    }
+  }
+}
+
+function generateDefaultWaMessage() {
+  const syarikat = document.getElementById('db_syarikat')?.value || document.getElementById('borang_syarikat')?.value || '';
+  const jenis = document.getElementById('db_jenis')?.value || '';
+  const perubahan = getJenisPerubahanText();
+  let msg = `Tuan/Puan,\n\nPermohonan ${jenis}`;
+  if (perubahan) msg += ` (${perubahan})`;
+  msg += ` untuk ${syarikat} telah dikemaskini. Sila semak dan berikan keputusan.\n\nTerima kasih.`;
+  return msg;
+}
+
 function setupWhatsAppSchedulingUI() {
   const cbShow = document.getElementById('cb_show_wa_schedule');
   const container = document.getElementById('wa_schedule_container');
   if (cbShow && container) {
     cbShow.addEventListener('change', (e) => {
       container.style.display = e.target.checked ? 'block' : 'none';
+      if (e.target.checked) {
+        const waAyat = document.getElementById('wa_ayat');
+        if (waAyat && !waAyat.value.trim()) {
+          waAyat.value = generateDefaultWaMessage();
+        }
+      }
     });
   }
 }
