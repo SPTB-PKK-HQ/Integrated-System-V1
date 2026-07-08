@@ -1176,7 +1176,7 @@ function sendAutoEmailSPI(data) {
         
         <div class="info-row">
           <div class="info-label">Alamat Perniagaan Syarikat:</div>
-          <div class="info-value">📍 ${alamatPerniagaan}<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}" target="_blank" style="font-size:12px; color:#1a73e8;">🗺️ Buka Google Maps</a></div>
+          <div class="info-value">📍 ${alamatPerniagaan} — <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}" target="_blank" style="font-size:12px; color:#1a73e8;">🗺️ Maps</a></div>
         </div>
         
         <div class="info-row">
