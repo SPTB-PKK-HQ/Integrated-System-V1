@@ -1,0 +1,8 @@
+{
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "regions": ["sin1"],
+  "public": false
+}

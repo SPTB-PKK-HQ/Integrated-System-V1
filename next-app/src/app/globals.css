@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --theme-color: #2563eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --music: #8b5cf6;
+  --sfx: #f97316;
+}
+
+@theme inline {
+  --color-theme: var(--theme-color);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-music: var(--music);
+  --color-sfx: var(--sfx);
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #333;
+  background: linear-gradient(-45deg, var(--theme-color), #6b9bf5, #1a3d7a, #0f1f3d);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
+  min-height: 100vh;
+}
+
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
