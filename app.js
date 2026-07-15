@@ -67,7 +67,27 @@ document.addEventListener('DOMContentLoaded', () => {
     set: function(obj) {
       return new Promise((resolve) => {
         for (let key in obj) {
-          window.localStorage.setItem(key, JSON.stringify(obj[key]));
+          try {
+            window.localStorage.setItem(key, JSON.stringify(obj[key]));
+          } catch (e) {
+            if (e.name === 'QuotaExceededError' || e.code === 22) {
+              cleanupStorage();
+              try {
+                window.localStorage.setItem(key, JSON.stringify(obj[key]));
+              } catch (e2) {
+                console.error('V6.5.2 Storage masih penuh walaupun cleanup:', e2);
+                if (typeof CustomAppModal !== 'undefined') {
+                  CustomAppModal.alert(
+                    'Penyimpanan tempatan penuh. Sila klik "Reset Borang" atau log keluar/masuk untuk kosongkan cache.',
+                    'Storage Penuh',
+                    'warning'
+                  );
+                }
+              }
+            } else {
+              console.error('V6.5.2 Gagal menyimpan ke localStorage:', e);
+            }
+          }
         }
         resolve();
       });
@@ -79,6 +99,25 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   };
+
+  function cleanupStorage() {
+    var removableKeys = [
+      'stb_data_cache',
+      'stb_users_cache',
+      'stb_cache_timestamp',
+      'stb_data_version',
+      'stb_extracted_pdf_data',
+      'stb_extracted_profile_data',
+      'stb_dashboard_data',
+      'stb_music_playing',
+      'stb_bgm_volume',
+      'stb_sfx_volume'
+    ];
+    removableKeys.forEach(function(key) {
+      try { window.localStorage.removeItem(key); } catch(e) {}
+    });
+    console.log('V6.5.2 cleanupStorage: Cache lapuk dibuang');
+  }
   // =========================================================================
   // ENJIN CUSTOM ANIMATED MODAL (PENGGANTI ALERT & CONFIRM CHROME)
   // =========================================================================
@@ -8032,6 +8071,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         "warning"
     );
     
+    cleanupStorage();
     await storageWrapper.remove([
       'stb_session', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
       'stb_last_active_element', 'stb_form_states', 'stb_search_state', 'stb_search_history_state',
@@ -8071,6 +8111,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           "warning"
       );
       
+      cleanupStorage();
       await storageWrapper.remove([
         'stb_session', 'stb_login_date', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
         'stb_last_active_element', 'stb_form_states', 'stb_search_state', 'stb_search_history_state',
@@ -9202,6 +9243,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       );
 
       if(isConfirmed) {
+        cleanupStorage();
         await storageWrapper.remove([
           'stb_session', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
           'stb_last_active_element', 'stb_form_states', 'stb_search_state',
@@ -9229,6 +9271,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   });
 
   async function resetForm() {
+    cleanupStorage();
     await storageWrapper.remove([
       'stb_form_data', 
       'stb_form_states', 
@@ -9365,6 +9408,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const mapsIframe = document.getElementById('mapsIframe');
     if (mapsIframe) mapsIframe.src = '';
 
+    cleanupStorage();
     await storageWrapper.remove([
       'stb_form_data', 
       'stb_drive_folder_url', 
@@ -11477,6 +11521,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       'stb_user_folder_url': ''
     });
 
+    cleanupStorage();
     await storageWrapper.remove([
       'stb_form_data', 
       'stb_form_states',
