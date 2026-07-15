@@ -7027,6 +7027,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   var fmFolderStack = [];
   var fmCurrentFolderId = '';
+  var fmRootFolderId = '';
 
   async function openFileManager(folderUrl) {
     const modal = document.getElementById('fileManagerModal');
@@ -7050,6 +7051,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     fmFolderStack = [];
     fmCurrentFolderId = folderId;
+    fmRootFolderId = folderId;
 
     modal.style.display = 'flex';
     modal.classList.add('show');
@@ -7089,9 +7091,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (result.success) {
         fmCurrentFolderId = folderId;
 
-        var backBtn = fmFolderStack.length > 1
-          ? '<span id="fmBackBtn" style="cursor:pointer; color:#64748b; font-weight:600; margin-right:10px; font-size:1.2rem;" title="Kembali">⬅</span> '
-          : '';
+        var navBtns = '';
+        if (fmFolderStack.length > 0) {
+          navBtns = '<span id="fmBackBtn" style="cursor:pointer; color:#64748b; font-weight:600; margin-right:8px; font-size:1.2rem;" title="Kembali satu folder">⬅</span> ';
+          if (folderId !== fmRootFolderId) {
+            navBtns += '<span id="fmRootBtn" style="cursor:pointer; color:#2563eb; font-weight:600; margin-right:8px; font-size:0.85rem;" title="Kembali ke folder asal">⬅ Kembali ke folder asal</span> ';
+          }
+        }
 
         var folderLabel = '';
         for (var i = 0; i < fmFolderStack.length; i++) {
@@ -7099,7 +7105,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         folderLabel += (result.folderName || 'Folder');
 
-        folderInfo.innerHTML = backBtn + '📁 ' + folderLabel
+        folderInfo.innerHTML = navBtns + '📁 ' + folderLabel
           + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive ↗</span>';
 
         renderDriveFiles(result.files || [], result.folders || [], folderId);
@@ -7452,6 +7458,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (backBtn) {
       e.preventDefault();
       navigateBack();
+      return;
+    }
+
+    var rootBtn = e.target.closest('#fmRootBtn');
+    if (rootBtn) {
+      e.preventDefault();
+      fmFolderStack = [];
+      var loadingEl = document.getElementById('fileManagerLoading');
+      if (loadingEl) loadingEl.style.display = 'block';
+      loadDriveFiles(fmRootFolderId);
       return;
     }
 
