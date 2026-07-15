@@ -45,35 +45,154 @@ document.addEventListener('DOMContentLoaded', () => {
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
   
   // =========================================================================
-  // PEMBALUT LOCALSTORAGE (Menggantikan chrome.storage.local)
+  // PEMBALUT STORAGE (localStorage + IndexedDB)
   // =========================================================================
-  const storageWrapper = {
+
+  var LARGE_KEYS = [
+    'stb_data_cache', 'stb_users_cache', 'stb_cache_timestamp', 'stb_data_version',
+    'stb_extracted_pdf_data', 'stb_extracted_profile_data', 'stb_dashboard_data',
+    'stb_form_data', 'stb_form_persistence', 'stb_database_persistence'
+  ];
+
+  function isLargeKey(key) {
+    return LARGE_KEYS.indexOf(key) !== -1;
+  }
+
+  // --- IndexedDB Wrapper ---
+  var DB_NAME = 'SPTB_Storage';
+  var DB_VERSION = 1;
+  var STORE_NAME = 'cache';
+  var dbPromise = null;
+
+  function getDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function(resolve, reject) {
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = function(event) {
+        var db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+      request.onsuccess = function(event) { resolve(event.target.result); };
+      request.onerror = function(event) { reject(event.target.error); };
+    });
+    return dbPromise;
+  }
+
+  var indexedDBWrapper = {
     get: function(keys) {
-      return new Promise((resolve) => {
-        let result = {};
-        keys.forEach(key => {
-          let val = window.localStorage.getItem(key);
-          if (val !== null) {
-            try {
-              result[key] = JSON.parse(val);
-            } catch (e) {
-              result[key] = val;
-            }
-          }
+      return new Promise(function(resolve) {
+        getDB().then(function(db) {
+          var tx = db.transaction(STORE_NAME, 'readonly');
+          var store = tx.objectStore(STORE_NAME);
+          var result = {};
+          var completed = 0;
+          if (keys.length === 0) { resolve(result); return; }
+          keys.forEach(function(key) {
+            var request = store.get(key);
+            request.onsuccess = function() {
+              if (request.result !== undefined) result[key] = request.result;
+              completed++;
+              if (completed === keys.length) resolve(result);
+            };
+            request.onerror = function() {
+              completed++;
+              if (completed === keys.length) resolve(result);
+            };
+          });
+        }).catch(function(e) {
+          console.error('IndexedDB get error:', e);
+          resolve({});
         });
-        resolve(result);
       });
     },
     set: function(obj) {
-      return new Promise((resolve) => {
-        for (let key in obj) {
+      return new Promise(function(resolve) {
+        getDB().then(function(db) {
+          var tx = db.transaction(STORE_NAME, 'readwrite');
+          var store = tx.objectStore(STORE_NAME);
+          var keys = Object.keys(obj);
+          var completed = 0;
+          if (keys.length === 0) { resolve(); return; }
+          keys.forEach(function(key) {
+            var request = store.put(obj[key], key);
+            request.onsuccess = function() { completed++; if (completed === keys.length) resolve(); };
+            request.onerror = function() { completed++; if (completed === keys.length) resolve(); };
+          });
+        }).catch(function(e) {
+          console.error('IndexedDB set error:', e);
+          resolve();
+        });
+      });
+    },
+    remove: function(keys) {
+      return new Promise(function(resolve) {
+        getDB().then(function(db) {
+          var tx = db.transaction(STORE_NAME, 'readwrite');
+          var store = tx.objectStore(STORE_NAME);
+          var completed = 0;
+          if (keys.length === 0) { resolve(); return; }
+          keys.forEach(function(key) {
+            var request = store.delete(key);
+            request.onsuccess = function() { completed++; if (completed === keys.length) resolve(); };
+            request.onerror = function() { completed++; if (completed === keys.length) resolve(); };
+          });
+        }).catch(function(e) {
+          console.error('IndexedDB remove error:', e);
+          resolve();
+        });
+      });
+    }
+  };
+
+  // --- storageWrapper (auto-route ke IndexedDB untuk key besar) ---
+  var storageWrapper = {
+    get: function(keys) {
+      return new Promise(function(resolve) {
+        var lsKeys = [];
+        var idbKeys = [];
+        keys.forEach(function(key) {
+          if (isLargeKey(key)) { idbKeys.push(key); }
+          else { lsKeys.push(key); }
+        });
+
+        var result = {};
+
+        lsKeys.forEach(function(key) {
+          var val = window.localStorage.getItem(key);
+          if (val !== null) {
+            try { result[key] = JSON.parse(val); } catch (e) { result[key] = val; }
+          }
+        });
+
+        if (idbKeys.length === 0) {
+          resolve(result);
+        } else {
+          indexedDBWrapper.get(idbKeys).then(function(idbResult) {
+            for (var k in idbResult) { result[k] = idbResult[k]; }
+            resolve(result);
+          });
+        }
+      });
+    },
+    set: function(obj) {
+      return new Promise(function(resolve) {
+        var lsObj = {};
+        var idbObj = {};
+        for (var key in obj) {
+          if (isLargeKey(key)) { idbObj[key] = obj[key]; }
+          else { lsObj[key] = obj[key]; }
+        }
+
+        for (var key in lsObj) {
           try {
-            window.localStorage.setItem(key, JSON.stringify(obj[key]));
+            window.localStorage.setItem(key, JSON.stringify(lsObj[key]));
           } catch (e) {
             if (e.name === 'QuotaExceededError' || e.code === 22) {
               cleanupStorage();
               try {
-                window.localStorage.setItem(key, JSON.stringify(obj[key]));
+                window.localStorage.setItem(key, JSON.stringify(lsObj[key]));
               } catch (e2) {
                 console.error('V6.5.2 Storage masih penuh walaupun cleanup:', e2);
                 if (typeof CustomAppModal !== 'undefined') {
@@ -89,34 +208,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         }
-        resolve();
+
+        var idbKeys = Object.keys(idbObj);
+        if (idbKeys.length === 0) {
+          resolve();
+        } else {
+          indexedDBWrapper.set(idbObj).then(function() { resolve(); });
+        }
       });
     },
     remove: function(keys) {
-      return new Promise((resolve) => {
-        keys.forEach(key => window.localStorage.removeItem(key));
-        resolve();
+      return new Promise(function(resolve) {
+        var lsKeys = [];
+        var idbKeys = [];
+        keys.forEach(function(key) {
+          if (isLargeKey(key)) { idbKeys.push(key); }
+          else { lsKeys.push(key); }
+        });
+
+        lsKeys.forEach(function(key) { window.localStorage.removeItem(key); });
+
+        if (idbKeys.length === 0) {
+          resolve();
+        } else {
+          indexedDBWrapper.remove(idbKeys).then(function() { resolve(); });
+        }
       });
     }
   };
 
   function cleanupStorage() {
     var removableKeys = [
-      'stb_data_cache',
-      'stb_users_cache',
-      'stb_cache_timestamp',
-      'stb_data_version',
-      'stb_extracted_pdf_data',
-      'stb_extracted_profile_data',
-      'stb_dashboard_data',
-      'stb_music_playing',
-      'stb_bgm_volume',
-      'stb_sfx_volume'
+      'stb_data_cache', 'stb_users_cache', 'stb_cache_timestamp', 'stb_data_version',
+      'stb_extracted_pdf_data', 'stb_extracted_profile_data', 'stb_dashboard_data',
+      'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume'
     ];
     removableKeys.forEach(function(key) {
       try { window.localStorage.removeItem(key); } catch(e) {}
     });
-    console.log('V6.5.2 cleanupStorage: Cache lapuk dibuang');
+    indexedDBWrapper.remove(removableKeys).then(function() {
+      console.log('V6.5.2 cleanupStorage: Cache lapuk dibuang');
+    }).catch(function() {});
   }
   // =========================================================================
   // ENJIN CUSTOM ANIMATED MODAL (PENGGANTI ALERT & CONFIRM CHROME)
@@ -5172,8 +5304,32 @@ async function handleCredentialResponse(response) {
   // CORE SYSTEM FUNCTIONS
   // =========================================================================
 
+  async function migrateLargeKeysFromLocalStorage() {
+    var migrated = false;
+    for (var i = 0; i < LARGE_KEYS.length; i++) {
+      var key = LARGE_KEYS[i];
+      try {
+        var val = window.localStorage.getItem(key);
+        if (val !== null) {
+          var parsed;
+          try { parsed = JSON.parse(val); } catch (e) { parsed = val; }
+          var migrateObj = {};
+          migrateObj[key] = parsed;
+          await indexedDBWrapper.set(migrateObj);
+          window.localStorage.removeItem(key);
+          migrated = true;
+        }
+      } catch(e) {
+        console.error('V6.5.2 Migrasi gagal untuk', key, e);
+      }
+    }
+    if (migrated) console.log('V6.5.2 Migrasi data besar ke IndexedDB selesai');
+  }
+
   async function initSystem() {
     simulateLoading('Menyediakan sistem...', 'Memuatkan tetapan...');
+
+    await migrateLargeKeysFromLocalStorage();
 
     try {
       const storage = await storageWrapper.get([
