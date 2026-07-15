@@ -7025,6 +7025,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     return match ? match[1] : null;
   }
 
+  var fmFolderStack = [];
+  var fmCurrentFolderId = '';
+
   async function openFileManager(folderUrl) {
     const modal = document.getElementById('fileManagerModal');
     const listEl = document.getElementById('fileManagerList');
@@ -7044,6 +7047,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       await CustomAppModal.alert("Tiada folder Drive untuk rekod ini. Sila cipta folder terlebih dahulu.", "Makluman", "warning");
       return;
     }
+
+    fmFolderStack = [];
+    fmCurrentFolderId = folderId;
 
     modal.style.display = 'flex';
     modal.classList.add('show');
@@ -7081,25 +7087,39 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       loadingEl.style.display = 'none';
 
       if (result.success) {
-        folderInfo.innerHTML = `📁 ${result.folderName || 'Folder'} <span class="btn-open-drive-folder" data-folderid="${folderId}" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive ↗</span>`;
-        renderDriveFiles(result.files, folderId);
+        fmCurrentFolderId = folderId;
+
+        var backBtn = fmFolderStack.length > 1
+          ? '<span id="fmBackBtn" style="cursor:pointer; color:#64748b; font-weight:600; margin-right:10px; font-size:1.2rem;" title="Kembali">⬅</span> '
+          : '';
+
+        var folderLabel = '';
+        for (var i = 0; i < fmFolderStack.length; i++) {
+          folderLabel += fmFolderStack[i].name + ' / ';
+        }
+        folderLabel += (result.folderName || 'Folder');
+
+        folderInfo.innerHTML = backBtn + '📁 ' + folderLabel
+          + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive ↗</span>';
+
+        renderDriveFiles(result.files || [], result.folders || [], folderId);
       } else {
         folderInfo.innerHTML = '📁 Folder';
-        listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ ${result.error || 'Gagal memuatkan fail'}</p>`;
+        listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;">❌ ' + (result.error || 'Gagal memuatkan fail') + '</p>';
       }
     } catch (error) {
       loadingEl.style.display = 'none';
       folderInfo.innerHTML = '📁 Folder';
-      listEl.innerHTML = `<p style="text-align:center; color:#ef4444; padding:40px;">❌ Ralat: ${error.message}</p>`;
+      listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;">❌ Ralat: ' + error.message + '</p>';
       console.error("V6.7.0 Error loading drive files:", error);
     }
   }
 
-  function renderDriveFiles(files, folderId) {
+  function renderDriveFiles(files, folders, folderId) {
     const listEl = document.getElementById('fileManagerList');
     if (!listEl) return;
 
-    if (!files || files.length === 0) {
+    if ((!folders || folders.length === 0) && (!files || files.length === 0)) {
       const canEdit = canEditDriveFiles();
       listEl.innerHTML = canEdit
         ? '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>'
@@ -7108,31 +7128,57 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     const canEdit = canEditDriveFiles();
+    var html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">';
 
-    let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">';
-    
-    files.forEach(file => {
-      const isImage = file.mimeType && file.mimeType.startsWith('image/');
-      const thumbnailUrl = isImage ? file.thumbnailLink : getFileIcon(file.mimeType, file.name);
-      const displayIcon = isImage 
-        ? `<img src="${thumbnailUrl}" alt="${escapeHtml(file.name)}" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">`
-        : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">${thumbnailUrl}</div>`;
-      
-      html += `
-        <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          ${displayIcon}
-          <p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; min-height:2.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(file.name)}</p>
-          <p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">${formatFileSize(file.size)}</p>
-          <div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">
-            <button class="btn-file-view" data-url="${file.webViewLink}" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>
-            ${canEdit ? `<button class="btn-file-rename" data-id="${file.id}" data-name="${escapeHtml(file.name)}" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>` : ''}
-            ${canEdit ? `<button class="btn-file-delete" data-id="${file.id}" data-name="${escapeHtml(file.name)}" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>` : ''}
-          </div>
-        </div>`;
-    });
-    
+    if (folders) {
+      folders.forEach(function(folder) {
+        html += '<div class="fm-folder-card" data-folderid="' + folder.id + '" data-name="' + escapeHtml(folder.name) + '" style="background:#fefce8; border:1px solid #fde68a; border-radius:10px; padding:12px; text-align:center; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:transform 0.1s;">'
+          + '<div style="width:100%; height:80px; display:flex; align-items:center; justify-content:center; font-size:3rem;">📁</div>'
+          + '<p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; font-weight:600; color:#92400e;">' + escapeHtml(folder.name) + '</p>'
+          + '</div>';
+      });
+    }
+
+    if (files) {
+      files.forEach(function(file) {
+        if (file.isFolder) return;
+        const isImage = file.mimeType && file.mimeType.startsWith('image/');
+        const thumbnailUrl = isImage ? file.thumbnailLink : getFileIcon(file.mimeType, file.name);
+        const displayIcon = isImage
+          ? '<img src="' + thumbnailUrl + '" alt="' + escapeHtml(file.name) + '" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">'
+          : '<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + thumbnailUrl + '</div>';
+
+        html += '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
+          + displayIcon
+          + '<p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; min-height:2.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">' + escapeHtml(file.name) + '</p>'
+          + '<p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">' + formatFileSize(file.size) + '</p>'
+          + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">'
+          + '<button class="btn-file-view" data-url="' + file.webViewLink + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>'
+          + (canEdit ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>' : '')
+          + (canEdit ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>' : '')
+          + '</div>'
+          + '</div>';
+      });
+    }
+
     html += '</div>';
     listEl.innerHTML = html;
+  }
+
+  function navigateToFolder(folderId, folderName) {
+    fmFolderStack.push({ id: fmCurrentFolderId, name: folderName });
+    const loadingEl = document.getElementById('fileManagerLoading');
+    if (loadingEl) loadingEl.style.display = 'block';
+    loadDriveFiles(folderId);
+  }
+
+  function navigateBack() {
+    if (fmFolderStack.length > 0) {
+      var prev = fmFolderStack.pop();
+      const loadingEl = document.getElementById('fileManagerLoading');
+      if (loadingEl) loadingEl.style.display = 'block';
+      loadDriveFiles(prev.id);
+    }
   }
 
   function canEditDriveFiles() {
@@ -7224,7 +7270,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const progressText = document.getElementById('fileManagerProgressText');
     if (progressEl) progressEl.style.display = 'block';
 
-    let folderId = createdFolderId;
+    var folderId = fmCurrentFolderId || createdFolderId;
     if (!folderId) {
       const pautanDrive = document.getElementById('db_pautan_drive')?.value;
       folderId = extractFolderIdFromUrl(pautanDrive);
@@ -7352,7 +7398,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   if (btnFileManagerRefresh) {
     btnFileManagerRefresh.addEventListener('click', async () => {
-      let folderId = createdFolderId;
+      var folderId = fmCurrentFolderId || createdFolderId;
       if (!folderId) {
         const pautanDrive = document.getElementById('db_pautan_drive')?.value;
         folderId = extractFolderIdFromUrl(pautanDrive);
@@ -7393,6 +7439,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       return;
     }
 
+    var foldercard = e.target.closest('.fm-folder-card');
+    if (foldercard) {
+      e.preventDefault();
+      var fid = foldercard.getAttribute('data-folderid');
+      var fname = foldercard.getAttribute('data-name');
+      if (fid) navigateToFolder(fid, fname || 'Folder');
+      return;
+    }
+
+    var backBtn = e.target.closest('#fmBackBtn');
+    if (backBtn) {
+      e.preventDefault();
+      navigateBack();
+      return;
+    }
+
     const viewBtn = e.target.closest('.btn-file-view');
     if (viewBtn) {
       e.preventDefault();
@@ -7429,7 +7491,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (result.success) {
           await playSuccessSound();
           showToast(`Fail "${newName.trim()}" dinamakan semula`, 'success');
-          let folderId = createdFolderId;
+          var folderId = fmCurrentFolderId || createdFolderId;
           if (!folderId) {
             const pautanDrive = document.getElementById('db_pautan_drive')?.value;
             folderId = extractFolderIdFromUrl(pautanDrive);
@@ -7439,7 +7501,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           await CustomAppModal.alert(result.error || "Gagal menamakan semula fail.", "Ralat", "error");
         }
       } catch (err) {
-        await CustomAppModal.alert("Ralat semana menamakan semula fail: " + err.message, "Ralat", "error");
+        await CustomAppModal.alert("Ralat semasa menamakan semula fail: " + err.message, "Ralat", "error");
         console.error("V6.7.2 Error renaming file:", err);
       }
       return;
@@ -7478,7 +7540,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (result.success) {
           await playSuccessSound();
           showToast(`Fail "${fileName}" dipadam`, 'success');
-          let folderId = createdFolderId;
+          var folderId = fmCurrentFolderId || createdFolderId;
           if (!folderId) {
             const pautanDrive = document.getElementById('db_pautan_drive')?.value;
             folderId = extractFolderIdFromUrl(pautanDrive);
@@ -9711,7 +9773,35 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
 
-  // V6.6.0: (Dah buang badge merah, guna nombor baris di sebelah kiri item)
+  function parseDate(str) {
+    if (!str) return 0;
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) return d.getTime();
+    var parts = str.split('/');
+    if (parts.length === 3) {
+      d = new Date(parts[2], parts[1] - 1, parts[0]);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    parts = str.split('-');
+    if (parts.length === 3) {
+      d = new Date(parts[2], parts[1] - 1, parts[0]);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+  }
+
+  function sortFilteredList(filtered, type) {
+    if (type === 'submitted') {
+      filtered.sort(function(a, b) {
+        return parseDate(b.tarikh_syor) - parseDate(a.tarikh_syor);
+      });
+    } else if (type === 'history') {
+      filtered.sort(function(a, b) {
+        return parseDate(b.tarikh_lulus) - parseDate(a.tarikh_lulus);
+      });
+    }
+    return filtered;
+  }
 
   function renderFilteredList(type) {
     const listId = type === 'history' ? 'historyList' : 'applicationsList';
@@ -9936,9 +10026,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (type === 'history' && result.stb_filter_pengesyor) {
           filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
         }
+        filtered = sortFilteredList(filtered, type);
         displayFilteredItems(filtered, type);
       });
     } else {
+      filtered = sortFilteredList(filtered, type);
       displayFilteredItems(filtered, type);
     }
     

@@ -3824,11 +3824,35 @@ function handleListDriveFiles(data) {
       });
     }
     
+    const folders = [];
+    const folderIterator = folder.getFolders();
+    while (folderIterator.hasNext()) {
+      const subFolder = folderIterator.next();
+      folders.push({
+        id: subFolder.getId(),
+        name: subFolder.getName(),
+        mimeType: 'application/vnd.google-apps.folder',
+        isFolder: true
+      });
+    }
+    
+    var parentFolderId = '';
+    try {
+      const parents = folder.getParents();
+      if (parents.hasNext()) {
+        parentFolderId = parents.next().getId();
+      }
+    } catch(e) {
+      parentFolderId = '';
+    }
+    
     return createJSONOutput({ 
       success: true, 
       files: files, 
+      folders: folders,
       folderName: folderName,
-      folderId: folderId
+      folderId: folderId,
+      parentFolderId: parentFolderId
     });
     
   } catch (error) {
