@@ -2911,6 +2911,7 @@ async function handleCredentialResponse(response) {
     window._pkaInboxData = (cachedData || []).filter(d =>
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      (!d.syor_status || d.syor_status.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
