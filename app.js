@@ -2844,9 +2844,9 @@ async function handleCredentialResponse(response) {
   }
 
   function loadPKADashboard() {
-    const tbody = document.getElementById('pkaDashboardBody');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+    const list = document.getElementById('pkaDashboardList');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
     const data = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
     const diSPI = data.filter(d => d.status_hantar_spi === 'DIHANTAR');
@@ -2858,65 +2858,70 @@ async function handleCredentialResponse(response) {
     document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
 
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="pka-empty">Tiada permohonan</td></tr>';
+      list.innerHTML = '<p class="pka-empty">Tiada permohonan</p>';
       return;
     }
 
-    tbody.innerHTML = data.map(d => {
-      const statusBadge = d.status_hantar_spi === 'DIHANTAR'
-        ? '<span class="pka-badge pka-badge-yellow">DIHANTAR</span>'
-        : d.status_hantar_spi === 'SELESAI'
-        ? '<span class="pka-badge pka-badge-green">SELESAI</span>'
-        : `<span class="pka-badge pka-badge-red">${d.status_hantar_spi || '-'}</span>`;
-      const lawatanStatus = d.lawatan_syor
-        ? '✅ Selesai'
-        : d.lawatan_tarikh ? '🔧 Diisi' : '⏳ Belum';
-      return `<tr>
-        <td>${d.syarikat}</td>
-        <td>${d.cidb || '-'}</td>
-        <td>${d.gred || '-'}</td>
-        <td>${d.pengesyor || '-'}</td>
-        <td>${statusBadge}</td>
-        <td>${d.tarikh_hantar_spi || '-'}</td>
-        <td>${d.lawatan_syor || '-'}</td>
-        <td>${lawatanStatus}</td>
-      </tr>`;
+    list.innerHTML = data.map(d => {
+      const b = (v, bg) => `<span class="pka-badge" style="background:${bg.a};color:${bg.b};">${v}</span>`;
+      return `<div class="pka-card-item">
+        <div class="pka-card-item-info">
+          <div class="pka-card-item-title">${d.syarikat}</div>
+          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${d.pengesyor || '-'}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+            ${d.status_hantar_spi === 'DIHANTAR' ? b('DIHANTAR', {a:'#fef3c7',b:'#92400e'}) : b(d.status_hantar_spi || '-', {a:'#fee2e2',b:'#991b1b'})}
+            ${d.lawatan_syor ? b('✅ Selesai', {a:'#d1fae5',b:'#065f46'}) : d.lawatan_tarikh ? b('🔧 Diisi', {a:'#dbeafe',b:'#1e40af'}) : b('⏳ Belum', {a:'#f1f5f9',b:'#64748b'})}
+          </div>
+        </div>
+        <div class="pka-card-item-actions">
+          <button class="pka-btn-sm pka-btn-ghost" onclick="pkaViewRecord(${d.row})">👁 Lihat</button>
+        </div>
+      </div>`;
     }).join('');
   }
 
   function loadPKAInbox() {
-    const tbody = document.getElementById('pkaInboxBody');
+    const list = document.getElementById('pkaInboxList');
     const countEl = document.getElementById('pkaInboxCount');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
     const data = (cachedData || []).filter(d =>
-      d.status_hantar_spi === 'DIHANTAR' && !d.lawatan_tarikh &&
+      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
+      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      (!d.syor_status || d.syor_status.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
     if (countEl) countEl.textContent = `${data.length} permohonan`;
 
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="pka-empty">Tiada permohonan dalam inbox</td></tr>';
+      list.innerHTML = '<p class="pka-empty">Tiada permohonan dalam inbox</p>';
       return;
     }
 
-    tbody.innerHTML = data.map(d => `<tr>
-      <td>${d.syarikat}<br><small style="color:#64748b;">Baris ${d.row}</small></td>
-      <td>${d.cidb || '-'}</td>
-      <td>${d.gred || '-'}</td>
-      <td>${d.jenis || '-'}</td>
-      <td>${d.pengesyor || '-'}</td>
-      <td>${d.tarikh_hantar_spi || '-'}</td>
-      <td>${d.start_date || '-'}</td>
-    </tr>`).join('');
+    list.innerHTML = data.map(d => {
+      const jenisBadge = d.jenis ? `<span class="pka-badge" style="background:#dbeafe;color:#1e40af;">${d.jenis}</span>` : '';
+      const spiDate = d.tarikh_hantar_spi ? formatDateDisplay(d.tarikh_hantar_spi) : '';
+      const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
+      return `<div class="pka-card-item" style="border-left:4px solid #f59e0b;">
+        <div class="pka-card-item-info">
+          <div class="pka-card-item-title">${d.syarikat}</div>
+          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} ${jenisBadge ? '| ' + jenisBadge : ''}</div>
+          <div style="font-size:0.8rem;color:#475569;margin-top:4px;">👤 ${d.pengesyor || '-'}</div>
+          <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 SPI: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
+        </div>
+        <div class="pka-card-item-actions">
+          <button class="pka-btn-sm pka-btn-green" onclick="switchTab('pka-keputusan-spi')">✅ Proses</button>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   function loadPKAKeputusanSPI() {
-    const tbody = document.getElementById('pkaKeputusanBody');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+    const list = document.getElementById('pkaKeputusanList');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
     const data = (cachedData || []).filter(d =>
       d.status_hantar_spi === 'DIHANTAR' &&
@@ -2924,33 +2929,41 @@ async function handleCredentialResponse(response) {
     );
 
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="pka-empty">Tiada permohonan untuk diproses</td></tr>';
+      list.innerHTML = '<p class="pka-empty">Tiada permohonan untuk diproses</p>';
       return;
     }
 
-    tbody.innerHTML = data.map(d => {
+    list.innerHTML = data.map(d => {
       const row = d.row;
       const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
         .map(v => `<option value="${v}"${d.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
-      return `<tr>
-        <td>${d.syarikat}<br><small style="color:#64748b;">Baris ${row}</small></td>
-        <td>${d.cidb || '-'}</td>
-        <td>${d.gred || '-'}</td>
-        <td>${d.pengesyor || '-'}</td>
-        <td><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${d.lawatan_tarikh || ''}"></td>
-        <td><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${d.lawatan_submit_sptb || ''}"></td>
-        <td><select class="editable-select" id="pkaLawatanSyor_${row}">${syorOptions}</select></td>
-        <td><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${d.ulasan_spi || ''}</textarea></td>
-        <td><button class="pka-btn-sm pka-btn-orange" onclick="pkaUrusFail(${row})">📂 Urus Fail</button></td>
-        <td><button class="pka-btn-sm pka-btn-green" onclick="pkaHantarKeputusan(${row})">📤 Hantar</button></td>
-      </tr>`;
+      const spiDate = d.tarikh_hantar_spi ? formatDateDisplay(d.tarikh_hantar_spi) : '-';
+      return `<div class="pka-card-item" style="border-left:4px solid #3b82f6;">
+        <div class="pka-card-item-info">
+          <div class="pka-card-item-title">${d.syarikat}</div>
+          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'} | 📤 ${spiDate}</div>
+          <div class="pka-card-field">
+            <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${d.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
+            <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${d.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
+            <div style="flex:1;min-width:140px;"><label>Syor SPI</label><div><select class="editable-select" id="pkaLawatanSyor_${row}" style="width:100%;">${syorOptions}</select></div></div>
+          </div>
+          <div class="pka-card-field">
+            <label>Ulasan SPI</label>
+            <div style="flex:1;"><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${d.ulasan_spi || ''}</textarea></div>
+          </div>
+        </div>
+        <div class="pka-card-item-actions">
+          <button class="pka-btn-sm pka-btn-orange" onclick="pkaUrusFail(${row})">📂 Urus Fail</button>
+          <button class="pka-btn-sm pka-btn-green" onclick="pkaHantarKeputusan(${row})">📤 Hantar</button>
+        </div>
+      </div>`;
     }).join('');
   }
 
   function loadPKASejarahSPI() {
-    const tbody = document.getElementById('pkaSejarahBody');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+    const list = document.getElementById('pkaSejarahList');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
     const data = (cachedData || []).filter(d =>
       d.lawatan_syor && d.lawatan_syor.toString().trim() !== '' &&
@@ -2958,20 +2971,32 @@ async function handleCredentialResponse(response) {
     );
 
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="pka-empty">Tiada rekod sejarah</td></tr>';
+      list.innerHTML = '<p class="pka-empty">Tiada rekod sejarah</p>';
       return;
     }
 
-    tbody.innerHTML = data.map(d => `<tr>
-      <td>${d.syarikat}</td>
-      <td>${d.cidb || '-'}</td>
-      <td>${d.pengesyor || '-'}</td>
-      <td>${d.lawatan_tarikh || '-'}</td>
-      <td>${d.lawatan_submit_sptb || '-'}</td>
-      <td>${d.lawatan_syor || '-'}</td>
-      <td>${d.ulasan_spi || '-'}</td>
-    </tr>`).join('');
+    list.innerHTML = data.map(d => {
+      const lawatanDate = d.lawatan_tarikh ? formatDateDisplay(d.lawatan_tarikh) : '-';
+      const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '-';
+      return `<div class="pka-card-item" style="border-left:4px solid #10b981;">
+        <div class="pka-card-item-info">
+          <div class="pka-card-item-title">${d.syarikat}</div>
+          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'}</div>
+          <div style="font-size:0.8rem;color:#475569;margin-top:4px;">
+            📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}
+          </div>
+          ${d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:2px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
   }
+
+  // Fungsi lihat rekod - buka modal detail
+  window.pkaViewRecord = async function(row) {
+    const item = (cachedData || []).find(d => d.row === row);
+    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
+    viewRecordOnly(item);
+  };
 
   // Fungsi urus fail - buka file manager
   window.pkaUrusFail = async function(row) {

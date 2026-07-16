@@ -955,14 +955,17 @@
             .pka-stat-card:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
             .pka-stat-number { font-size: 2rem; font-weight: 800; }
             .pka-stat-label { font-size: 0.85rem; opacity: 0.9; margin-top: 5px; }
-            .pka-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-            .pka-table th { background: #f1f5f9; padding: 10px 8px; text-align: left; font-weight: 700; color: #475569; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-            .pka-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
-            .pka-table tr:hover { background: #f8fafc; }
-            .pka-table .editable-input { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; box-sizing: border-box; }
-            .pka-table .editable-input:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
-            .pka-table .editable-select { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; cursor: pointer; }
-            .pka-table .editable-textarea { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; resize: vertical; min-height: 50px; box-sizing: border-box; }
+            .pka-card-item { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: box-shadow 0.2s; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+            .pka-card-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+            .pka-card-item-info { flex: 1; min-width: 200px; overflow: hidden; }
+            .pka-card-item-title { font-weight: 700; font-size: 1.05rem; word-break: break-word; color: #1e293b; }
+            .pka-card-item-sub { font-size: 0.82rem; color: #64748b; margin-top: 3px; }
+            .pka-card-item-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; flex-shrink: 0; }
+            .pka-card-field { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+            .pka-card-field label { font-size: 0.75rem; font-weight: 600; color: #475569; min-width: 90px; }
+            .pka-card-field .editable-input, .pka-card-field .editable-select, .pka-card-field .editable-textarea { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; }
+            .pka-card-field .editable-input:focus, .pka-card-field .editable-select:focus, .pka-card-field .editable-textarea:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+            .pka-card-field .editable-textarea { min-height: 50px; resize: vertical; width: 100%; box-sizing: border-box; }
             .pka-btn-sm { padding: 5px 12px; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
             .pka-btn-blue { background: #3b82f6; color: white; }
             .pka-btn-blue:hover { background: #2563eb; }
@@ -970,6 +973,8 @@
             .pka-btn-green:hover { background: #059669; }
             .pka-btn-orange { background: #f59e0b; color: white; }
             .pka-btn-orange:hover { background: #d97706; }
+            .pka-btn-ghost { background: #f1f5f9; color: #475569; }
+            .pka-btn-ghost:hover { background: #e2e8f0; }
             .pka-badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; }
             .pka-badge-green { background: #d1fae5; color: #065f46; }
             .pka-badge-yellow { background: #fef3c7; color: #92400e; }
@@ -987,28 +992,28 @@
                 <div class="pka-stat-card"><div class="pka-stat-number" id="pkaStatSelesai">0</div><div class="pka-stat-label">Selesai Lawatan</div></div>
             </div>
             <h3>Senarai Semua Permohonan (Siasatan Biasa)</h3>
-            <div style="overflow-x:auto;"><table class="pka-table"><thead><tr><th>Syarikat</th><th>CIDB</th><th>Gred</th><th>Pengesyor</th><th>Status Hantar SPI</th><th>Tarikh Hantar SPI</th><th>Syor SPI</th><th>Lawatan</th></tr></thead><tbody id="pkaDashboardBody"></tbody></table></div>
+            <div id="pkaDashboardList" class="app-list"></div>
         </div>
     </div>
 
     <div id="tab-pka-inbox" class="tab-content no-print">
         <div class="pka-card">
             <h2>📥 Inbox SPI <span id="pkaInboxCount" class="pka-badge pka-badge-yellow"></span></h2>
-            <div style="overflow-x:auto;"><table class="pka-table"><thead><tr><th>Syarikat</th><th>CIDB</th><th>Gred</th><th>Jenis</th><th>Pengesyor</th><th>Tarikh Hantar SPI</th><th>Tarikh Mula</th></tr></thead><tbody id="pkaInboxBody"></tbody></table></div>
+            <div id="pkaInboxList" class="app-list"></div>
         </div>
     </div>
 
     <div id="tab-pka-keputusan-spi" class="tab-content no-print">
         <div class="pka-card">
             <h2>✅ Keputusan SPI</h2>
-            <div style="overflow-x:auto;"><table class="pka-table"><thead><tr><th>Syarikat</th><th>CIDB</th><th>Gred</th><th>Pengesyor</th><th>Tarikh Lawatan</th><th>Tarikh Hantar SPTB</th><th>Syor SPI</th><th>Ulasan SPI</th><th>Urus Fail</th><th>Tindakan</th></tr></thead><tbody id="pkaKeputusanBody"></tbody></table></div>
+            <div id="pkaKeputusanList" class="app-list"></div>
         </div>
     </div>
 
     <div id="tab-pka-sejarah-spi" class="tab-content no-print">
         <div class="pka-card">
             <h2>📜 Sejarah SPI</h2>
-            <div style="overflow-x:auto;"><table class="pka-table"><thead><tr><th>Syarikat</th><th>CIDB</th><th>Pengesyor</th><th>Tarikh Lawatan</th><th>Tarikh Hantar SPTB</th><th>Syor SPI</th><th>Ulasan SPI</th></tr></thead><tbody id="pkaSejarahBody"></tbody></table></div>
+            <div id="pkaSejarahList" class="app-list"></div>
         </div>
     </div>
 
