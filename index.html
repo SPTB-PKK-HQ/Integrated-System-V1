@@ -980,6 +980,9 @@
             .pka-badge-yellow { background: #fef3c7; color: #92400e; }
             .pka-badge-red { background: #fee2e2; color: #991b1b; }
             .pka-empty { text-align: center; padding: 40px; color: #94a3b8; }
+            .pka-filter-btn { padding: 6px 14px; border: 2px solid #e2e8f0; border-radius: 20px; background: white; cursor: pointer; font-size: 0.78rem; font-weight: 600; color: #475569; transition: all 0.15s; white-space: nowrap; }
+            .pka-filter-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+            .pka-filter-btn.active { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
         </style>
 
     <!-- V6.8.0: PKA TABS -->
@@ -996,6 +999,7 @@
     <div id="tab-pka-inbox" class="tab-content no-print">
         <div class="pka-card">
             <h2>📥 Inbox SPI <span id="pkaInboxCount" class="pka-badge pka-badge-yellow"></span></h2>
+            <div id="pkaInboxPengesyorFilter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
             <div style="margin-bottom:12px;"><input type="text" id="pkaInboxSearch" placeholder="🔍 Cari nama syarikat, no CIDB, atau pengesyor..." style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:0.9rem;box-sizing:border-box;"></div>
             <div id="pkaInboxList" class="app-list"></div>
         </div>
@@ -1003,7 +1007,10 @@
 
     <div id="tab-pka-keputusan-spi" class="tab-content no-print">
         <div class="pka-card">
-            <h2>✅ Keputusan SPI</h2>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <button class="pka-btn-sm pka-btn-ghost" id="pkaKeputusanBack" style="font-size:0.85rem;">← Kembali ke Inbox</button>
+                <h2 style="margin:0;font-size:1rem;">✅ Keputusan SPI</h2>
+            </div>
             <div id="pkaKeputusanList" class="app-list"></div>
         </div>
     </div>

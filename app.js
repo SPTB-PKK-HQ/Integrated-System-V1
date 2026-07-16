@@ -2901,6 +2901,7 @@ async function handleCredentialResponse(response) {
   }
 
   window._pkaInboxData = [];
+  window._pkaSelectedPengesyor = null;
   function loadPKAInbox() {
     const list = document.getElementById('pkaInboxList');
     const countEl = document.getElementById('pkaInboxCount');
@@ -2916,12 +2917,20 @@ async function handleCredentialResponse(response) {
 
     if (countEl) countEl.textContent = `${window._pkaInboxData.length} permohonan`;
 
+    pkaRenderPengesyorFilter();
+
     const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
-    const filtered = searchVal ? window._pkaInboxData.filter(d =>
-      (d.syarikat || '').toLowerCase().includes(searchVal) ||
-      (d.cidb || '').toLowerCase().includes(searchVal) ||
-      (d.pengesyor || '').toLowerCase().includes(searchVal)
-    ) : window._pkaInboxData;
+    let filtered = window._pkaInboxData;
+    if (window._pkaSelectedPengesyor) {
+      filtered = filtered.filter(d => d.pengesyor === window._pkaSelectedPengesyor);
+    }
+    if (searchVal) {
+      filtered = filtered.filter(d =>
+        (d.syarikat || '').toLowerCase().includes(searchVal) ||
+        (d.cidb || '').toLowerCase().includes(searchVal) ||
+        (d.pengesyor || '').toLowerCase().includes(searchVal)
+      );
+    }
 
     pkaRenderInboxCards(filtered, list);
   }
@@ -2930,56 +2939,75 @@ async function handleCredentialResponse(response) {
     const list = document.getElementById('pkaInboxList');
     if (!list) return;
     const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
-    const filtered = searchVal ? window._pkaInboxData.filter(d =>
-      (d.syarikat || '').toLowerCase().includes(searchVal) ||
-      (d.cidb || '').toLowerCase().includes(searchVal) ||
-      (d.pengesyor || '').toLowerCase().includes(searchVal)
-    ) : window._pkaInboxData;
+    let filtered = window._pkaInboxData;
+    if (window._pkaSelectedPengesyor) {
+      filtered = filtered.filter(d => d.pengesyor === window._pkaSelectedPengesyor);
+    }
+    if (searchVal) {
+      filtered = filtered.filter(d =>
+        (d.syarikat || '').toLowerCase().includes(searchVal) ||
+        (d.cidb || '').toLowerCase().includes(searchVal) ||
+        (d.pengesyor || '').toLowerCase().includes(searchVal)
+      );
+    }
     pkaRenderInboxCards(filtered, list);
   };
+
+  function pkaRenderPengesyorFilter() {
+    const el = document.getElementById('pkaInboxPengesyorFilter');
+    if (!el) return;
+    const counts = {};
+    window._pkaInboxData.forEach(d => {
+      const name = (d.pengesyor || '').trim();
+      if (name) counts[name] = (counts[name] || 0) + 1;
+    });
+    const names = Object.keys(counts).sort();
+    let html = `<button class="pka-filter-btn${!window._pkaSelectedPengesyor ? ' active' : ''}" data-pka-pengesyor="__all__">Semua</button>`;
+    names.forEach(name => {
+      html += `<button class="pka-filter-btn${window._pkaSelectedPengesyor === name ? ' active' : ''}" data-pka-pengesyor="${name.replace(/"/g, '&quot;')}">${name} <span class="pka-badge pka-badge-red">${counts[name]}</span></button>`;
+    });
+    el.innerHTML = html;
+  }
 
   function loadPKAKeputusanSPI() {
     const list = document.getElementById('pkaKeputusanList');
     if (!list) return;
     list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
-    const data = (cachedData || []).filter(d =>
-      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
-      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
-      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
-      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
-    );
+    const selectedRow = window._pkaSelectedRow;
+    window._pkaSelectedRow = null;
 
-    if (data.length === 0) {
-      list.innerHTML = '<p class="pka-empty">Tiada permohonan untuk diproses</p>';
+    const item = (cachedData || []).find(d => d.row === selectedRow);
+
+    if (!item) {
+      list.innerHTML = '<p class="pka-empty">Sila pilih permohonan dari Inbox SPI terlebih dahulu.</p>';
       return;
     }
 
-    list.innerHTML = data.map(d => {
-      const row = d.row;
-      const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
-        .map(v => `<option value="${v}"${d.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
-      const spiDate = d.tarikh_hantar_spi ? formatDateDisplay(d.tarikh_hantar_spi) : '-';
-      return `<div class="pka-card-item" style="border-left:4px solid #3b82f6;">
-        <div class="pka-card-item-info">
-          <div class="pka-card-item-title">${d.syarikat}</div>
-          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'} | 📤 ${spiDate}</div>
-          <div class="pka-card-field">
-            <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${d.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
-            <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${d.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
-            <div style="flex:1;min-width:140px;"><label>Syor SPI</label><div><select class="editable-select" id="pkaLawatanSyor_${row}" style="width:100%;">${syorOptions}</select></div></div>
-          </div>
-          <div class="pka-card-field">
-            <label>Ulasan SPI</label>
-            <div style="flex:1;"><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${d.ulasan_spi || ''}</textarea></div>
-          </div>
+    const row = item.row;
+    const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
+      .map(v => `<option value="${v}"${item.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
+    const spiDate = item.tarikh_hantar_spi ? formatDateDisplay(item.tarikh_hantar_spi) : '-';
+
+    list.innerHTML = `<div class="pka-card-item" style="border-left:4px solid #3b82f6;">
+      <div class="pka-card-item-info">
+        <div class="pka-card-item-title">${item.syarikat}</div>
+        <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | 👤 ${item.pengesyor || '-'} | 📤 ${spiDate}</div>
+        <div class="pka-card-field">
+          <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${item.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
+          <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${item.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
+          <div style="flex:1;min-width:140px;"><label>Syor SPI</label><div><select class="editable-select" id="pkaLawatanSyor_${row}" style="width:100%;">${syorOptions}</select></div></div>
         </div>
-        <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}">📂 Urus Fail</button>
-          <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar</button>
+        <div class="pka-card-field">
+          <label>Ulasan SPI</label>
+          <div style="flex:1;"><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${item.ulasan_spi || ''}</textarea></div>
         </div>
-      </div>`;
-    }).join('');
+      </div>
+      <div class="pka-card-item-actions">
+        <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}">📂 Urus Fail</button>
+        <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar</button>
+      </div>
+    </div>`;
   }
 
   function pkaRenderSejarahCards(data, list) {
@@ -3057,6 +3085,7 @@ async function handleCredentialResponse(response) {
         const row = parseInt(btn.dataset.pkaRow);
 
         if (action === 'go-keputusan') {
+          window._pkaSelectedRow = row;
           switchTab('pka-keputusan-spi');
           return;
         }
@@ -3143,10 +3172,30 @@ async function handleCredentialResponse(response) {
               cachedData[idx].ulasan_spi = ulasanSpi;
             }
           }
+          window._pkaSelectedRow = row;
           loadPKAKeputusanSPI();
         }
       });
     });
+
+    const backBtn = document.getElementById('pkaKeputusanBack');
+    if (backBtn) {
+      backBtn.addEventListener('click', function() {
+        switchTab('pka-inbox');
+      });
+    }
+
+    const filterEl = document.getElementById('pkaInboxPengesyorFilter');
+    if (filterEl) {
+      filterEl.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-pka-pengesyor]');
+        if (!btn) return;
+        const pengesyor = btn.dataset.pkaPengesyor;
+        window._pkaSelectedPengesyor = pengesyor === '__all__' ? null : pengesyor;
+        pkaRenderPengesyorFilter();
+        pkaFilterInbox();
+      });
+    }
   }
 
   function loadAdminDashboard() {
