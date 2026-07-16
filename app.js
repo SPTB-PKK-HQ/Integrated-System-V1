@@ -2894,7 +2894,7 @@ async function handleCredentialResponse(response) {
           </div>
         </div>
         <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-green" data-pka-action="go-keputusan">✅ Proses</button>
+          <button class="pka-btn-sm pka-btn-green" data-pka-action="go-keputusan" data-pka-row="${d.row}">✅ Proses</button>
         </div>
       </div>`;
     }).join('');
@@ -2912,6 +2912,7 @@ async function handleCredentialResponse(response) {
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
       (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
