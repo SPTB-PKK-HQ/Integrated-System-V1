@@ -368,6 +368,17 @@ function doGet(e) {
       return handleGetInbox(e.parameter);
     }
     
+    // V6.8.0: Dapatkan Firebase code untuk email tertentu
+    if (action === "getUserFirebaseCode") {
+      const fbEmail = e.parameter ? e.parameter.email : '';
+      if (fbEmail) {
+        const propKey = 'FIREBASE_CODE_MAP_' + fbEmail.toLowerCase().trim();
+        const code = PropertiesService.getScriptProperties().getProperty(propKey) || '';
+        return createJSONOutput({ status: "success", firebaseCode: code });
+      }
+      return createJSONOutput({ status: "error", firebaseCode: '' });
+    }
+    
     let result;
     if (action === "getUsers") {
       result = getUsersData();
@@ -594,6 +605,73 @@ function doPost(e) {
         return createJSONOutput({ success: false, message: accessCheck.error });
       }
       return handleCetakDanSimpanPDF(data);
+    }
+    
+    // V6.8.0: Handler untuk addUser (Admin sahaja)
+    if (data.action === 'addUser') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      data.adminName = accessCheck.userProfile.name;
+      // data.userEmail = email pengguna baru, data.email = email admin
+      data.newUserEmail = data.userEmail || '';
+      return handleAddUser(data);
+    }
+    
+    // V6.8.0: Handler untuk updateUser (Admin sahaja)
+    if (data.action === 'updateUser') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      data.adminName = accessCheck.userProfile.name;
+      // data.targetEmail = email pengguna yang nak diupdate
+      return handleUpdateUser(data);
+    }
+    
+    // V6.8.0: Handler untuk deleteUser (Admin sahaja)
+    if (data.action === 'deleteUser') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      data.adminName = accessCheck.userProfile.name;
+      return handleDeleteUser(data);
+    }
+    
+    // V6.8.0: Handler untuk archiveYearSheet (Admin sahaja)
+    if (data.action === 'archiveYearSheet') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      data.adminName = accessCheck.userProfile.name;
+      return handleArchiveYearSheet(data);
+    }
+    
+    // V6.8.0: Handler untuk cleanupFirebaseCodes (Admin sahaja)
+    if (data.action === 'cleanupFirebaseCodes') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      return handleCleanupFirebaseCodes(data);
     }
     
     const shouldCreateFolder = data.createFolder === true;
@@ -2080,6 +2158,299 @@ function getUsersData() {
     };
   }).filter(user => user.name !== "");
   return createJSONOutput(users);
+}
+
+/**
+ * Fungsi untuk mendapatkan indeks lajur dari header Users sheet
+ */
+function getUsersColumnIndices(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+  const nameCol = headers.findIndex(h => h && h.toString().toUpperCase().includes('NAMA'));
+  const emailCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('EMEL') || h.toString().toUpperCase().includes('EMAIL') || h.toString().toUpperCase().includes('E-MEL')));
+  const roleCol = headers.findIndex(h => h && h.toString().toUpperCase().includes('ROLE'));
+  const colorCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('WARNA') || h.toString().toUpperCase().includes('COLOR')));
+  const phoneCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TELEFON') || h.toString().toUpperCase().includes('PHONE') || h.toString().toUpperCase().includes('NO TEL')));
+  const signCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TANDATANGAN') || h.toString().toUpperCase().includes('SIGN')));
+  const copCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('COP') || h.toString().toUpperCase().includes('STAMP')));
+  return {
+    name: nameCol !== -1 ? nameCol : 0,
+    email: emailCol !== -1 ? emailCol : 1,
+    role: roleCol !== -1 ? roleCol : 2,
+    color: colorCol !== -1 ? colorCol : 3,
+    phone: phoneCol !== -1 ? phoneCol : 5,
+    image: 6,
+    sign: signCol !== -1 ? signCol : -1,
+    cop: copCol !== -1 ? copCol : -1,
+    totalCols: Math.max(nameCol !== -1 ? nameCol : 0, emailCol !== -1 ? emailCol : 1, roleCol !== -1 ? roleCol : 2, colorCol !== -1 ? colorCol : 3, phoneCol !== -1 ? phoneCol : 5, 6, signCol !== -1 ? signCol : 0, copCol !== -1 ? copCol : 0) + 1
+  };
+}
+
+/**
+ * Fungsi untuk menambah pengguna baru ke Users sheet
+ */
+function handleAddUser(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet Users tidak dijumpai" });
+    
+    const idx = getUsersColumnIndices(sheet);
+    const email = data.newUserEmail ? data.newUserEmail.toString().trim().toLowerCase() : '';
+    if (!email) return createJSONOutput({ status: "error", message: "Email pengguna baru diperlukan" });
+    
+    // Semak jika email sudah wujud
+    const existing = findUserByEmail(email);
+    if (existing) return createJSONOutput({ status: "error", message: "Email sudah berdaftar: " + email });
+    
+    // Cari baris kosong pertama
+    const lastRow = sheet.getLastRow();
+    const newRow = lastRow + 1;
+    
+    // Sediakan array data dengan panjang mencukupi
+    const rowData = [];
+    const totalCols = Math.max(idx.totalCols, 9);
+    for (let i = 0; i < totalCols; i++) rowData.push('');
+    
+    rowData[idx.name] = data.name || '';
+    rowData[idx.email] = email;
+    rowData[idx.role] = (data.role || 'PENGESYOR').toUpperCase();
+    rowData[idx.color] = data.color || '#2563eb';
+    rowData[idx.phone] = data.phone || '';
+    rowData[idx.image] = data.imageUrl || '';
+    if (idx.sign !== -1) rowData[idx.sign] = data.signUrl || '';
+    if (idx.cop !== -1) rowData[idx.cop] = data.copUrl || '';
+    
+    sheet.getRange(newRow, 1, 1, totalCols).setValues([rowData]);
+    
+    // Jika PENGESYOR, simpan Firebase code
+    if (rowData[idx.role] === 'PENGESYOR' && data.firebaseCode) {
+      const propKey = 'FIREBASE_CODE_MAP_' + email;
+      PropertiesService.getScriptProperties().setProperty(propKey, data.firebaseCode.toString().trim());
+    }
+    
+    logActivity(data.adminName || "System", 'ADD_USER', `Tambah pengguna baru: ${data.name || ''} (${email}) - Role: ${rowData[idx.role]}`, '');
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: "Pengguna berjaya ditambah" });
+    
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi untuk mengemaskini pengguna dalam Users sheet
+ */
+function handleUpdateUser(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet Users tidak dijumpai" });
+    
+    const idx = getUsersColumnIndices(sheet);
+    const email = data.targetEmail ? data.targetEmail.toString().trim().toLowerCase() : '';
+    if (!email) return createJSONOutput({ status: "error", message: "Email pengguna diperlukan" });
+    
+    // Cari pengguna dalam sheet
+    const dataRange = sheet.getDataRange().getDisplayValues();
+    const headers = dataRange.shift();
+    let targetRow = -1;
+    for (let i = 0; i < dataRange.length; i++) {
+      const rowEmail = dataRange[i][idx.email] ? dataRange[i][idx.email].toString().trim().toLowerCase() : '';
+      if (rowEmail === email) {
+        targetRow = i + 2; // +2 because we removed header (0-indexed) and sheet is 1-indexed
+        break;
+      }
+    }
+    
+    if (targetRow === -1) return createJSONOutput({ status: "error", message: "Pengguna tidak dijumpai: " + email });
+    
+    const totalCols = Math.max(idx.totalCols, 9);
+    const existingRow = sheet.getRange(targetRow, 1, 1, totalCols).getValues()[0];
+    
+    if (data.name !== undefined) existingRow[idx.name] = data.name;
+    if (data.role !== undefined) existingRow[idx.role] = data.role.toUpperCase();
+    if (data.color !== undefined) existingRow[idx.color] = data.color;
+    if (data.phone !== undefined) existingRow[idx.phone] = data.phone;
+    if (data.imageUrl !== undefined) existingRow[idx.image] = data.imageUrl;
+    if (data.signUrl !== undefined && idx.sign !== -1) existingRow[idx.sign] = data.signUrl;
+    if (data.copUrl !== undefined && idx.cop !== -1) existingRow[idx.cop] = data.copUrl;
+    
+    sheet.getRange(targetRow, 1, 1, totalCols).setValues([existingRow]);
+    
+    // Kemaskini Firebase code jika PENGESYOR
+    const currentRole = data.role !== undefined ? data.role.toUpperCase() : existingRow[idx.role];
+    const props = PropertiesService.getScriptProperties();
+    const propKey = 'FIREBASE_CODE_MAP_' + email;
+    
+    if (currentRole === 'PENGESYOR') {
+      if (data.firebaseCode !== undefined) {
+        if (data.firebaseCode.toString().trim()) {
+          props.setProperty(propKey, data.firebaseCode.toString().trim());
+        } else {
+          props.deleteProperty(propKey);
+        }
+      }
+    } else {
+      // Jika role ditukar bukan PENGESYOR, padam Firebase code
+      props.deleteProperty(propKey);
+    }
+    
+    logActivity(data.adminName || "System", 'UPDATE_USER', `Kemaskini pengguna: ${email}`, '');
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: "Pengguna berjaya dikemaskini" });
+    
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi untuk memadam pengguna dari Users sheet
+ */
+function handleDeleteUser(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet Users tidak dijumpai" });
+    
+    const idx = getUsersColumnIndices(sheet);
+    const email = data.targetEmail ? data.targetEmail.toString().trim().toLowerCase() : '';
+    if (!email) return createJSONOutput({ status: "error", message: "Email pengguna diperlukan" });
+    
+    // Cari pengguna dalam sheet
+    const dataRange = sheet.getDataRange().getDisplayValues();
+    const headers = dataRange.shift();
+    let targetRow = -1;
+    let userName = '';
+    for (let i = 0; i < dataRange.length; i++) {
+      const rowEmail = dataRange[i][idx.email] ? dataRange[i][idx.email].toString().trim().toLowerCase() : '';
+      if (rowEmail === email) {
+        targetRow = i + 2;
+        userName = dataRange[i][idx.name] || '';
+        break;
+      }
+    }
+    
+    if (targetRow === -1) return createJSONOutput({ status: "error", message: "Pengguna tidak dijumpai: " + email });
+    
+    // Padam row
+    sheet.deleteRow(targetRow);
+    
+    // Padam Firebase code jika ada
+    const props = PropertiesService.getScriptProperties();
+    const propKey = 'FIREBASE_CODE_MAP_' + email;
+    props.deleteProperty(propKey);
+    
+    logActivity(data.adminName || "System", 'DELETE_USER', `Padam pengguna: ${userName} (${email})`, '');
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: "Pengguna berjaya dipadam", deletedUser: { name: userName, email: email } });
+    
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi untuk bersihkan Firebase code yang orphans (tiada padanan pengguna)
+ */
+function handleCleanupFirebaseCodes(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet Users tidak dijumpai" });
+    
+    const idx = getUsersColumnIndices(sheet);
+    const dataRange = sheet.getDataRange().getDisplayValues();
+    const headers = dataRange.shift();
+    
+    // Kumpul semua email pengguna sedia ada
+    const activeEmails = new Set();
+    for (let i = 0; i < dataRange.length; i++) {
+      const email = dataRange[i][idx.email] ? dataRange[i][idx.email].toString().trim().toLowerCase() : '';
+      if (email) activeEmails.add(email);
+    }
+    
+    const props = PropertiesService.getScriptProperties();
+    const allProps = props.getProperties();
+    const prefix = 'FIREBASE_CODE_MAP_';
+    let cleaned = 0;
+    
+    for (const key of Object.keys(allProps)) {
+      if (key.startsWith(prefix)) {
+        const email = key.substring(prefix.length).toLowerCase();
+        if (!activeEmails.has(email)) {
+          props.deleteProperty(key);
+          cleaned++;
+          Logger.log(`[V6.8.0] Firease code orphan dipadam: ${key}`);
+        }
+      }
+    }
+    
+    return createJSONOutput({ 
+      status: "success", 
+      message: `Bersihkan ${cleaned} Firebase code orphan.`,
+      cleaned: cleaned
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi untuk arkib data tahunan: rename Sheet1 ke tahun, cipta Sheet1 baru
+ */
+function handleArchiveYearSheet(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet1 tidak dijumpai" });
+    
+    const currentYear = new Date().getFullYear().toString();
+    
+    // Semak jika sheet tahun sudah wujud
+    const existingYearSheet = ss.getSheetByName(currentYear);
+    if (existingYearSheet) {
+      return createJSONOutput({ status: "error", message: "Data tahun " + currentYear + " sudah diarkibkan" });
+    }
+    
+    // Backup headers
+    const lastColumn = sheet.getLastColumn();
+    const headers = lastColumn > 0 ? sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0] : [];
+    
+    // Semak jika ada data
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: "error", message: "Tiada data untuk diarkibkan" });
+    }
+    
+    // Rename Sheet1 ke tahun semasa
+    sheet.setName(currentYear);
+    
+    // Cipta Sheet1 baru
+    const newSheet = ss.insertSheet(SHEET_NAME);
+    
+    // Salin headers ke Sheet1 baru
+    if (headers.length > 0) {
+      newSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+    
+    // Gerakkan Sheet1 baru ke indeks pertama (paling kiri)
+    ss.setActiveSheet(newSheet);
+    ss.moveActiveSheet(0);
+    
+    logActivity(data.adminName || "System", 'ARCHIVE_YEAR', `Arkib data tahun ${currentYear}: ${lastRow - 1} rekod dipindahkan ke sheet "${currentYear}"`, '');
+    invalidateDataCache();
+    return createJSONOutput({ 
+      status: "success", 
+      message: `Data berjaya diarkibkan ke sheet "${currentYear}". Sheet1 baru telah disediakan.`,
+      archivedYear: currentYear,
+      totalRecords: lastRow - 1
+    });
+    
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
 }
 
 function getStatisticsData(role, userName) {

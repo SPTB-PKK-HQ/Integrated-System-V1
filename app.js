@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLPk-4cu09wq2Dogi_VFQrlZUsPZn9P1ikCKkTeWKmq-8ZC5dim7b_DnQ68HBFQfKP/exec';
+  const SCRIPT_URL = 'https://script.google.com/a/macros/kuskop.gov.my/s/AKfycbxd7mCGbrP92OgsRLFxn0_ikBulDObb6gZ9VzPTErksTyVGQYr1C8Rb5O2JZfju9d3p/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -2823,6 +2823,9 @@ async function handleCredentialResponse(response) {
 
   function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
+    
+    // V6.8.0: Init pengurusan pengguna dan arkib
+    initAdminUserManagement();
     
     if (!cachedData || cachedData.length === 0) {
       console.warn("V6.5.2 No data for admin dashboard");
@@ -6713,39 +6716,63 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         else if (keputusanPelulus === 'PEMUTIHAN' && elPemutihan) elPemutihan.setAttribute('class', 'syor-selected');
         else if (keputusanPelulus && keputusanPelulus.includes('TOLAK') && elTolak) elTolak.setAttribute('class', 'syor-selected');
 
-        if (typeof usersList !== 'undefined' && usersList.length > 0) {
-            // Masukkan Sign Pelulus (Jika ada keputusan)
-            if (keputusanPelulus && keputusanPelulus.trim() !== '') {
-                const userPelulus = usersList.find(u => u.name.toUpperCase() === namaPelulus.toUpperCase());
-                if (userPelulus) {
-                    if (userPelulus.signUrl && userPelulus.signUrl.trim() !== '') { 
-                        imgSignPelulus.setAttribute('src', userPelulus.signUrl.trim()); 
-                        imgSignPelulus.style.display = 'block'; 
-                    }
-                    if (userPelulus.copUrl && userPelulus.copUrl.trim() !== '') { 
-                        imgCopPelulus.setAttribute('src', userPelulus.copUrl.trim()); 
-                        imgCopPelulus.style.display = 'block'; 
-                    }
-                }
+        // V6.8.0: Cuba dapatkan sign/cop dari snapshot borang_json dulu
+        let pelulusSignUrl = '';
+        let pelulusCopUrl = '';
+        try {
+            const borangJsonSrc = (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem && pelulusActiveItem.borang_json) 
+                ? JSON.parse(pelulusActiveItem.borang_json) : {};
+            if (borangJsonSrc.pelulus_signUrl) pelulusSignUrl = borangJsonSrc.pelulus_signUrl;
+            if (borangJsonSrc.pelulus_copUrl) pelulusCopUrl = borangJsonSrc.pelulus_copUrl;
+        } catch(e) {}
+        
+        if (!pelulusSignUrl && typeof usersList !== 'undefined' && usersList.length > 0) {
+            const userPelulus = usersList.find(u => u.name.toUpperCase() === namaPelulus.toUpperCase());
+            if (userPelulus) {
+                pelulusSignUrl = userPelulus.signUrl || '';
+                pelulusCopUrl = userPelulus.copUrl || '';
             }
         }
+        // Fallback ke currentUser jika tiada snapshot dan tak jumpa di usersList
+        if (!pelulusSignUrl && currentUser && currentUser.name.toUpperCase() === namaPelulus.toUpperCase()) {
+            pelulusSignUrl = currentUser.signUrl || '';
+            pelulusCopUrl = currentUser.copUrl || '';
+        }
+        if (pelulusSignUrl) { imgSignPelulus.setAttribute('src', pelulusSignUrl); imgSignPelulus.style.display = 'block'; }
+        if (pelulusCopUrl) { imgCopPelulus.setAttribute('src', pelulusCopUrl); imgCopPelulus.style.display = 'block'; }
     }
 
-    if (typeof usersList !== 'undefined' && usersList.length > 0) {
-        // Sign/Cop Pengesyor hanya muncul jika syorPilihan (SOKONG/SIASAT/TIDAK DISOKONG) sudah dipilih
+    // V6.8.0: Cuba dapatkan sign/cop Pengesyor dari snapshot borang_json dulu
+    let pengesyorSignUrl = '';
+    let pengesyorCopUrl = '';
+    try {
+        const borangJsonSrc = (typeof pelulusActiveItem !== 'undefined' && pelulusActiveItem && pelulusActiveItem.borang_json) 
+            ? JSON.parse(pelulusActiveItem.borang_json) : {};
+        if (borangJsonSrc.currentUser_signUrl) pengesyorSignUrl = borangJsonSrc.currentUser_signUrl;
+        if (borangJsonSrc.currentUser_copUrl) pengesyorCopUrl = borangJsonSrc.currentUser_copUrl;
+    } catch(e) {}
+    
+    if (!pengesyorSignUrl && typeof usersList !== 'undefined' && usersList.length > 0) {
         if (namaPengesyor && syorPilihan) { 
             const userPengesyor = usersList.find(u => u.name.toUpperCase() === namaPengesyor.toUpperCase());
             if (userPengesyor) {
-                if (userPengesyor.signUrl && userPengesyor.signUrl.trim() !== '') { 
-                    imgSignPengesyor.setAttribute('src', userPengesyor.signUrl.trim()); 
-                    imgSignPengesyor.style.display = 'block'; 
-                }
-                if (userPengesyor.copUrl && userPengesyor.copUrl.trim() !== '') { 
-                    imgCopPengesyor.setAttribute('src', userPengesyor.copUrl.trim()); 
-                    imgCopPengesyor.style.display = 'block'; 
-                }
+                pengesyorSignUrl = userPengesyor.signUrl || '';
+                pengesyorCopUrl = userPengesyor.copUrl || '';
             }
         }
+    }
+    // Fallback ke currentUser jika tiada snapshot dan tak jumpa di usersList
+    if (!pengesyorSignUrl && currentUser && currentUser.name.toUpperCase() === namaPengesyor.toUpperCase() && syorPilihan) {
+        pengesyorSignUrl = currentUser.signUrl || '';
+        pengesyorCopUrl = currentUser.copUrl || '';
+    }
+    if (pengesyorSignUrl && namaPengesyor && syorPilihan) { 
+        imgSignPengesyor.setAttribute('src', pengesyorSignUrl); 
+        imgSignPengesyor.style.display = 'block'; 
+    }
+    if (pengesyorCopUrl && namaPengesyor && syorPilihan) { 
+        imgCopPengesyor.setAttribute('src', pengesyorCopUrl); 
+        imgCopPengesyor.style.display = 'block'; 
     }
   }
 
@@ -11515,6 +11542,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
       borangJsonData['personnel'] = personnelListObj;
       
+      // V6.8.0: Snapshot sign/cop pengguna semasa ke dalam borang_json
+      if (currentUser) {
+        borangJsonData['currentUser_name'] = currentUser.name || '';
+        borangJsonData['currentUser_email'] = currentUser.email || '';
+        if (currentUser.signUrl) borangJsonData['currentUser_signUrl'] = currentUser.signUrl;
+        if (currentUser.copUrl) borangJsonData['currentUser_copUrl'] = currentUser.copUrl;
+        if (currentUser.role) borangJsonData['currentUser_role'] = currentUser.role;
+      }
+      
       // =====================================================================
       // KOD BARU: KAWALAN TARIKH MASUK SHEET (TERMASUK REKOD SEDIA ADA)
       // =====================================================================
@@ -11875,6 +11911,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       // V6.6.0: BEKU dihandle oleh backend (code.gs) untuk elak duplicate
       borangJsonData.catatan_pelulus = catatanPelulus;
+      
+      // V6.8.0: Snapshot sign/cop pelulus ke dalam borang_json
+      if (currentUser) {
+        borangJsonData['pelulus_signUrl'] = currentUser.signUrl || '';
+        borangJsonData['pelulus_copUrl'] = currentUser.copUrl || '';
+        borangJsonData['pelulus_name_snapshot'] = currentUser.name || '';
+        borangJsonData['pelulus_email_snapshot'] = currentUser.email || '';
+      }
+      
       const newBorangJson = JSON.stringify(borangJsonData);
 
       const nowLulus = new Date();
@@ -15409,6 +15454,540 @@ function startTabAutoRefresh() {
   }, 5000); // Check setiap 5 saat
 }
 
+// =========================================================================
+// V6.8.0: PENGURUSAN PENGGUNA (ADMIN)
+// =========================================================================
+
+async function loadUsers() {
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL + '?action=getUsers&t=' + Date.now(), { method: 'GET', redirect: 'follow' }, 3, 1000);
+    if (!res.ok) return;
+    const users = await res.json();
+    if (Array.isArray(users)) {
+      usersList = users;
+      storageWrapper.set({ 'stb_users_cache': users });
+      renderUsersTable(users);
+    } else if (users && Array.isArray(users.data)) {
+      usersList = users.data;
+      storageWrapper.set({ 'stb_users_cache': users.data });
+      renderUsersTable(users.data);
+    }
+  } catch (e) {
+    console.error('Gagal memuat senarai pengguna:', e);
+  }
+}
+
+function renderUsersTable(users) {
+  const tbody = document.getElementById('adminUsersTbody');
+  if (!tbody) return;
+  if (!users || users.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">Tiada pengguna</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const roleBadgeColor = 
+      u.role === 'ADMIN' ? '#7c3aed' :
+      u.role === 'PENGESYOR' ? '#2563eb' :
+      u.role === 'PELULUS' ? '#059669' :
+      u.role === 'PENGARAH' ? '#d97706' : '#64748b';
+    // Dapatkan firebaseCode dari user object (dari cache/session yang sedia ada)
+    // User object dari backend tak termasuk firebaseCode, jadi kita tgk balik dari currentUserFirebaseCode
+    // Tapi kita boleh simpan dalam attribute data
+    return `<tr>
+      <td style="padding:6px 8px; font-weight:600;">${escHtml(u.name)}</td>
+      <td style="padding:6px 8px; font-size:0.85rem; color:#64748b;">${escHtml(u.email)}</td>
+      <td style="padding:6px 8px;"><span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; color:white; background:${roleBadgeColor};">${u.role}</span></td>
+      <td style="padding:6px 8px; font-size:0.8rem; font-family:monospace; color:#64748b;" class="fb-code-${escHtml(u.email.replace(/[@.]/g,'_'))}">-</td>
+      <td style="padding:6px 8px; font-size:0.85rem;">${escHtml(u.phone||'-')}</td>
+      <td style="padding:6px 8px; font-size:0.8rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.signUrl ? escHtml(u.signUrl.substring(0,40))+'...' : '-'}</td>
+      <td style="padding:6px 8px; font-size:0.8rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.copUrl ? escHtml(u.copUrl.substring(0,40))+'...' : '-'}</td>
+      <td style="padding:6px 8px; white-space:nowrap;">
+        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="edit" style="background:#6366f1; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">📝 Edit</button>
+        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="delete" style="background:#ef4444; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">🗑️ Padam</button>
+      </td>
+    </tr>`;
+  }).join('');
+  
+  // Load firebase codes untuk setiap PENGESYOR
+  loadFirebaseCodesForUsers(users);
+}
+
+async function loadFirebaseCodesForUsers(users) {
+  // Kita cuba dapatkan firebase code untuk setiap PENGESYOR dari backend
+  // Backend tak ada endpoint untuk get all firebase codes, 
+  // tapi admin akan nampak bila edit user
+  // Untuk paparan dalam table, kita check dari memory/usersList/cache
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let editingUserEmail = null;
+let editingUserOldFirebaseCode = '';
+
+function showUserModal(user) {
+  editingUserEmail = user ? user.email : null;
+  editingUserOldFirebaseCode = '';
+  document.getElementById('userModalTitle').textContent = user ? '✏️ Edit Pengguna' : '➕ Tambah Pengguna Baru';
+  document.getElementById('userFormName').value = user ? user.name : '';
+  document.getElementById('userFormEmail').value = user ? user.email : '';
+  document.getElementById('userFormEmail').readOnly = !!user;
+  document.getElementById('userFormRole').value = user ? user.role : 'PENGESYOR';
+  document.getElementById('userFormColor').value = user ? (user.color || '#2563eb') : '#2563eb';
+  document.getElementById('userFormPhone').value = user ? (user.phone || '') : '';
+  document.getElementById('userFormSignUrl').value = user ? (user.signUrl || '') : '';
+  document.getElementById('userFormCopUrl').value = user ? (user.copUrl || '') : '';
+  document.getElementById('userFormFirebaseCode').value = '';
+  
+  // Show/hide firebase code field based on role
+  toggleFirebaseFields();
+  
+  // Reset firebase rules section
+  document.getElementById('userFormFirebaseRulesGroup').style.display = 'none';
+  
+  // Jika edit, cuba dapatkan Firebase code sedia ada
+  if (user && user.role === 'PENGESYOR') {
+    (async () => {
+      try {
+        const res = await fetchWithRetry(SCRIPT_URL + '?action=getUserFirebaseCode&email=' + encodeURIComponent(user.email) + '&t=' + Date.now(), {
+          method: 'GET', redirect: 'follow'
+        }, 3, 1000);
+        const data = await res.json();
+        if (data.status === 'success' && data.firebaseCode) {
+          editingUserOldFirebaseCode = data.firebaseCode;
+          document.getElementById('userFormFirebaseCode').value = data.firebaseCode;
+          document.getElementById('userFormFirebaseRulesGroup').style.display = 'block';
+          loadFirebaseRules(data.firebaseCode);
+        }
+      } catch (e) {
+        console.log('Gagal dapatkan Firebase code:', e);
+      }
+    })();
+  }
+  
+  document.getElementById('userModal').style.display = 'flex';
+}
+
+function toggleFirebaseFields() {
+  const role = document.getElementById('userFormRole').value;
+  const fbGroup = document.getElementById('userFormFirebaseGroup');
+  if (role === 'PENGESYOR') {
+    fbGroup.style.display = 'block';
+  } else {
+    fbGroup.style.display = 'none';
+    document.getElementById('userFormFirebaseRulesGroup').style.display = 'none';
+  }
+}
+
+async function saveUser() {
+  const name = document.getElementById('userFormName').value.trim();
+  const email = document.getElementById('userFormEmail').value.trim().toLowerCase();
+  const role = document.getElementById('userFormRole').value;
+  const color = document.getElementById('userFormColor').value.trim();
+  const phone = document.getElementById('userFormPhone').value.trim();
+  const signUrl = document.getElementById('userFormSignUrl').value.trim();
+  const copUrl = document.getElementById('userFormCopUrl').value.trim();
+  const firebaseCode = document.getElementById('userFormFirebaseCode').value.trim();
+  
+  if (!name) return CustomAppModal.alert('Nama pengguna diperlukan.', 'Ralat', 'error');
+  if (!email) return CustomAppModal.alert('Email pengguna diperlukan.', 'Ralat', 'error');
+  
+  const action = editingUserEmail ? 'updateUser' : 'addUser';
+  
+  // V6.8.0: Firebase code migration - jika edit PENGESYOR dan code berubah
+  if (action === 'updateUser' && role === 'PENGESYOR' && firebaseCode && editingUserOldFirebaseCode && firebaseCode !== editingUserOldFirebaseCode) {
+    try {
+      const oldCode = editingUserOldFirebaseCode;
+      const newCode = firebaseCode;
+      let rulesData = null;
+      
+      // Baca dokumen lama dari Firestore
+      if (typeof dbFirestore !== 'undefined') {
+        const oldDoc = await dbFirestore.collection("users").doc(oldCode).get();
+        if (oldDoc.exists) {
+          rulesData = oldDoc.data();
+        }
+      }
+      
+      if (rulesData) {
+        // Tulis ke dokumen baru
+        await dbFirestore.collection("users").doc(newCode).set(rulesData, { merge: true });
+        // Padam dokumen lama
+        await dbFirestore.collection("users").doc(oldCode).delete();
+        console.log(`Firebase code migration: ${oldCode} -> ${newCode} (rules migrated)`);
+      } else {
+        // Jika dokumen lama tiada, mungkin masih ada rules dari SDK
+        // Tulis dokumen baru kosong untuk elak ralat
+        console.log(`Firebase code migration: ${oldCode} -> ${newCode} (no old docs found)`);
+      }
+    } catch (migrateErr) {
+      console.error('Firebase migration gagal, sambung tanpa migrasi:', migrateErr);
+      await CustomAppModal.alert(
+        'Gagal migrasi peraturan Firebase, tapi data pengguna akan disimpan. Sila setup peraturan semula.',
+        'Amaran Migrasi',
+        'warning'
+      );
+    }
+  }
+  
+  // V6.8.0: Jika role ditukar dari PENGESYOR ke lain, padam dokumen Firestore
+  if (action === 'updateUser' && role !== 'PENGESYOR' && editingUserOldFirebaseCode) {
+    try {
+      if (typeof dbFirestore !== 'undefined') {
+        await dbFirestore.collection("users").doc(editingUserOldFirebaseCode).delete();
+        console.log(`Firebase doc deleted (role changed): ${editingUserOldFirebaseCode}`);
+      }
+    } catch (e) {
+      console.error('Gagal padam dokumen Firestore:', e);
+    }
+  }
+  
+  const payload = {
+    action: action,
+    email: currentUser.email,
+    name: name,
+    role: role,
+    color: color,
+    phone: phone,
+    signUrl: signUrl,
+    copUrl: copUrl,
+    firebaseCode: role === 'PENGESYOR' ? firebaseCode : ''
+  };
+  
+  if (action === 'addUser') {
+    payload.userEmail = email;
+  } else {
+    payload.targetEmail = editingUserEmail;
+    payload.userEmail = email;
+  }
+  
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }, 3, 1000);
+    const result = await res.json();
+    
+    if (result.status === 'success') {
+      await CustomAppModal.alert(result.message, 'Berjaya', 'success');
+      closeUserModal();
+      loadUsers();
+      if (typeof triggerAutoRefresh === 'function') triggerAutoRefresh();
+    } else {
+      await CustomAppModal.alert(result.message || 'Ralat tidak diketahui', 'Ralat', 'error');
+    }
+  } catch (e) {
+    await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
+  }
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').style.display = 'none';
+  editingUserEmail = null;
+}
+
+async function deleteUser(email) {
+  const user = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const userName = user ? user.name : email;
+  
+  const confirmed = await CustomAppModal.confirm(
+    `Padamkan <b>${escHtml(userName)}</b> (${escHtml(email)})?<br><br>` +
+    `⚠️ Tandatangan/Cop dalam borang sedia ada <b>TIDAK akan terjejas</b> (telah disimpan dalam snapshot).<br>` +
+    (user && user.role === 'PENGESYOR' ? `🔥 Firebase code dan peraturan tapisan juga akan dipadam.` : ''),
+    'Pengesahan Padam',
+    'warning',
+    'Ya, Padam'
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'deleteUser',
+        email: currentUser.email,
+        targetEmail: email
+      })
+    }, 3, 1000);
+    const result = await res.json();
+    
+    if (result.status === 'success') {
+      await CustomAppModal.alert(`Pengguna ${escHtml(userName)} berjaya dipadam.`, 'Berjaya', 'success');
+      loadUsers();
+      if (typeof triggerAutoRefresh === 'function') triggerAutoRefresh();
+    } else {
+      await CustomAppModal.alert(result.message || 'Ralat tidak diketahui', 'Ralat', 'error');
+    }
+  } catch (e) {
+    await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
+  }
+}
+
+// =========================================================================
+// V6.8.0: FIREBASE RULES MANAGEMENT
+// =========================================================================
+
+function showFirebaseRulesEditor() {
+  const firebaseCode = document.getElementById('userFormFirebaseCode').value.trim();
+  if (!firebaseCode) {
+    return CustomAppModal.alert('Sila isi Firebase Code terlebih dahulu.', 'Makluman', 'warning');
+  }
+  
+  const group = document.getElementById('userFormFirebaseRulesGroup');
+  group.style.display = 'block';
+  
+  loadFirebaseRules(firebaseCode);
+}
+
+async function loadFirebaseRules(firebaseCode) {
+  const container = document.getElementById('firebaseRulesContainer');
+  if (!container) return;
+  
+  let rules = { cidbEndsWith: [], alphaSplit: {} };
+  
+  // Cuba dapatkan dari Firebase
+  if (typeof dbFirestore !== 'undefined' && firebaseCode) {
+    try {
+      const doc = await dbFirestore.collection("users").doc(firebaseCode).get();
+      if (doc.exists) {
+        rules = doc.data();
+      }
+    } catch (e) {
+      console.log('Gagal baca Firebase rules:', e);
+    }
+  }
+  
+  const selectedDigits = rules.cidbEndsWith || [];
+  const alphaSplit = rules.alphaSplit || {};
+  
+  let html = '';
+  for (let i = 0; i <= 9; i++) {
+    const digit = String(i);
+    const checked = selectedDigits.includes(digit) ? 'checked' : '';
+    const alphaVal = alphaSplit[digit] || '';
+    html += `<div style="display:flex; align-items:center; gap:6px; padding:4px;">
+      <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; cursor:pointer; min-width:60px;">
+        <input type="checkbox" class="fb-digit-cb" value="${digit}" ${checked}> Akhir ${digit}
+      </label>
+      <input type="text" class="fb-alpha-input" placeholder="cth: A-M" value="${alphaVal}" style="flex:1; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem; ${checked ? '' : 'display:none;'}">
+    </div>`;
+  }
+  container.innerHTML = html;
+  
+  // Toggle alpha input on checkbox change
+  container.querySelectorAll('.fb-digit-cb').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const alphaInput = this.closest('div').querySelector('.fb-alpha-input');
+      if (alphaInput) {
+        alphaInput.style.display = this.checked ? '' : 'none';
+      }
+    });
+  });
+}
+
+async function saveFirebaseRules() {
+  const firebaseCode = document.getElementById('userFormFirebaseCode').value.trim();
+  if (!firebaseCode) {
+    return CustomAppModal.alert('Sila isi Firebase Code terlebih dahulu.', 'Makluman', 'warning');
+  }
+  
+  const checks = document.querySelectorAll('.fb-digit-cb:checked');
+  const cidbEndsWith = Array.from(checks).map(cb => cb.value);
+  const alphaSplit = {};
+  document.querySelectorAll('.fb-digit-cb').forEach(cb => {
+    if (cb.checked) {
+      const alphaInput = cb.closest('div').querySelector('.fb-alpha-input');
+      if (alphaInput && alphaInput.value.trim()) {
+        alphaSplit[cb.value] = alphaInput.value.trim().toUpperCase();
+      }
+    }
+  });
+  
+  const statusEl = document.getElementById('firebaseRulesStatus');
+  statusEl.textContent = 'Menyimpan...';
+  
+  try {
+    if (typeof dbFirestore !== 'undefined') {
+      await dbFirestore.collection("users").doc(firebaseCode).set({
+        cidbEndsWith: cidbEndsWith,
+        alphaSplit: alphaSplit
+      }, { merge: true });
+      statusEl.textContent = '✅ Peraturan disimpan!';
+      setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    } else {
+      statusEl.textContent = '❌ Firebase tidak tersedia';
+    }
+  } catch (e) {
+    statusEl.textContent = '❌ Ralat: ' + e.message;
+  }
+}
+
+// =========================================================================
+// V6.8.0: ARKIB DATA TAHUNAN
+// =========================================================================
+
+async function handleArchiveYear() {
+  const currentYear = new Date().getFullYear();
+  const confirmed = await CustomAppModal.confirm(
+    `Arkibkan semua data dalam Sheet1 ke tab <b>"${currentYear}"</b>?<br><br>` +
+    `📋 Semua rekod akan dipindahkan dan Sheet1 akan dikosongkan untuk data tahun baru.<br>` +
+    `⚠️ Tindakan ini <b>tidak boleh diterbalikkan</b> melalui sistem (boleh manual di Google Sheets).`,
+    'Arkib Data Tahunan',
+    'info',
+    'Ya, Arkibkan'
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'archiveYearSheet',
+        email: currentUser.email
+      })
+    }, 3, 1000);
+    const result = await res.json();
+    
+    const statusEl = document.getElementById('archiveStatus');
+    if (result.status === 'success') {
+      if (statusEl) statusEl.textContent = `✅ ${result.message}`;
+      await CustomAppModal.alert(`✅ Data berjaya diarkibkan ke sheet "${currentYear}". ${result.totalRecords || 0} rekod dipindahkan.`, 'Berjaya', 'success');
+      if (typeof triggerAutoRefresh === 'function') triggerAutoRefresh();
+    } else {
+      if (statusEl) statusEl.textContent = `❌ ${result.message}`;
+      await CustomAppModal.alert(result.message || 'Ralat', 'Ralat', 'error');
+    }
+  } catch (e) {
+    await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
+  }
+}
+
+// =========================================================================
+// V6.8.0: CLEANUP FIREBASE CODES ORPHAN
+// =========================================================================
+
+async function handleCleanupFirebaseCodes() {
+  const confirmed = await CustomAppModal.confirm(
+    'Bersihkan semua Firebase Code yang tiada padanan pengguna dalam Users sheet?<br><br>' +
+    'Ini akan memadam Script Properties seperti <code>FIREBASE_CODE_MAP_*</code> untuk pengguna yang sudah dipadam dari sistem.',
+    'Pembersihan Firebase Code',
+    'warning',
+    'Ya, Bersihkan'
+  );
+  if (!confirmed) return;
+  
+  const statusEl = document.getElementById('cleanupStatus');
+  if (statusEl) statusEl.textContent = 'Memproses...';
+  
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'cleanupFirebaseCodes',
+        email: currentUser.email
+      })
+    }, 3, 1000);
+    const result = await res.json();
+    
+    if (result.status === 'success') {
+      if (statusEl) statusEl.textContent = `✅ ${result.message}`;
+      await CustomAppModal.alert(result.message, 'Berjaya', 'success');
+    } else {
+      if (statusEl) statusEl.textContent = `❌ ${result.message}`;
+      await CustomAppModal.alert(result.message || 'Ralat', 'Ralat', 'error');
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '❌ Ralat rangkaian';
+    await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
+  }
+}
+
+// =========================================================================
+// V6.8.0: INIT EVENT LISTENERS UNTUK ADMIN USER MANAGEMENT
+// =========================================================================
+
+let _adminUserMgmtInitialized = false;
+
+function initAdminUserManagement() {
+  if (_adminUserMgmtInitialized) return;
+  _adminUserMgmtInitialized = true;
+  
+  // Butang tambah pengguna
+  const btnAdd = document.getElementById('btnAddUser');
+  if (btnAdd) btnAdd.addEventListener('click', () => showUserModal(null));
+  
+  // Butang refresh users
+  const btnRefresh = document.getElementById('btnRefreshUsers');
+  if (btnRefresh) btnRefresh.addEventListener('click', loadUsers);
+  
+  // Butang simpan user
+  const btnSave = document.getElementById('btnSaveUser');
+  if (btnSave) btnSave.addEventListener('click', saveUser);
+  
+  // Close modal
+  const closeBtn = document.getElementById('userModalClose');
+  if (closeBtn) closeBtn.addEventListener('click', closeUserModal);
+  
+  // Click outside modal to close
+  const modal = document.getElementById('userModal');
+  if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeUserModal(); });
+  
+  // Role change toggles firebase fields
+  const roleSelect = document.getElementById('userFormRole');
+  if (roleSelect) roleSelect.addEventListener('change', toggleFirebaseFields);
+  
+  // Firebase code input change -> show firebase rules editor
+  const fbCodeInput = document.getElementById('userFormFirebaseCode');
+  if (fbCodeInput) fbCodeInput.addEventListener('input', function() {
+    if (this.value.trim()) {
+      document.getElementById('userFormFirebaseRulesGroup').style.display = 'block';
+      loadFirebaseRules(this.value.trim());
+    } else {
+      document.getElementById('userFormFirebaseRulesGroup').style.display = 'none';
+    }
+  });
+  
+  // Firebase rules save
+  const btnSaveRules = document.getElementById('btnSaveFirebaseRules');
+  if (btnSaveRules) btnSaveRules.addEventListener('click', saveFirebaseRules);
+  
+  // Event delegation for edit/delete buttons in users table
+  const tbody = document.getElementById('adminUsersTbody');
+  if (tbody) {
+    tbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const email = btn.getAttribute('data-email');
+      const action = btn.getAttribute('data-action');
+      if (action === 'edit') {
+        const user = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (user) showUserModal(user);
+      } else if (action === 'delete') {
+        await deleteUser(email);
+      }
+    });
+  }
+  
+  // Butang arkib tahun
+  const btnArchive = document.getElementById('btnArchiveYear');
+  if (btnArchive) btnArchive.addEventListener('click', handleArchiveYear);
+  
+  // Butang cleanup firebase codes
+  const btnCleanup = document.getElementById('btnCleanupFirebase');
+  if (btnCleanup) btnCleanup.addEventListener('click', handleCleanupFirebaseCodes);
+  
+  // Load users
+  loadUsers();
+}
+
 }); // <--- PENUTUP UTAMA UNTUK DOMContentLoaded
 
-console.log("STB System V6.6.0 - Web App JS loaded successfully (WhatsApp + Inbox)");
+console.log("STB System V6.8.0 - Web App JS loaded successfully (User Mgmt + Archive)");
