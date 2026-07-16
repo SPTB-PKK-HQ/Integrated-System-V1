@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxd7mCGbrP92OgsRLFxn0_ikBulDObb6gZ9VzPTErksTyVGQYr1C8Rb5O2JZfju9d3p/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxu3qEP933LdGxzMm-459TG0SpTueMI53O1JLPfITghNtk2T0xXVZwBSAxRNnOHK1la/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -2820,6 +2820,226 @@ async function handleCredentialResponse(response) {
       return labels.length > 0 ? labels.join(', ') : '-';
     } catch (e) { return '-'; }
   }
+
+  // =========================================================================
+  // V6.8.0: PKA FUNCTIONS
+  // =========================================================================
+
+  function loadPKADashboard() {
+    const tbody = document.getElementById('pkaDashboardBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+
+    const data = cachedData || [];
+    const diSPI = data.filter(d => d.status_hantar_spi === 'DIHANTAR');
+    const belumLawatan = diSPI.filter(d => !d.lawatan_tarikh);
+    const selesaiLawatan = diSPI.filter(d => d.lawatan_syor);
+    
+    document.getElementById('pkaStatSpi').textContent = diSPI.length;
+    document.getElementById('pkaStatLawatan').textContent = belumLawatan.length;
+    document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="pka-empty">Tiada permohonan</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(d => {
+      const statusBadge = d.status_hantar_spi === 'DIHANTAR'
+        ? '<span class="pka-badge pka-badge-yellow">DIHANTAR</span>'
+        : d.status_hantar_spi === 'SELESAI'
+        ? '<span class="pka-badge pka-badge-green">SELESAI</span>'
+        : `<span class="pka-badge pka-badge-red">${d.status_hantar_spi || '-'}</span>`;
+      const lawatanStatus = d.lawatan_syor
+        ? '✅ Selesai'
+        : d.lawatan_tarikh ? '🔧 Diisi' : '⏳ Belum';
+      return `<tr>
+        <td>${d.syarikat}</td>
+        <td>${d.cidb || '-'}</td>
+        <td>${d.gred || '-'}</td>
+        <td>${d.pengesyor || '-'}</td>
+        <td>${statusBadge}</td>
+        <td>${d.tarikh_hantar_spi || '-'}</td>
+        <td>${d.lawatan_syor || '-'}</td>
+        <td>${lawatanStatus}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function loadPKAInbox() {
+    const tbody = document.getElementById('pkaInboxBody');
+    const countEl = document.getElementById('pkaInboxCount');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+
+    const data = (cachedData || []).filter(d =>
+      d.status_hantar_spi === 'DIHANTAR' && !d.lawatan_tarikh
+    );
+
+    if (countEl) countEl.textContent = `${data.length} permohonan`;
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="pka-empty">Tiada permohonan dalam inbox</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(d => `<tr>
+      <td>${d.syarikat}<br><small style="color:#64748b;">Baris ${d.row}</small></td>
+      <td>${d.cidb || '-'}</td>
+      <td>${d.gred || '-'}</td>
+      <td>${d.jenis || '-'}</td>
+      <td>${d.pengesyor || '-'}</td>
+      <td>${d.tarikh_hantar_spi || '-'}</td>
+      <td>${d.start_date || '-'}</td>
+    </tr>`).join('');
+  }
+
+  function loadPKAKeputusanSPI() {
+    const tbody = document.getElementById('pkaKeputusanBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+
+    const data = (cachedData || []).filter(d =>
+      d.status_hantar_spi === 'DIHANTAR'
+    );
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="pka-empty">Tiada permohonan untuk diproses</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(d => {
+      const row = d.row;
+      const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
+        .map(v => `<option value="${v}"${d.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
+      return `<tr>
+        <td>${d.syarikat}<br><small style="color:#64748b;">Baris ${row}</small></td>
+        <td>${d.cidb || '-'}</td>
+        <td>${d.gred || '-'}</td>
+        <td>${d.pengesyor || '-'}</td>
+        <td><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${d.lawatan_tarikh || ''}"></td>
+        <td><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${d.lawatan_submit_sptb || ''}"></td>
+        <td><select class="editable-select" id="pkaLawatanSyor_${row}">${syorOptions}</select></td>
+        <td><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${d.ulasan_spi || ''}</textarea></td>
+        <td><button class="pka-btn-sm pka-btn-orange" onclick="pkaUrusFail(${row})">📂 Urus Fail</button></td>
+        <td><button class="pka-btn-sm pka-btn-green" onclick="pkaHantarKeputusan(${row})">📤 Hantar</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function loadPKASejarahSPI() {
+    const tbody = document.getElementById('pkaSejarahBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
+
+    const data = (cachedData || []).filter(d =>
+      d.lawatan_syor && d.lawatan_syor.toString().trim() !== ''
+    );
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="pka-empty">Tiada rekod sejarah</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(d => `<tr>
+      <td>${d.syarikat}</td>
+      <td>${d.cidb || '-'}</td>
+      <td>${d.pengesyor || '-'}</td>
+      <td>${d.lawatan_tarikh || '-'}</td>
+      <td>${d.lawatan_submit_sptb || '-'}</td>
+      <td>${d.lawatan_syor || '-'}</td>
+      <td>${d.ulasan_spi || '-'}</td>
+    </tr>`).join('');
+  }
+
+  // Fungsi urus fail - buka file manager
+  window.pkaUrusFail = async function(row) {
+    const item = (cachedData || []).find(d => d.row === row);
+    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
+
+    let pautanDrive = item.pautan || '';
+    let folderId = '';
+    if (pautanDrive) {
+      const match = pautanDrive.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) folderId = match[1];
+    }
+
+    if (!folderId) {
+      await CustomAppModal.alert("Tiada folder Drive untuk syarikat ini. Sila cipta folder terlebih dahulu di tab Input Database.", "Makluman", "warning");
+      return;
+    }
+
+    openFileManager(folderId);
+  };
+
+  // Fungsi hantar keputusan - simpan + WhatsApp pengesyor
+  window.pkaHantarKeputusan = async function(row) {
+    const lawatanTarikh = document.getElementById(`pkaLawatanTarikh_${row}`)?.value || '';
+    const lawatanSptb = document.getElementById(`pkaLawatanSptb_${row}`)?.value || '';
+    const lawatanSyor = document.getElementById(`pkaLawatanSyor_${row}`)?.value || '';
+    const ulasanSpi = document.getElementById(`pkaUlasanSpi_${row}`)?.value || '';
+
+    if (!lawatanTarikh || !lawatanSptb || !lawatanSyor) {
+      await CustomAppModal.alert("Sila isi Tarikh Lawatan, Tarikh Hantar SPTB, dan Syor SPI.", "Makluman", "warning");
+      return;
+    }
+
+    const item = (cachedData || []).find(d => d.row === row);
+    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
+
+    // Simpan ke backend
+    const result = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'pkaUpdateLawatan',
+        email: currentUser.email,
+        row: row,
+        lawatan_tarikh: lawatanTarikh,
+        lawatan_submit_sptb: lawatanSptb,
+        lawatan_syor: lawatanSyor,
+        ulasan_spi: ulasanSpi
+      })
+    }, 3, 1000);
+
+    const res = await result.json();
+    if (res.status !== 'success') {
+      await CustomAppModal.alert('Gagal menyimpan: ' + (res.message || 'Ralat tidak diketahui'), 'Ralat', 'error');
+      return;
+    }
+
+    // Dapatkan contact pengesyor untuk WhatsApp
+    const contactResult = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'pkaGetPengesyorContact',
+        email: currentUser.email,
+        pengesyor: item.pengesyor
+      })
+    }, 3, 1000);
+
+    const contactRes = await contactResult.json();
+    if (contactRes.success && contactRes.waLink && contactRes.phone) {
+      const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
+      window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
+      await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
+    } else {
+      await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
+    }
+
+    // Update cached data in place
+    if (cachedData) {
+      const idx = cachedData.findIndex(d => d.row === row);
+      if (idx !== -1) {
+        cachedData[idx].lawatan_tarikh = lawatanTarikh;
+        cachedData[idx].lawatan_submit_sptb = lawatanSptb;
+        cachedData[idx].lawatan_syor = lawatanSyor;
+        cachedData[idx].ulasan_spi = ulasanSpi;
+      }
+    }
+    loadPKAKeputusanSPI();
+  };
 
   function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
@@ -8616,6 +8836,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       switchTab(activeTab);
       
+    } else if (currentUser.role === 'PKA') {
+      tabsContainer.innerHTML = `
+        <button class="tab-btn" data-target="pka-dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
+        <button class="tab-btn" data-target="pka-inbox"><span class="tab-icon">📥</span><span class="tab-text">Inbox SPI</span></button>
+        <button class="tab-btn" data-target="pka-keputusan-spi"><span class="tab-icon">✅</span><span class="tab-text">Keputusan SPI</span></button>
+        <button class="tab-btn" data-target="pka-sejarah-spi"><span class="tab-icon">📜</span><span class="tab-text">Sejarah SPI</span></button>
+      `;
+      
+      if(!activeTab || !['pka-dashboard','pka-inbox','pka-keputusan-spi','pka-sejarah-spi'].includes(activeTab)) {
+        activeTab = 'pka-dashboard';
+      }
+      
+      switchTab(activeTab);
+      
     } else {
       await CustomAppModal.alert("Role pengguna tidak dikenali.", "Ralat Akses", "error");
     }
@@ -8819,6 +9053,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       setTimeout(() => {
         restoreActiveElement();
       }, 200);
+    }
+    else if (tabName === 'pka-dashboard') {
+      const el = document.getElementById('tab-pka-dashboard');
+      if (el) { el.style.display = 'block'; el.classList.add('active'); }
+      setTimeout(() => { loadPKADashboard(); restoreActiveElement(); }, 200);
+    }
+    else if (tabName === 'pka-inbox') {
+      const el = document.getElementById('tab-pka-inbox');
+      if (el) { el.style.display = 'block'; el.classList.add('active'); }
+      setTimeout(() => { loadPKAInbox(); restoreActiveElement(); }, 200);
+    }
+    else if (tabName === 'pka-keputusan-spi') {
+      const el = document.getElementById('tab-pka-keputusan-spi');
+      if (el) { el.style.display = 'block'; el.classList.add('active'); }
+      setTimeout(() => { loadPKAKeputusanSPI(); restoreActiveElement(); }, 200);
+    }
+    else if (tabName === 'pka-sejarah-spi') {
+      const el = document.getElementById('tab-pka-sejarah-spi');
+      if (el) { el.style.display = 'block'; el.classList.add('active'); }
+      setTimeout(() => { loadPKASejarahSPI(); restoreActiveElement(); }, 200);
     }
     // =========================================================
     // TAMBAH KOD YOUTUBE DI SINI SUPAYA SEMUA ROLE BOLEH AKSES
@@ -10892,12 +11146,30 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       if (dbLawatanTarikh && item.lawatan_tarikh) {
         dbLawatanTarikh.value = item.lawatan_tarikh;
+        dbLawatanTarikh.readOnly = true;
+        dbLawatanTarikh.title = 'Diisi oleh PKA. Klik untuk edit jika perlu.';
+        dbLawatanTarikh.style.cursor = 'pointer';
+        dbLawatanTarikh.addEventListener('click', function() { this.readOnly = false; this.focus(); }, { once: true });
+      } else if (dbLawatanTarikh) {
+        dbLawatanTarikh.readOnly = false;
       }
       if (dbLawatanSubmitSptb && item.lawatan_submit_sptb) {
         dbLawatanSubmitSptb.value = item.lawatan_submit_sptb;
+        dbLawatanSubmitSptb.readOnly = true;
+        dbLawatanSubmitSptb.title = 'Diisi oleh PKA. Klik untuk edit jika perlu.';
+        dbLawatanSubmitSptb.style.cursor = 'pointer';
+        dbLawatanSubmitSptb.addEventListener('click', function() { this.readOnly = false; this.focus(); }, { once: true });
+      } else if (dbLawatanSubmitSptb) {
+        dbLawatanSubmitSptb.readOnly = false;
       }
       if (dbLawatanSyor && item.lawatan_syor) {
         dbLawatanSyor.value = item.lawatan_syor;
+        dbLawatanSyor.disabled = true;
+        dbLawatanSyor.title = 'Diisi oleh PKA. Klik untuk edit jika perlu.';
+        dbLawatanSyor.style.cursor = 'pointer';
+        dbLawatanSyor.addEventListener('click', function() { this.disabled = false; }, { once: true });
+      } else if (dbLawatanSyor) {
+        dbLawatanSyor.disabled = false;
       }
     }
     

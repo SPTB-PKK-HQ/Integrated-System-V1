@@ -42,9 +42,10 @@ const ROLE_PELULUS = "PELULUS";
 const ROLE_PENGARAH = "PENGARAH";
 const ROLE_KETUA_SEKSYEN = "KETUA_SEKSYEN";
 const ROLE_ADMIN = "ADMIN";
+const ROLE_PKA = "PKA";
 
-// Jumlah lajur dalam sheet (A hingga AE = 31 lajur)
-const TOTAL_COLUMNS = 31;
+// Jumlah lajur dalam sheet (A hingga AF = 32 lajur)
+const TOTAL_COLUMNS = 32;
 
 // === CACHE CONFIG ===
 const APP_DATA_CACHE_KEY = 'STB_APP_DATA_V3';
@@ -419,7 +420,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -672,6 +673,30 @@ function doPost(e) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
       return handleCleanupFirebaseCodes(data);
+    }
+    
+    // V6.8.0: Handler untuk PKA update lawatan
+    if (data.action === 'pkaUpdateLawatan') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PKA]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      return handlePKAUpdateLawatan(data, sheet);
+    }
+    
+    // V6.8.0: Handler untuk PKA dapatkan contact pengesyor
+    if (data.action === 'pkaGetPengesyorContact') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PKA]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      return handlePKAGetPengesyorContact(data);
     }
     
     const shouldCreateFolder = data.createFolder === true;
@@ -2019,7 +2044,7 @@ function handleDeleteRecord(data, sheet) {
       }
       
       // KOD BARU: Simpan snapshot data sebelum padam
-      const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox'];
+      const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox','ulasan_spi'];
       const snapshot = {};
       for (let i = 0; i < existingData.length && i < columnLabels.length; i++) {
         snapshot[columnLabels[i]] = existingData[i] ? existingData[i].toString() : '';
@@ -2646,7 +2671,8 @@ function getApplicationsData(role, userName, clientVersion) {
       tarikh_lulus: row[24], pelulus: row[25], ubah_maklumat: row[26], ubah_gred: row[27],
       borang_json: row[28] || "",
       whatsapp_schedule: row[29] || "",
-      inbox: row[30] || ""
+      inbox: row[30] || "",
+      ulasan_spi: row[31] || ""
     });
   }
 
@@ -2680,7 +2706,7 @@ function getSingleRowData(rowNum) {
         alamat_perniagaan: row[20], jenis_konsultansi: row[21] || "", alasan: row[22],
         kelulusan: row[23], tarikh_lulus: row[24], pelulus: row[25],
         ubah_maklumat: row[26], ubah_gred: row[27], borang_json: row[28] || "",
-        whatsapp_schedule: row[29] || "", inbox: row[30] || ""
+        whatsapp_schedule: row[29] || "", inbox: row[30] || "", ulasan_spi: row[31] || ""
       }
     });
   } catch (e) {
@@ -2694,8 +2720,105 @@ function filterRowsByRole(rows, role, userName) {
   } else if (role === ROLE_PELULUS && userName) {
     return rows.filter(r => r.syor_status && r.syor_status.toString().trim() !== ""
       && r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
+  } else if (role === ROLE_PKA) {
+    return rows.filter(r => !r.syor_lawatan || r.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
   }
   return rows;
+}
+
+// =========================================================================
+// V6.8.0: PKA HANDLERS
+// =========================================================================
+
+/**
+ * Fungsi handlePKAUpdateLawatan: PKA mengemaskini lawatan dan syor SPI
+ * Hanya update kolum R(18), S(19), T(20), AF(32) + borang_json jika ada laporan
+ */
+function handlePKAUpdateLawatan(data, sheet) {
+  try {
+    const rowNum = parseInt(data.row);
+    if (rowNum < 2) return createJSONOutput({ status: "error", message: "Nombor baris tidak sah" });
+
+    // BLOK 3: Update lawatan_tarikh (R/18), lawatan_submit_sptb (S/19), lawatan_syor (T/20)
+    if (data.lawatan_tarikh !== undefined || data.lawatan_submit_sptb !== undefined ||
+        data.lawatan_syor !== undefined) {
+      const currentLawatan = sheet.getRange(rowNum, 18, 1, 3).getValues()[0];
+      const updatedLawatan = [
+        data.lawatan_tarikh !== undefined ? data.lawatan_tarikh : currentLawatan[0],
+        data.lawatan_submit_sptb !== undefined ? data.lawatan_submit_sptb : currentLawatan[1],
+        data.lawatan_syor !== undefined ? data.lawatan_syor : currentLawatan[2]
+      ];
+      sheet.getRange(rowNum, 18, 1, 3).setValues([updatedLawatan]);
+    }
+
+    // BLOK 8: Update ulasan_spi (AF/32)
+    if (data.ulasan_spi !== undefined) {
+      sheet.getRange(rowNum, 32).setValue(data.ulasan_spi);
+    }
+
+    // BLOK 5: Update borang_json jika ada laporan_spi_url
+    if (data.laporan_spi_url !== undefined) {
+      const existingJSON = sheet.getRange(rowNum, 29).getValue() || '{}';
+      let parsed = {};
+      try { parsed = JSON.parse(existingJSON); } catch (e) { parsed = {}; }
+      parsed.laporan_spi_url = data.laporan_spi_url;
+      sheet.getRange(rowNum, 29).setValue(JSON.stringify(parsed));
+    }
+
+    logActivity(data.email || 'PKA', 'PKA_UPDATE_LAWATAN', `Lawatan diupdate oleh PKA untuk baris ${rowNum}`, '');
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: "Lawatan berjaya dikemaskini" });
+  } catch (error) {
+    logActivity('System', 'ERROR_PKA_UPDATE', `Ralat: ${error.toString()}`, '');
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi handlePKAGetPengesyorContact: Dapatkan no telefon pengesyor dari Users sheet
+ */
+function handlePKAGetPengesyorContact(data) {
+  try {
+    const pengesyorName = data.pengesyor || '';
+    if (!pengesyorName) {
+      return createJSONOutput({ success: false, error: "Nama pengesyor tidak disediakan" });
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (!sheet) return createJSONOutput({ success: false, error: "Users sheet tidak dijumpai" });
+
+    const usersData = sheet.getDataRange().getDisplayValues();
+    if (!usersData || usersData.length < 2) return createJSONOutput({ success: false, error: "Tiada data pengguna" });
+
+    const headers = usersData.shift();
+    const nameCol = headers.findIndex(h => h && h.toString().toUpperCase().includes('NAMA'));
+    const phoneCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TELEFON') || h.toString().toUpperCase().includes('PHONE') || h.toString().toUpperCase().includes('NO TEL')));
+
+    if (nameCol === -1) return createJSONOutput({ success: false, error: "Lajur nama tidak dijumpai" });
+
+    const searchName = pengesyorName.toString().toUpperCase().trim();
+    for (let i = 0; i < usersData.length; i++) {
+      const userName = (usersData[i][nameCol] || '').toString().toUpperCase().trim();
+      if (userName === searchName) {
+        let phone = phoneCol !== -1 ? (usersData[i][phoneCol] || '') : '';
+        phone = phone.replace(/[\s\-\(\)]/g, '');
+        let cleanPhone = phone;
+        if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
+        else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
+
+        return createJSONOutput({
+          success: true,
+          phone: phone,
+          waLink: `https://wa.me/${cleanPhone}`
+        });
+      }
+    }
+
+    return createJSONOutput({ success: false, error: "Pengesyor tidak dijumpai dalam Users sheet" });
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
+  }
 }
 
 // === HELPER FUNCTIONS ===
