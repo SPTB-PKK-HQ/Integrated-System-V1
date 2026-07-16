@@ -2806,27 +2806,43 @@ function handlePKAGetPengesyorContact(data) {
     const rawName = pengesyorName.toString().toUpperCase().replace(/\s+/g, ' ').trim();
     const searchName = stripTitle(rawName);
     const searchNames = [...new Set([rawName, searchName])];
+    let matched = false;
     for (let i = 0; i < usersData.length; i++) {
       const rawUserName = normalizeName(usersData[i][nameCol] || '');
       const userName = stripTitle(rawUserName);
       const userNames = [...new Set([rawUserName, userName])];
       const match = searchNames.some(s => userNames.some(u => u === s));
       if (match) {
+        matched = true;
         let phone = phoneCol !== -1 ? (usersData[i][phoneCol] || '') : '';
         phone = phone.replace(/[\s\-\(\)]/g, '');
+        if (!phone) continue;
         let cleanPhone = phone;
         if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
         else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
-
-        return createJSONOutput({
-          success: true,
-          phone: phone,
-          waLink: `https://wa.me/${cleanPhone}`
-        });
+        return createJSONOutput({ success: true, phone: phone, waLink: `https://wa.me/${cleanPhone}` });
       }
     }
 
-    return createJSONOutput({ success: false, error: "Pengesyor tidak dijumpai dalam Users sheet" });
+    // Fallback: partial name match
+    for (let i = 0; i < usersData.length; i++) {
+      const rawUserName = normalizeName(usersData[i][nameCol] || '');
+      const userName = stripTitle(rawUserName);
+      if (!userName) continue;
+      const matchPartial = searchNames.some(s => s && (userName.includes(s) || s.includes(userName)));
+      if (matchPartial) {
+        let phone = phoneCol !== -1 ? (usersData[i][phoneCol] || '') : '';
+        phone = phone.replace(/[\s\-\(\)]/g, '');
+        if (!phone) continue;
+        let cleanPhone = phone;
+        if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
+        else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
+        return createJSONOutput({ success: true, phone: phone, waLink: `https://wa.me/${cleanPhone}` });
+      }
+    }
+
+    const allNames = usersData.map(r => (r[nameCol] || '').toString().trim()).filter(Boolean).join(', ');
+    return createJSONOutput({ success: false, error: "Pengesyor '" + pengesyorName + "' tidak dijumpai. Nama dalam Users: " + allNames.substring(0, 200) });
   } catch (error) {
     return createJSONOutput({ success: false, error: error.toString() });
   }

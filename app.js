@@ -3199,7 +3199,8 @@ async function handleCredentialResponse(response) {
                 await CustomAppModal.alert('Data berjaya disimpan. WhatsApp tidak dihantar.', 'Berjaya', 'success');
               }
             } else {
-              await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
+              const errMsg = contactRes.error || 'nombor telefon pengesyor tidak dijumpai';
+              await CustomAppModal.alert('Data berjaya disimpan. Namun, ' + errMsg + ' Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
             }
           } catch (err) {
             if (loadingEl) loadingEl.classList.remove('show');
