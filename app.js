@@ -2869,7 +2869,7 @@ async function handleCredentialResponse(response) {
     const all = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
     const diSPI = all.filter(d =>
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
-      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      d.date_submit && d.date_submit.toString().trim() !== '' &&
       (!d.syor_status || d.syor_status.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
@@ -2886,7 +2886,7 @@ async function handleCredentialResponse(response) {
     }
     list.innerHTML = data.map((d, i) => {
       const jenisBadge = d.jenis ? `<span class="pka-badge" style="background:#dbeafe;color:#1e40af;">${d.jenis}</span>` : '';
-      const spiDate = d.tarikh_hantar_spi ? formatDateDisplay(d.tarikh_hantar_spi) : '';
+      const spiDate = d.date_submit ? formatDateDisplay(d.date_submit) : '';
       const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
       return `<div class="pka-card-item" style="border-left:4px solid #f59e0b;">
         <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
@@ -2895,7 +2895,7 @@ async function handleCredentialResponse(response) {
             <div class="pka-card-item-title">${d.syarikat}</div>
             <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} ${jenisBadge ? '| ' + jenisBadge : ''}</div>
             <div style="font-size:0.8rem;color:#475569;margin-top:4px;">👤 ${d.pengesyor || '-'}</div>
-            <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 SPI: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
+            <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 Hantar: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
           </div>
         </div>
         <div class="pka-card-item-actions">
@@ -2915,7 +2915,7 @@ async function handleCredentialResponse(response) {
 
     window._pkaInboxData = (cachedData || []).filter(d =>
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
-      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      d.date_submit && d.date_submit.toString().trim() !== '' &&
       (!d.syor_status || d.syor_status.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
@@ -2992,12 +2992,12 @@ async function handleCredentialResponse(response) {
     const row = item.row;
     const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
       .map(v => `<option value="${v}"${item.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
-    const spiDate = item.tarikh_hantar_spi ? formatDateDisplay(item.tarikh_hantar_spi) : '-';
+    const spiDate = item.date_submit ? formatDateDisplay(item.date_submit) : '-';
 
     list.innerHTML = `<div class="pka-card-item" style="border-left:4px solid #3b82f6;">
       <div class="pka-card-item-info">
         <div class="pka-card-item-title">${item.syarikat}</div>
-        <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | 👤 ${item.pengesyor || '-'} | 📤 ${spiDate}</div>
+        <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | 👤 ${item.pengesyor || '-'} | 📤 Hantar: ${spiDate}</div>
         <div class="pka-card-field">
           <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${item.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
           <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${item.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
