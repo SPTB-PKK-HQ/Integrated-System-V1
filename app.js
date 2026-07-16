@@ -2867,7 +2867,12 @@ async function handleCredentialResponse(response) {
 
   function loadPKADashboard() {
     const all = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
-    const diSPI = all.filter(d => d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '');
+    const diSPI = all.filter(d =>
+      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
+      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
+    );
     const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
     
     document.getElementById('pkaStatSpi').textContent = diSPI.length;
