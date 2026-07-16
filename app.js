@@ -3129,56 +3129,76 @@ async function handleCredentialResponse(response) {
             return;
           }
 
-          const result = await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'pkaUpdateLawatan',
-              email: currentUser.email,
-              row: row,
-              lawatan_tarikh: lawatanTarikh,
-              lawatan_submit_sptb: lawatanSptb,
-              lawatan_syor: lawatanSyor,
-              ulasan_spi: ulasanSpi
-            })
-          }, 3, 1000);
+          const loadingEl = document.getElementById('pkaLoadingOverlay');
+          const loadingText = document.getElementById('pkaLoadingText');
+          const loadingSub = document.getElementById('pkaLoadingSub');
+          if (loadingEl) { loadingEl.classList.add('show'); }
+          if (loadingText) loadingText.textContent = 'Menyimpan keputusan...';
+          if (loadingSub) loadingSub.textContent = 'Sila tunggu sebentar';
 
-          const res = await result.json();
-          if (res.status !== 'success') {
-            await CustomAppModal.alert('Gagal menyimpan: ' + (res.message || 'Ralat tidak diketahui'), 'Ralat', 'error');
-            return;
-          }
+          try {
+            const result = await fetchWithRetry(SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'pkaUpdateLawatan',
+                email: currentUser.email,
+                row: row,
+                lawatan_tarikh: lawatanTarikh,
+                lawatan_submit_sptb: lawatanSptb,
+                lawatan_syor: lawatanSyor,
+                ulasan_spi: ulasanSpi
+              })
+            }, 3, 1000);
 
-          const contactResult = await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'pkaGetPengesyorContact',
-              email: currentUser.email,
-              pengesyor: item.pengesyor
-            })
-          }, 3, 1000);
-
-          const contactRes = await contactResult.json();
-          if (contactRes.success && contactRes.waLink && contactRes.phone) {
-            const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
-            window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
-            await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
-          } else {
-            await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
-          }
-
-          if (cachedData) {
-            const idx = cachedData.findIndex(d => d.row === row);
-            if (idx !== -1) {
-              cachedData[idx].lawatan_tarikh = lawatanTarikh;
-              cachedData[idx].lawatan_submit_sptb = lawatanSptb;
-              cachedData[idx].lawatan_syor = lawatanSyor;
-              cachedData[idx].ulasan_spi = ulasanSpi;
+            const res = await result.json();
+            if (res.status !== 'success') {
+              if (loadingEl) loadingEl.classList.remove('show');
+              await CustomAppModal.alert('Gagal menyimpan: ' + (res.message || 'Ralat tidak diketahui'), 'Ralat', 'error');
+              return;
             }
+
+            if (loadingText) loadingText.textContent = 'Mendapatkan nombor telefon...';
+            if (loadingSub) loadingSub.textContent = 'Sila tunggu sebentar';
+
+            const contactResult = await fetchWithRetry(SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'pkaGetPengesyorContact',
+                email: currentUser.email,
+                pengesyor: item.pengesyor
+              })
+            }, 3, 1000);
+
+            const contactRes = await contactResult.json();
+
+            if (cachedData) {
+              const idx = cachedData.findIndex(d => d.row === row);
+              if (idx !== -1) {
+                cachedData[idx].lawatan_tarikh = lawatanTarikh;
+                cachedData[idx].lawatan_submit_sptb = lawatanSptb;
+                cachedData[idx].lawatan_syor = lawatanSyor;
+                cachedData[idx].ulasan_spi = ulasanSpi;
+              }
+            }
+
+            if (loadingEl) loadingEl.classList.remove('show');
+
+            window._pkaSelectedRow = null;
+            loadPKAKeputusanSPI();
+
+            if (contactRes.success && contactRes.waLink && contactRes.phone) {
+              const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
+              window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
+              await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
+            } else {
+              await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
+            }
+          } catch (err) {
+            if (loadingEl) loadingEl.classList.remove('show');
+            await CustomAppModal.alert('Ralat: ' + err.message, 'Ralat', 'error');
           }
-          window._pkaSelectedRow = row;
-          loadPKAKeputusanSPI();
         }
       });
     });
