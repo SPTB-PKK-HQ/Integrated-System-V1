@@ -2871,6 +2871,7 @@ async function handleCredentialResponse(response) {
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.date_submit && d.date_submit.toString().trim() !== '' &&
       (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
     const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
@@ -2917,6 +2918,7 @@ async function handleCredentialResponse(response) {
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.date_submit && d.date_submit.toString().trim() !== '' &&
       (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
