@@ -2918,36 +2918,24 @@ async function handleCredentialResponse(response) {
     list.innerHTML = html;
   }
 
-  function loadPKAInbox() {
-    const list = document.getElementById('pkaInboxList');
-    const countEl = document.getElementById('pkaInboxCount');
-    if (!list) return;
-    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
-
-    const data = (cachedData || []).filter(d =>
-      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
-      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
-      (!d.syor_status || d.syor_status.toString().trim() === '') &&
-      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
-    );
-
-    if (countEl) countEl.textContent = `${data.length} permohonan`;
-
+  function pkaRenderInboxCards(data, list) {
     if (data.length === 0) {
       list.innerHTML = '<p class="pka-empty">Tiada permohonan dalam inbox</p>';
       return;
     }
-
-    list.innerHTML = data.map(d => {
+    list.innerHTML = data.map((d, i) => {
       const jenisBadge = d.jenis ? `<span class="pka-badge" style="background:#dbeafe;color:#1e40af;">${d.jenis}</span>` : '';
       const spiDate = d.tarikh_hantar_spi ? formatDateDisplay(d.tarikh_hantar_spi) : '';
       const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
       return `<div class="pka-card-item" style="border-left:4px solid #f59e0b;">
-        <div class="pka-card-item-info">
-          <div class="pka-card-item-title">${d.syarikat}</div>
-          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} ${jenisBadge ? '| ' + jenisBadge : ''}</div>
-          <div style="font-size:0.8rem;color:#475569;margin-top:4px;">👤 ${d.pengesyor || '-'}</div>
-          <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 SPI: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+          <span style="background:#f59e0b;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;flex-shrink:0;">${i + 1}</span>
+          <div class="pka-card-item-info">
+            <div class="pka-card-item-title">${d.syarikat}</div>
+            <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} ${jenisBadge ? '| ' + jenisBadge : ''}</div>
+            <div style="font-size:0.8rem;color:#475569;margin-top:4px;">👤 ${d.pengesyor || '-'}</div>
+            <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 SPI: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
+          </div>
         </div>
         <div class="pka-card-item-actions">
           <button class="pka-btn-sm pka-btn-green" data-pka-action="go-keputusan">✅ Proses</button>
@@ -2955,6 +2943,42 @@ async function handleCredentialResponse(response) {
       </div>`;
     }).join('');
   }
+
+  window._pkaInboxData = [];
+  function loadPKAInbox() {
+    const list = document.getElementById('pkaInboxList');
+    const countEl = document.getElementById('pkaInboxCount');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
+
+    window._pkaInboxData = (cachedData || []).filter(d =>
+      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
+      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
+    );
+
+    if (countEl) countEl.textContent = `${window._pkaInboxData.length} permohonan`;
+
+    const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
+    const filtered = searchVal ? window._pkaInboxData.filter(d =>
+      (d.syarikat || '').toLowerCase().includes(searchVal) ||
+      (d.cidb || '').toLowerCase().includes(searchVal)
+    ) : window._pkaInboxData;
+
+    pkaRenderInboxCards(filtered, list);
+  }
+
+  window.pkaFilterInbox = function() {
+    const list = document.getElementById('pkaInboxList');
+    if (!list) return;
+    const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
+    const filtered = searchVal ? window._pkaInboxData.filter(d =>
+      (d.syarikat || '').toLowerCase().includes(searchVal) ||
+      (d.cidb || '').toLowerCase().includes(searchVal)
+    ) : window._pkaInboxData;
+    pkaRenderInboxCards(filtered, list);
+  };
 
   function loadPKAKeputusanSPI() {
     const list = document.getElementById('pkaKeputusanList');
@@ -2998,32 +3022,25 @@ async function handleCredentialResponse(response) {
     }).join('');
   }
 
-  function loadPKASejarahSPI() {
-    const list = document.getElementById('pkaSejarahList');
-    if (!list) return;
-    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
-
-    const data = (cachedData || []).filter(d =>
-      d.lawatan_syor && d.lawatan_syor.toString().trim() !== '' &&
-      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
-    );
-
+  function pkaRenderSejarahCards(data, list) {
     if (data.length === 0) {
       list.innerHTML = '<p class="pka-empty">Tiada rekod sejarah</p>';
       return;
     }
-
-    list.innerHTML = data.map(d => {
+    list.innerHTML = data.map((d, i) => {
       const lawatanDate = d.lawatan_tarikh ? formatDateDisplay(d.lawatan_tarikh) : '-';
       const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '-';
       return `<div class="pka-card-item" style="border-left:4px solid #10b981;">
-        <div class="pka-card-item-info">
-          <div class="pka-card-item-title">${d.syarikat}</div>
-          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'}</div>
-          <div style="font-size:0.8rem;color:#475569;margin-top:4px;">
-            📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+          <span style="background:#10b981;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;flex-shrink:0;">${i + 1}</span>
+          <div class="pka-card-item-info">
+            <div class="pka-card-item-title">${d.syarikat}</div>
+            <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'}</div>
+            <div style="font-size:0.8rem;color:#475569;margin-top:4px;">
+              📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}
+            </div>
+            ${d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:2px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : ''}
           </div>
-          ${d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:2px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : ''}
         </div>
         <div class="pka-card-item-actions">
           <button class="pka-btn-sm pka-btn-ghost" data-pka-action="lihat" data-pka-row="${d.row}">👁 Lihat</button>
@@ -3032,8 +3049,44 @@ async function handleCredentialResponse(response) {
     }).join('');
   }
 
+  window._pkaSejarahData = [];
+  function loadPKASejarahSPI() {
+    const list = document.getElementById('pkaSejarahList');
+    if (!list) return;
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
+
+    window._pkaSejarahData = (cachedData || []).filter(d =>
+      d.lawatan_syor && d.lawatan_syor.toString().trim() !== '' &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
+    );
+
+    const searchVal = (document.getElementById('pkaSejarahSearch')?.value || '').toLowerCase().trim();
+    const filtered = searchVal ? window._pkaSejarahData.filter(d =>
+      (d.syarikat || '').toLowerCase().includes(searchVal) ||
+      (d.cidb || '').toLowerCase().includes(searchVal)
+    ) : window._pkaSejarahData;
+
+    pkaRenderSejarahCards(filtered, list);
+  }
+
+  window.pkaFilterSejarah = function() {
+    const list = document.getElementById('pkaSejarahList');
+    if (!list) return;
+    const searchVal = (document.getElementById('pkaSejarahSearch')?.value || '').toLowerCase().trim();
+    const filtered = searchVal ? window._pkaSejarahData.filter(d =>
+      (d.syarikat || '').toLowerCase().includes(searchVal) ||
+      (d.cidb || '').toLowerCase().includes(searchVal)
+    ) : window._pkaSejarahData;
+    pkaRenderSejarahCards(filtered, list);
+  };
+
   // Event delegation for all PKA action buttons (CSP-safe)
   function pkaInitDelegation() {
+    const inboxSearch = document.getElementById('pkaInboxSearch');
+    if (inboxSearch) inboxSearch.addEventListener('input', window.pkaFilterInbox);
+    const sejarahSearch = document.getElementById('pkaSejarahSearch');
+    if (sejarahSearch) sejarahSearch.addEventListener('input', window.pkaFilterSejarah);
+
     const containers = ['pkaInboxList', 'pkaKeputusanList', 'pkaSejarahList'].map(id => document.getElementById(id));
     containers.forEach(container => {
       if (!container) return;
