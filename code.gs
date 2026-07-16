@@ -2797,12 +2797,13 @@ function handlePKAGetPengesyorContact(data) {
     if (!usersData || usersData.length < 2) return createJSONOutput({ success: false, error: "Tiada data pengguna" });
 
     const headers = usersData.shift();
-    const nameCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('NAMA') || h.toString().toUpperCase().includes('NAME') || h.toString().toUpperCase().includes('PENGGUNA')));
+    let nameCol = headers.findIndex(h => h && (h.toString().toUpperCase().trim().includes('NAMA') || h.toString().toUpperCase().trim().includes('NAME') || h.toString().toUpperCase().trim().includes('PENGGUNA')));
     const phoneCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TELEFON') || h.toString().toUpperCase().includes('PHONE') || h.toString().toUpperCase().includes('NO TEL') || h.toString().toUpperCase().includes('HP') || h.toString().toUpperCase().includes('MOBILE') || h.toString().toUpperCase().includes('HANDPHONE')));
 
-    if (nameCol === -1) {
-      // Fallback guna column pertama jika langsung tak jumpa
-      return createJSONOutput({ success: false, error: "Lajur nama tidak dijumpai dalam Users sheet. Pastikan ada column bernama 'Nama', 'Name', atau 'Pengguna'." });
+    if (nameCol === -1 && headers.length > 0) {
+      nameCol = 0; // fallback guna column pertama
+    } else if (nameCol === -1) {
+      return createJSONOutput({ success: false, error: "Lajur nama tidak dijumpai dalam Users sheet" });
     }
 
     function normalizeName(n) {
