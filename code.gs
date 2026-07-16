@@ -2793,14 +2793,25 @@ function handlePKAGetPengesyorContact(data) {
 
     const headers = usersData.shift();
     const nameCol = headers.findIndex(h => h && h.toString().toUpperCase().includes('NAMA'));
-    const phoneCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TELEFON') || h.toString().toUpperCase().includes('PHONE') || h.toString().toUpperCase().includes('NO TEL')));
+    const phoneCol = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TELEFON') || h.toString().toUpperCase().includes('PHONE') || h.toString().toUpperCase().includes('NO TEL') || h.toString().toUpperCase().includes('HP') || h.toString().toUpperCase().includes('MOBILE') || h.toString().toUpperCase().includes('HANDPHONE')));
 
     if (nameCol === -1) return createJSONOutput({ success: false, error: "Lajur nama tidak dijumpai" });
 
-    const searchName = pengesyorName.toString().toUpperCase().replace(/\s+/g, ' ').trim();
+    function normalizeName(n) {
+      return n.toString().toUpperCase().replace(/\s+/g, ' ').trim();
+    }
+    function stripTitle(n) {
+      return n.replace(/\b(ENCIK|CIK|PUAN|TUAN|DATIN|DATO|DATUK|HAJI|HAJJAH|HAJJAH|IR|DR|PROF|MD|BIN|BINTI)\b/g, '').replace(/\s+/g, ' ').trim();
+    }
+    const rawName = pengesyorName.toString().toUpperCase().replace(/\s+/g, ' ').trim();
+    const searchName = stripTitle(rawName);
+    const searchNames = [...new Set([rawName, searchName])];
     for (let i = 0; i < usersData.length; i++) {
-      const userName = (usersData[i][nameCol] || '').toString().toUpperCase().replace(/\s+/g, ' ').trim();
-      if (userName === searchName) {
+      const rawUserName = normalizeName(usersData[i][nameCol] || '');
+      const userName = stripTitle(rawUserName);
+      const userNames = [...new Set([rawUserName, userName])];
+      const match = searchNames.some(s => userNames.some(u => u === s));
+      if (match) {
         let phone = phoneCol !== -1 ? (usersData[i][phoneCol] || '') : '';
         phone = phone.replace(/[\s\-\(\)]/g, '');
         let cleanPhone = phone;
