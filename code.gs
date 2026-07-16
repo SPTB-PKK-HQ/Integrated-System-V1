@@ -1671,6 +1671,11 @@ function handleUpdateRecord(data, sheet) {
       sheet.getRange(rowNum, 31).setValue(data.inbox);
     }
     
+    // BLOK 8 (AF: Kolum 32) - ulasan_spi
+    if (data.ulasan_spi !== undefined) {
+      sheet.getRange(rowNum, 32).setValue(data.ulasan_spi);
+    }
+    
     // === OPERASI PASCA-TULISAN (TIDAK KRITIKAL) ===
     // Jika mana-mana gagal, data sheet sudah selamat. Jangan bagi error.
     let pascaActionType = 'UPDATE_RECORD';
@@ -2124,7 +2129,7 @@ function handleRestoreRecord(data, sheet) {
       }
     }
     
-    const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox'];
+    const columnLabels = ['syarikat','cidb','gred','jenis','negeri','tarikh_surat_terdahulu','tatatertib','start_date','syor_lawatan','date_submit','pautan','justifikasi','pengesyor','syor_status','tarikh_syor','status_hantar_spi','tarikh_hantar_spi','lawatan_tarikh','lawatan_submit_sptb','lawatan_syor','alamat_perniagaan','jenis_konsultansi','alasan','kelulusan','tarikh_lulus','pelulus','ubah_maklumat','ubah_gred','borang_json','whatsapp_schedule','inbox','ulasan_spi'];
     const newRow = [];
     for (let i = 0; i < columnLabels.length; i++) {
       const val = snapshot[columnLabels[i]];

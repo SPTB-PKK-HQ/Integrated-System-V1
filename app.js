@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxu3qEP933LdGxzMm-459TG0SpTueMI53O1JLPfITghNtk2T0xXVZwBSAxRNnOHK1la/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzyb3B7pGcPzpuIvhDBZOCjEgYiAq1ssGyOYdG0BKMvlq-SI3rqxqWFGPRj-PVWII34/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -1295,6 +1295,7 @@ async function handleCredentialResponse(response) {
   const dbLawatanTarikh = document.getElementById('db_lawatan_tarikh');
   const dbLawatanSubmitSptb = document.getElementById('db_lawatan_submit_sptb');
   const dbLawatanSyor = document.getElementById('db_lawatan_syor');
+  const dbUlasanSpi = document.getElementById('db_ulasan_spi');
 
   // WhatsApp Notification Elements
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
@@ -11343,7 +11344,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
 
     if (cbSelesaiLawatan) {
-      const hasLawatan = item.lawatan_tarikh || item.lawatan_submit_sptb || item.lawatan_syor;
+      const hasLawatan = item.lawatan_tarikh || item.lawatan_submit_sptb || item.lawatan_syor || item.ulasan_spi;
       cbSelesaiLawatan.checked = hasLawatan ? true : false;
       
       if (containerLawatan) {
@@ -11376,6 +11377,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         dbLawatanSyor.addEventListener('click', function() { this.disabled = false; }, { once: true });
       } else if (dbLawatanSyor) {
         dbLawatanSyor.disabled = false;
+      }
+      if (dbUlasanSpi) {
+        dbUlasanSpi.value = item.ulasan_spi || '';
       }
     }
     
@@ -11615,6 +11619,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             <div class="view-row">
               <span class="view-label">SYOR LAWATAN</span>
               <span class="view-value">${safe(i.lawatan_syor)}</span>
+            </div>
+            <div class="view-row full-width">
+              <span class="view-label">ULASAN SPI</span>
+              <span class="view-value">${safe(i.ulasan_spi)}</span>
             </div>
           </div>
         </div>
@@ -11914,6 +11922,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const lawatanTarikh = isLawatanSelesai && dbLawatanTarikh ? dbLawatanTarikh.value : '';
       const lawatanSubmitSptb = isLawatanSelesai && dbLawatanSubmitSptb ? dbLawatanSubmitSptb.value : '';
       const lawatanSyor = isLawatanSelesai && dbLawatanSyor ? dbLawatanSyor.value : '';
+      const ulasanSpi = isLawatanSelesai && dbUlasanSpi ? dbUlasanSpi.value : '';
       
       const dbSyorValue = document.getElementById('db_syor')?.value || '';
       const dbSubmitDateValue = document.getElementById('db_submit_date')?.value || '';
@@ -12089,6 +12098,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         lawatan_tarikh: lawatanTarikh,
         lawatan_submit_sptb: lawatanSubmitSptb,
         lawatan_syor: lawatanSyor,
+        ulasan_spi: ulasanSpi,
         alamat_perniagaan: document.getElementById('db_alamat_perniagaan')?.value || '',
         jenis_konsultansi: jenisKonsultansiString,
         due_date: document.getElementById('db_due_date')?.value || '', // <-- Tambah due_date ke payload
