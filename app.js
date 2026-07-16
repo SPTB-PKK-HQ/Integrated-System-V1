@@ -2843,13 +2843,35 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  function countWorkingDays(startStr, endStr) {
+    if (!startStr || !endStr) return '-';
+    const s = new Date(startStr);
+    const e = new Date(endStr);
+    if (isNaN(s) || isNaN(e) || e < s) return '-';
+    let count = 0, cur = new Date(s);
+    while (cur <= e) {
+      const d = cur.getDay();
+      if (d !== 0 && d !== 6) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  }
+
+  function getWeekNumber(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    const weekNum = Math.ceil((d.getDate() + startOfMonth.getDay()) / 7);
+    return { year: d.getFullYear(), month: d.getMonth(), monthName: d.toLocaleString('ms-MY', { month: 'long' }), week: weekNum };
+  }
+
   function loadPKADashboard() {
     const list = document.getElementById('pkaDashboardList');
     if (!list) return;
     list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
-    const data = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
-    const diSPI = data.filter(d => d.status_hantar_spi === 'DIHANTAR');
+    const all = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
+    const diSPI = all.filter(d => d.status_hantar_spi === 'DIHANTAR');
     const belumLawatan = diSPI.filter(d => !d.lawatan_tarikh);
     const selesaiLawatan = diSPI.filter(d => d.lawatan_syor);
     
@@ -2857,27 +2879,43 @@ async function handleCredentialResponse(response) {
     document.getElementById('pkaStatLawatan').textContent = belumLawatan.length;
     document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
 
-    if (data.length === 0) {
-      list.innerHTML = '<p class="pka-empty">Tiada permohonan</p>';
+    const selesai = all.filter(d => d.lawatan_tarikh && d.lawatan_submit_sptb && d.tarikh_hantar_spi);
+    if (selesai.length === 0) {
+      list.innerHTML = '<p class="pka-empty">Tiada data selesai untuk dipaparkan</p>';
       return;
     }
 
-    list.innerHTML = data.map(d => {
-      const b = (v, bg) => `<span class="pka-badge" style="background:${bg.a};color:${bg.b};">${v}</span>`;
-      return `<div class="pka-card-item">
-        <div class="pka-card-item-info">
-          <div class="pka-card-item-title">${d.syarikat}</div>
-          <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${d.pengesyor || '-'}</div>
-          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
-            ${d.status_hantar_spi === 'DIHANTAR' ? b('DIHANTAR', {a:'#fef3c7',b:'#92400e'}) : b(d.status_hantar_spi || '-', {a:'#fee2e2',b:'#991b1b'})}
-            ${d.lawatan_syor ? b('✅ Selesai', {a:'#d1fae5',b:'#065f46'}) : d.lawatan_tarikh ? b('🔧 Diisi', {a:'#dbeafe',b:'#1e40af'}) : b('⏳ Belum', {a:'#f1f5f9',b:'#64748b'})}
-          </div>
-        </div>
-        <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-ghost" onclick="pkaViewRecord(${d.row})">👁 Lihat</button>
-        </div>
-      </div>`;
-    }).join('');
+    const groups = {};
+    selesai.forEach(d => {
+      const w = getWeekNumber(d.lawatan_submit_sptb);
+      if (!w) return;
+      const key = `${w.year}-${String(w.month).padStart(2,'0')}`;
+      if (!groups[key]) groups[key] = { monthName: w.monthName, year: w.year, month: w.month, weeks: {} };
+      const wk = `W${w.week}`;
+      if (!groups[key].weeks[wk]) groups[key].weeks[wk] = [];
+      groups[key].weeks[wk].push(d);
+    });
+
+    const sortedMonths = Object.keys(groups).sort();
+    let html = '';
+    sortedMonths.forEach(mKey => {
+      const g = groups[mKey];
+      html += `<div style="margin-bottom:20px;"><h4 style="margin:0 0 8px 0;color:#475569;font-size:0.95rem;">📅 ${g.monthName} ${g.year}</h4>`;
+      const sortedWeeks = Object.keys(g.weeks).sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+      sortedWeeks.forEach(wk => {
+        const items = g.weeks[wk];
+        html += `<div style="margin-bottom:8px;"><span style="font-weight:600;font-size:0.82rem;color:#64748b;display:block;margin-bottom:4px;">${wk}</span>`;
+        html += `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead><tr style="background:#f8fafc;"><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Syarikat</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">CIDB</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Tarikh Hantar SPI</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Tarikh SPTB</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Hari Bekerja</th></tr></thead><tbody>`;
+        items.forEach(d => {
+          const workingDays = countWorkingDays(d.tarikh_hantar_spi, d.lawatan_submit_sptb);
+          html += `<tr><td style="padding:6px;border:1px solid #e2e8f0;">${d.syarikat}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.cidb || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.tarikh_hantar_spi || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.lawatan_submit_sptb || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;font-weight:700;">${workingDays}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+      });
+      html += `</div>`;
+    });
+    list.innerHTML = html;
   }
 
   function loadPKAInbox() {
@@ -2912,7 +2950,7 @@ async function handleCredentialResponse(response) {
           <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 SPI: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
         </div>
         <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-green" onclick="switchTab('pka-keputusan-spi')">✅ Proses</button>
+          <button class="pka-btn-sm pka-btn-green" data-pka-action="go-keputusan">✅ Proses</button>
         </div>
       </div>`;
     }).join('');
@@ -2953,8 +2991,8 @@ async function handleCredentialResponse(response) {
           </div>
         </div>
         <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-orange" onclick="pkaUrusFail(${row})">📂 Urus Fail</button>
-          <button class="pka-btn-sm pka-btn-green" onclick="pkaHantarKeputusan(${row})">📤 Hantar</button>
+          <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}">📂 Urus Fail</button>
+          <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar</button>
         </div>
       </div>`;
     }).join('');
@@ -2987,105 +3025,116 @@ async function handleCredentialResponse(response) {
           </div>
           ${d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:2px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : ''}
         </div>
+        <div class="pka-card-item-actions">
+          <button class="pka-btn-sm pka-btn-ghost" data-pka-action="lihat" data-pka-row="${d.row}">👁 Lihat</button>
+        </div>
       </div>`;
     }).join('');
   }
 
-  // Fungsi lihat rekod - buka modal detail
-  window.pkaViewRecord = async function(row) {
-    const item = (cachedData || []).find(d => d.row === row);
-    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
-    viewRecordOnly(item);
-  };
+  // Event delegation for all PKA action buttons (CSP-safe)
+  function pkaInitDelegation() {
+    const containers = ['pkaInboxList', 'pkaKeputusanList', 'pkaSejarahList'].map(id => document.getElementById(id));
+    containers.forEach(container => {
+      if (!container) return;
+      container.addEventListener('click', async function(e) {
+        const btn = e.target.closest('[data-pka-action]');
+        if (!btn) return;
+        const action = btn.dataset.pkaAction;
+        const row = parseInt(btn.dataset.pkaRow);
 
-  // Fungsi urus fail - buka file manager
-  window.pkaUrusFail = async function(row) {
-    const item = (cachedData || []).find(d => d.row === row);
-    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
+        if (action === 'go-keputusan') {
+          switchTab('pka-keputusan-spi');
+          return;
+        }
 
-    let pautanDrive = item.pautan || '';
-    let folderId = '';
-    if (pautanDrive) {
-      const match = pautanDrive.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-      if (match) folderId = match[1];
-    }
+        const item = (cachedData || []).find(d => d.row === row);
+        if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
 
-    if (!folderId) {
-      await CustomAppModal.alert("Tiada folder Drive untuk syarikat ini. Sila cipta folder terlebih dahulu di tab Input Database.", "Makluman", "warning");
-      return;
-    }
+        if (action === 'lihat') {
+          viewRecordOnly(item);
+          return;
+        }
 
-    openFileManager(folderId);
-  };
+        if (action === 'urus-fail') {
+          let pautanDrive = item.pautan || '';
+          let folderId = '';
+          if (pautanDrive) {
+            const match = pautanDrive.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+            if (match) folderId = match[1];
+          }
+          if (!folderId) {
+            await CustomAppModal.alert("Tiada folder Drive untuk syarikat ini. Sila cipta folder terlebih dahulu di tab Input Database.", "Makluman", "warning");
+            return;
+          }
+          openFileManager(folderId);
+          return;
+        }
 
-  // Fungsi hantar keputusan - simpan + WhatsApp pengesyor
-  window.pkaHantarKeputusan = async function(row) {
-    const lawatanTarikh = document.getElementById(`pkaLawatanTarikh_${row}`)?.value || '';
-    const lawatanSptb = document.getElementById(`pkaLawatanSptb_${row}`)?.value || '';
-    const lawatanSyor = document.getElementById(`pkaLawatanSyor_${row}`)?.value || '';
-    const ulasanSpi = document.getElementById(`pkaUlasanSpi_${row}`)?.value || '';
+        if (action === 'hantar') {
+          const lawatanTarikh = document.getElementById(`pkaLawatanTarikh_${row}`)?.value || '';
+          const lawatanSptb = document.getElementById(`pkaLawatanSptb_${row}`)?.value || '';
+          const lawatanSyor = document.getElementById(`pkaLawatanSyor_${row}`)?.value || '';
+          const ulasanSpi = document.getElementById(`pkaUlasanSpi_${row}`)?.value || '';
 
-    if (!lawatanTarikh || !lawatanSptb || !lawatanSyor) {
-      await CustomAppModal.alert("Sila isi Tarikh Lawatan, Tarikh Hantar SPTB, dan Syor SPI.", "Makluman", "warning");
-      return;
-    }
+          if (!lawatanTarikh || !lawatanSptb || !lawatanSyor) {
+            await CustomAppModal.alert("Sila isi Tarikh Lawatan, Tarikh Hantar SPTB, dan Syor SPI.", "Makluman", "warning");
+            return;
+          }
 
-    const item = (cachedData || []).find(d => d.row === row);
-    if (!item) { await CustomAppModal.alert("Rekod tidak dijumpai.", "Ralat", "error"); return; }
+          const result = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'pkaUpdateLawatan',
+              email: currentUser.email,
+              row: row,
+              lawatan_tarikh: lawatanTarikh,
+              lawatan_submit_sptb: lawatanSptb,
+              lawatan_syor: lawatanSyor,
+              ulasan_spi: ulasanSpi
+            })
+          }, 3, 1000);
 
-    // Simpan ke backend
-    const result = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'pkaUpdateLawatan',
-        email: currentUser.email,
-        row: row,
-        lawatan_tarikh: lawatanTarikh,
-        lawatan_submit_sptb: lawatanSptb,
-        lawatan_syor: lawatanSyor,
-        ulasan_spi: ulasanSpi
-      })
-    }, 3, 1000);
+          const res = await result.json();
+          if (res.status !== 'success') {
+            await CustomAppModal.alert('Gagal menyimpan: ' + (res.message || 'Ralat tidak diketahui'), 'Ralat', 'error');
+            return;
+          }
 
-    const res = await result.json();
-    if (res.status !== 'success') {
-      await CustomAppModal.alert('Gagal menyimpan: ' + (res.message || 'Ralat tidak diketahui'), 'Ralat', 'error');
-      return;
-    }
+          const contactResult = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'pkaGetPengesyorContact',
+              email: currentUser.email,
+              pengesyor: item.pengesyor
+            })
+          }, 3, 1000);
 
-    // Dapatkan contact pengesyor untuk WhatsApp
-    const contactResult = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'pkaGetPengesyorContact',
-        email: currentUser.email,
-        pengesyor: item.pengesyor
-      })
-    }, 3, 1000);
+          const contactRes = await contactResult.json();
+          if (contactRes.success && contactRes.waLink && contactRes.phone) {
+            const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
+            window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
+            await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
+          } else {
+            await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
+          }
 
-    const contactRes = await contactResult.json();
-    if (contactRes.success && contactRes.waLink && contactRes.phone) {
-      const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
-      window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
-      await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
-    } else {
-      await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
-    }
-
-    // Update cached data in place
-    if (cachedData) {
-      const idx = cachedData.findIndex(d => d.row === row);
-      if (idx !== -1) {
-        cachedData[idx].lawatan_tarikh = lawatanTarikh;
-        cachedData[idx].lawatan_submit_sptb = lawatanSptb;
-        cachedData[idx].lawatan_syor = lawatanSyor;
-        cachedData[idx].ulasan_spi = ulasanSpi;
-      }
-    }
-    loadPKAKeputusanSPI();
-  };
+          if (cachedData) {
+            const idx = cachedData.findIndex(d => d.row === row);
+            if (idx !== -1) {
+              cachedData[idx].lawatan_tarikh = lawatanTarikh;
+              cachedData[idx].lawatan_submit_sptb = lawatanSptb;
+              cachedData[idx].lawatan_syor = lawatanSyor;
+              cachedData[idx].ulasan_spi = ulasanSpi;
+            }
+          }
+          loadPKAKeputusanSPI();
+        }
+      });
+    });
+  }
 
   function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
@@ -8894,6 +8943,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         activeTab = 'pka-dashboard';
       }
       
+      pkaInitDelegation();
       switchTab(activeTab);
       
     } else {
