@@ -3191,9 +3191,13 @@ async function handleCredentialResponse(response) {
             loadPKAKeputusanSPI();
 
             if (contactRes.success && contactRes.waLink && contactRes.phone) {
-              const message = `Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`;
-              window.open(`${contactRes.waLink}?text=${encodeURIComponent(message)}`, '_blank');
-              await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
+              const waUrl = `${contactRes.waLink}?text=${encodeURIComponent(`Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`)}`;
+              const confirmed = await showWhatsAppConfirmModal(waUrl, item.syarikat, item.pengesyor);
+              if (confirmed) {
+                await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
+              } else {
+                await CustomAppModal.alert('Data berjaya disimpan. WhatsApp tidak dihantar.', 'Berjaya', 'success');
+              }
             } else {
               await CustomAppModal.alert('Data berjaya disimpan. Namun, nombor telefon pengesyor tidak dijumpai. Sila hubungi pengesyor secara manual.', 'Berjaya', 'success');
             }
