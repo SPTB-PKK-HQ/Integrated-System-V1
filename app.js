@@ -2825,12 +2825,30 @@ async function handleCredentialResponse(response) {
   // V6.8.0: PKA FUNCTIONS
   // =========================================================================
 
+  async function pkaLoadData() {
+    try {
+      const res = await fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now(), {
+        method: 'GET',
+        redirect: 'follow'
+      }, 3, 1000);
+      const data = await res.json();
+      if (data && data.data && Array.isArray(data.data)) {
+        cachedData = data.data;
+        if (data.version) dataCacheVersion = data.version;
+      } else if (Array.isArray(data)) {
+        cachedData = data;
+      }
+    } catch (e) {
+      console.error("PKA data load error:", e);
+    }
+  }
+
   function loadPKADashboard() {
     const tbody = document.getElementById('pkaDashboardBody');
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
 
-    const data = cachedData || [];
+    const data = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
     const diSPI = data.filter(d => d.status_hantar_spi === 'DIHANTAR');
     const belumLawatan = diSPI.filter(d => !d.lawatan_tarikh);
     const selesaiLawatan = diSPI.filter(d => d.lawatan_syor);
@@ -2873,7 +2891,8 @@ async function handleCredentialResponse(response) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
 
     const data = (cachedData || []).filter(d =>
-      d.status_hantar_spi === 'DIHANTAR' && !d.lawatan_tarikh
+      d.status_hantar_spi === 'DIHANTAR' && !d.lawatan_tarikh &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
     if (countEl) countEl.textContent = `${data.length} permohonan`;
@@ -2900,7 +2919,8 @@ async function handleCredentialResponse(response) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
 
     const data = (cachedData || []).filter(d =>
-      d.status_hantar_spi === 'DIHANTAR'
+      d.status_hantar_spi === 'DIHANTAR' &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
     if (data.length === 0) {
@@ -2933,7 +2953,8 @@ async function handleCredentialResponse(response) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</td></tr>';
 
     const data = (cachedData || []).filter(d =>
-      d.lawatan_syor && d.lawatan_syor.toString().trim() !== ''
+      d.lawatan_syor && d.lawatan_syor.toString().trim() !== '' &&
+      (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
     if (data.length === 0) {
@@ -9057,22 +9078,38 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     else if (tabName === 'pka-dashboard') {
       const el = document.getElementById('tab-pka-dashboard');
       if (el) { el.style.display = 'block'; el.classList.add('active'); }
-      setTimeout(() => { loadPKADashboard(); restoreActiveElement(); }, 200);
+      setTimeout(async () => {
+        if (!cachedData || cachedData.length === 0) await pkaLoadData();
+        loadPKADashboard();
+        restoreActiveElement();
+      }, 200);
     }
     else if (tabName === 'pka-inbox') {
       const el = document.getElementById('tab-pka-inbox');
       if (el) { el.style.display = 'block'; el.classList.add('active'); }
-      setTimeout(() => { loadPKAInbox(); restoreActiveElement(); }, 200);
+      setTimeout(async () => {
+        if (!cachedData || cachedData.length === 0) await pkaLoadData();
+        loadPKAInbox();
+        restoreActiveElement();
+      }, 200);
     }
     else if (tabName === 'pka-keputusan-spi') {
       const el = document.getElementById('tab-pka-keputusan-spi');
       if (el) { el.style.display = 'block'; el.classList.add('active'); }
-      setTimeout(() => { loadPKAKeputusanSPI(); restoreActiveElement(); }, 200);
+      setTimeout(async () => {
+        if (!cachedData || cachedData.length === 0) await pkaLoadData();
+        loadPKAKeputusanSPI();
+        restoreActiveElement();
+      }, 200);
     }
     else if (tabName === 'pka-sejarah-spi') {
       const el = document.getElementById('tab-pka-sejarah-spi');
       if (el) { el.style.display = 'block'; el.classList.add('active'); }
-      setTimeout(() => { loadPKASejarahSPI(); restoreActiveElement(); }, 200);
+      setTimeout(async () => {
+        if (!cachedData || cachedData.length === 0) await pkaLoadData();
+        loadPKASejarahSPI();
+        restoreActiveElement();
+      }, 200);
     }
     // =========================================================
     // TAMBAH KOD YOUTUBE DI SINI SUPAYA SEMUA ROLE BOLEH AKSES
