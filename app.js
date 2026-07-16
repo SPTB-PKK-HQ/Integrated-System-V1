@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/a/macros/kuskop.gov.my/s/AKfycbxd7mCGbrP92OgsRLFxn0_ikBulDObb6gZ9VzPTErksTyVGQYr1C8Rb5O2JZfju9d3p/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxd7mCGbrP92OgsRLFxn0_ikBulDObb6gZ9VzPTErksTyVGQYr1C8Rb5O2JZfju9d3p/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
