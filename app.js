@@ -5,23 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
   
   // =========================================================================
-  // ANTI-DEVTOOLS: Block F12/Inspect melainkan ada ?debug=true
-  // =========================================================================
-  if (!window.location.search.includes('debug=true')) {
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'F12' ||
-          (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
-          (e.ctrlKey && e.key === 'u')) {
-        e.preventDefault();
-        document.body.innerHTML = '';
-      }
-    });
-    document.addEventListener('contextmenu', function(e) {
-      e.preventDefault();
-      document.body.innerHTML = '';
-    });
-  }
-  
   // =========================================================================
   // FIREBASE CONFIG (UNTUK TAPISAN & BAKUL SAHAJA)
   // =========================================================================
