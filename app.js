@@ -2866,56 +2866,12 @@ async function handleCredentialResponse(response) {
   }
 
   function loadPKADashboard() {
-    const list = document.getElementById('pkaDashboardList');
-    if (!list) return;
-    list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
-
     const all = (cachedData || []).filter(d => !d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
-    const diSPI = all.filter(d => d.status_hantar_spi === 'DIHANTAR');
-    const belumLawatan = diSPI.filter(d => !d.lawatan_tarikh);
-    const selesaiLawatan = diSPI.filter(d => d.lawatan_syor);
+    const diSPI = all.filter(d => d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '');
+    const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
     
     document.getElementById('pkaStatSpi').textContent = diSPI.length;
-    document.getElementById('pkaStatLawatan').textContent = belumLawatan.length;
     document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
-
-    const selesai = all.filter(d => d.lawatan_tarikh && d.lawatan_submit_sptb && d.tarikh_hantar_spi);
-    if (selesai.length === 0) {
-      list.innerHTML = '<p class="pka-empty">Tiada data selesai untuk dipaparkan</p>';
-      return;
-    }
-
-    const groups = {};
-    selesai.forEach(d => {
-      const w = getWeekNumber(d.lawatan_submit_sptb);
-      if (!w) return;
-      const key = `${w.year}-${String(w.month).padStart(2,'0')}`;
-      if (!groups[key]) groups[key] = { monthName: w.monthName, year: w.year, month: w.month, weeks: {} };
-      const wk = `W${w.week}`;
-      if (!groups[key].weeks[wk]) groups[key].weeks[wk] = [];
-      groups[key].weeks[wk].push(d);
-    });
-
-    const sortedMonths = Object.keys(groups).sort();
-    let html = '';
-    sortedMonths.forEach(mKey => {
-      const g = groups[mKey];
-      html += `<div style="margin-bottom:20px;"><h4 style="margin:0 0 8px 0;color:#475569;font-size:0.95rem;">📅 ${g.monthName} ${g.year}</h4>`;
-      const sortedWeeks = Object.keys(g.weeks).sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-      sortedWeeks.forEach(wk => {
-        const items = g.weeks[wk];
-        html += `<div style="margin-bottom:8px;"><span style="font-weight:600;font-size:0.82rem;color:#64748b;display:block;margin-bottom:4px;">${wk}</span>`;
-        html += `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-          <thead><tr style="background:#f8fafc;"><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Syarikat</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">CIDB</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Tarikh Hantar SPI</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Tarikh SPTB</th><th style="padding:6px;text-align:left;border:1px solid #e2e8f0;">Hari Bekerja</th></tr></thead><tbody>`;
-        items.forEach(d => {
-          const workingDays = countWorkingDays(d.tarikh_hantar_spi, d.lawatan_submit_sptb);
-          html += `<tr><td style="padding:6px;border:1px solid #e2e8f0;">${d.syarikat}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.cidb || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.tarikh_hantar_spi || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;">${d.lawatan_submit_sptb || '-'}</td><td style="padding:6px;border:1px solid #e2e8f0;font-weight:700;">${workingDays}</td></tr>`;
-        });
-        html += `</tbody></table></div>`;
-      });
-      html += `</div>`;
-    });
-    list.innerHTML = html;
   }
 
   function pkaRenderInboxCards(data, list) {
@@ -2963,7 +2919,8 @@ async function handleCredentialResponse(response) {
     const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
     const filtered = searchVal ? window._pkaInboxData.filter(d =>
       (d.syarikat || '').toLowerCase().includes(searchVal) ||
-      (d.cidb || '').toLowerCase().includes(searchVal)
+      (d.cidb || '').toLowerCase().includes(searchVal) ||
+      (d.pengesyor || '').toLowerCase().includes(searchVal)
     ) : window._pkaInboxData;
 
     pkaRenderInboxCards(filtered, list);
@@ -2975,7 +2932,8 @@ async function handleCredentialResponse(response) {
     const searchVal = (document.getElementById('pkaInboxSearch')?.value || '').toLowerCase().trim();
     const filtered = searchVal ? window._pkaInboxData.filter(d =>
       (d.syarikat || '').toLowerCase().includes(searchVal) ||
-      (d.cidb || '').toLowerCase().includes(searchVal)
+      (d.cidb || '').toLowerCase().includes(searchVal) ||
+      (d.pengesyor || '').toLowerCase().includes(searchVal)
     ) : window._pkaInboxData;
     pkaRenderInboxCards(filtered, list);
   };
@@ -2986,7 +2944,9 @@ async function handleCredentialResponse(response) {
     list.innerHTML = '<p style="text-align:center;padding:20px;color:#94a3b8;">Memuatkan data...</p>';
 
     const data = (cachedData || []).filter(d =>
-      d.status_hantar_spi === 'DIHANTAR' &&
+      d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
+      d.tarikh_hantar_spi && d.tarikh_hantar_spi.toString().trim() !== '' &&
+      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
 
