@@ -2797,9 +2797,9 @@ function handlePKAGetPengesyorContact(data) {
 
     if (nameCol === -1) return createJSONOutput({ success: false, error: "Lajur nama tidak dijumpai" });
 
-    const searchName = pengesyorName.toString().toUpperCase().trim();
+    const searchName = pengesyorName.toString().toUpperCase().replace(/\s+/g, ' ').trim();
     for (let i = 0; i < usersData.length; i++) {
-      const userName = (usersData[i][nameCol] || '').toString().toUpperCase().trim();
+      const userName = (usersData[i][nameCol] || '').toString().toUpperCase().replace(/\s+/g, ' ').trim();
       if (userName === searchName) {
         let phone = phoneCol !== -1 ? (usersData[i][phoneCol] || '') : '';
         phone = phone.replace(/[\s\-\(\)]/g, '');
