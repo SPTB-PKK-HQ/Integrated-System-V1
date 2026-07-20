@@ -689,8 +689,8 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
-      // Simpan gambar profile dari Google
-      currentUser.picture = decodedToken.picture || '';
+      // Simpan gambar profile - utamakan dari Google JWT, fallback ke sheet Users
+      currentUser.picture = decodedToken.picture || currentUser.imageUrl || '';
 
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
       authFirebase.signInAnonymously().then(() => {
@@ -725,7 +725,7 @@ async function handleCredentialResponse(response) {
       
       // Update maklumat profil pengguna
       if (userBadge) {
-    const pic = currentUser.picture || '';
+    const pic = currentUser.picture;
     userBadge.innerHTML = pic
       ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
       : `👤 ${currentUser.name} (${currentUser.role})`;
@@ -744,7 +744,7 @@ async function handleCredentialResponse(response) {
         hideLoading();
         // V6.5.2: Papar greeting harian sebelum masuk sistem
         await playSuccessSound();
-        const pic = currentUser.picture || '';
+        const pic = currentUser.picture;
         const greetingMsg = pic
           ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
           : getDailyGreeting();
@@ -8819,7 +8819,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (anonymousBadge) anonymousBadge.style.display = 'none';
     
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
-    const pic = currentUser.picture || currentUser.imageUrl || '';
+    const pic = currentUser.picture;
     userBadge.innerHTML = pic
       ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
       : `👤 ${currentUser.name} (${currentUser.role})`;
