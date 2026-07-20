@@ -2355,3 +2355,20 @@
             from { opacity: 1; transform: translateX(0); }
             to { opacity: 0; transform: translateX(100%); }
         }
+
+        .user-badge-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--theme-color);
+            vertical-align: middle;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }

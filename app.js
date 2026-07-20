@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxnutXT6atF4vgzqIXTB1z1oZdEFEfnLEg2nFYDfkIwIdPtpHTBfQqFlkphXzUm5V-y/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEfSsEtTb0g4DBbu_FfcsNWNuBQ8zdtNyjup9LNNgIsBPMrUDTGu_5AMjVKVDrRbx9/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -689,6 +689,9 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
+      // Simpan gambar profile dari Google
+      currentUser.picture = decodedToken.picture || '';
+
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
       authFirebase.signInAnonymously().then(() => {
           console.log("Berjaya log masuk ke Firebase untuk fungsi YouTube/Cache.");
@@ -722,7 +725,10 @@ async function handleCredentialResponse(response) {
       
       // Update maklumat profil pengguna
       if (userBadge) {
-    userBadge.innerText = `👤 ${currentUser.name} (${currentUser.role})`;
+    const pic = currentUser.picture || '';
+    userBadge.innerHTML = pic
+      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
+      : `👤 ${currentUser.name} (${currentUser.role})`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {
@@ -738,7 +744,11 @@ async function handleCredentialResponse(response) {
         hideLoading();
         // V6.5.2: Papar greeting harian sebelum masuk sistem
         await playSuccessSound();
-        await CustomAppModal.alert(getDailyGreeting(), 'Selamat Datang ' + currentUser.name, 'success');
+        const pic = currentUser.picture || '';
+        const greetingMsg = pic
+          ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
+          : getDailyGreeting();
+        await CustomAppModal.alert(greetingMsg, 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
         // V6.6.0: Tunjuk changelog walkthrough jika ada versi baru
         setTimeout(() => showChangelogWalkthrough(), 500);
@@ -8809,7 +8819,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (anonymousBadge) anonymousBadge.style.display = 'none';
     
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
-    userBadge.innerText = `👤 ${currentUser.name} (${currentUser.role})`;
+    const pic = currentUser.picture || currentUser.imageUrl || '';
+    userBadge.innerHTML = pic
+      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
+      : `👤 ${currentUser.name} (${currentUser.role})`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {

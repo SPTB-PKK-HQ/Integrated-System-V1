@@ -214,13 +214,15 @@ function findUserByEmail(email) {
     // V6.5.1: Cari indeks untuk Tandatangan dan Cop
     const signColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TANDATANGAN') || h.toString().toUpperCase().includes('SIGN')));
     const copColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('COP') || h.toString().toUpperCase().includes('STAMP')));
+    // Cari indeks untuk gambar/profile
+    const imageColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('GAMBAR') || h.toString().toUpperCase().includes('IMAGE') || h.toString().toUpperCase().includes('PHOTO') || h.toString().toUpperCase().includes('PICTURE') || h.toString().toUpperCase().includes('PROFILE')));
     
     const finalNameIndex = nameColIndex !== -1 ? nameColIndex : 0;
     const finalEmailIndex = emailColIndex !== -1 ? emailColIndex : 1;
     const finalRoleIndex = roleColIndex !== -1 ? roleColIndex : 2;
     const finalColorIndex = colorColIndex !== -1 ? colorColIndex : 3;
     const finalPhoneIndex = phoneColIndex !== -1 ? phoneColIndex : 5;
-    const finalImageIndex = 6;
+    const finalImageIndex = imageColIndex !== -1 ? imageColIndex : 7;
     const finalSignIndex = signColIndex !== -1 ? signColIndex : -1;
     const finalCopIndex = copColIndex !== -1 ? copColIndex : -1;
     
