@@ -1398,7 +1398,7 @@
         
         /* 5. Rapatkan sedikit jarak keseluruhan App Container utama */
         #app-container {
-            padding-top: 75px !important;
+            padding-top: 50px !important;
         }
         @media (max-width: 768px) {
             #app-container {
