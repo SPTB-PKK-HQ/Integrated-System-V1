@@ -689,8 +689,13 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
-      // Simpan gambar profile dari sheet Users
-      currentUser.picture = (currentUser.imageUrl || '').replace(/=s\d+(-c)?$/i, '=s256-c');
+      // Simpan gambar profile dari sheet Users, boost resolusi Google-hosted image
+      let picUrl = currentUser.imageUrl || '';
+      if (picUrl.includes('lh3.googleusercontent.com')) {
+        picUrl = picUrl.replace(/=s\d+(-c)?/i, '=s256');
+        if (!picUrl.includes('=s')) picUrl += '=s256';
+      }
+      currentUser.picture = picUrl;
 
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
       authFirebase.signInAnonymously().then(() => {
