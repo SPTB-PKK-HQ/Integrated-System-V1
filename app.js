@@ -690,7 +690,7 @@ async function handleCredentialResponse(response) {
       currentUser.email = userEmail.toLowerCase();
 
       // Simpan gambar profile dari sheet Users
-      currentUser.picture = currentUser.imageUrl || '';
+      currentUser.picture = (currentUser.imageUrl || '').replace(/=s\d+(-c)?$/i, '=s256-c');
 
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
       authFirebase.signInAnonymously().then(() => {

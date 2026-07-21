@@ -2370,6 +2370,7 @@
             vertical-align: middle;
             margin-right: 6px;
             flex-shrink: 0;
+            image-rendering: auto;
         }
         .user-badge {
             display: flex;
