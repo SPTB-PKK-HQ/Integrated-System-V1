@@ -2365,7 +2365,7 @@
             width: 40px;
             height: 40px;
             border-radius: 8px;
-            object-fit: contain;
+            object-fit: cover;
             border: 2px solid var(--theme-color);
             vertical-align: middle;
             margin-right: 6px;

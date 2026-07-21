@@ -751,7 +751,7 @@ async function handleCredentialResponse(response) {
         await playSuccessSound();
         const pic = currentUser.picture;
         const greetingMsg = pic
-          ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:50%;object-fit:contain;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
+          ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:50%;object-fit:contain;background:#10b981;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
           : getDailyGreeting();
         await CustomAppModal.alert(greetingMsg, 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
