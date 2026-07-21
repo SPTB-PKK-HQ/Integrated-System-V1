@@ -689,8 +689,8 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
-      // Simpan gambar profile - utamakan dari Google JWT, fallback ke sheet Users
-      currentUser.picture = decodedToken.picture || currentUser.imageUrl || '';
+      // Simpan gambar profile dari sheet Users
+      currentUser.picture = currentUser.imageUrl || '';
 
       // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
       authFirebase.signInAnonymously().then(() => {
