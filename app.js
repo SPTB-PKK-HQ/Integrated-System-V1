@@ -10091,6 +10091,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
 
+    ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
+      setButtonGroupValue(id, '');
+    });
+
+    const pelBtnGroup = document.getElementById('pelulus_button_group');
+    if (pelBtnGroup) {
+      pelBtnGroup.querySelectorAll('.selected').forEach(b => {
+        b.classList.remove('selected');
+        b.style.borderColor = b.dataset.border || '#93c5fd';
+        b.style.background = 'white';
+        b.style.boxShadow = 'none';
+      });
+    }
+
     const mapsIframe = document.getElementById('mapsIframe');
     if (mapsIframe) mapsIframe.src = '';
     
@@ -10192,6 +10206,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
     });
+
+    const pelBtnGroup = document.getElementById('pelulus_button_group');
+    if (pelBtnGroup) {
+      pelBtnGroup.querySelectorAll('.selected').forEach(b => {
+        b.classList.remove('selected');
+        b.style.borderColor = b.dataset.border || '#93c5fd';
+        b.style.background = 'white';
+        b.style.boxShadow = 'none';
+      });
+    }
 
     document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
       radio.checked = false;
@@ -12300,6 +12324,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 }
             });
         }
+    });
+
+    ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
+      setButtonGroupValue(id, '');
     });
     
     const statusDisp = document.getElementById('db_status_hantar_display');
