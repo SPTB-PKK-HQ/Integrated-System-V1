@@ -6339,7 +6339,8 @@ async function handleCredentialResponse(response) {
   }
 
   function initButtonGroups() {
-    document.querySelectorAll('.btn-group').forEach(group => {
+    document.querySelectorAll('.btn-group:not([data-init])').forEach(group => {
+      group.dataset.init = '1';
       const hiddenId = group.dataset.target;
       const hidden = document.getElementById(hiddenId);
       if (!hidden) return;
