@@ -1471,29 +1471,47 @@ function handleCetakDanSimpanPDF(data) {
     
     const appType = data.application_type || data.subfolder_name;
     
-    let mainFolder;
-    try {
-      mainFolder = DriveApp.getFolderById(getMainFolderId());
-    } catch (e) {
-      const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
-      if (folders.hasNext()) mainFolder = folders.next();
-      else mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
+    let targetFolder = null;
+    let folderPath = '';
+    
+    // V6.8.0: Guna folder sedia ada jika diberikan (Kemaskini Drive)
+    if (data.existing_folder_url) {
+      const existingId = extractFolderIdFromUrl(data.existing_folder_url);
+      if (existingId) {
+        try {
+          targetFolder = DriveApp.getFolderById(existingId);
+          folderPath = targetFolder.getName();
+        } catch (e) {
+          // Folder dah tak wujud, teruskan cipta baru
+        }
+      }
     }
     
-    let userFolder = findFolderInParent(mainFolder, data.user_name);
-    if (!userFolder) userFolder = mainFolder.createFolder(data.user_name);
-    
-    let companyFolder = findCompanyFolderInParent(userFolder, data.company_name);
-    if (!companyFolder) companyFolder = userFolder.createFolder(data.company_name);
-    
-    // Jika appType ada, cipta subfolder jenis permohonan; jika tiada, simpan terus dalam folder syarikat
-    let targetFolder = companyFolder;
-    let folderPath = `${MAIN_FOLDER_NAME} > ${data.user_name} > ${data.company_name}`;
-    if (appType && appType.trim() !== '') {
-      let typeFolder = findFolderInParent(companyFolder, appType.toUpperCase());
-      if (!typeFolder) typeFolder = companyFolder.createFolder(appType.toUpperCase());
-      targetFolder = typeFolder;
-      folderPath += ` > ${appType}`;
+    if (!targetFolder) {
+      let mainFolder;
+      try {
+        mainFolder = DriveApp.getFolderById(getMainFolderId());
+      } catch (e) {
+        const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
+        if (folders.hasNext()) mainFolder = folders.next();
+        else mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
+      }
+      
+      let userFolder = findFolderInParent(mainFolder, data.user_name);
+      if (!userFolder) userFolder = mainFolder.createFolder(data.user_name);
+      
+      let companyFolder = findCompanyFolderInParent(userFolder, data.company_name);
+      if (!companyFolder) companyFolder = userFolder.createFolder(data.company_name);
+      
+      // Jika appType ada, cipta subfolder jenis permohonan; jika tiada, simpan terus dalam folder syarikat
+      targetFolder = companyFolder;
+      folderPath = `${MAIN_FOLDER_NAME} > ${data.user_name} > ${data.company_name}`;
+      if (appType && appType.trim() !== '') {
+        let typeFolder = findFolderInParent(companyFolder, appType.toUpperCase());
+        if (!typeFolder) typeFolder = companyFolder.createFolder(appType.toUpperCase());
+        targetFolder = typeFolder;
+        folderPath += ` > ${appType}`;
+      }
     }
     
     const themeColor = data.user_color && data.user_color.trim() !== "" ? data.user_color : "#1a73e8";
@@ -2867,6 +2885,12 @@ function formatJenisJustifikasi(jenis, justifikasi) {
   if (!t) return j;
   if (j.startsWith(t + ' - ')) return j;
   return t + ' - ' + j;
+}
+
+function extractFolderIdFromUrl(url) {
+  if (!url) return null;
+  var match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
 }
 
 function findFolderInParent(parentFolder, folderName) {

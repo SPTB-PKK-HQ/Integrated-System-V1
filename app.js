@@ -6898,6 +6898,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           htmlContent: printHTMLForDrive,
           email: currentUser ? currentUser.email : ''
         };
+        if (isDriveAlreadyCreated) {
+          const existingUrl = document.getElementById('db_pautan_drive')?.value || document.getElementById('db_pautan')?.value || '';
+          if (existingUrl) payload.existing_folder_url = existingUrl;
+        }
         
         try {
           const response = await fetchWithRetry(SCRIPT_URL, {
@@ -14768,6 +14772,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   htmlContent: printHTMLForDrive,
                   email: currentUser ? currentUser.email : ''
               };
+              if (isDriveAlreadyCreated && item.pautan) payload.existing_folder_url = item.pautan;
               
               if (loadingOverlay) {
                 loadingOverlay.style.display = 'flex';
