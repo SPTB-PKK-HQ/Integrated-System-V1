@@ -246,7 +246,7 @@
                 </div>
                 <div class="grid-equal" style="margin-bottom:10px;">
                     <div><label>Tarikh Mohon</label><input type="date" id="borang_tarikh_mohon"></div>
-                    <div><label>Semakan Tatatertib</label><select id="borang_tatatertib"><option value="">- PILIH -</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select></div>
+                    <div><label>Semakan Tatatertib</label><input type="hidden" id="borang_tatatertib" value=""><div class="btn-group" data-target="borang_tatatertib"><button class="btn-option btn-green" data-value="ADA">ADA</button><button class="btn-option btn-red" data-value="TIADA">TIADA</button></div></div>
                 </div>
                 <div style="margin-bottom:10px;"><label>Justifikasi Lawatan</label><input type="text" id="borang_justifikasi" placeholder="Nyatakan justifikasi lawatan jika perlu..."></div>
                 <input type="hidden" id="input_justifikasi"><input type="hidden" id="input_pautan">
@@ -296,7 +296,7 @@
                     <div><label>Tarikh Dokumen Lengkap</label><input type="date" id="borang_tarikh_lengkap"></div>
                     <div><label>Tarikh Siasatan</label><input type="date" id="borang_tarikh_siasatan"></div>
                     <div><label>Tarikh Proses</label><input type="date" id="borang_tarikh_proses" readonly style="background: #f1f5f9; cursor: not-allowed;" title="Tarikh ini diisi secara automatik mengikut keputusan syor"></div>
-                    <div><label>Keputusan Syor</label><select id="borang_syor_status" style="border-color: #3b82f6; font-weight: bold;"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="SIASAT">SIASAT</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
+                    <div><label>Keputusan Syor</label><input type="hidden" id="borang_syor_status" value=""><div class="btn-group" data-target="borang_syor_status"><button class="btn-option btn-green" data-value="SOKONG">SOKONG</button><button class="btn-option btn-orange" data-value="SIASAT">SIASAT</button><button class="btn-option btn-red" data-value="TIDAK DISOKONG">TIDAK DISOKONG</button></div></div>
                 </div>
             </div>
 
@@ -372,8 +372,8 @@
                 </div>
                 <div style="margin-top:15px; margin-bottom:15px;"><label>Alamat Perniagaan</label><textarea id="db_alamat_perniagaan" style="margin-top:5px; min-height:80px;" placeholder="Masukkan Alamat Perniagaan Syarikat..."></textarea><div style="display:flex; gap:5px; margin-top:5px;"><button type="button" id="btnRefreshMaps" class="btn btn-blue" style="padding:6px 12px; font-size:0.8rem;">🗺️ Refresh Maps</button></div><div id="mapsContainer" style="margin-top:10px; width:100%; height:300px; border-radius:8px; overflow:hidden; border:1px solid #ccc;"><iframe id="mapsIframe" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen></iframe></div></div>
                 <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:120px;"><label>Tatatertib STB</label><select id="db_tatatertib" style="width:100%;"><option value="">Pilih</option><option value="ADA">ADA</option><option value="TIADA">TIADA</option></select></div>
-                    <div style="flex:1; min-width:120px;"><label>Syor Lawatan</label><select id="db_syor" style="width:100%;"><option value="">Pilih</option><option value="YA">YA</option><option value="TIDAK">TIDAK</option><option value="PEMUTIHAN">PEMUTIHAN</option></select></div>
+                    <div style="flex:1; min-width:120px;"><label>Tatatertib STB</label><input type="hidden" id="db_tatatertib" value=""><div class="btn-group" data-target="db_tatatertib"><button class="btn-option btn-green" data-value="ADA">ADA</button><button class="btn-option btn-red" data-value="TIADA">TIADA</button></div></div>
+                    <div style="flex:1; min-width:120px;"><label>Syor Lawatan</label><input type="hidden" id="db_syor" value=""><div class="btn-group" data-target="db_syor"><button class="btn-option btn-green" data-value="YA">YA</button><button class="btn-option btn-red" data-value="TIDAK">TIDAK</button><button class="btn-option btn-blue" data-value="PEMUTIHAN">PEMUTIHAN</button></div></div>
                     <div id="db_submit_date_container" style="flex:1; min-width:120px;"><label>Date Submit to SPI</label><div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><input type="date" id="db_submit_date" style="flex:1; min-width:100px;"><span id="db_status_hantar_display" style="font-weight:bold; font-size:0.75rem; border-radius:12px; padding:4px 10px; display:none; border:1px solid; white-space:nowrap;"></span></div></div>
                 </div>
                 <input type="hidden" id="db_status_hantar_spi">
@@ -391,7 +391,7 @@
                 <label>Justifikasi Lawatan</label><input type="text" id="db_justifikasi">
                 <div style="margin-top:15px; border-top: 2px dashed #ccc; padding-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
-                    <div class="grid-equal"><div><label>Syor</label><select id="db_syor_status"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div></div>
+                    <div class="grid-equal"><div><label>Syor</label><input type="hidden" id="db_syor_status" value=""><div class="btn-group" data-target="db_syor_status"><button class="btn-option btn-green" data-value="SOKONG">SOKONG</button><button class="btn-option btn-red" data-value="TIDAK DISOKONG">TIDAK DISOKONG</button></div></div></div>
                     <label id="label_db_sah_syor" style="display: none; margin-top:10px; font-weight:bold; color:#1e40af;"><input type="checkbox" id="db_sah_syor" style="width:auto;">Dengan ini saya mengesahkan bahawa permohonan diatas adalah benar dan tepat.</label>
                 </div>
                 <div style="margin-top:15px; margin-bottom:15px; padding:10px; background:#e0f2fe; border:1px solid #bae6fd; border-radius:8px; display: none;" id="pelulus_whatsapp_container"><label style="color:#0369a1; font-weight:800;">👤 Pilih Pelulus (Wajib jika Sahkan Syor)</label><div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;" id="pelulus_button_group"></div><input type="hidden" id="db_pelulus_whatsapp" value=""><input type="hidden" id="db_pelulus_name" value=""></div>

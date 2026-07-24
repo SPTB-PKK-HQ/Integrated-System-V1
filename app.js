@@ -1593,6 +1593,8 @@ async function handleCredentialResponse(response) {
           
           setTimeout(() => {
             initializeTickButtons();
+            setButtonGroupValue('borang_tatatertib', fields.borang_tatatertib);
+            setButtonGroupValue('borang_syor_status', fields.borang_syor_status);
           }, 100);
           
           console.log('V6.5.2 Form data restored from persistence');
@@ -1634,6 +1636,9 @@ async function handleCredentialResponse(response) {
         
         toggleDateSubmitSpi();
         toggleUrusFailButton();
+        setButtonGroupValue('db_tatatertib', fields.db_tatatertib);
+        setButtonGroupValue('db_syor', fields.db_syor);
+        setButtonGroupValue('db_syor_status', fields.db_syor_status);
         
         console.log('V6.5.2 Database form data restored from persistence');
       })
@@ -5872,6 +5877,7 @@ async function handleCredentialResponse(response) {
         usersList = storage.stb_users_cache;
         console.log("V6.5.2 Loaded users from cache:", usersList.length);
         populateWhatsAppDropdown();
+        initButtonGroups();
       }
       
       if (storage.stb_data_cache) {
@@ -6332,6 +6338,39 @@ async function handleCredentialResponse(response) {
     overlay.style.display = 'flex';
   }
 
+  function initButtonGroups() {
+    document.querySelectorAll('.btn-group').forEach(group => {
+      const hiddenId = group.dataset.target;
+      const hidden = document.getElementById(hiddenId);
+      if (!hidden) return;
+      group.querySelectorAll('.btn-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('active')) {
+            btn.classList.remove('active');
+            hidden.value = '';
+          } else {
+            group.querySelectorAll('.btn-option').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            hidden.value = btn.dataset.value;
+          }
+          hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+    });
+  }
+
+  function setButtonGroupValue(hiddenId, value) {
+    const hidden = document.getElementById(hiddenId);
+    if (!hidden) return;
+    hidden.value = value || '';
+    const group = document.querySelector(`.btn-group[data-target="${hiddenId}"]`);
+    if (group) {
+      group.querySelectorAll('.btn-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === value);
+      });
+    }
+  }
+
   function populateWhatsAppDropdown() {
     const buttonGroup = document.getElementById('pelulus_button_group');
     if (!buttonGroup) return;
@@ -6340,28 +6379,47 @@ async function handleCredentialResponse(response) {
     const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
     const hiddenName = document.getElementById('db_pelulus_name');
 
+    const palet = [
+      { border: '#10b981', light: '#d1fae5', hover: '#a7f3d0', active: '#059669', shadow: 'rgba(16,185,129,0.3)' },
+      { border: '#3b82f6', light: '#dbeafe', hover: '#bfdbfe', active: '#2563eb', shadow: 'rgba(37,99,235,0.3)' },
+      { border: '#f59e0b', light: '#fef3c7', hover: '#fde68a', active: '#d97706', shadow: 'rgba(217,119,6,0.3)' },
+      { border: '#8b5cf6', light: '#ede9fe', hover: '#ddd6fe', active: '#7c3aed', shadow: 'rgba(124,58,237,0.3)' },
+      { border: '#ec4899', light: '#fce7f3', hover: '#fbcfe8', active: '#db2777', shadow: 'rgba(219,39,119,0.3)' },
+      { border: '#14b8a6', light: '#ccfbf1', hover: '#99f6e4', active: '#0d9488', shadow: 'rgba(13,148,136,0.3)' },
+      { border: '#f97316', light: '#ffedd5', hover: '#fed7aa', active: '#ea580c', shadow: 'rgba(234,88,12,0.3)' },
+      { border: '#6366f1', light: '#e0e7ff', hover: '#c7d2fe', active: '#4f46e5', shadow: 'rgba(79,70,229,0.3)' },
+      { border: '#84cc16', light: '#ecfccb', hover: '#d9f99d', active: '#65a30d', shadow: 'rgba(101,163,13,0.3)' },
+      { border: '#06b6d4', light: '#cffafe', hover: '#a5f3fc', active: '#0891b2', shadow: 'rgba(8,145,178,0.3)' },
+    ];
+
     buttonGroup.innerHTML = '';
 
-    pelulusList.forEach(pelulus => {
+    pelulusList.forEach((pelulus, i) => {
+      const c = palet[i % palet.length];
       const phone = pelulus.phone || '';
       const name = pelulus.name || '';
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = name + (phone ? '\n' + phone : '');
-      btn.style.cssText = 'flex:1; min-width:100px; padding:10px 12px; border:2px solid #93c5fd; border-radius:8px; background:white; color:#1e40af; font-weight:600; cursor:pointer; font-size:0.85rem; text-align:center; transition:all 0.2s; white-space:normal; line-height:1.3;';
-      btn.onmouseenter = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = '#3b82f6'; btn.style.background = '#eff6ff'; } };
-      btn.onmouseleave = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = '#93c5fd'; btn.style.background = 'white'; } };
+      btn.style.cssText = `flex:1; min-width:100px; padding:10px 12px; border:2px solid ${c.border}; border-radius:8px; background:white; color:${c.active}; font-weight:600; cursor:pointer; font-size:0.85rem; text-align:center; transition:all 0.2s; white-space:normal; line-height:1.3;`;
+      btn.dataset.border = c.border;
+      btn.dataset.light = c.light;
+      btn.dataset.hover = c.hover;
+      btn.dataset.active = c.active;
+      btn.dataset.shadow = c.shadow;
+      btn.onmouseenter = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = c.active; btn.style.background = c.light; } };
+      btn.onmouseleave = () => { if (!btn.classList.contains('selected')) { btn.style.borderColor = c.border; btn.style.background = 'white'; } };
       btn.onclick = () => {
         buttonGroup.querySelectorAll('.selected').forEach(b => {
           b.classList.remove('selected');
-          b.style.borderColor = '#93c5fd';
+          b.style.borderColor = b.dataset.border;
           b.style.background = 'white';
           b.style.boxShadow = 'none';
         });
         btn.classList.add('selected');
-        btn.style.borderColor = '#2563eb';
-        btn.style.background = '#dbeafe';
-        btn.style.boxShadow = '0 2px 8px rgba(37,99,235,0.3)';
+        btn.style.borderColor = c.active;
+        btn.style.background = c.light;
+        btn.style.boxShadow = `0 2px 8px ${c.shadow}`;
         if (hiddenPhone) hiddenPhone.value = phone;
         if (hiddenName) hiddenName.value = name;
       };
@@ -8644,7 +8702,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (buttonGroup) {
           buttonGroup.querySelectorAll('.selected').forEach(b => {
             b.classList.remove('selected');
-            b.style.borderColor = '#93c5fd';
+            b.style.borderColor = b.dataset.border || '#93c5fd';
             b.style.background = 'white';
             b.style.boxShadow = 'none';
           });
@@ -8868,6 +8926,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         usersList = users;
         storageWrapper.set({ 'stb_users_cache': users });
         populateWhatsAppDropdown();
+        initButtonGroups();
         console.log("V6.5.2 Senarai Pelulus berjaya dikemaskini:", users.length);
       })
       .catch(err => console.error("V6.5.2 Gagal muat turun senarai pengguna:", err));
@@ -9903,7 +9962,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (dbSyarikat) dbSyarikat.value = syarikat;
       if (dbCidb) dbCidb.value = cidb;
       if (dbStartDate) dbStartDate.value = tMohon; 
-      if (dbTatatertib) dbTatatertib.value = tatatertib;
+      if (dbTatatertib) { dbTatatertib.value = tatatertib; setButtonGroupValue('db_tatatertib', tatatertib); }
       if (dbGred) dbGred.value = gred;
       if (dbJustifikasi) dbJustifikasi.value = justifikasi;
 
@@ -10127,6 +10186,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     fieldsToClear.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
+    });
+
+    ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
+      setButtonGroupValue(id, '');
     });
 
     document.querySelectorAll('input[name="jenisApp"]').forEach(radio => {
@@ -11193,7 +11256,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_jenis').value = item.jenis || '';
     document.getElementById('db_negeri').value = item.negeri || '';
     document.getElementById('db_tatatertib').value = item.tatatertib || '';
+    setButtonGroupValue('db_tatatertib', item.tatatertib);
     document.getElementById('db_syor').value = item.syor_lawatan || '';
+    setButtonGroupValue('db_syor', item.syor_lawatan);
     document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
@@ -11202,6 +11267,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     updateDriveSectionVisibility();
     document.getElementById('db_justifikasi').value = item.justifikasi || '';
     document.getElementById('db_syor_status').value = item.syor_status || '';
+    setButtonGroupValue('db_syor_status', item.syor_status);
 
     // V6.6.0: SEMAK STATUS BEKU
     if (item.cidb) {
@@ -11464,6 +11530,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             // Re-initialize butang tick supaya warna berubah ikut data
             setTimeout(() => {
                 initializeTickButtons();
+                setButtonGroupValue('borang_tatatertib', parsedData.borang_tatatertib);
+                setButtonGroupValue('borang_syor_status', parsedData.borang_syor_status);
             }, 100);
 
             // 5. Buka tab Borang Semakan
@@ -12252,7 +12320,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (buttonGroup) {
       buttonGroup.querySelectorAll('.selected').forEach(b => {
         b.classList.remove('selected');
-        b.style.borderColor = '#93c5fd';
+        b.style.borderColor = b.dataset.border || '#93c5fd';
         b.style.background = 'white';
         b.style.boxShadow = 'none';
       });

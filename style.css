@@ -2378,3 +2378,28 @@
             gap: 8px;
             cursor: pointer;
         }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .btn-option {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 2px solid;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            background: transparent;
+            transition: all 0.2s;
+        }
+        .btn-option.active { color: #fff; }
+        .btn-green { border-color: #10b981; color: #10b981; }
+        .btn-green.active { background: #10b981; }
+        .btn-red { border-color: #ef4444; color: #ef4444; }
+        .btn-red.active { background: #ef4444; }
+        .btn-blue { border-color: #3b82f6; color: #3b82f6; }
+        .btn-blue.active { background: #3b82f6; }
+        .btn-orange { border-color: #f59e0b; color: #f59e0b; }
+        .btn-orange.active { background: #f59e0b; }
