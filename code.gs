@@ -4890,6 +4890,15 @@ function sendSpiDeadlineReminder() {
   }
 }
 
+function authorizeCalendar() {
+  const cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID);
+  if (cal) {
+    console.log('✅ Kalendar dijumpai: ' + cal.getName());
+  } else {
+    console.log('❌ Kalendar ' + SPI_CALENDAR_ID + ' tidak dijumpai');
+  }
+}
+
 function getSpiBacklogData() {
   try {
     const today = new Date();
