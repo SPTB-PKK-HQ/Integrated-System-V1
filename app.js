@@ -14441,6 +14441,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function renderSpiKalendar(data) {
     const grid = document.getElementById('spiCalendarGrid');
     const title = document.getElementById('spiCalTitle');
+    const timeline = document.getElementById('spiTimelineBody');
     if (!grid || !title) return;
     const year = spiCalendarDate.getFullYear();
     const month = spiCalendarDate.getMonth();
@@ -14453,6 +14454,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
+    const totalMonthDays = daysInMonth;
+    const thEnd = document.getElementById('spiTlThEnd');
+    if (thEnd) thEnd.textContent = daysInMonth;
 
     const activeItems = data.filter(r => {
       if (!r.date_submit) return false;
@@ -14473,13 +14477,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const dd = new Date(year, month, d);
         if (dd >= start && dd <= end) {
           const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const isStart = start.getFullYear() === year && start.getMonth() === month && start.getDate() === d;
-          const isEnd = end.getFullYear() === year && end.getMonth() === month && end.getDate() === d;
-          dayMap[ds].push({ item: r, isStart, isEnd });
+          dayMap[ds].push(r);
         }
       }
     });
 
+    // ── Calendar Grid ──
     let html = '<div class="spi-cal-row spi-cal-header">' + dayNames.map(d =>
       `<div class="spi-cal-cell spi-cal-day-name">${d}</div>`
     ).join('') + '</div>';
@@ -14496,26 +14499,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           const items = dayMap[dateStr] || [];
           let cls = 'spi-cal-cell spi-cal-day';
           if (isToday) cls += ' spi-cal-today';
-          let pillsHtml = '';
-          items.forEach(({item, isStart, isEnd}) => {
-            const pillCls = item.lawatan_syor ? 'spi-pill-siap' : (item.deadline && dateStr > item.deadline ? 'spi-pill-overdue' : 'spi-pill-pending');
-            const label = (item.syarikat || '').substring(0, 10);
-            pillsHtml += `<div class="spi-pill ${pillCls}" title="${item.syarikat || ''} | Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}">${label}</div>`;
-          });
+          if (items.length) cls += ' spi-cal-has-items';
           let popup = '';
           if (items.length) {
-            popup = `<div class="spi-cal-popup">` + items.map(({item}) =>
-              `<div class="spi-cal-popup-item ${item.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-                <strong>${item.syarikat || '-'}</strong>
-                <small>${item.jenis || ''} | ${item.pengesyor || ''}</small>
-                <small>📅 Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}</small>
-                <small>${item.lawatan_syor ? '✅ PKA: ' + item.lawatan_syor : '⏳ Menunggu PKA'}</small>
+            popup = `<div class="spi-cal-popup">` + items.map(r =>
+              `<div class="spi-cal-popup-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+                <strong>${r.syarikat || '-'}</strong>
+                <small>${r.jenis || ''} | ${r.pengesyor || ''}</small>
+                <small>📅 ${r.date_submit || '-'} → ${r.deadline || '-'}</small>
+                <small>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Menunggu PKA'}</small>
               </div>`
             ).join('') + `</div>`;
           }
           cells += `<div class="${cls}" data-date="${dateStr}">
             <span class="spi-cal-day-num">${day}</span>
-            <div class="spi-pills-container">${pillsHtml}</div>
+            ${items.length ? `<span class="spi-cal-badge">${items.length}</span>` : ''}
             ${popup}
           </div>`;
           day++;
@@ -14526,6 +14524,39 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
     grid.innerHTML = html;
 
+    // ── Timeline / Gantt ──
+    if (timeline) {
+      if (!activeItems.length) {
+        timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan aktif untuk bulan ini</div>`;
+      } else {
+        const monthMs = monthEnd.getTime() - monthStart.getTime() + 86400000;
+        timeline.innerHTML = activeItems.map(r => {
+          const start = new Date(r.date_submit);
+          const end = r.deadline ? new Date(r.deadline) : new Date(start);
+          const barStart = start < monthStart ? monthStart : start;
+          const barEnd = end > monthEnd ? monthEnd : end;
+          const leftPct = ((barStart.getTime() - monthStart.getTime()) / monthMs) * 100;
+          const widthPct = ((barEnd.getTime() - barStart.getTime()) / monthMs) * 100;
+          const isOverdue = !r.lawatan_syor && r.deadline && today.toISOString().split('T')[0] > r.deadline;
+          const barCls = r.lawatan_syor ? 'spi-timeline-bar-siap' : (isOverdue ? 'spi-timeline-bar-overdue' : 'spi-timeline-bar-pending');
+          const statusText = r.lawatan_syor ? '✅ Siap' : (isOverdue ? '⚠️ Lewat' : '⏳ Proses');
+          const statusCls = r.lawatan_syor ? 'spi-tl-status-siap' : (isOverdue ? 'spi-tl-status-overdue' : 'spi-tl-status-pending');
+          return `<div class="spi-timeline-item">
+            <div class="spi-tl-left">
+              <div class="spi-tl-name">${r.syarikat || '-'}</div>
+              <div class="spi-tl-meta">${r.jenis || ''} · ${r.pengesyor || ''}</div>
+              <div class="spi-tl-dates">📅 ${r.date_submit || '-'} <span class="spi-tl-arrow">→</span> ${r.deadline || '-'}</div>
+            </div>
+            <div class="spi-tl-track">
+              <div class="spi-tl-bar ${barCls}" style="left:${leftPct}%;width:${widthPct}%;"></div>
+            </div>
+            <div class="spi-tl-status ${statusCls}">${statusText}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Day click → detail
     document.querySelectorAll('.spi-cal-day').forEach(el => {
       el.addEventListener('click', function() {
         const detail = document.getElementById('spiCalDayDetail');
@@ -14534,12 +14565,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const dayItems = dayMap[date] || [];
         if (!dayItems.length) { detail.style.display = 'none'; return; }
         detail.style.display = 'block';
-        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + dayItems.map(({item}) =>
-          `<div class="spi-detail-item ${item.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-            <strong>${item.syarikat || '-'}</strong>
-            <div>${item.jenis || ''} | ${item.pengesyor || ''}</div>
-            <div>📅 Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}</div>
-            <div>${item.lawatan_syor ? '✅ PKA: ' + item.lawatan_syor : '⏳ Menunggu PKA'}</div>
+        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + dayItems.map(r =>
+          `<div class="spi-detail-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+            <strong>${r.syarikat || '-'}</strong>
+            <div>${r.jenis || ''} | ${r.pengesyor || ''}</div>
+            <div>📅 Hantar: ${r.date_submit || '-'} → Due: ${r.deadline || '-'}</div>
+            <div>${r.lawatan_syor ? '✅ PKA: ' + r.lawatan_syor : '⏳ Menunggu PKA'}</div>
           </div>`
         ).join('');
       });

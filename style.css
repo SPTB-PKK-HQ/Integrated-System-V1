@@ -2635,29 +2635,22 @@
     color: #b45309;
     font-weight: 800;
 }
-
-/* Pill bar styles */
-.spi-pills-container {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+.spi-cal-badge {
+    display: inline-block;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
     margin-top: 2px;
 }
-.spi-pill {
-    font-size: 0.55rem;
-    padding: 1px 4px;
-    border-radius: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: #fff;
-    font-weight: 600;
-    line-height: 1.4;
-    letter-spacing: 0.2px;
+.spi-cal-has-items {
+    background: #eff6ff;
 }
-.spi-pill-pending { background: #f59e0b; }
-.spi-pill-siap { background: #10b981; }
-.spi-pill-overdue { background: #ef4444; }
+.spi-cal-has-items:hover {
+    background: #dbeafe;
+}
 
 .spi-cal-popup {
     display: none;
@@ -2714,6 +2707,122 @@
 .spi-legend-pending { background: #f59e0b; }
 .spi-legend-overdue { background: #ef4444; }
 .spi-legend-siap { background: #10b981; }
+/* Timeline / Gantt */
+.spi-timeline-container {
+    margin-top: 16px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.spi-timeline-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.spi-timeline-header h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #1e293b;
+}
+.spi-timeline-sub {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+.spi-timeline-track-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 0 4px 140px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 600;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 4px;
+}
+.spi-timeline-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.spi-timeline-empty {
+    padding: 24px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+.spi-timeline-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f8fafc;
+    min-height: 48px;
+}
+.spi-timeline-item:last-child { border-bottom: none; }
+.spi-tl-left {
+    width: 130px;
+    flex-shrink: 0;
+}
+.spi-tl-name {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spi-tl-meta {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spi-tl-dates {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-top: 1px;
+}
+.spi-tl-arrow {
+    color: #94a3b8;
+    margin: 0 2px;
+}
+.spi-tl-track {
+    flex: 1;
+    height: 24px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    position: relative;
+    min-width: 100px;
+}
+.spi-tl-bar {
+    position: absolute;
+    top: 2px;
+    height: 20px;
+    border-radius: 10px;
+    min-width: 4px;
+    transition: all 0.2s;
+}
+.spi-timeline-bar-pending { background: #f59e0b; }
+.spi-timeline-bar-siap { background: #10b981; }
+.spi-timeline-bar-overdue { background: #ef4444; }
+.spi-tl-status {
+    width: 70px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+.spi-tl-status-pending { color: #92400e; background: #fef3c7; }
+.spi-tl-status-siap { color: #065f46; background: #d1fae5; }
+.spi-tl-status-overdue { color: #991b1b; background: #fee2e2; }
+
 .spi-cal-day-detail {
     margin-top: 12px;
     padding: 12px;
