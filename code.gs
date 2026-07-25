@@ -4748,12 +4748,140 @@ function checkOverdueSPI() {
   }
 }
 
+function sendSpiDeadlineReminder() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const todayStr = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+    const lastSent = props.getProperty('SPI_DEADLINE_REMINDER_DATE');
+    if (lastSent === todayStr) {
+      console.log(`[SPI Deadline] Reminder sudah dihantar hari ini (${todayStr}), skip.`);
+      return createJSONOutput({ success: true, count: 0, skipped: true });
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getDisplayValues();
+    const reminders = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const syorLawatan = (r[8] || '').toString().toUpperCase();
+      if (syorLawatan !== 'YA') continue;
+      const statusSpi = (r[15] || '').toString().trim();
+      if (statusSpi === '') continue;
+      const dateSubmit = (r[9] || '').toString().trim();
+      if (!dateSubmit) continue;
+      const lawatanSyor = (r[19] || '').toString().trim();
+      if (lawatanSyor !== '') continue;
+      const submitDate = new Date(dateSubmit);
+      if (isNaN(submitDate.getTime())) continue;
+      const deadline = addWorkingDays(submitDate, 14);
+      const deadlineStr = Utilities.formatDate(deadline, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+      if (deadlineStr === todayStr) {
+        reminders.push({
+          row: i + 1,
+          syarikat: r[0] || '',
+          cidb: r[1] || '',
+          jenis: r[3] || '',
+          pengesyor: r[12] || '',
+          date_submit: dateSubmit,
+          deadline: deadlineStr
+        });
+      }
+    }
+
+    if (reminders.length === 0) {
+      console.log(`[SPI Deadline] Tiada permohonan yang deadline hari ini (${todayStr}).`);
+      return createJSONOutput({ success: true, count: 0 });
+    }
+
+    let rowsHtml = '';
+    let textList = '';
+    reminders.forEach((d, idx) => {
+      rowsHtml += `<tr>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${idx + 1}</td>
+        <td style="padding:10px;border:1px solid #ddd;"><strong>${d.syarikat}</strong></td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.cidb || '-'}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.jenis || '-'}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.date_submit}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;color:#ef4444;">${d.deadline}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.pengesyor || '-'}</td>
+      </tr>`;
+      textList += `${idx + 1}. ${d.syarikat} (CIDB: ${d.cidb || '-'}) | ${d.jenis || '-'} | Hantar: ${d.date_submit} | Deadline: ${d.deadline} | Pengesyor: ${d.pengesyor || '-'}\n`;
+    });
+
+    const subject = `⚠️ TINDAKAN SEGERA: ${reminders.length} Permohonan SPI Mencapai Deadline Hari Ini`;
+    const htmlBody = `<!DOCTYPE html>
+<html>
+<head><style>
+  body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}
+  .container{max-width:800px;margin:0 auto;padding:20px;}
+  .header{background:#ef4444;color:white;padding:20px;text-align:center;border-radius:5px 5px 0 0;}
+  .content{background:#f9f9f9;padding:20px;border:1px solid #ddd;border-top:none;}
+  .footer{margin-top:20px;padding-top:20px;text-align:center;font-size:12px;color:#999;border-top:1px solid #ddd;}
+</style></head>
+<body>
+<div class="container">
+  <div class="header">
+    <h2 style="margin:0;">⚠️ PERINGATAN DEADLINE SPI</h2>
+    <p style="margin:5px 0 0;">${todayStr}</p>
+  </div>
+  <div class="content">
+    <p>Tuan/Puan,</p>
+    <p>Berikut adalah <strong>${reminders.length} permohonan SPI</strong> yang mencapai tarikh deadline (<strong>14 hari bekerja</strong>) pada hari ini. Sila ambil tindakan PKA segera.</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;background:white;">
+      <thead style="background:#f1f5f9;color:#1e293b;">
+        <tr>
+          <th style="padding:10px;border:1px solid #ddd;">Bil</th>
+          <th style="padding:10px;border:1px solid #ddd;">Syarikat</th>
+          <th style="padding:10px;border:1px solid #ddd;">CIDB</th>
+          <th style="padding:10px;border:1px solid #ddd;">Jenis</th>
+          <th style="padding:10px;border:1px solid #ddd;">Tarikh Hantar</th>
+          <th style="padding:10px;border:1px solid #ddd;">Deadline</th>
+          <th style="padding:10px;border:1px solid #ddd;">Pengesyor</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p style="margin-top:20px;"><em>*** Emel ini dijana secara automatik. Sila jangan balas emel ini. ***</em></p>
+  </div>
+  <div class="footer">
+    <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
+    <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const plainBody = `PERINGATAN DEADLINE SPI\n\n${reminders.length} permohonan SPI mencapai deadline hari ini (${todayStr}):\n\n${textList}\n*** Emel automatik oleh Sistem STB ***`;
+
+    MailApp.sendEmail({
+      to: getEmailToSPI(),
+      cc: getEmailCcSPTB(),
+      subject: subject,
+      htmlBody: htmlBody,
+      body: plainBody,
+      name: EMAIL_SENDER_NAME
+    });
+
+    props.setProperty('SPI_DEADLINE_REMINDER_DATE', todayStr);
+    logActivity('System', 'SPI_DEADLINE_REMINDER', `${reminders.length} permohonan deadline hari ini diemelkan.`, '');
+    console.log(`[SPI Deadline] Berjaya hantar reminder untuk ${reminders.length} permohonan.`);
+    return createJSONOutput({ success: true, count: reminders.length });
+  } catch (e) {
+    console.error(`[SPI Deadline] Ralat: ${e.toString()}`);
+    return createJSONOutput({ success: false, error: e.toString() });
+  }
+}
+
 function setupSpiOverdueCron() {
   try {
-    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'checkOverdueSPI').forEach(t => ScriptApp.deleteTrigger(t));
-    ScriptApp.newTrigger('checkOverdueSPI').timeBased().everyDays(1).atHour(9).create();
-    console.log('✅ Cron SPI overdue berjaya ditetapkan setiap hari jam 9 pagi.');
-    return createJSONOutput({ success: true, message: 'Cron SPI overdue ditetapkan' });
+    ['checkOverdueSPI','sendSpiDeadlineReminder'].forEach(fn => {
+      ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === fn).forEach(t => ScriptApp.deleteTrigger(t));
+      ScriptApp.newTrigger(fn).timeBased().everyDays(1).atHour(9).create();
+    });
+    console.log('✅ Cron SPI overdue + deadline reminder ditetapkan setiap hari jam 9 pagi.');
+    return createJSONOutput({ success: true, message: 'Cron SPI + deadline reminder ditetapkan' });
   } catch (e) {
     return createJSONOutput({ success: false, error: e.toString() });
   }
