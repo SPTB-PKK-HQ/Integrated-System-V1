@@ -1084,26 +1084,18 @@
                 </div>
             </div>
             <div id="spiKalendarView" class="spi-kalendar-view" style="display:none;">
-                <div class="spi-calendar-nav">
-                    <button id="spiCalPrev" class="spi-cal-nav-btn">◀</button>
-                    <span id="spiCalTitle" class="spi-cal-title"></span>
-                    <button id="spiCalNext" class="spi-cal-nav-btn">▶</button>
-                    <button id="spiCalToday" class="spi-cal-today-btn">Hari Ini</button>
-                </div>
-                <div class="spi-calendar-grid" id="spiCalendarGrid"></div>
                 <div class="spi-timeline-container">
                     <div class="spi-timeline-header">
                         <h4>📊 Timeline Permohonan</h4>
-                        <span class="spi-timeline-sub">Semua permohonan SPI (susun: proses → siap)</span>
+                        <span class="spi-timeline-sub">Bar peratusan 0–14 hari bekerja &lt; Susun: proses → siap &gt;</span>
                     </div>
                     <div id="spiTimelineBody" class="spi-timeline-body"></div>
+                    <div class="spi-timeline-legend">
+                        <span><span class="spi-tl-legend-dot tl-legend-pending"></span> Dalam Proses</span>
+                        <span><span class="spi-tl-legend-dot tl-legend-overdue"></span> Lewat</span>
+                        <span><span class="spi-tl-legend-dot tl-legend-siap"></span> Siap PKA</span>
+                    </div>
                 </div>
-                <div class="spi-calendar-legend">
-                    <span><span class="spi-legend-dot spi-legend-pending"></span> Dalam Proses</span>
-                    <span><span class="spi-legend-dot spi-legend-overdue"></span> Lewat (>14 hari)</span>
-                    <span><span class="spi-legend-dot spi-legend-siap"></span> Siap PKA</span>
-                </div>
-                <div id="spiCalDayDetail" class="spi-cal-day-detail" style="display:none;"></div>
             </div>
         </div>
     </div>

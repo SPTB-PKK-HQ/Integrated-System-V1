@@ -4669,6 +4669,8 @@ function getSpiQueueData(email) {
       })();
       let deadline = '';
       let bakiHari = -1;
+      let hariLewat = 0;
+      let progressPct = 0;
       const ds = r[9] ? r[9].toString().trim() : '';
       if (ds) {
         try {
@@ -4678,10 +4680,13 @@ function getSpiQueueData(email) {
             deadline = Utilities.formatDate(dd, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
             const today = new Date();
             today.setHours(0,0,0,0);
+            const elapsed = countWorkingDays(d, today);
+            progressPct = Math.min(Math.round((elapsed / 14) * 100), 100);
             if (dd >= today && !lawatanSyor) {
               bakiHari = countWorkingDays(today, dd);
             } else if (dd < today && !lawatanSyor) {
               bakiHari = 0;
+              hariLewat = countWorkingDays(dd, today);
             }
           }
         } catch (ex) {}
@@ -4696,6 +4701,8 @@ function getSpiQueueData(email) {
         date_submit: r[9] || '',
         deadline: deadline,
         baki_hari: bakiHari,
+        hari_lewat: hariLewat,
+        progress_pct: progressPct,
         status_hantar_spi: statusSpi,
         tarikh_hantar_spi: r[16] || '',
         lawatan_syor: lawatanSyor,

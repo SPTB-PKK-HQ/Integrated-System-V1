@@ -14356,7 +14356,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // =========================================================================
   // FUNGSI SPI QUEUE TAB (Senarai & Kalendar)
   // =========================================================================
-  let spiCalendarDate = new Date();
 
   async function loadSpiQueue() {
     const container = document.getElementById('tab-spi-queue');
@@ -14439,149 +14438,42 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   function renderSpiKalendar(data) {
-    const grid = document.getElementById('spiCalendarGrid');
-    const title = document.getElementById('spiCalTitle');
     const timeline = document.getElementById('spiTimelineBody');
-    if (!grid || !title) return;
-    const year = spiCalendarDate.getFullYear();
-    const month = spiCalendarDate.getMonth();
-    const months = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
-    title.textContent = `${months[month]} ${year}`;
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-    const dayNames = ['Ahd','Isn','Sel','Rab','Kha','Jum','Sab'];
-
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-    const totalMonthDays = daysInMonth;
-
-    const activeItems = data.filter(r => {
-      if (!r.date_submit) return false;
-      const start = new Date(r.date_submit);
-      const end = r.deadline ? new Date(r.deadline) : new Date(start);
-      return start <= monthEnd && end >= monthStart;
-    });
-
-    const dayMap = {};
-    for (let d = 1; d <= daysInMonth; d++) {
-      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      dayMap[ds] = [];
+    if (!timeline) return;
+    const allItems = data.filter(r => r.date_submit);
+    if (!allItems.length) {
+      timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan SPI</div>`;
+      return;
     }
-    activeItems.forEach((r) => {
-      const start = new Date(r.date_submit);
-      const end = r.deadline ? new Date(r.deadline) : new Date(start);
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dd = new Date(year, month, d);
-        if (dd >= start && dd <= end) {
-          const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          dayMap[ds].push(r);
-        }
-      }
+    const sorted = [...allItems].sort((a, b) => {
+      if (a.lawatan_syor && !b.lawatan_syor) return 1;
+      if (!a.lawatan_syor && b.lawatan_syor) return -1;
+      return (a.date_submit || '').localeCompare(b.date_submit || '');
     });
-
-    // ── Calendar Grid ──
-    let html = '<div class="spi-cal-row spi-cal-header">' + dayNames.map(d =>
-      `<div class="spi-cal-cell spi-cal-day-name">${d}</div>`
-    ).join('') + '</div>';
-    let day = 1;
-    for (let row = 0; row < 6; row++) {
-      if (day > daysInMonth) break;
-      let cells = '<div class="spi-cal-row">';
-      for (let col = 0; col < 7; col++) {
-        if ((row === 0 && col < firstDay) || day > daysInMonth) {
-          cells += '<div class="spi-cal-cell spi-cal-empty"></div>';
-        } else {
-          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-          const items = dayMap[dateStr] || [];
-          let cls = 'spi-cal-cell spi-cal-day';
-          if (isToday) cls += ' spi-cal-today';
-          if (items.length) cls += ' spi-cal-has-items';
-          let popup = '';
-          if (items.length) {
-            popup = `<div class="spi-cal-popup">` + items.map(r =>
-              `<div class="spi-cal-popup-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-                <strong>${r.syarikat || '-'}</strong>
-                <small>${r.jenis || ''} | ${r.pengesyor || ''}</small>
-                <small>📅 ${r.date_submit || '-'} → ${r.deadline || '-'}</small>
-                <small>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Menunggu PKA'}</small>
-              </div>`
-            ).join('') + `</div>`;
-          }
-          cells += `<div class="${cls}" data-date="${dateStr}">
-            <span class="spi-cal-day-num">${day}</span>
-            ${items.length ? `<span class="spi-cal-badge">${items.length}</span>` : ''}
-            ${popup}
-          </div>`;
-          day++;
-        }
-      }
-      cells += '</div>';
-      html += cells;
-    }
-    grid.innerHTML = html;
-
-    // ── Timeline / Gantt — ALL items (not filtered by month) ──
-    if (timeline) {
-      const allItems = data.filter(r => r.date_submit);
-      if (!allItems.length) {
-        timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan SPI</div>`;
-      } else {
-        const sorted = [...allItems].sort((a, b) => {
-          if (a.lawatan_syor && !b.lawatan_syor) return 1;
-          if (!a.lawatan_syor && b.lawatan_syor) return -1;
-          return (a.date_submit || '').localeCompare(b.date_submit || '');
-        });
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        timeline.innerHTML = sorted.map(r => {
-          const isOverdue = !r.lawatan_syor && r.deadline && todayStr > r.deadline;
-          const barCls = r.lawatan_syor ? 'spi-timeline-bar-siap' : (isOverdue ? 'spi-timeline-bar-overdue' : 'spi-timeline-bar-pending');
-          const statusText = r.lawatan_syor ? '✅ Siap' : (isOverdue ? '⚠️ Lewat' : '⏳ Proses');
-          const statusCls = r.lawatan_syor ? 'spi-tl-status-siap' : (isOverdue ? 'spi-tl-status-overdue' : 'spi-tl-status-pending');
-          const baki = r.baki_hari !== undefined && r.baki_hari >= 0 ? r.baki_hari : null;
-          const bakiHtml = baki !== null
-            ? `<span class="spi-tl-baki">${baki === 0 ? 'Hari Terakhir!' : baki + ' hari lagi'}</span>`
-            : (r.lawatan_syor ? `<span class="spi-tl-baki spi-tl-baki-siap">Siap</span>` : '');
-          const deadlineDisplay = r.deadline ? `Due: ${r.deadline}` : '-';
-          return `<div class="spi-timeline-item">
-            <div class="spi-tl-left">
-              <div class="spi-tl-name">${r.syarikat || '-'}</div>
-              <div class="spi-tl-meta">${r.jenis || ''} · ${r.pengesyor || ''}</div>
-              <div class="spi-tl-dates">📅 ${r.date_submit || '-'} → ${deadlineDisplay}</div>
-            </div>
-            <div class="spi-tl-track">
-              <div class="spi-tl-bar ${barCls}" style="left:0;width:100%;"></div>
-            </div>
-            <div class="spi-tl-right">
-              <div class="spi-tl-status ${statusCls}">${statusText}</div>
-              ${bakiHtml}
-            </div>
-          </div>`;
-        }).join('');
-      }
-    }
-
-    // Day click → detail
-    document.querySelectorAll('.spi-cal-day').forEach(el => {
-      el.addEventListener('click', function() {
-        const detail = document.getElementById('spiCalDayDetail');
-        if (!detail) return;
-        const date = this.getAttribute('data-date');
-        const dayItems = dayMap[date] || [];
-        if (!dayItems.length) { detail.style.display = 'none'; return; }
-        detail.style.display = 'block';
-        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + dayItems.map(r =>
-          `<div class="spi-detail-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-            <strong>${r.syarikat || '-'}</strong>
-            <div>${r.jenis || ''} | ${r.pengesyor || ''}</div>
-            <div>📅 Hantar: ${r.date_submit || '-'} → Due: ${r.deadline || '-'}</div>
-            <div>${r.lawatan_syor ? '✅ PKA: ' + r.lawatan_syor : '⏳ Menunggu PKA'}</div>
-          </div>`
-        ).join('');
-      });
-    });
+    timeline.innerHTML = sorted.map(r => {
+      const siap = !!r.lawatan_syor;
+      const isOverdue = !siap && r.hari_lewat && r.hari_lewat > 0;
+      const barCls = siap ? 'spi-tl-bar-siap' : (isOverdue ? 'spi-tl-bar-overdue' : 'spi-tl-bar-pending');
+      const pct = siap ? 100 : (r.progress_pct !== undefined ? r.progress_pct : 0);
+      const barLabel = siap ? '✅ Siap'
+        : isOverdue ? `${r.hari_lewat} hari lewat`
+        : r.baki_hari > 0 ? `${r.baki_hari} hari lagi`
+        : r.baki_hari === 0 ? 'Hari Terakhir!'
+        : '';
+      const deadlineDisplay = r.deadline ? `Due: ${r.deadline}` : '-';
+      return `<div class="spi-timeline-item">
+        <div class="spi-tl-left">
+          <div class="spi-tl-name">${r.syarikat || '-'}</div>
+          <div class="spi-tl-meta">${r.jenis || ''} · ${r.pengesyor || ''}</div>
+          <div class="spi-tl-dates">📅 ${r.date_submit || '-'} → ${deadlineDisplay}</div>
+        </div>
+        <div class="spi-tl-track">
+          <div class="spi-tl-bar-fill ${barCls}" style="width:${pct}%;">
+            <span class="spi-tl-bar-label">${barLabel}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   document.addEventListener('click', function(e) {
@@ -14591,20 +14483,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   });
 
-  document.addEventListener('click', function(e) {
-    if (e.target.id === 'spiCalPrev') {
-      spiCalendarDate.setMonth(spiCalendarDate.getMonth() - 1);
-      loadSpiQueue();
-    }
-    if (e.target.id === 'spiCalNext') {
-      spiCalendarDate.setMonth(spiCalendarDate.getMonth() + 1);
-      loadSpiQueue();
-    }
-    if (e.target.id === 'spiCalToday') {
-      spiCalendarDate = new Date();
-      loadSpiQueue();
-    }
-  });
 
   function populateQueueTable(tbodyId, dataArray) {
       const tbody = document.getElementById(tbodyId);
