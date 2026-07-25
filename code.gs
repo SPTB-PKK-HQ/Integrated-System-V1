@@ -3232,36 +3232,6 @@ function isCutiUmumPutrajaya(date) {
   ];
   
   if (cutiTetap.includes(formatTarikh)) return true;
-  
-  // 2. Semakan Dinamik menggunakan Google Calendar Malaysia (Cuti Boleh Ubah: Raya, Wesak, Deepavali, Birthday Agong, dll)
-  try {
-    const calId = "en.malaysia#holiday@group.v.calendar.google.com";
-    const cal = CalendarApp.getCalendarById(calId);
-    if (cal) {
-      const events = cal.getEventsForDay(date);
-      if (events.length > 0) {
-        // Tapis dan abaikan cuti negeri lain yang tidak melibatkan Putrajaya/Nasional
-        const blocklistNegeri = [
-          "JOHOR", "KEDAH", "KELANTAN", "MELAKA", "NEGERI SEMBILAN", "PAHANG", 
-          "PERAK", "PERLIS", "PULAU PINANG", "PENANG", "SABAH", "SARAWAK", 
-          "SELANGOR", "TERENGGANU"
-        ];
-        
-        for (let i = 0; i < events.length; i++) {
-          const title = events[i].getTitle().toUpperCase();
-          let isOtherStateHoliday = blocklistNegeri.some(negeri => title.includes(negeri));
-          
-          // Jika ia adalah cuti Nasional / Putrajaya yang sah (tiada blocklist negeri lain)
-          if (!isOtherStateHoliday) {
-            return true;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Nota: Gagal akses kalendar Google, bersandar pada semakan cuti am tetap sahaja: " + e.toString());
-  }
-  
   return false;
 }
 
