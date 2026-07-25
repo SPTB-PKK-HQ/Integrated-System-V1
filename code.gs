@@ -4899,6 +4899,12 @@ function authorizeCalendar() {
   }
 }
 
+function testSpiBacklogReminder() {
+  const result = sendSpiBacklogReminder();
+  const content = result.getContent();
+  console.log('[Test Backlog] Result:', content);
+}
+
 function getSpiBacklogData() {
   try {
     const today = new Date();
