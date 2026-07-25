@@ -2427,29 +2427,6 @@
     margin: 0;
     font-size: 1.2rem;
 }
-.spi-toggle-group {
-    display: flex;
-    gap: 4px;
-    background: #f1f5f9;
-    border-radius: 8px;
-    padding: 3px;
-}
-.spi-toggle-btn {
-    padding: 6px 16px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    color: #64748b;
-    transition: all 0.2s;
-}
-.spi-toggle-btn.active {
-    background: #fff;
-    color: #1e40af;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-}
 .spi-loading {
     display: none;
     flex-direction: column;
@@ -2478,40 +2455,9 @@
     background-size: 200% 100%;
     animation: spiShimmer 1.5s infinite;
 }
-.spi-skeleton-cell {
-    aspect-ratio: 1;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
-    background-size: 200% 100%;
-    animation: spiShimmer 1.5s infinite;
-}
 @keyframes spiShimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
-}
-
-/* Senarai View */
-.spi-senarai-view {
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    padding: 16px;
-}
-.spi-senarai-stats {
-    margin-bottom: 12px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.spi-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-.spi-badge-total { background: #e0e7ff; color: #3730a3; }
-.spi-badge-pending { background: #fef3c7; color: #92400e; }
-.spi-badge-siap { background: #d1fae5; color: #065f46; }
 .spi-table-wrapper {
     overflow-x: auto;
 }
@@ -2540,8 +2486,8 @@
 .spi-status-pending { color: #d97706; font-weight: 600; }
 .spi-status-siap { color: #059669; font-weight: 600; }
 
-/* Kalendar View */
-.spi-kalendar-view {
+/* Timeline View */
+.spi-timeline-view {
     background: transparent;
     box-shadow: none;
     padding: 0;

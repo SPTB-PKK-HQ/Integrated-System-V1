@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdSm_16jcoKXQ3iEKyaR7ZrP6U4b1aWgrz0d9ibkg-d0PcH9JoXQmYtKtgOUe6Uriy/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_Bu60LUbiKYe0U-0FOYE0NY3h0x6RIwrkvKz0os5khQ38qP9Ht_igwlsH_DWrdCtn/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -14354,90 +14354,40 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   // =========================================================================
-  // FUNGSI SPI QUEUE TAB (Senarai & Kalendar)
+  // FUNGSI SPI TAB — Timeline
   // =========================================================================
 
   async function loadSpiQueue() {
     const container = document.getElementById('tab-spi-queue');
     if (!container) return;
     const loading = document.getElementById('spiLoading');
-    const senaraiView = document.getElementById('spiSenaraiView');
-    const kalendarView = document.getElementById('spiKalendarView');
+    const timelineView = document.getElementById('spiTimelineView');
     if (loading) loading.style.display = 'flex';
-    if (senaraiView) senaraiView.style.display = 'none';
-    if (kalendarView) kalendarView.style.display = 'none';
+    if (timelineView) timelineView.style.display = 'none';
     try {
       const email = currentUser ? encodeURIComponent(currentUser.email) : '';
       const resp = await fetchWithRetry(SCRIPT_URL + `?action=getSpiQueueData&email=${email}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
       const result = await resp.json();
       if (loading) loading.style.display = 'none';
+      if (timelineView) timelineView.style.display = 'block';
       if (result.success) {
         const data = result.data || [];
-        renderSpiSenarai(data);
-        renderSpiKalendar(data);
+        renderSpiTimeline(data);
         const statsEl = document.getElementById('spiStats');
         if (statsEl) {
           const total = data.length;
           const pending = data.filter(r => !r.lawatan_syor).length;
           statsEl.textContent = `| ${total} permohonan, ${pending} menunggu PKA`;
         }
-        const activeView = document.querySelector('.spi-toggle-btn.active');
-        if (activeView) {
-          const view = activeView.getAttribute('data-spi-view');
-          showSpiView(view);
-        } else {
-          showSpiView('senarai');
-        }
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
+      if (timelineView) timelineView.style.display = 'block';
       console.error('SPI Queue load error:', e);
     }
   }
 
-  function showSpiView(view) {
-    const senarai = document.getElementById('spiSenaraiView');
-    const kalendar = document.getElementById('spiKalendarView');
-    if (!senarai || !kalendar) return;
-    document.querySelectorAll('.spi-toggle-btn').forEach(b => b.classList.remove('active'));
-    const btn = document.querySelector(`.spi-toggle-btn[data-spi-view="${view}"]`);
-    if (btn) btn.classList.add('active');
-    if (view === 'senarai') { senarai.style.display = 'block'; kalendar.style.display = 'none'; }
-    else { senarai.style.display = 'none'; kalendar.style.display = 'block'; }
-  }
-
-  function renderSpiSenarai(data) {
-    const tbody = document.getElementById('spiSenaraiBody');
-    if (!tbody) return;
-    const statsEl = document.getElementById('spiSenaraiStats');
-    if (statsEl) {
-      const pending = data.filter(r => !r.lawatan_syor).length;
-      const siap = data.filter(r => r.lawatan_syor).length;
-      statsEl.innerHTML = `<span class="spi-badge spi-badge-total">${data.length} Jumlah</span> <span class="spi-badge spi-badge-pending">${pending} Dalam Proses</span> <span class="spi-badge spi-badge-siap">${siap} Siap PKA</span>`;
-    }
-    if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:#94a3b8;">✅ Tiada permohonan SPI</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = data.map((r, i) => {
-      const statusClass = r.lawatan_syor ? 'spi-status-siap' : 'spi-status-pending';
-      const statusText = r.lawatan_syor ? `✅ ${r.lawatan_syor}` : '⏳ Dalam Proses';
-      const dueStr = r.deadline ? `Due: ${r.deadline}` : '';
-      return `<tr>
-        <td>${i + 1}</td>
-        <td><strong>${r.syarikat || '-'}</strong></td>
-        <td>${r.cidb || '-'}</td>
-        <td>${r.jenis || '-'}</td>
-        <td>${r.pengesyor || '-'}</td>
-        <td>${r.date_submit || '-'}</td>
-        <td class="${statusClass}">${statusText}</td>
-        <td>${r.lawatan_syor || '-'}</td>
-        <td style="font-size:0.78rem; color:#64748b;">${dueStr}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  function renderSpiKalendar(data) {
+  function renderSpiTimeline(data) {
     const timeline = document.getElementById('spiTimelineBody');
     if (!timeline) return;
     const allItems = data.filter(r => r.date_submit);
@@ -14475,13 +14425,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       </div>`;
     }).join('');
   }
-
-  document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('spi-toggle-btn')) {
-      const view = e.target.getAttribute('data-spi-view');
-      if (view) showSpiView(view);
-    }
-  });
 
 
   function populateQueueTable(tbodyId, dataArray) {

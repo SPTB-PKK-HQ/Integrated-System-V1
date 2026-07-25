@@ -1037,10 +1037,6 @@
         <div class="spi-queue-container">
             <div class="spi-header">
                 <h2>📋 SPI Queue</h2>
-                <div class="spi-toggle-group">
-                    <button class="spi-toggle-btn active" data-spi-view="senarai">📋 Senarai</button>
-                    <button class="spi-toggle-btn" data-spi-view="kalendar">📅 Kalendar</button>
-                </div>
                 <span id="spiStats" style="font-size:0.85rem; color:#64748b;"></span>
             </div>
             <div id="spiLoading" class="spi-loading" style="display:none;">
@@ -1052,38 +1048,8 @@
                     <div class="spi-skeleton-row"><div class="spi-skeleton-line" style="width:50%;height:14px;"></div></div>
                     <div class="spi-skeleton-row"><div class="spi-skeleton-line" style="width:55%;height:14px;"></div></div>
                 </div>
-                <div class="spi-skeleton-card" style="margin-top:12px;">
-                    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
-                        <div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div>
-                        <div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div>
-                        <div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div>
-                        <div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div>
-                        <div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div><div class="spi-skeleton-cell"></div>
-                    </div>
-                </div>
             </div>
-            <div id="spiSenaraiView" class="spi-senarai-view" style="display:none;">
-                <div class="spi-senarai-stats" id="spiSenaraiStats"></div>
-                <div class="spi-table-wrapper">
-                    <table class="spi-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Syarikat</th>
-                                <th>CIDB</th>
-                                <th>Jenis</th>
-                                <th>Pengesyor</th>
-                                <th>Tarikh Submit</th>
-                                <th>Status</th>
-                                <th>Lawatan Syor</th>
-                                <th>Deadline</th>
-                            </tr>
-                        </thead>
-                        <tbody id="spiSenaraiBody"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="spiKalendarView" class="spi-kalendar-view" style="display:none;">
+            <div id="spiTimelineView" class="spi-timeline-view">
                 <div class="spi-timeline-container">
                     <div class="spi-timeline-header">
                         <h4>📊 Timeline Permohonan</h4>
