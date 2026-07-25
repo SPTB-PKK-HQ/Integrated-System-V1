@@ -1742,7 +1742,7 @@ function handleUpdateRecord(data, sheet) {
           syor_lawatan: syorLawatanValue
         };
         addToSiasatQueue(emailData);
-        createSpiCalendarEvent(rowNum, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit);
+        try { createSpiCalendarEvent(rowNum, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit); } catch (e) { console.error(`[SPI Calendar] Gagal buat event row ${rowNum}: ${e.toString()}`); }
       }
       
       const syorLawatanPemutihan = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN';
@@ -1985,7 +1985,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
 
       try {
         addToSiasatQueue(emailData);
-        createSpiCalendarEvent(targetRow, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit);
+        try { createSpiCalendarEvent(targetRow, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit); } catch (e) { console.error(`[SPI Calendar] Gagal buat event row ${targetRow}: ${e.toString()}`); }
         console.log(`[V6.5.0] SPI SIASAT queued for daily 10AM on insert for row ${targetRow}: ${emailData.syarikat}`);
       } catch (queueError) {
         console.error(`[V6.5.0] Failed to queue SPI SIASAT on insert: ${queueError.toString()}`);
@@ -4583,7 +4583,11 @@ function countWorkingDays(fromDate, toDate) {
 function createSpiCalendarEvent(rowNum, syarikat, cidb, jenis, pengesyor, dateSubmit) {
   try {
     if (!dateSubmit) return null;
-    const cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID);
+    let cal;
+    try { cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID); } catch (permErr) {
+      console.error(`[SPI Calendar] Gagal akses kalendar — kemungkinan OAuth scope kalendar belum diauthorize. Sila redeploy & authorize semula. Detail: ${permErr.toString()}`);
+      return null;
+    }
     if (!cal) {
       console.error(`Kalendar ${SPI_CALENDAR_ID} tidak dijumpai`);
       return null;
