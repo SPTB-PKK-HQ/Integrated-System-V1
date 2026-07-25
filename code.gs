@@ -366,6 +366,14 @@ function doGet(e) {
       return createJSONOutput({ status: "success", siasat: siasatQ, pemutihan: pemutihanQ });
     }
     
+    // V6.8.0: Handler untuk getSpiQueueData (SPI Queue Tab)
+    if (action === "getSpiQueueData") {
+      if (!email) {
+        return createJSONOutput({ success: false, error: "Email diperlukan" });
+      }
+      return getSpiQueueData(email);
+    }
+
     // V6.6.0: Handler untuk getInbox
     if (action === "getInbox") {
       return handleGetInbox(e.parameter);
@@ -1724,6 +1732,7 @@ function handleUpdateRecord(data, sheet) {
           syor_lawatan: syorLawatanValue
         };
         addToSiasatQueue(emailData);
+        createSpiCalendarEvent(rowNum, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit);
       }
       
       const syorLawatanPemutihan = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN';
@@ -1966,6 +1975,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
 
       try {
         addToSiasatQueue(emailData);
+        createSpiCalendarEvent(targetRow, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit);
         console.log(`[V6.5.0] SPI SIASAT queued for daily 10AM on insert for row ${targetRow}: ${emailData.syarikat}`);
       } catch (queueError) {
         console.error(`[V6.5.0] Failed to queue SPI SIASAT on insert: ${queueError.toString()}`);
@@ -2791,6 +2801,9 @@ function handlePKAUpdateLawatan(data, sheet) {
     }
 
     logActivity(data.email || 'PKA', 'PKA_UPDATE_LAWATAN', `Lawatan diupdate oleh PKA untuk baris ${rowNum}`, '');
+    if (data.lawatan_syor && data.lawatan_syor.toString().trim() !== '') {
+      try { updateSpiCalendarEvent(rowNum, data.lawatan_syor); } catch (e) { console.error(`[SPI Calendar] Gagal update PKA: ${e.toString()}`); }
+    }
     invalidateDataCache();
     return createJSONOutput({ status: "success", message: "Lawatan berjaya dikemaskini" });
   } catch (error) {
@@ -4523,5 +4536,185 @@ function handleRenameDriveFile(data) {
       msg = "Fail tidak dapat diakses. Mungkin fail ini telah dipadam atau anda tiada kebenaran.";
     }
     return createJSONOutput({ success: false, error: msg });
+  }
+}
+
+// =========================================================================
+// FUNGSI SPI CALENDAR & OVERDUE CHECKER
+// =========================================================================
+
+const SPI_CALENDAR_ID = 'pkk.sptb@kuskop.gov.my';
+
+function addWorkingDays(startDate, numDays) {
+  let result = new Date(startDate);
+  let added = 0;
+  while (added < numDays) {
+    result.setDate(result.getDate() + 1);
+    const day = result.getDay();
+    if (day === 0 || day === 6) continue;
+    if (isCutiUmumPutrajaya(result)) continue;
+    added++;
+  }
+  return result;
+}
+
+function createSpiCalendarEvent(rowNum, syarikat, cidb, jenis, pengesyor, dateSubmit) {
+  try {
+    if (!dateSubmit) return null;
+    const cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID);
+    if (!cal) {
+      console.error(`Kalendar ${SPI_CALENDAR_ID} tidak dijumpai`);
+      return null;
+    }
+    const startDate = new Date(dateSubmit);
+    const endDate = addWorkingDays(startDate, 14);
+    const title = `SPI: ${syarikat} (${jenis})`;
+    const desc = [
+      `Syarikat: ${syarikat}`,
+      `CIDB: ${cidb}`,
+      `Jenis: ${jenis}`,
+      `Pengesyor: ${pengesyor}`,
+      `Tarikh Submit: ${dateSubmit}`,
+      `Baris: ${rowNum}`,
+      `Target Siap: ${Utilities.formatDate(endDate, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd')}`
+    ].join('\n');
+    const event = cal.createAllDayEvent(title, startDate, endDate, { description: desc });
+    const eventId = event.getId();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const existingJSON = sheet.getRange(rowNum, 29).getValue() || '{}';
+    let parsed = {};
+    try { parsed = JSON.parse(existingJSON); } catch (e) { parsed = {}; }
+    parsed.spi_calendar_event_id = eventId;
+    sheet.getRange(rowNum, 29).setValue(JSON.stringify(parsed));
+    console.log(`[SPI Calendar] Event created for row ${rowNum}: ${title}`);
+    return eventId;
+  } catch (e) {
+    console.error(`[SPI Calendar] Gagal buat event untuk row ${rowNum}: ${e.toString()}`);
+    return null;
+  }
+}
+
+function updateSpiCalendarEvent(rowNum, lawatanSyor) {
+  try {
+    if (!lawatanSyor) return;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const existingJSON = sheet.getRange(rowNum, 29).getValue() || '{}';
+    let parsed = {};
+    try { parsed = JSON.parse(existingJSON); } catch (e) { parsed = {}; }
+    const eventId = parsed.spi_calendar_event_id;
+    if (!eventId) {
+      console.log(`[SPI Calendar] Tiada event ID untuk row ${rowNum}, skip update`);
+      return;
+    }
+    const cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID);
+    if (!cal) return;
+    const event = cal.getEventById(eventId);
+    if (!event) {
+      console.log(`[SPI Calendar] Event ${eventId} tidak dijumpai untuk row ${rowNum}`);
+      return;
+    }
+    const existingDesc = event.getDescription() || '';
+    const updatedDesc = existingDesc + `\nPKA Siap: ${lawatanSyor}`;
+    event.setDescription(updatedDesc);
+    event.setColor('2');
+    console.log(`[SPI Calendar] Event updated for row ${rowNum} with PKA siap: ${lawatanSyor}`);
+  } catch (e) {
+    console.error(`[SPI Calendar] Gagal update event untuk row ${rowNum}: ${e.toString()}`);
+  }
+}
+
+function getSpiQueueData(email) {
+  try {
+    const accessCheck = verifyUserAccess(email, [ROLE_ADMIN, ROLE_PENGESYOR, ROLE_PELULUS, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ success: false, error: accessCheck.error });
+    }
+    const isPengesyor = accessCheck.userProfile && accessCheck.userProfile.role === ROLE_PENGESYOR;
+    const pengesyorName = isPengesyor ? accessCheck.userProfile.name : '';
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getDisplayValues();
+    const result = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const syorLawatan = (r[8] || '').toString().toUpperCase();
+      if (syorLawatan !== 'YA') continue;
+      if (r[8] && r[8].toString().toUpperCase() === 'PEMUTIHAN') continue;
+      const statusSpi = (r[15] || '').toString().trim();
+      if (statusSpi === '') continue;
+      if (isPengesyor) {
+        const rowPengesyor = (r[12] || '').toString().trim().toUpperCase();
+        if (rowPengesyor !== pengesyorName.toUpperCase()) continue;
+      }
+      const lawatanSyor = (r[19] || '').toString().trim();
+      const eventId = (() => {
+        try {
+          const j = JSON.parse(r[28] || '{}');
+          return j.spi_calendar_event_id || '';
+        } catch (e) { return ''; }
+      })();
+      result.push({
+        row: i + 1,
+        syarikat: r[0] || '',
+        cidb: r[1] || '',
+        gred: r[2] || '',
+        jenis: r[3] || '',
+        pengesyor: r[12] || '',
+        date_submit: r[9] || '',
+        status_hantar_spi: statusSpi,
+        tarikh_hantar_spi: r[16] || '',
+        lawatan_syor: lawatanSyor,
+        event_id: eventId
+      });
+    }
+    return createJSONOutput({ success: true, data: result });
+  } catch (e) {
+    return createJSONOutput({ success: false, error: e.toString() });
+  }
+}
+
+function checkOverdueSPI() {
+  try {
+    const today = new Date();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getDisplayValues();
+    let count = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const syorLawatan = (r[8] || '').toString().toUpperCase();
+      if (syorLawatan !== 'YA') continue;
+      const dateSubmit = (r[9] || '').toString().trim();
+      if (!dateSubmit) continue;
+      const lawatanSyor = (r[19] || '').toString().trim();
+      if (lawatanSyor !== '') continue;
+      const submitDate = new Date(dateSubmit);
+      if (isNaN(submitDate.getTime())) continue;
+      const deadline = addWorkingDays(submitDate, 14);
+      if (today >= deadline) {
+        const pengesyor = r[12] || '';
+        const msg = `⚠️ SPI untuk *${r[0] || ''}* (${r[3] || ''}) melebihi 14 hari bekerja. Sila ambil tindakan.`;
+        addInboxToRow(i + 1, pengesyor, msg, 'WARNING');
+        count++;
+      }
+    }
+    console.log(`[SPI Calendar] Overdue check selesai: ${count} notifikasi dihantar`);
+    return createJSONOutput({ success: true, count: count });
+  } catch (e) {
+    console.error(`[SPI Calendar] Ralat checkOverdueSPI: ${e.toString()}`);
+    return createJSONOutput({ success: false, error: e.toString() });
+  }
+}
+
+function setupSpiOverdueCron() {
+  try {
+    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'checkOverdueSPI').forEach(t => ScriptApp.deleteTrigger(t));
+    ScriptApp.newTrigger('checkOverdueSPI').timeBased().everyDays(1).atHour(9).create();
+    console.log('✅ Cron SPI overdue berjaya ditetapkan setiap hari jam 9 pagi.');
+    return createJSONOutput({ success: true, message: 'Cron SPI overdue ditetapkan' });
+  } catch (e) {
+    return createJSONOutput({ success: false, error: e.toString() });
   }
 }

@@ -1031,6 +1031,59 @@
         </div>
     </div>
 
+    <!-- SPI QUEUE TAB -->
+    <div id="tab-spi-queue" class="tab-content no-print" style="display:none;">
+        <div class="spi-queue-container">
+            <div class="spi-header">
+                <h2>📋 SPI Queue</h2>
+                <div class="spi-toggle-group">
+                    <button class="spi-toggle-btn active" data-spi-view="senarai">📋 Senarai</button>
+                    <button class="spi-toggle-btn" data-spi-view="kalendar">📅 Kalendar</button>
+                </div>
+                <span id="spiStats" style="font-size:0.85rem; color:#64748b;"></span>
+            </div>
+            <div id="spiLoading" class="spi-loading" style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:40px;">
+                <div class="dashboard-spinner"></div>
+                <div style="color:#64748b;">Memuatkan data SPI...</div>
+            </div>
+            <div id="spiSenaraiView" class="spi-senarai-view" style="display:none;">
+                <div class="spi-senarai-stats" id="spiSenaraiStats"></div>
+                <div class="spi-table-wrapper">
+                    <table class="spi-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Syarikat</th>
+                                <th>CIDB</th>
+                                <th>Jenis</th>
+                                <th>Pengesyor</th>
+                                <th>Tarikh Submit</th>
+                                <th>Status</th>
+                                <th>Lawatan Syor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="spiSenaraiBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="spiKalendarView" class="spi-kalendar-view" style="display:none;">
+                <div class="spi-calendar-nav">
+                    <button id="spiCalPrev" class="spi-cal-nav-btn">◀</button>
+                    <span id="spiCalTitle" class="spi-cal-title"></span>
+                    <button id="spiCalNext" class="spi-cal-nav-btn">▶</button>
+                    <button id="spiCalToday" class="spi-cal-today-btn">Hari Ini</button>
+                </div>
+                <div class="spi-calendar-grid" id="spiCalendarGrid"></div>
+                <div class="spi-calendar-legend">
+                    <span><span class="spi-legend-dot spi-legend-pending"></span> Dalam Proses</span>
+                    <span><span class="spi-legend-dot spi-legend-overdue"></span> Melebihi 14 Hari</span>
+                    <span><span class="spi-legend-dot spi-legend-siap"></span> Siap PKA</span>
+                </div>
+                <div id="spiCalDayDetail" class="spi-cal-day-detail" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- V6.6.0: CHANGELOG WALKTHROUGH CAROUSEL MODAL -->
     <div id="changelogOverlay" class="changelog-overlay" style="display:none;">
         <div class="changelog-modal">

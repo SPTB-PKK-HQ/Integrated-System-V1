@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydNYsmwnJlxgIgV7LZV-bkcB3Eam10HMVtpRKThOobEGI8e-8pQSfL7oBC9_J5YSn9/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbymQBCNqQUcoZa-jEZp9ETEJsyisBcXom8Wdpsxphg1oqkInPUuPYEG0ASPq2lhGMEq/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -9014,7 +9014,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       // Kemas kini senarai tab yang dibenarkan
-      if(!activeTab || !['dashboard','tab-tapisan','tab-bakul','stb','db','drafts','submitted', 'profile', 'youtube'].includes(activeTab)) {
+      if(!activeTab || !['dashboard','tab-tapisan','tab-bakul','stb','db','drafts','submitted','spi-queue', 'profile', 'youtube'].includes(activeTab)) {
         activeTab = 'dashboard';
       }
 
@@ -9032,7 +9032,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const pelulusNamaField = document.getElementById('pelulus_nama');
       if (pelulusNamaField) pelulusNamaField.value = currentUser.name;
       
-      if(!activeTab || !['dashboard','inbox','pelulus-view','pelulus-action','history', 'youtube'].includes(activeTab)) {
+      if(!activeTab || !['dashboard','inbox','pelulus-view','pelulus-action','history','spi-queue', 'youtube'].includes(activeTab)) {
         activeTab = 'dashboard';
       }
       
@@ -9085,7 +9085,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const pelulusNamaField = document.getElementById('pelulus_nama');
       if (pelulusNamaField) pelulusNamaField.value = currentUser.name;
       
-      if(!activeTab || !['admin-dashboard','inbox','submitted','history'].includes(activeTab)) {
+      if(!activeTab || !['admin-dashboard','inbox','submitted','history','spi-queue'].includes(activeTab)) {
         activeTab = 'admin-dashboard';
       }
       
@@ -9343,6 +9343,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       setTimeout(async () => {
         if (!cachedData || cachedData.length === 0) await pkaLoadData();
         loadPKASejarahSPI();
+        restoreActiveElement();
+      }, 200);
+    }
+    else if (tabName === 'spi-queue') {
+      const el = document.getElementById('tab-spi-queue');
+      if (el) { el.style.display = 'block'; el.classList.add('active'); }
+      setTimeout(() => {
+        loadSpiQueue();
         restoreActiveElement();
       }, 200);
     }
@@ -14252,108 +14260,189 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // FUNGSI QUEUE SPI MODAL
   // =========================================================================
   const btnQueueSPI = document.getElementById('btnQueueSPI');
-  const queueSpiModal = document.getElementById('queueSpiModal');
-  const queueSpiClose = document.getElementById('queueSpiClose');
   
   if (btnQueueSPI) {
-      btnQueueSPI.addEventListener('click', async () => {
-          
-          // 1. Tunjuk popup modal terlebih dahulu
-          queueSpiModal.classList.add('show');
-          queueSpiModal.style.display = 'flex';
-
-          // 2. Masukkan UI loading peratusan custom secara terus ke dalam table body
-          const loadingUI = `
-              <tr>
-                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
-                      <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
-                          <div class="dashboard-spinner" style="margin-bottom:0;"></div>
-                          <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
-                          <div style="width: 80%; max-width: 300px; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
-                              <div class="queue-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.3s ease-out;"></div>
-                          </div>
-                      </div>
-                  </td>
-              </tr>
-          `;
-
-          document.getElementById('tbodyQueueSiasat').innerHTML = loadingUI;
-          document.getElementById('tbodyQueuePemutihan').innerHTML = loadingUI;
-
-          // 3. Simulasikan peratusan bergerak (0% - 90%) sementara menunggu fetch
-          let progress = 0;
-          const textSteps = ['Menyambung ke pelayan...', 'Menyemak Queue Siasatan Biasa...', 'Menyemak Queue Pemutihan...', 'Menyediakan paparan...'];
-
-          const progressInterval = setInterval(() => {
-              if (progress < 90) {
-                  progress += Math.floor(Math.random() * 15) + 5;
-                  if (progress > 90) progress = 90;
-
-                  const bars = document.querySelectorAll('.queue-loading-bar');
-                  const texts = document.querySelectorAll('.queue-loading-text');
-
-                  bars.forEach(bar => bar.style.width = `${progress}%`);
-                  texts.forEach(text => {
-                      let stepText = textSteps[Math.floor(progress / 25)] || textSteps[3];
-                      text.innerText = `${stepText} ${progress}%`;
-                  });
-              }
-          }, 300);
-
-          try {
-              // 4. Minta data dari pelayan (Google Apps Script)
-              const userEmail = currentUser ? encodeURIComponent(currentUser.email) : '';
-              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
-              const result = await response.json();
-
-              // Hentikan animasi tiruan
-              clearInterval(progressInterval);
-
-              // 5. Set progress terus ke 100% dan tunjuk mesej Selesai
-              const bars = document.querySelectorAll('.queue-loading-bar');
-              const texts = document.querySelectorAll('.queue-loading-text');
-
-              bars.forEach(bar => bar.style.width = '100%');
-              texts.forEach(text => text.innerText = 'Selesai! 100%');
-
-              // 6. Tunggu sebentar (500ms) untuk pengguna melihat 100% sebelum memaparkan jadual data sebenar
-              setTimeout(async () => {
-                  if (result.status === 'success') {
-                      populateQueueTable('tbodyQueueSiasat', result.siasat);
-                      populateQueueTable('tbodyQueuePemutihan', result.pemutihan);
-
-                      await playSuccessSound();
-                  } else {
-                      await CustomAppModal.alert('Gagal mendapatkan senarai queue.', 'Ralat', 'error');
-                      queueSpiModal.classList.remove('show');
-                      setTimeout(() => queueSpiModal.style.display = 'none', 300);
-                  }
-              }, 500);
-
-          } catch (error) {
-              clearInterval(progressInterval);
-              await CustomAppModal.alert('Gagal mendapatkan senarai queue: ' + error.message, 'Ralat', 'error');
-              queueSpiModal.classList.remove('show');
-              setTimeout(() => queueSpiModal.style.display = 'none', 300);
-          }
+      btnQueueSPI.addEventListener('click', () => {
+          switchTab('spi-queue');
       });
   }
   
-  if (queueSpiClose) {
-      queueSpiClose.addEventListener('click', () => {
-          queueSpiModal.classList.remove('show');
-          setTimeout(() => queueSpiModal.style.display = 'none', 300);
-      });
+  // =========================================================================
+  // FUNGSI SPI QUEUE TAB (Senarai & Kalendar)
+  // =========================================================================
+  let spiCalendarDate = new Date();
+
+  async function loadSpiQueue() {
+    const container = document.getElementById('tab-spi-queue');
+    if (!container) return;
+    const loading = document.getElementById('spiLoading');
+    const senaraiView = document.getElementById('spiSenaraiView');
+    const kalendarView = document.getElementById('spiKalendarView');
+    if (loading) loading.style.display = 'flex';
+    if (senaraiView) senaraiView.style.display = 'none';
+    if (kalendarView) kalendarView.style.display = 'none';
+    try {
+      const email = currentUser ? encodeURIComponent(currentUser.email) : '';
+      const resp = await fetchWithRetry(SCRIPT_URL + `?action=getSpiQueueData&email=${email}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
+      const result = await resp.json();
+      if (loading) loading.style.display = 'none';
+      if (result.success) {
+        const data = result.data || [];
+        renderSpiSenarai(data);
+        renderSpiKalendar(data);
+        const statsEl = document.getElementById('spiStats');
+        if (statsEl) {
+          const total = data.length;
+          const pending = data.filter(r => !r.lawatan_syor).length;
+          statsEl.textContent = `| ${total} permohonan, ${pending} menunggu PKA`;
+        }
+        const activeView = document.querySelector('.spi-toggle-btn.active');
+        if (activeView) {
+          const view = activeView.getAttribute('data-spi-view');
+          showSpiView(view);
+        } else {
+          showSpiView('senarai');
+        }
+      }
+    } catch (e) {
+      if (loading) loading.style.display = 'none';
+      console.error('SPI Queue load error:', e);
+    }
   }
 
-  // === TAMBAH KOD INI DI BAWAHNYA ===
-  const btnTutupQueueSPI = document.getElementById('btnTutupQueueSPI');
-  if (btnTutupQueueSPI) {
-      btnTutupQueueSPI.addEventListener('click', () => {
-          queueSpiModal.classList.remove('show');
-          setTimeout(() => queueSpiModal.style.display = 'none', 300);
-      });
+  function showSpiView(view) {
+    const senarai = document.getElementById('spiSenaraiView');
+    const kalendar = document.getElementById('spiKalendarView');
+    if (!senarai || !kalendar) return;
+    document.querySelectorAll('.spi-toggle-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.spi-toggle-btn[data-spi-view="${view}"]`);
+    if (btn) btn.classList.add('active');
+    if (view === 'senarai') { senarai.style.display = 'block'; kalendar.style.display = 'none'; }
+    else { senarai.style.display = 'none'; kalendar.style.display = 'block'; }
   }
+
+  function renderSpiSenarai(data) {
+    const tbody = document.getElementById('spiSenaraiBody');
+    if (!tbody) return;
+    const statsEl = document.getElementById('spiSenaraiStats');
+    if (statsEl) {
+      const pending = data.filter(r => !r.lawatan_syor).length;
+      const siap = data.filter(r => r.lawatan_syor).length;
+      statsEl.innerHTML = `<span class="spi-badge spi-badge-total">${data.length} Jumlah</span> <span class="spi-badge spi-badge-pending">${pending} Dalam Proses</span> <span class="spi-badge spi-badge-siap">${siap} Siap PKA</span>`;
+    }
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">✅ Tiada permohonan SPI</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map((r, i) => {
+      const statusClass = r.lawatan_syor ? 'spi-status-siap' : 'spi-status-pending';
+      const statusText = r.lawatan_syor ? `✅ ${r.lawatan_syor}` : '⏳ Dalam Proses';
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><strong>${r.syarikat || '-'}</strong></td>
+        <td>${r.cidb || '-'}</td>
+        <td>${r.jenis || '-'}</td>
+        <td>${r.pengesyor || '-'}</td>
+        <td>${r.date_submit || '-'}</td>
+        <td class="${statusClass}">${statusText}</td>
+        <td>${r.lawatan_syor || '-'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderSpiKalendar(data) {
+    const grid = document.getElementById('spiCalendarGrid');
+    const title = document.getElementById('spiCalTitle');
+    if (!grid || !title) return;
+    const year = spiCalendarDate.getFullYear();
+    const month = spiCalendarDate.getMonth();
+    const months = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+    title.textContent = `${months[month]} ${year}`;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const dayNames = ['Ahd','Isn','Sel','Rab','Kha','Jum','Sab'];
+    let html = '<div class="spi-cal-row spi-cal-header">' + dayNames.map(d => `<div class="spi-cal-cell spi-cal-day-name">${d}</div>`).join('') + '</div>';
+    let day = 1;
+    for (let row = 0; row < 6; row++) {
+      if (day > daysInMonth) break;
+      let cells = '<div class="spi-cal-row">';
+      for (let col = 0; col < 7; col++) {
+        if ((row === 0 && col < firstDay) || day > daysInMonth) {
+          cells += '<div class="spi-cal-cell spi-cal-empty"></div>';
+        } else {
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+          const items = data.filter(r => r.date_submit === dateStr);
+          const ongoing = items.filter(r => !r.lawatan_syor);
+          const siap = items.filter(r => r.lawatan_syor);
+          let cls = 'spi-cal-cell spi-cal-day';
+          if (isToday) cls += ' spi-cal-today';
+          let dotHtml = '';
+          if (ongoing.length) dotHtml += `<span class="spi-dot spi-dot-pending" title="${ongoing.length} dalam proses"></span>`;
+          if (siap.length) dotHtml += `<span class="spi-dot spi-dot-siap" title="${siap.length} siap"></span>`;
+          let popup = '';
+          if (items.length) {
+            popup = `<div class="spi-cal-popup">` + items.map(r =>
+              `<div class="spi-cal-popup-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+                <strong>${r.syarikat || '-'}</strong>
+                <small>${r.jenis || ''} | ${r.pengesyor || ''}</small>
+                <small>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Dalam Proses'}</small>
+              </div>`
+            ).join('') + `</div>`;
+          }
+          cells += `<div class="${cls}" data-date="${dateStr}">
+            <span class="spi-cal-day-num">${day}</span>
+            <div class="spi-cal-dots">${dotHtml}</div>
+            ${popup}
+          </div>`;
+          day++;
+        }
+      }
+      cells += '</div>';
+      html += cells;
+    }
+    grid.innerHTML = html;
+    document.querySelectorAll('.spi-cal-day').forEach(el => {
+      el.addEventListener('click', function() {
+        const detail = document.getElementById('spiCalDayDetail');
+        if (!detail) return;
+        const date = this.getAttribute('data-date');
+        const items = data.filter(r => r.date_submit === date);
+        if (!items.length) { detail.style.display = 'none'; return; }
+        detail.style.display = 'block';
+        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + items.map(r =>
+          `<div class="spi-detail-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+            <strong>${r.syarikat || '-'}</strong>
+            <div>${r.jenis || ''} | ${r.pengesyor || ''}</div>
+            <div>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Dalam Proses'}</div>
+          </div>`
+        ).join('');
+      });
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('spi-toggle-btn')) {
+      const view = e.target.getAttribute('data-spi-view');
+      if (view) showSpiView(view);
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'spiCalPrev') {
+      spiCalendarDate.setMonth(spiCalendarDate.getMonth() - 1);
+      loadSpiQueue();
+    }
+    if (e.target.id === 'spiCalNext') {
+      spiCalendarDate.setMonth(spiCalendarDate.getMonth() + 1);
+      loadSpiQueue();
+    }
+    if (e.target.id === 'spiCalToday') {
+      spiCalendarDate = new Date();
+      loadSpiQueue();
+    }
+  });
 
   function populateQueueTable(tbodyId, dataArray) {
       const tbody = document.getElementById(tbodyId);
@@ -14365,7 +14454,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       tbody.innerHTML = dataArray.map((item, index) => {
-          // KOD BARU: Gunakan pelulus jika ada (untuk pemutihan), jika tiada kekalkan pengesyor (untuk siasatan biasa)
           const pegawai = item.pelulus || item.pengesyor || '-';
           
           return `
