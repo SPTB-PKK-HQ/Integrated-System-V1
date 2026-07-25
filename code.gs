@@ -374,6 +374,11 @@ function doGet(e) {
       return getSpiQueueData(email);
     }
 
+    // V6.8.0: Trigger manual sendSpiBacklogReminder
+    if (action === "sendSpiBacklogReminder") {
+      return sendSpiBacklogReminder();
+    }
+
     // V6.6.0: Handler untuk getInbox
     if (action === "getInbox") {
       return handleGetInbox(e.parameter);
@@ -4767,6 +4772,8 @@ function sendSpiDeadlineReminder() {
       const r = rows[i];
       const syorLawatan = (r[8] || '').toString().toUpperCase();
       if (syorLawatan !== 'YA') continue;
+      const syorStatus = (r[13] || '').toString().trim();
+      if (syorStatus !== '') continue;
       const statusSpi = (r[15] || '').toString().trim();
       if (statusSpi === '') continue;
       const dateSubmit = (r[9] || '').toString().trim();
@@ -4870,6 +4877,136 @@ function sendSpiDeadlineReminder() {
     return createJSONOutput({ success: true, count: reminders.length });
   } catch (e) {
     console.error(`[SPI Deadline] Ralat: ${e.toString()}`);
+    return createJSONOutput({ success: false, error: e.toString() });
+  }
+}
+
+function sendSpiBacklogReminder() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('SPI_BACKLOG_REMINDER_SENT') === 'true') {
+      console.log('[SPI Backlog] Reminder backlog sudah dihantar, skip.');
+      return createJSONOutput({ success: true, count: 0, skipped: true });
+    }
+    const today = new Date();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getDisplayValues();
+    const items = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const syorLawatan = (r[8] || '').toString().toUpperCase();
+      if (syorLawatan !== 'YA') continue;
+      const syorStatus = (r[13] || '').toString().trim();
+      if (syorStatus !== '') continue;
+      const statusSpi = (r[15] || '').toString().trim();
+      if (statusSpi === '') continue;
+      const dateSubmit = (r[9] || '').toString().trim();
+      if (!dateSubmit) continue;
+      const lawatanSyor = (r[19] || '').toString().trim();
+      if (lawatanSyor !== '') continue;
+      const submitDate = new Date(dateSubmit);
+      if (isNaN(submitDate.getTime())) continue;
+      const deadline = addWorkingDays(submitDate, 14);
+      const deadlineDate = new Date(deadline);
+      deadlineDate.setHours(0,0,0,0);
+      const todayClone = new Date(today);
+      todayClone.setHours(0,0,0,0);
+      if (deadlineDate < todayClone) {
+        const deadlineStr = Utilities.formatDate(deadline, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+        items.push({
+          row: i + 1,
+          syarikat: r[0] || '',
+          cidb: r[1] || '',
+          jenis: r[3] || '',
+          pengesyor: r[12] || '',
+          date_submit: dateSubmit,
+          deadline: deadlineStr
+        });
+      }
+    }
+
+    if (items.length === 0) {
+      console.log('[SPI Backlog] Tiada backlog.');
+      return createJSONOutput({ success: true, count: 0 });
+    }
+
+    let rowsHtml = '';
+    let textList = '';
+    items.forEach((d, idx) => {
+      rowsHtml += `<tr>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${idx + 1}</td>
+        <td style="padding:10px;border:1px solid #ddd;"><strong>${d.syarikat}</strong></td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.cidb || '-'}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.jenis || '-'}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.date_submit}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;color:#991b1b;">${d.deadline}</td>
+        <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.pengesyor || '-'}</td>
+      </tr>`;
+      textList += `${idx + 1}. ${d.syarikat} (CIDB: ${d.cidb || '-'}) | ${d.jenis || '-'} | Hantar: ${d.date_submit} | Deadline: ${d.deadline} | Pengesyor: ${d.pengesyor || '-'}\n`;
+    });
+
+    const subject = `🔴 TINDAKAN: ${items.length} Permohonan SPI Melebihi Deadline (Backlog)`;
+    const htmlBody = `<!DOCTYPE html>
+<html>
+<head><style>
+  body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}
+  .container{max-width:800px;margin:0 auto;padding:20px;}
+  .header{background:#991b1b;color:white;padding:20px;text-align:center;border-radius:5px 5px 0 0;}
+  .content{background:#f9f9f9;padding:20px;border:1px solid #ddd;border-top:none;}
+  .footer{margin-top:20px;padding-top:20px;text-align:center;font-size:12px;color:#999;border-top:1px solid #ddd;}
+</style></head>
+<body>
+<div class="container">
+  <div class="header">
+    <h2 style="margin:0;">🔴 BACKLOG PERMOHONAN SPI</h2>
+    <p style="margin:5px 0 0;">Melebihi 14 hari bekerja — ${new Date().toLocaleDateString('ms-MY')}</p>
+  </div>
+  <div class="content">
+    <p>Tuan/Puan,</p>
+    <p>Berikut adalah <strong>${items.length} permohonan SPI</strong> yang telah melebihi tempoh 14 hari bekerja dan masih belum diisi keputusan PKA / syor_status pengesyor.</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;background:white;">
+      <thead style="background:#f1f5f9;color:#1e293b;">
+        <tr>
+          <th style="padding:10px;border:1px solid #ddd;">Bil</th>
+          <th style="padding:10px;border:1px solid #ddd;">Syarikat</th>
+          <th style="padding:10px;border:1px solid #ddd;">CIDB</th>
+          <th style="padding:10px;border:1px solid #ddd;">Jenis</th>
+          <th style="padding:10px;border:1px solid #ddd;">Tarikh Hantar</th>
+          <th style="padding:10px;border:1px solid #ddd;">Deadline</th>
+          <th style="padding:10px;border:1px solid #ddd;">Pengesyor</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p><em>*** Ini adalah notifikasi backlog satu kali. Notifikasi seterusnya hanya untuk deadline harian. ***</em></p>
+  </div>
+  <div class="footer">
+    <p>Sistem Bersepadu SPTB<br>© ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
+    <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
+  </div>
+</div>
+</body>
+</html>`;
+
+    const plainBody = `BACKLOG PERMOHONAN SPI\n\n${items.length} permohonan melebihi deadline:\n\n${textList}\n*** Notifikasi backlog satu kali oleh Sistem STB ***`;
+
+    MailApp.sendEmail({
+      to: getEmailToSPI(),
+      cc: getEmailCcSPTB(),
+      subject: subject,
+      htmlBody: htmlBody,
+      body: plainBody,
+      name: EMAIL_SENDER_NAME
+    });
+
+    props.setProperty('SPI_BACKLOG_REMINDER_SENT', 'true');
+    logActivity('System', 'SPI_BACKLOG_REMINDER', `${items.length} permohonan backlog diemelkan.`, '');
+    console.log(`[SPI Backlog] Berjaya hantar untuk ${items.length} backlog.`);
+    return createJSONOutput({ success: true, count: items.length });
+  } catch (e) {
+    console.error(`[SPI Backlog] Ralat: ${e.toString()}`);
     return createJSONOutput({ success: false, error: e.toString() });
   }
 }
