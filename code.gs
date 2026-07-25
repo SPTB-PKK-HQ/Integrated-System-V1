@@ -374,6 +374,11 @@ function doGet(e) {
       return getSpiQueueData(email);
     }
 
+    // V6.8.0: Preview backlog tanpa hantar emel
+    if (action === "previewSpiBacklog") {
+      return getSpiBacklogData();
+    }
+
     // V6.8.0: Trigger manual sendSpiBacklogReminder
     if (action === "sendSpiBacklogReminder") {
       return sendSpiBacklogReminder();
@@ -4877,6 +4882,53 @@ function sendSpiDeadlineReminder() {
     return createJSONOutput({ success: true, count: reminders.length });
   } catch (e) {
     console.error(`[SPI Deadline] Ralat: ${e.toString()}`);
+    return createJSONOutput({ success: false, error: e.toString() });
+  }
+}
+
+function getSpiBacklogData() {
+  try {
+    const today = new Date();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getDisplayValues();
+    const items = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const syorLawatan = (r[8] || '').toString().toUpperCase();
+      if (syorLawatan !== 'YA') continue;
+      const syorStatus = (r[13] || '').toString().trim();
+      if (syorStatus !== '') continue;
+      const statusSpi = (r[15] || '').toString().trim();
+      if (statusSpi === '') continue;
+      const dateSubmit = (r[9] || '').toString().trim();
+      if (!dateSubmit) continue;
+      const lawatanSyor = (r[19] || '').toString().trim();
+      if (lawatanSyor !== '') continue;
+      const submitDate = new Date(dateSubmit);
+      if (isNaN(submitDate.getTime())) continue;
+      const deadline = addWorkingDays(submitDate, 14);
+      const deadlineDate = new Date(deadline);
+      deadlineDate.setHours(0,0,0,0);
+      const todayClone = new Date(today);
+      todayClone.setHours(0,0,0,0);
+      if (deadlineDate < todayClone) {
+        const deadlineStr = Utilities.formatDate(deadline, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+        items.push({
+          row: i + 1,
+          syarikat: r[0] || '',
+          cidb: r[1] || '',
+          jenis: r[3] || '',
+          pengesyor: r[12] || '',
+          date_submit: dateSubmit,
+          deadline: deadlineStr
+        });
+      }
+    }
+
+    return createJSONOutput({ success: true, count: items.length, data: items });
+  } catch (e) {
     return createJSONOutput({ success: false, error: e.toString() });
   }
 }
