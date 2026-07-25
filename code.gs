@@ -4558,6 +4558,18 @@ function addWorkingDays(startDate, numDays) {
   return result;
 }
 
+function countWorkingDays(fromDate, toDate) {
+  let count = 0;
+  let current = new Date(fromDate);
+  current.setDate(current.getDate() + 1);
+  while (current <= toDate) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6 && !isCutiUmumPutrajaya(current)) count++;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
 function createSpiCalendarEvent(rowNum, syarikat, cidb, jenis, pengesyor, dateSubmit) {
   try {
     if (!dateSubmit) return null;
@@ -4656,6 +4668,7 @@ function getSpiQueueData(email) {
         } catch (e) { return ''; }
       })();
       let deadline = '';
+      let bakiHari = -1;
       const ds = r[9] ? r[9].toString().trim() : '';
       if (ds) {
         try {
@@ -4663,6 +4676,13 @@ function getSpiQueueData(email) {
           if (!isNaN(d.getTime())) {
             const dd = addWorkingDays(d, 14);
             deadline = Utilities.formatDate(dd, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            if (dd >= today && !lawatanSyor) {
+              bakiHari = countWorkingDays(today, dd);
+            } else if (dd < today && !lawatanSyor) {
+              bakiHari = 0;
+            }
           }
         } catch (ex) {}
       }
@@ -4675,6 +4695,7 @@ function getSpiQueueData(email) {
         pengesyor: r[12] || '',
         date_submit: r[9] || '',
         deadline: deadline,
+        baki_hari: bakiHari,
         status_hantar_spi: statusSpi,
         tarikh_hantar_spi: r[16] || '',
         lawatan_syor: lawatanSyor,

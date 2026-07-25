@@ -2731,21 +2731,11 @@
     font-size: 0.75rem;
     color: #94a3b8;
 }
-.spi-timeline-track-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 0 4px 140px;
-    font-size: 0.7rem;
-    color: #94a3b8;
-    font-weight: 600;
-    border-bottom: 1px solid #f1f5f9;
-    margin-bottom: 4px;
-}
 .spi-timeline-body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 400px;
+    max-height: 500px;
     overflow-y: auto;
 }
 .spi-timeline-empty {
@@ -2797,7 +2787,8 @@
     background: #f1f5f9;
     border-radius: 4px;
     position: relative;
-    min-width: 100px;
+    min-width: 60px;
+    overflow: hidden;
 }
 .spi-tl-bar {
     position: absolute;
@@ -2810,18 +2801,39 @@
 .spi-timeline-bar-pending { background: #f59e0b; }
 .spi-timeline-bar-siap { background: #10b981; }
 .spi-timeline-bar-overdue { background: #ef4444; }
-.spi-tl-status {
-    width: 70px;
+.spi-tl-right {
+    width: 90px;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+.spi-tl-status {
     text-align: center;
     font-size: 0.7rem;
     font-weight: 600;
-    padding: 3px 6px;
+    padding: 3px 8px;
     border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
 }
 .spi-tl-status-pending { color: #92400e; background: #fef3c7; }
 .spi-tl-status-siap { color: #065f46; background: #d1fae5; }
 .spi-tl-status-overdue { color: #991b1b; background: #fee2e2; }
+.spi-tl-baki {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #2563eb;
+    background: #eff6ff;
+    padding: 2px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+.spi-tl-baki-siap {
+    color: #065f46;
+    background: #d1fae5;
+}
 
 .spi-cal-day-detail {
     margin-top: 12px;

@@ -14455,8 +14455,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
     const totalMonthDays = daysInMonth;
-    const thEnd = document.getElementById('spiTlThEnd');
-    if (thEnd) thEnd.textContent = daysInMonth;
 
     const activeItems = data.filter(r => {
       if (!r.date_submit) return false;
@@ -14524,33 +14522,42 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
     grid.innerHTML = html;
 
-    // ── Timeline / Gantt ──
+    // ── Timeline / Gantt — ALL items (not filtered by month) ──
     if (timeline) {
-      if (!activeItems.length) {
-        timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan aktif untuk bulan ini</div>`;
+      const allItems = data.filter(r => r.date_submit);
+      if (!allItems.length) {
+        timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan SPI</div>`;
       } else {
-        const monthMs = monthEnd.getTime() - monthStart.getTime() + 86400000;
-        timeline.innerHTML = activeItems.map(r => {
-          const start = new Date(r.date_submit);
-          const end = r.deadline ? new Date(r.deadline) : new Date(start);
-          const barStart = start < monthStart ? monthStart : start;
-          const barEnd = end > monthEnd ? monthEnd : end;
-          const leftPct = ((barStart.getTime() - monthStart.getTime()) / monthMs) * 100;
-          const widthPct = ((barEnd.getTime() - barStart.getTime()) / monthMs) * 100;
-          const isOverdue = !r.lawatan_syor && r.deadline && today.toISOString().split('T')[0] > r.deadline;
+        const sorted = [...allItems].sort((a, b) => {
+          if (a.lawatan_syor && !b.lawatan_syor) return 1;
+          if (!a.lawatan_syor && b.lawatan_syor) return -1;
+          return (a.date_submit || '').localeCompare(b.date_submit || '');
+        });
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        timeline.innerHTML = sorted.map(r => {
+          const isOverdue = !r.lawatan_syor && r.deadline && todayStr > r.deadline;
           const barCls = r.lawatan_syor ? 'spi-timeline-bar-siap' : (isOverdue ? 'spi-timeline-bar-overdue' : 'spi-timeline-bar-pending');
           const statusText = r.lawatan_syor ? '✅ Siap' : (isOverdue ? '⚠️ Lewat' : '⏳ Proses');
           const statusCls = r.lawatan_syor ? 'spi-tl-status-siap' : (isOverdue ? 'spi-tl-status-overdue' : 'spi-tl-status-pending');
+          const baki = r.baki_hari !== undefined && r.baki_hari >= 0 ? r.baki_hari : null;
+          const bakiHtml = baki !== null
+            ? `<span class="spi-tl-baki">${baki === 0 ? 'Hari Terakhir!' : baki + ' hari lagi'}</span>`
+            : (r.lawatan_syor ? `<span class="spi-tl-baki spi-tl-baki-siap">Siap</span>` : '');
+          const deadlineDisplay = r.deadline ? `Due: ${r.deadline}` : '-';
           return `<div class="spi-timeline-item">
             <div class="spi-tl-left">
               <div class="spi-tl-name">${r.syarikat || '-'}</div>
               <div class="spi-tl-meta">${r.jenis || ''} · ${r.pengesyor || ''}</div>
-              <div class="spi-tl-dates">📅 ${r.date_submit || '-'} <span class="spi-tl-arrow">→</span> ${r.deadline || '-'}</div>
+              <div class="spi-tl-dates">📅 ${r.date_submit || '-'} → ${deadlineDisplay}</div>
             </div>
             <div class="spi-tl-track">
-              <div class="spi-tl-bar ${barCls}" style="left:${leftPct}%;width:${widthPct}%;"></div>
+              <div class="spi-tl-bar ${barCls}" style="left:0;width:100%;"></div>
             </div>
-            <div class="spi-tl-status ${statusCls}">${statusText}</div>
+            <div class="spi-tl-right">
+              <div class="spi-tl-status ${statusCls}">${statusText}</div>
+              ${bakiHtml}
+            </div>
           </div>`;
         }).join('');
       }
