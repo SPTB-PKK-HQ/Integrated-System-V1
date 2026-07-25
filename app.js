@@ -14257,16 +14257,91 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
   // =========================================================================
-  // FUNGSI QUEUE SPI MODAL
+  // FUNGSI QUEUE SPI MODAL (asli)
   // =========================================================================
   const btnQueueSPI = document.getElementById('btnQueueSPI');
+  const queueSpiModal = document.getElementById('queueSpiModal');
+  const queueSpiClose = document.getElementById('queueSpiClose');
   
   if (btnQueueSPI) {
-      btnQueueSPI.addEventListener('click', () => {
-          switchTab('spi-queue');
+      btnQueueSPI.addEventListener('click', async () => {
+          
+          // 1. Tunjuk popup modal terlebih dahulu
+          queueSpiModal.classList.add('show');
+          queueSpiModal.style.display = 'flex';
+
+          const loadingUI = `
+              <tr>
+                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
+                      <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
+                          <div class="dashboard-spinner" style="margin-bottom:0;"></div>
+                          <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
+                          <div style="width: 80%; max-width: 300px; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                              <div class="queue-loading-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); transition: width 0.3s ease-out;"></div>
+                          </div>
+                      </div>
+                  </td>
+              </tr>
+          `;
+
+          document.getElementById('tbodyQueueSiasat').innerHTML = loadingUI;
+          document.getElementById('tbodyQueuePemutihan').innerHTML = loadingUI;
+
+          let progress = 0;
+          const textSteps = ['Menyambung ke pelayan...', 'Menyemak Queue Siasatan Biasa...', 'Menyemak Queue Pemutihan...', 'Menyediakan paparan...'];
+          const progressInterval = setInterval(() => {
+              if (progress < 90) {
+                  progress += Math.floor(Math.random() * 15) + 5;
+                  if (progress > 90) progress = 90;
+                  document.querySelectorAll('.queue-loading-bar').forEach(bar => bar.style.width = `${progress}%`);
+                  document.querySelectorAll('.queue-loading-text').forEach(text => {
+                      text.innerText = `${textSteps[Math.floor(progress / 25)] || textSteps[3]} ${progress}%`;
+                  });
+              }
+          }, 300);
+
+          try {
+              const userEmail = currentUser ? encodeURIComponent(currentUser.email) : '';
+              const response = await fetchWithRetry(SCRIPT_URL + `?action=getQueueData&email=${userEmail}&t=` + Date.now(), { method: 'GET' }, 3, 1000);
+              const result = await response.json();
+              clearInterval(progressInterval);
+              document.querySelectorAll('.queue-loading-bar').forEach(bar => bar.style.width = '100%');
+              document.querySelectorAll('.queue-loading-text').forEach(text => text.innerText = 'Selesai! 100%');
+              setTimeout(async () => {
+                  if (result.status === 'success') {
+                      populateQueueTable('tbodyQueueSiasat', result.siasat);
+                      populateQueueTable('tbodyQueuePemutihan', result.pemutihan);
+                      await playSuccessSound();
+                  } else {
+                      await CustomAppModal.alert('Gagal mendapatkan senarai queue.', 'Ralat', 'error');
+                      queueSpiModal.classList.remove('show');
+                      setTimeout(() => queueSpiModal.style.display = 'none', 300);
+                  }
+              }, 500);
+          } catch (error) {
+              clearInterval(progressInterval);
+              await CustomAppModal.alert('Gagal mendapatkan senarai queue: ' + error.message, 'Ralat', 'error');
+              queueSpiModal.classList.remove('show');
+              setTimeout(() => queueSpiModal.style.display = 'none', 300);
+          }
       });
   }
-  
+
+  if (queueSpiClose) {
+      queueSpiClose.addEventListener('click', () => {
+          queueSpiModal.classList.remove('show');
+          setTimeout(() => queueSpiModal.style.display = 'none', 300);
+      });
+  }
+
+  const btnTutupQueueSPI = document.getElementById('btnTutupQueueSPI');
+  if (btnTutupQueueSPI) {
+      btnTutupQueueSPI.addEventListener('click', () => {
+          queueSpiModal.classList.remove('show');
+          setTimeout(() => queueSpiModal.style.display = 'none', 300);
+      });
+  }
+
   // =========================================================================
   // FUNGSI SPI QUEUE TAB (Senarai & Kalendar)
   // =========================================================================
@@ -14331,12 +14406,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       statsEl.innerHTML = `<span class="spi-badge spi-badge-total">${data.length} Jumlah</span> <span class="spi-badge spi-badge-pending">${pending} Dalam Proses</span> <span class="spi-badge spi-badge-siap">${siap} Siap PKA</span>`;
     }
     if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">✅ Tiada permohonan SPI</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:#94a3b8;">✅ Tiada permohonan SPI</td></tr>`;
       return;
     }
     tbody.innerHTML = data.map((r, i) => {
       const statusClass = r.lawatan_syor ? 'spi-status-siap' : 'spi-status-pending';
       const statusText = r.lawatan_syor ? `✅ ${r.lawatan_syor}` : '⏳ Dalam Proses';
+      const dueStr = r.deadline ? `Due: ${r.deadline}` : '';
       return `<tr>
         <td>${i + 1}</td>
         <td><strong>${r.syarikat || '-'}</strong></td>
@@ -14346,6 +14422,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <td>${r.date_submit || '-'}</td>
         <td class="${statusClass}">${statusText}</td>
         <td>${r.lawatan_syor || '-'}</td>
+        <td style="font-size:0.78rem; color:#64748b;">${dueStr}</td>
       </tr>`;
     }).join('');
   }
@@ -14362,7 +14439,39 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const today = new Date();
     const dayNames = ['Ahd','Isn','Sel','Rab','Kha','Jum','Sab'];
-    let html = '<div class="spi-cal-row spi-cal-header">' + dayNames.map(d => `<div class="spi-cal-cell spi-cal-day-name">${d}</div>`).join('') + '</div>';
+
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+
+    const activeItems = data.filter(r => {
+      if (!r.date_submit) return false;
+      const start = new Date(r.date_submit);
+      const end = r.deadline ? new Date(r.deadline) : new Date(start);
+      return start <= monthEnd && end >= monthStart;
+    });
+
+    const dayMap = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      dayMap[ds] = [];
+    }
+    activeItems.forEach((r) => {
+      const start = new Date(r.date_submit);
+      const end = r.deadline ? new Date(r.deadline) : new Date(start);
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dd = new Date(year, month, d);
+        if (dd >= start && dd <= end) {
+          const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const isStart = start.getFullYear() === year && start.getMonth() === month && start.getDate() === d;
+          const isEnd = end.getFullYear() === year && end.getMonth() === month && end.getDate() === d;
+          dayMap[ds].push({ item: r, isStart, isEnd });
+        }
+      }
+    });
+
+    let html = '<div class="spi-cal-row spi-cal-header">' + dayNames.map(d =>
+      `<div class="spi-cal-cell spi-cal-day-name">${d}</div>`
+    ).join('') + '</div>';
     let day = 1;
     for (let row = 0; row < 6; row++) {
       if (day > daysInMonth) break;
@@ -14373,27 +14482,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         } else {
           const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-          const items = data.filter(r => r.date_submit === dateStr);
-          const ongoing = items.filter(r => !r.lawatan_syor);
-          const siap = items.filter(r => r.lawatan_syor);
+          const items = dayMap[dateStr] || [];
           let cls = 'spi-cal-cell spi-cal-day';
           if (isToday) cls += ' spi-cal-today';
-          let dotHtml = '';
-          if (ongoing.length) dotHtml += `<span class="spi-dot spi-dot-pending" title="${ongoing.length} dalam proses"></span>`;
-          if (siap.length) dotHtml += `<span class="spi-dot spi-dot-siap" title="${siap.length} siap"></span>`;
+          let pillsHtml = '';
+          items.forEach(({item, isStart, isEnd}) => {
+            const pillCls = item.lawatan_syor ? 'spi-pill-siap' : (item.deadline && dateStr > item.deadline ? 'spi-pill-overdue' : 'spi-pill-pending');
+            const label = (item.syarikat || '').substring(0, 10);
+            pillsHtml += `<div class="spi-pill ${pillCls}" title="${item.syarikat || ''} | Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}">${label}</div>`;
+          });
           let popup = '';
           if (items.length) {
-            popup = `<div class="spi-cal-popup">` + items.map(r =>
-              `<div class="spi-cal-popup-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-                <strong>${r.syarikat || '-'}</strong>
-                <small>${r.jenis || ''} | ${r.pengesyor || ''}</small>
-                <small>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Dalam Proses'}</small>
+            popup = `<div class="spi-cal-popup">` + items.map(({item}) =>
+              `<div class="spi-cal-popup-item ${item.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+                <strong>${item.syarikat || '-'}</strong>
+                <small>${item.jenis || ''} | ${item.pengesyor || ''}</small>
+                <small>📅 Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}</small>
+                <small>${item.lawatan_syor ? '✅ PKA: ' + item.lawatan_syor : '⏳ Menunggu PKA'}</small>
               </div>`
             ).join('') + `</div>`;
           }
           cells += `<div class="${cls}" data-date="${dateStr}">
             <span class="spi-cal-day-num">${day}</span>
-            <div class="spi-cal-dots">${dotHtml}</div>
+            <div class="spi-pills-container">${pillsHtml}</div>
             ${popup}
           </div>`;
           day++;
@@ -14403,19 +14514,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       html += cells;
     }
     grid.innerHTML = html;
+
     document.querySelectorAll('.spi-cal-day').forEach(el => {
       el.addEventListener('click', function() {
         const detail = document.getElementById('spiCalDayDetail');
         if (!detail) return;
         const date = this.getAttribute('data-date');
-        const items = data.filter(r => r.date_submit === date);
-        if (!items.length) { detail.style.display = 'none'; return; }
+        const dayItems = dayMap[date] || [];
+        if (!dayItems.length) { detail.style.display = 'none'; return; }
         detail.style.display = 'block';
-        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + items.map(r =>
-          `<div class="spi-detail-item ${r.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
-            <strong>${r.syarikat || '-'}</strong>
-            <div>${r.jenis || ''} | ${r.pengesyor || ''}</div>
-            <div>${r.lawatan_syor ? '✅ ' + r.lawatan_syor : '⏳ Dalam Proses'}</div>
+        detail.innerHTML = `<h4 style="margin:0 0 8px;">📅 ${date}</h4>` + dayItems.map(({item}) =>
+          `<div class="spi-detail-item ${item.lawatan_syor ? 'spi-popup-siap' : 'spi-popup-pending'}">
+            <strong>${item.syarikat || '-'}</strong>
+            <div>${item.jenis || ''} | ${item.pengesyor || ''}</div>
+            <div>📅 Hantar: ${item.date_submit || '-'} → Due: ${item.deadline || '-'}</div>
+            <div>${item.lawatan_syor ? '✅ PKA: ' + item.lawatan_syor : '⏳ Menunggu PKA'}</div>
           </div>`
         ).join('');
       });

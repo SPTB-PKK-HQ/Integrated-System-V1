@@ -4655,6 +4655,17 @@ function getSpiQueueData(email) {
           return j.spi_calendar_event_id || '';
         } catch (e) { return ''; }
       })();
+      let deadline = '';
+      const ds = r[9] ? r[9].toString().trim() : '';
+      if (ds) {
+        try {
+          const d = new Date(ds);
+          if (!isNaN(d.getTime())) {
+            const dd = addWorkingDays(d, 14);
+            deadline = Utilities.formatDate(dd, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+          }
+        } catch (ex) {}
+      }
       result.push({
         row: i + 1,
         syarikat: r[0] || '',
@@ -4663,6 +4674,7 @@ function getSpiQueueData(email) {
         jenis: r[3] || '',
         pengesyor: r[12] || '',
         date_submit: r[9] || '',
+        deadline: deadline,
         status_hantar_spi: statusSpi,
         tarikh_hantar_spi: r[16] || '',
         lawatan_syor: lawatanSyor,
