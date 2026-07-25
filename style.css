@@ -2532,19 +2532,22 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 0;
+    padding: 12px 0;
     border-bottom: 1px solid #f1f5f9;
-    min-height: 52px;
 }
 .spi-timeline-item:last-child { border-bottom: none; }
 .spi-tl-left {
-    width: 180px;
+    width: 50%;
+    max-width: 50%;
     flex-shrink: 0;
+    padding-right: 12px;
+    box-sizing: border-box;
 }
 .spi-tl-name {
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: #1e293b;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #111827;
+    margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2552,20 +2555,45 @@
 .spi-tl-meta {
     font-size: 0.7rem;
     color: #94a3b8;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-bottom: 4px;
 }
 .spi-tl-dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.spi-tl-date-badge {
     font-size: 0.7rem;
-    color: #64748b;
-    margin-top: 2px;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+.spi-tl-deadline-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.spi-tl-deadline-ok {
+    color: #166534;
+    background: #dcfce7;
+}
+.spi-tl-deadline-late {
+    color: #991b1b;
+    background: #fee2e2;
+}
+.spi-tl-deadline-siap {
+    color: #065f46;
+    background: #d1fae5;
 }
 .spi-tl-track {
     flex: 1;
-    height: 20px;
+    height: 11px;
     background: #f1f5f9;
-    border-radius: 10px;
+    border-radius: 6px;
     position: relative;
     min-width: 60px;
     overflow: hidden;
@@ -2573,7 +2601,7 @@
 /* Progress bar fill */
 .spi-tl-bar-fill {
     height: 100%;
-    border-radius: 10px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2586,13 +2614,13 @@
 .spi-tl-bar-siap { background: linear-gradient(90deg, #34d399, #10b981); }
 /* White label inside the bar */
 .spi-tl-bar-label {
-    font-size: 0.6rem;
+    font-size: 0.5rem;
     font-weight: 700;
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,0.25);
     white-space: nowrap;
-    line-height: 20px;
-    padding: 0 6px;
+    line-height: 11px;
+    padding: 0 4px;
 }
 /* Timeline legend */
 .spi-timeline-legend {

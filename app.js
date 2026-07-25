@@ -14406,17 +14406,48 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const isOverdue = !siap && r.hari_lewat && r.hari_lewat > 0;
       const barCls = siap ? 'spi-tl-bar-siap' : (isOverdue ? 'spi-tl-bar-overdue' : 'spi-tl-bar-pending');
       const pct = siap ? 100 : (r.progress_pct !== undefined ? r.progress_pct : 0);
-      const barLabel = siap ? '✅ Siap'
-        : isOverdue ? `${r.hari_lewat} hari lewat`
-        : r.baki_hari > 0 ? `${r.baki_hari} hari lagi`
-        : r.baki_hari === 0 ? 'Hari Terakhir!'
+      const barLabel = siap ? '✅'
+        : isOverdue ? `${r.hari_lewat}h`
+        : r.baki_hari > 0 ? `${r.baki_hari}h`
+        : r.baki_hari === 0 ? '!!'
         : '';
-      const deadlineDisplay = r.deadline ? `Due: ${r.deadline}` : '-';
+
+      // Jenis badge
+      const jenisUpper = (r.jenis || '').toUpperCase();
+      let jenisBadge = '';
+      if (jenisUpper === 'BARU') {
+        jenisBadge = `<span class="app-type-badge type-baru" style="font-size:0.6rem; padding:1px 6px;">BARU</span>`;
+      } else if (jenisUpper === 'PEMBAHARUAN') {
+        jenisBadge = `<span class="app-type-badge type-pembaharuan" style="font-size:0.6rem; padding:1px 6px;">PEMBAHARUAN</span>`;
+      } else if (jenisUpper === 'UBAH MAKLUMAT') {
+        jenisBadge = `<span class="app-type-badge type-ubah-maklumat" style="font-size:0.6rem; padding:1px 6px;">UBAH MAKLUMAT</span>`;
+      } else if (jenisUpper === 'UBAH GRED') {
+        jenisBadge = `<span class="app-type-badge type-ubah-gred" style="font-size:0.6rem; padding:1px 6px;">UBAH GRED</span>`;
+      } else {
+        jenisBadge = `<span class="app-type-badge" style="font-size:0.6rem; padding:1px 6px; background:#94a3b8;">${r.jenis || 'LAIN-LAIN'}</span>`;
+      }
+
+      // Deadline badge
+      let deadlineBadge = '';
+      if (siap) {
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-siap">✅ Siap</span>`;
+      } else if (isOverdue) {
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late">⚠️ ${r.hari_lewat} hari lewat</span>`;
+      } else if (r.baki_hari > 0) {
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-ok">⏳ ${r.baki_hari} hari lagi</span>`;
+      } else if (r.baki_hari === 0) {
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late">⚠️ Hari Terakhir!</span>`;
+      }
+
+      const pengerusi = r.pengesyor ? ` · ${r.pengesyor}` : '';
       return `<div class="spi-timeline-item">
         <div class="spi-tl-left">
           <div class="spi-tl-name">${r.syarikat || '-'}</div>
-          <div class="spi-tl-meta">${r.jenis || ''} · ${r.pengesyor || ''}</div>
-          <div class="spi-tl-dates">📅 ${r.date_submit || '-'} → ${deadlineDisplay}</div>
+          <div class="spi-tl-meta">${jenisBadge}${pengerusi}</div>
+          <div class="spi-tl-dates">
+            <span class="spi-tl-date-badge">📤 ${r.date_submit || '-'}</span>
+            ${deadlineBadge}
+          </div>
         </div>
         <div class="spi-tl-track">
           <div class="spi-tl-bar-fill ${barCls}" style="width:${pct}%;">
