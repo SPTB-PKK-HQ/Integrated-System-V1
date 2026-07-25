@@ -9005,7 +9005,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <button class="tab-btn" data-target="db"><span class="tab-icon">📂</span><span class="tab-text">Input Database</span></button>
         <button class="tab-btn" data-target="drafts"><span class="tab-icon">📋</span><span class="tab-text">Belum Hantar</span></button>
         <button class="tab-btn" data-target="submitted"><span class="tab-icon">✅</span><span class="tab-text">Telah Disyor</span></button>
-        <button class="tab-btn" data-target="spi-queue"><span class="tab-icon">📅</span><span class="tab-text">Timeline SPI</span></button>
       `;
       
       const nameField = document.getElementById('db_pengesyor');
@@ -9028,7 +9027,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <button class="tab-btn" data-target="pelulus-view"><span class="tab-icon">🔍</span><span class="tab-text">2. Semakan</span></button>
         <button class="tab-btn" data-target="pelulus-action"><span class="tab-icon">⚖️</span><span class="tab-text">3. Keputusan</span></button>
         <button class="tab-btn" data-target="history"><span class="tab-icon">📜</span><span class="tab-text">4. Sejarah</span></button>
-        <button class="tab-btn" data-target="spi-queue"><span class="tab-icon">📅</span><span class="tab-text">Timeline SPI</span></button>
       `;
       
       const pelulusNamaField = document.getElementById('pelulus_nama');
