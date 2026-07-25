@@ -2451,11 +2451,43 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 .spi-loading {
-    display: flex;
+    display: none;
     flex-direction: column;
     align-items: center;
-    padding: 40px;
+    padding: 20px 0;
     color: #64748b;
+    width: 100%;
+}
+.spi-skeleton-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 20px;
+    width: 100%;
+    max-width: 800px;
+    box-sizing: border-box;
+}
+.spi-skeleton-row {
+    margin-bottom: 14px;
+}
+.spi-skeleton-row:last-child { margin-bottom: 0; }
+.spi-skeleton-line {
+    height: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: spiShimmer 1.5s infinite;
+}
+.spi-skeleton-cell {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: spiShimmer 1.5s infinite;
+}
+@keyframes spiShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* Senarai View */
