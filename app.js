@@ -14342,6 +14342,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
   }
 
+  const btnSpiKeKalendar = document.getElementById('btnSpiKeKalendar');
+  if (btnSpiKeKalendar) {
+      btnSpiKeKalendar.addEventListener('click', () => {
+          queueSpiModal.classList.remove('show');
+          setTimeout(() => {
+              queueSpiModal.style.display = 'none';
+              switchTab('spi-queue');
+          }, 300);
+      });
+  }
+
   // =========================================================================
   // FUNGSI SPI QUEUE TAB (Senarai & Kalendar)
   // =========================================================================
