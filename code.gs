@@ -3142,19 +3142,23 @@ function testProcessAI() {
 
 function testSendEmailPermission() {
   try {
-    const userEmail = Session.getActiveUser().getEmail();
-    MailApp.sendEmail({ to: userEmail, subject: "Test Permission V6.5.0", body: "Test sahaja.", name: EMAIL_SENDER_NAME });
-    return createJSONOutput({ success: true, message: `Emel ujian berjaya dihantar ke ${userEmail} dari ${EMAIL_SENDER_NAME}.` });
+    MailApp.sendEmail({ to: 'zariff.zainudin@kuskop.gov.my', subject: "Test Permission V6.5.0", body: "Test sahaja.", name: EMAIL_SENDER_NAME });
+    return createJSONOutput({ success: true, message: `Emel ujian berjaya dihantar ke zariff.zainudin@kuskop.gov.my.` });
   } catch (error) {
     return createJSONOutput({ success: false, message: `Gagal menghantar emel ujian: ${error.toString()}` });
   }
 }
 
 function testSendSPIEmail() {
-  const testData = { syarikat: "SYARIKAT UJIAN SDN BHD", cidb: "CIDB12345678", gred: "G7", jenis: "BARU", alamat_perniagaan: "No. 123, Jalan Test, Taman Ujian, 50000 Kuala Lumpur", pengesyor: "Ahmad bin Abdullah", justifikasi: "Ini adalah justifikasi ujian", pautan: "https://drive.google.com", date_submit: "25-04-2026" };
-  const result = sendAutoEmailSPI(testData);
-  console.log(JSON.stringify(result));
-  return result;
+  const testHtml = '<p>TEST: Emel SPI automatik — sila abaikan.</p>';
+  MailApp.sendEmail({
+    to: 'zariff.zainudin@kuskop.gov.my',
+    subject: '[TEST] Emel SPI Automatik',
+    htmlBody: testHtml,
+    name: EMAIL_SENDER_NAME
+  });
+  console.log('[Test SPI Email] Emel test dihantar ke zariff.zainudin@kuskop.gov.my.');
+  return createJSONOutput({ success: true, message: 'Emel test dihantar.' });
 }
 
 function testCheckAuthWithEmail() {
@@ -4900,9 +4904,131 @@ function authorizeCalendar() {
 }
 
 function testSpiBacklogReminder() {
-  const result = sendSpiBacklogReminder();
-  const content = result.getContent();
-  console.log('[Test Backlog] Result:', content);
+  const result = getSpiBacklogData();
+  const data = JSON.parse(result.getContent());
+  if (!data.success || !data.count) {
+    console.log('[Test Backlog] Tiada backlog.');
+    return;
+  }
+  const items = data.data;
+  let rowsHtml = '';
+  items.forEach((d, idx) => {
+    rowsHtml += `<tr>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${idx + 1}</td>
+      <td style="padding:10px;border:1px solid #ddd;"><strong>${d.syarikat}</strong></td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.cidb || '-'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.jenis || '-'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.date_submit}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;color:#991b1b;">${d.deadline}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.pengesyor || '-'}</td>
+    </tr>`;
+  });
+  const html = `<!DOCTYPE html>
+<html><head><style>
+  body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}
+  .container{max-width:800px;margin:0 auto;padding:20px;}
+  .header{background:#991b1b;color:white;padding:20px;text-align:center;border-radius:5px 5px 0 0;}
+  .content{background:#f9f9f9;padding:20px;border:1px solid #ddd;border-top:none;}
+  .footer{margin-top:20px;padding-top:20px;text-align:center;font-size:12px;color:#999;border-top:1px solid #ddd;}
+</style></head>
+<body><div class="container">
+  <div class="header"><h2 style="margin:0;">🔴 TEST BACKLOG SPI</h2><p style="margin:5px 0 0;">${items.length} backlog — TEST sahaja</p></div>
+  <div class="content">
+    <p>TEST: Berikut adalah ${items.length} permohonan backlog.</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;background:white;">
+      <thead style="background:#f1f5f9;color:#1e293b;"><tr>
+        <th style="padding:10px;border:1px solid #ddd;">Bil</th>
+        <th style="padding:10px;border:1px solid #ddd;">Syarikat</th>
+        <th style="padding:10px;border:1px solid #ddd;">CIDB</th>
+        <th style="padding:10px;border:1px solid #ddd;">Jenis</th>
+        <th style="padding:10px;border:1px solid #ddd;">Tarikh Hantar</th>
+        <th style="padding:10px;border:1px solid #ddd;">Deadline</th>
+        <th style="padding:10px;border:1px solid #ddd;">Pengesyor</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p><em>*** TEST — BUKAN emel sebenar ***</em></p>
+  </div>
+  <div class="footer"><p>Sistem Bersepadu SPTB</p></div>
+</div></body></html>`;
+  MailApp.sendEmail({
+    to: 'zariff.zainudin@kuskop.gov.my',
+    subject: `[TEST] Backlog SPI: ${items.length} Permohonan`,
+    htmlBody: html,
+    name: EMAIL_SENDER_NAME
+  });
+  console.log(`[Test Backlog] Emel test dihantar ke zariff.zainudin@kuskop.gov.my untuk ${items.length} backlog.`);
+}
+
+function testSpiDeadlineReminder() {
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const rows = sheet.getDataRange().getDisplayValues();
+  const items = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if ((r[8]||'').toString().toUpperCase() !== 'YA') continue;
+    if ((r[13]||'').toString().trim() !== '') continue;
+    if ((r[15]||'').toString().trim() === '') continue;
+    if (!(r[9]||'').toString().trim()) continue;
+    if ((r[19]||'').toString().trim() !== '') continue;
+    const sd = new Date(r[9]);
+    if (isNaN(sd.getTime())) continue;
+    const dl = addWorkingDays(sd, 14);
+    const dls = Utilities.formatDate(dl, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+    if (dls === todayStr) {
+      items.push({ row: i+1, syarikat: r[0]||'', cidb: r[1]||'', jenis: r[3]||'', pengesyor: r[12]||'', date_submit: r[9], deadline: dls });
+    }
+  }
+  if (!items.length) { console.log('[Test Deadline] Tiada deadline hari ini.'); return; }
+  let rowsHtml = '';
+  items.forEach((d, idx) => {
+    rowsHtml += `<tr>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${idx+1}</td>
+      <td style="padding:10px;border:1px solid #ddd;"><strong>${d.syarikat}</strong></td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.cidb||'-'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.jenis||'-'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.date_submit}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;color:#ef4444;">${d.deadline}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${d.pengesyor||'-'}</td>
+    </tr>`;
+  });
+  const html = `<!DOCTYPE html>
+<html><head><style>
+  body{font-family:Arial,sans-serif;line-height:1.6;color:#333;}
+  .container{max-width:800px;margin:0 auto;padding:20px;}
+  .header{background:#ef4444;color:white;padding:20px;text-align:center;border-radius:5px 5px 0 0;}
+  .content{background:#f9f9f9;padding:20px;border:1px solid #ddd;border-top:none;}
+  .footer{margin-top:20px;padding-top:20px;text-align:center;font-size:12px;color:#999;border-top:1px solid #ddd;}
+</style></head>
+<body><div class="container">
+  <div class="header"><h2 style="margin:0;">⚠️ TEST DEADLINE SPI</h2><p style="margin:5px 0 0;">${todayStr} — TEST sahaja</p></div>
+  <div class="content">
+    <p>TEST: ${items.length} permohonan deadline hari ini.</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;background:white;">
+      <thead style="background:#f1f5f9;color:#1e293b;"><tr>
+        <th style="padding:10px;border:1px solid #ddd;">Bil</th>
+        <th style="padding:10px;border:1px solid #ddd;">Syarikat</th>
+        <th style="padding:10px;border:1px solid #ddd;">CIDB</th>
+        <th style="padding:10px;border:1px solid #ddd;">Jenis</th>
+        <th style="padding:10px;border:1px solid #ddd;">Hantar</th>
+        <th style="padding:10px;border:1px solid #ddd;">Deadline</th>
+        <th style="padding:10px;border:1px solid #ddd;">Pengesyor</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p><em>*** TEST — BUKAN emel sebenar ***</em></p>
+  </div>
+  <div class="footer"><p>Sistem Bersepadu SPTB</p></div>
+</div></body></html>`;
+  MailApp.sendEmail({
+    to: 'zariff.zainudin@kuskop.gov.my',
+    subject: `[TEST] Deadline SPI: ${items.length} Permohonan Hari Ini`,
+    htmlBody: html,
+    name: EMAIL_SENDER_NAME
+  });
+  console.log(`[Test Deadline] Emel test dihantar ke zariff.zainudin@kuskop.gov.my.`);
 }
 
 function getSpiBacklogData() {
