@@ -2814,6 +2814,17 @@ function handlePKAUpdateLawatan(data, sheet) {
     if (data.lawatan_syor && data.lawatan_syor.toString().trim() !== '') {
       try { updateSpiCalendarEvent(rowNum, data.lawatan_syor); } catch (e) { console.error(`[SPI Calendar] Gagal update PKA: ${e.toString()}`); }
     }
+    // Hantar notifikasi inbox kepada Pengesyor
+    try {
+      const rowData = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS).getValues()[0];
+      const pengesyorName = rowData[12] || '';
+      const syarikat = rowData[0] || '';
+      if (pengesyorName) {
+        addInboxToRow(rowNum, pengesyorName, `📋 Lawatan premis untuk *${syarikat}* telah selesai. Sila berikan syor anda.`, 'PENTING');
+      }
+    } catch (e) {
+      console.error(`[Inbox] Gagal hantar notifikasi PKA: ${e.toString()}`);
+    }
     invalidateDataCache();
     return createJSONOutput({ status: "success", message: "Lawatan berjaya dikemaskini" });
   } catch (error) {

@@ -3195,7 +3195,16 @@ async function handleCredentialResponse(response) {
             loadPKAKeputusanSPI();
 
             if (contactRes.success && contactRes.waLink && contactRes.phone) {
-              const waUrl = `${contactRes.waLink}?text=${encodeURIComponent(`Salam, permohonan ${item.syarikat} (CIDB: ${item.cidb || '-'}) telah selesai lawatan. Sila semak dan berikan syor. Terima kasih.`)}`;
+              const waUrl = `${contactRes.waLink}?text=${encodeURIComponent(
+`*NOTIFIKASI PERMOHONAN LAWATAN PREMIS*
+    
+Syarikat: ${item.syarikat}
+No. CIDB: ${item.cidb || '-'}
+Jenis: ${item.jenis || '-'}
+Tarikh Lawatan: ${lawatanTarikh || '-'}
+Syor SPI: ${lawatanSyor || '-'}
+
+Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
               const confirmed = await showWhatsAppConfirmModal(waUrl, item.syarikat, item.pengesyor);
               if (confirmed) {
                 await CustomAppModal.alert(`Data berjaya disimpan. WhatsApp dibuka untuk menghubungi ${item.pengesyor}.`, 'Berjaya', 'success');
