@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygYP0boLURPhJY9lfJk2Qr0uGWFfdb37bPSjS1chPDxi3ZyGsBEVAL-r_QCzF77bLY/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydghOixtZL4EfAcV7C6V6ja--U-7mvfhNONFrnH8FvFSDiMy9DdySEqXH55rU-4QjG/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -2882,6 +2882,23 @@ async function handleCredentialResponse(response) {
     
     document.getElementById('pkaStatSpi').textContent = diSPI.length;
     document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
+
+    loadSpiTimelinePKA();
+  }
+
+  async function loadSpiTimelinePKA() {
+    try {
+      const el = document.getElementById('pkaSpiTimelineBody');
+      if (!el) return;
+      el.innerHTML = '<div class="spi-loading" style="display:flex;">Memuatkan Timeline SPI...</div>';
+      const result = await fetchWithRetry(SCRIPT_URL + '?action=getSpiQueueData&email=' + encodeURIComponent(currentUser.email));
+      const data = await result.json();
+      if (data.success && data.data) {
+        renderSpiTimeline(data.data, 'pkaSpiTimelineBody');
+      }
+    } catch (e) {
+      console.error('Gagal load SPI timeline:', e);
+    }
   }
 
   function pkaRenderInboxCards(data, list) {
@@ -9109,7 +9126,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         <button class="tab-btn" data-target="pka-sejarah-spi"><span class="tab-icon">📜</span><span class="tab-text">Sejarah SPI</span></button>
       `;
       
-      if(!activeTab || !['pka-dashboard','pka-inbox','pka-keputusan-spi','pka-sejarah-spi'].includes(activeTab)) {
+      if(!activeTab || !['pka-dashboard','pka-inbox','pka-keputusan-spi','pka-sejarah-spi','spi-queue'].includes(activeTab)) {
         activeTab = 'pka-dashboard';
       }
       
@@ -14397,8 +14414,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   }
 
-  function renderSpiTimeline(data) {
-    const timeline = document.getElementById('spiTimelineBody');
+  function renderSpiTimeline(data, elementId) {
+    const timeline = document.getElementById(elementId || 'spiTimelineBody');
     if (!timeline) return;
     const allItems = data.filter(r => r.date_submit);
     if (!allItems.length) {

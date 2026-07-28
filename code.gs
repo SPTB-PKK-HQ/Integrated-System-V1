@@ -4638,7 +4638,7 @@ function updateSpiCalendarEvent(rowNum, lawatanSyor) {
 
 function getSpiQueueData(email) {
   try {
-    const accessCheck = verifyUserAccess(email, [ROLE_ADMIN, ROLE_PENGESYOR, ROLE_PELULUS, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
+    const accessCheck = verifyUserAccess(email, [ROLE_ADMIN, ROLE_PENGESYOR, ROLE_PELULUS, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN, ROLE_PKA]);
     if (!accessCheck.isAuthorized) {
       return createJSONOutput({ success: false, error: accessCheck.error });
     }
@@ -4725,6 +4725,10 @@ function checkOverdueSPI() {
       const r = rows[i];
       const syorLawatan = (r[8] || '').toString().toUpperCase();
       if (syorLawatan !== 'YA') continue;
+      const syorStatus = (r[13] || '').toString().trim();
+      if (syorStatus !== '') continue;
+      const statusSpi = (r[15] || '').toString().trim();
+      if (statusSpi === '') continue;
       const dateSubmit = (r[9] || '').toString().trim();
       if (!dateSubmit) continue;
       const lawatanSyor = (r[19] || '').toString().trim();
