@@ -8691,6 +8691,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const btnBatal = document.getElementById('btnBatalHantarSpi');
     const statusDisp = document.getElementById('db_status_hantar_display');
     const dateInput = document.getElementById('db_submit_date');
+    const dateDisplay = document.getElementById('db_submit_date_display');
     if (!btnHantar || !btnBatal) return;
     if (statusVal === 'DALAM QUEUE') {
       btnHantar.style.display = 'none';
@@ -8703,6 +8704,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         statusDisp.style.display = 'inline-block';
       }
       if (dateInput) dateInput.style.display = 'none';
+      if (dateDisplay) {
+        const d = dateInput?.value;
+        dateDisplay.textContent = d ? `📅 ${d.split('-').reverse().join('/')}` : '';
+        dateDisplay.style.display = d ? 'inline-block' : 'none';
+      }
     } else if (statusVal === 'TELAH DIHANTAR') {
       btnHantar.style.display = 'none';
       btnBatal.style.display = 'none';
@@ -8714,11 +8720,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         statusDisp.style.display = 'inline-block';
       }
       if (dateInput) dateInput.style.display = 'none';
+      if (dateDisplay) {
+        const d = dateInput?.value;
+        dateDisplay.textContent = d ? `📅 ${d.split('-').reverse().join('/')}` : '';
+        dateDisplay.style.display = d ? 'inline-block' : 'none';
+      }
     } else {
       btnHantar.style.display = '';
       btnBatal.style.display = 'none';
       if (statusDisp) statusDisp.style.display = 'none';
       if (dateInput) dateInput.style.display = 'none';
+      if (dateDisplay) dateDisplay.style.display = 'none';
     }
   }
 
@@ -8727,8 +8739,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const btnBatal = document.getElementById('btnBatalHantarSpi');
     if (btnHantar) {
       btnHantar.addEventListener('click', async function() {
-        if (!currentRow || !cachedData) return;
-        const item = cachedData.find(d => d.row === currentRow);
+        const currentRowVal = parseInt(document.getElementById('db_row_index')?.value);
+        if (!currentRowVal || !cachedData) return;
+        const item = cachedData.find(d => d.row === currentRowVal);
         if (!item) return;
         const confirmed = await CustomAppModal.confirm(
           `Hantar <b>${item.syarikat}</b> ke SPI? Tarikh hari ini akan digunakan.`,
@@ -8744,7 +8757,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             body: JSON.stringify({
               action: 'toggleSpiSubmission',
               email: currentUser.email,
-              row: currentRow,
+              row: currentRowVal,
               submit: true
             })
           }, 3, 1000);
@@ -8755,7 +8768,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             document.getElementById('db_status_hantar_spi').value = 'DALAM QUEUE';
             updateSpiButtonState('DALAM QUEUE');
             if (cachedData) {
-              const idx = cachedData.findIndex(d => d.row === currentRow);
+              const idx = cachedData.findIndex(d => d.row === currentRowVal);
               if (idx !== -1) {
                 cachedData[idx].date_submit = todayStr;
                 cachedData[idx].status_hantar_spi = 'DALAM QUEUE';
@@ -8775,8 +8788,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
     if (btnBatal) {
       btnBatal.addEventListener('click', async function() {
-        if (!currentRow || !cachedData) return;
-        const item = cachedData.find(d => d.row === currentRow);
+        const currentRowVal = parseInt(document.getElementById('db_row_index')?.value);
+        if (!currentRowVal || !cachedData) return;
+        const item = cachedData.find(d => d.row === currentRowVal);
         if (!item) return;
         const confirmed = await CustomAppModal.confirm(
           `Batalkan hantar <b>${item.syarikat}</b> ke SPI? Permohonan akan dikeluarkan dari queue.`,
@@ -8792,7 +8806,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             body: JSON.stringify({
               action: 'toggleSpiSubmission',
               email: currentUser.email,
-              row: currentRow,
+              row: currentRowVal,
               submit: false
             })
           }, 3, 1000);
@@ -8802,7 +8816,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             document.getElementById('db_status_hantar_spi').value = '';
             updateSpiButtonState('');
             if (cachedData) {
-              const idx = cachedData.findIndex(d => d.row === currentRow);
+              const idx = cachedData.findIndex(d => d.row === currentRowVal);
               if (idx !== -1) {
                 cachedData[idx].date_submit = '';
                 cachedData[idx].status_hantar_spi = '';
