@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydghOixtZL4EfAcV7C6V6ja--U-7mvfhNONFrnH8FvFSDiMy9DdySEqXH55rU-4QjG/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTptmvVSM0Hh4y9raNUNYuopePVJT92jsOT1itAnbFcWQ-gdQLSRmSLiEagINS_Pv2/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -8674,17 +8674,159 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function toggleDateSubmitSpi() {
     if (dbSyorSelect && dbSubmitDateContainer) {
       const syorVal = dbSyorSelect.value;
+      const statusVal = (document.getElementById('db_status_hantar_spi')?.value || '').trim();
       if (syorVal === 'YA') {
         dbSubmitDateContainer.style.display = '';
+        updateSpiButtonState(statusVal);
       } else {
         dbSubmitDateContainer.style.display = 'none';
-        document.getElementById('db_submit_date').value = '';
+        document.getElementById('btnHantarSpi').style.display = 'none';
+        document.getElementById('btnBatalHantarSpi').style.display = 'none';
       }
     }
   }
+
+  function updateSpiButtonState(statusVal) {
+    const btnHantar = document.getElementById('btnHantarSpi');
+    const btnBatal = document.getElementById('btnBatalHantarSpi');
+    const statusDisp = document.getElementById('db_status_hantar_display');
+    const dateInput = document.getElementById('db_submit_date');
+    if (!btnHantar || !btnBatal) return;
+    if (statusVal === 'DALAM QUEUE') {
+      btnHantar.style.display = 'none';
+      btnBatal.style.display = '';
+      if (statusDisp) {
+        statusDisp.textContent = '⏳ DALAM QUEUE';
+        statusDisp.style.backgroundColor = '#fef3c7';
+        statusDisp.style.borderColor = '#d97706';
+        statusDisp.style.color = '#b45309';
+        statusDisp.style.display = 'inline-block';
+      }
+      if (dateInput) dateInput.style.display = 'none';
+    } else if (statusVal === 'TELAH DIHANTAR') {
+      btnHantar.style.display = 'none';
+      btnBatal.style.display = 'none';
+      if (statusDisp) {
+        statusDisp.textContent = '✅ TELAH DIHANTAR';
+        statusDisp.style.backgroundColor = '#dcfce7';
+        statusDisp.style.borderColor = '#16a34a';
+        statusDisp.style.color = '#15803d';
+        statusDisp.style.display = 'inline-block';
+      }
+      if (dateInput) dateInput.style.display = 'none';
+    } else {
+      btnHantar.style.display = '';
+      btnBatal.style.display = 'none';
+      if (statusDisp) statusDisp.style.display = 'none';
+      if (dateInput) dateInput.style.display = 'none';
+    }
+  }
+
+  function initSpiButtons() {
+    const btnHantar = document.getElementById('btnHantarSpi');
+    const btnBatal = document.getElementById('btnBatalHantarSpi');
+    if (btnHantar) {
+      btnHantar.addEventListener('click', async function() {
+        if (!currentRow || !cachedData) return;
+        const item = cachedData.find(d => d.row === currentRow);
+        if (!item) return;
+        const confirmed = await CustomAppModal.confirm(
+          `Hantar <b>${item.syarikat}</b> ke SPI? Tarikh hari ini akan digunakan.`,
+          'Hantar ke SPI', 'info', 'Ya, Hantar', false
+        );
+        if (!confirmed) return;
+        const loadingEl = document.getElementById('loadingOverlay');
+        if (loadingEl) loadingEl.style.display = 'flex';
+        try {
+          const result = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'toggleSpiSubmission',
+              email: currentUser.email,
+              row: currentRow,
+              submit: true
+            })
+          }, 3, 1000);
+          const res = await result.json();
+          if (res.status === 'success') {
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('db_submit_date').value = todayStr;
+            document.getElementById('db_status_hantar_spi').value = 'DALAM QUEUE';
+            updateSpiButtonState('DALAM QUEUE');
+            if (cachedData) {
+              const idx = cachedData.findIndex(d => d.row === currentRow);
+              if (idx !== -1) {
+                cachedData[idx].date_submit = todayStr;
+                cachedData[idx].status_hantar_spi = 'DALAM QUEUE';
+              }
+            }
+            await CustomAppModal.alert(`✅ ${item.syarikat} berjaya dihantar ke SPI.`, 'Berjaya', 'success');
+            loadRecordToDbOnly(item);
+          } else {
+            await CustomAppModal.alert('Gagal: ' + (res.message || 'Ralat'), 'Ralat', 'error');
+          }
+        } catch (e) {
+          await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
+        } finally {
+          if (loadingEl) loadingEl.style.display = 'none';
+        }
+      });
+    }
+    if (btnBatal) {
+      btnBatal.addEventListener('click', async function() {
+        if (!currentRow || !cachedData) return;
+        const item = cachedData.find(d => d.row === currentRow);
+        if (!item) return;
+        const confirmed = await CustomAppModal.confirm(
+          `Batalkan hantar <b>${item.syarikat}</b> ke SPI? Permohonan akan dikeluarkan dari queue.`,
+          'Batal Hantar', 'warning', 'Ya, Batal', true
+        );
+        if (!confirmed) return;
+        const loadingEl = document.getElementById('loadingOverlay');
+        if (loadingEl) loadingEl.style.display = 'flex';
+        try {
+          const result = await fetchWithRetry(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'toggleSpiSubmission',
+              email: currentUser.email,
+              row: currentRow,
+              submit: false
+            })
+          }, 3, 1000);
+          const res = await result.json();
+          if (res.status === 'success') {
+            document.getElementById('db_submit_date').value = '';
+            document.getElementById('db_status_hantar_spi').value = '';
+            updateSpiButtonState('');
+            if (cachedData) {
+              const idx = cachedData.findIndex(d => d.row === currentRow);
+              if (idx !== -1) {
+                cachedData[idx].date_submit = '';
+                cachedData[idx].status_hantar_spi = '';
+                cachedData[idx].tarikh_hantar_spi = '';
+              }
+            }
+            await CustomAppModal.alert(`✅ ${item.syarikat} dikeluarkan dari queue SPI.`, 'Berjaya', 'success');
+            loadRecordToDbOnly(item);
+          } else {
+            await CustomAppModal.alert('Gagal: ' + (res.message || 'Ralat'), 'Ralat', 'error');
+          }
+        } catch (e) {
+          await CustomAppModal.alert('Ralat: ' + e.message, 'Ralat', 'error');
+        } finally {
+          if (loadingEl) loadingEl.style.display = 'none';
+        }
+      });
+    }
+  }
+
   if (dbSyorSelect) {
     dbSyorSelect.addEventListener('change', toggleDateSubmitSpi);
   }
+  initSpiButtons();
 
   const dbPautanDriveInput = document.getElementById('db_pautan_drive');
   function toggleUrusFailButton() {
@@ -10149,11 +10291,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
-
+    const btnHantarSpi = document.getElementById('btnHantarSpi');
+    const btnBatalHantarSpi = document.getElementById('btnBatalHantarSpi');
+    if (btnHantarSpi) btnHantarSpi.style.display = 'none';
+    if (btnBatalHantarSpi) btnBatalHantarSpi.style.display = 'none';
+    
     if (btnSyncToDb) {
       btnSyncToDb.style.display = 'none';
     }
-
+    
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -10262,6 +10408,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
+    const btnHantarSpi = document.getElementById('btnHantarSpi');
+    const btnBatalHantarSpi = document.getElementById('btnBatalHantarSpi');
+    if (btnHantarSpi) btnHantarSpi.style.display = 'none';
+    if (btnBatalHantarSpi) btnBatalHantarSpi.style.display = 'none';
     
     const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
     const ubahGredInput = document.getElementById('input_ubah_gred');
@@ -11520,24 +11670,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         dbStatusHantarSpi.value = item.status_hantar_spi || '';
     }
     
-    const statusDisp = document.getElementById('db_status_hantar_display');
-    if (statusDisp) {
-        if(item.status_hantar_spi === 'DALAM QUEUE') {
-            statusDisp.textContent = '⏳ DALAM QUEUE';
-            statusDisp.style.backgroundColor = '#fef3c7';
-            statusDisp.style.borderColor = '#d97706';
-            statusDisp.style.color = '#b45309';
-            statusDisp.style.display = 'inline-block';
-        } else if(item.status_hantar_spi === 'TELAH DIHANTAR') {
-            statusDisp.textContent = `✅ TELAH DIHANTAR (${item.tarikh_hantar_spi || ''})`;
-            statusDisp.style.backgroundColor = '#dcfce7';
-            statusDisp.style.borderColor = '#16a34a';
-            statusDisp.style.color = '#15803d';
-            statusDisp.style.display = 'inline-block';
-        } else {
-            statusDisp.style.display = 'none';
-        }
-    }
+    updateSpiButtonState(item.status_hantar_spi || '');
 
     updateValidationCheckboxDisplay();
 
@@ -12371,6 +12504,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';
+    const btnHantarSpi = document.getElementById('btnHantarSpi');
+    const btnBatalHantarSpi = document.getElementById('btnBatalHantarSpi');
+    if (btnHantarSpi) btnHantarSpi.style.display = 'none';
+    if (btnBatalHantarSpi) btnBatalHantarSpi.style.display = 'none';
     
     document.querySelectorAll('.konsultansi-checkbox').forEach(cb => { cb.checked = false; });
     document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; d.style.display = 'none'; });

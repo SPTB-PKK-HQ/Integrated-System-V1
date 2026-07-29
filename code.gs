@@ -440,7 +440,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact', 'toggleSpiSubmission'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -717,6 +717,18 @@ function doPost(e) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
       return handlePKAGetPengesyorContact(data);
+    }
+    
+    // Handler: toggleSpiSubmission - Hantar / Batal hantar ke SPI
+    if (data.action === 'toggleSpiSubmission') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS, ROLE_KETUA_SEKSYEN, ROLE_PENGARAH]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      return handleToggleSpiSubmission(data, sheet);
     }
     
     const shouldCreateFolder = data.createFolder === true;
@@ -1925,7 +1937,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       formatJenisJustifikasi(data.jenis, data.justifikasi), data.pengesyor||"", 
       data.syor_status||"", data.tarikh_syor||"",
       // P-Q (Kolum 16-17): STATUS HANTAR SPI & TARIKH HANTAR SPI
-      data.hantar_emel_spi ? "DALAM QUEUE" : "",  // P (16) - Status Hantar SPI
+      (data.hantar_emel_spi && data.date_submit && data.date_submit.toString().trim() !== '') ? "DALAM QUEUE" : "",  // P (16) - Status Hantar SPI
       "",                                          // Q (17) - Tarikh Hantar SPI
       // R-X (Kolum 18-24)
       data.lawatan_tarikh||"",        
@@ -2829,6 +2841,51 @@ function handlePKAUpdateLawatan(data, sheet) {
     return createJSONOutput({ status: "success", message: "Lawatan berjaya dikemaskini" });
   } catch (error) {
     logActivity('System', 'ERROR_PKA_UPDATE', `Ralat: ${error.toString()}`, '');
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+/**
+ * Fungsi handleToggleSpiSubmission: Hantar / Batal hantar ke SPI
+ */
+function handleToggleSpiSubmission(data, sheet) {
+  try {
+    const rowNum = parseInt(data.row);
+    if (rowNum < 2) return createJSONOutput({ status: "error", message: "Nombor baris tidak sah" });
+    const rowData = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS).getValues()[0];
+
+    if (data.submit === true || data.submit === 'true') {
+      const today = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'dd/MM/yyyy');
+      sheet.getRange(rowNum, 10).setValue(today);
+      sheet.getRange(rowNum, 16).setValue("DALAM QUEUE");
+      const emailData = {
+        row: rowNum,
+        syarikat: rowData[0] || '',
+        cidb: rowData[1] || '',
+        gred: rowData[2] || '',
+        jenis: rowData[3] || '',
+        alamat_perniagaan: rowData[20] || 'Tiada',
+        pengesyor: rowData[12] || '',
+        justifikasi: rowData[11] || 'Tiada',
+        pautan: rowData[10] || '',
+        date_submit: today,
+        syor_lawatan: rowData[8] || ''
+      };
+      addToSiasatQueue(emailData);
+      try { createSpiCalendarEvent(rowNum, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, today); } catch (e) { console.error(`[SPI Calendar] Gagal buat event row ${rowNum}: ${e.toString()}`); }
+      logActivity(data.email || '', 'SPI_HANTAR', `${rowData[0] || ''} dihantar ke SPI`, '');
+    } else {
+      sheet.getRange(rowNum, 10).clearContent();
+      sheet.getRange(rowNum, 16, 1, 2).clearContent();
+      removeFromQueue(rowData[0] || '', 'SIASAT_QUEUE');
+      removeFromQueue(rowData[0] || '', 'PEMUTIHAN_QUEUE');
+      logActivity(data.email || '', 'SPI_BATAL', `${rowData[0] || ''} dibatalkan dari SPI`, '');
+    }
+
+    invalidateDataCache();
+    return createJSONOutput({ status: "success", message: "Berjaya dikemaskini" });
+  } catch (error) {
+    logActivity('System', 'ERROR_TOGGLE_SPI', error.toString(), '');
     return createJSONOutput({ status: "error", message: error.toString() });
   }
 }
