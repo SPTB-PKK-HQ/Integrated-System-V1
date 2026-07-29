@@ -8691,7 +8691,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const btnBatal = document.getElementById('btnBatalHantarSpi');
     const statusDisp = document.getElementById('db_status_hantar_display');
     const dateInput = document.getElementById('db_submit_date');
-    const dateDisplay = document.getElementById('db_submit_date_display');
     if (!btnHantar || !btnBatal) return;
     if (statusVal === 'DALAM QUEUE') {
       btnHantar.style.display = 'none';
@@ -8703,11 +8702,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         statusDisp.style.color = '#b45309';
         statusDisp.style.display = 'inline-block';
       }
-      if (dateInput) dateInput.style.display = 'none';
-      if (dateDisplay) {
-        const d = dateInput?.value;
-        dateDisplay.textContent = d ? `📅 ${d.split('-').reverse().join('/')}` : '';
-        dateDisplay.style.display = d ? 'inline-block' : 'none';
+      if (dateInput) {
+        dateInput.style.display = '';
+        dateInput.readOnly = true;
       }
     } else if (statusVal === 'TELAH DIHANTAR') {
       btnHantar.style.display = 'none';
@@ -8719,18 +8716,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         statusDisp.style.color = '#15803d';
         statusDisp.style.display = 'inline-block';
       }
-      if (dateInput) dateInput.style.display = 'none';
-      if (dateDisplay) {
-        const d = dateInput?.value;
-        dateDisplay.textContent = d ? `📅 ${d.split('-').reverse().join('/')}` : '';
-        dateDisplay.style.display = d ? 'inline-block' : 'none';
+      if (dateInput) {
+        dateInput.style.display = '';
+        dateInput.readOnly = true;
       }
     } else {
       btnHantar.style.display = '';
       btnBatal.style.display = 'none';
       if (statusDisp) statusDisp.style.display = 'none';
-      if (dateInput) dateInput.style.display = 'none';
-      if (dateDisplay) dateDisplay.style.display = 'none';
+      if (dateInput) {
+        dateInput.style.display = 'none';
+        dateInput.value = '';
+      }
     }
   }
 
@@ -8763,7 +8760,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }, 3, 1000);
           const res = await result.json();
           if (res.status === 'success') {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const yyyy = d.getFullYear();
+            const todayStr = `${dd}/${mm}/${yyyy}`;
             document.getElementById('db_submit_date').value = todayStr;
             document.getElementById('db_status_hantar_spi').value = 'DALAM QUEUE';
             updateSpiButtonState('DALAM QUEUE');
@@ -11627,8 +11628,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       'db_due_date': item.due_date // <-- Tambah parameter untuk load due date
     };
 
-    for(let id in dateMap) { 
-      const el = document.getElementById(id); 
+    const submitDateEl = document.getElementById('db_submit_date');
+    if (submitDateEl && item.date_submit) {
+      submitDateEl.value = item.date_submit;
+    }
+
+    for(let id in dateMap) {
+      if (id === 'db_submit_date') continue;
+      const el = document.getElementById(id);
       if(el && dateMap[id]) {
         try {
           el.value = new Date(dateMap[id]).toISOString().split('T')[0];
