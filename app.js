@@ -8676,6 +8676,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const syorVal = dbSyorSelect.value;
       if (syorVal === 'YA') {
         dbSubmitDateContainer.style.display = '';
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        const dateInput = document.getElementById('db_submit_date');
+        if (dateInput) {
+          dateInput.min = todayStr;
+          dateInput.max = todayStr;
+          if (!dateInput.value) {
+            dateInput.value = todayStr;
+          }
+        }
       } else {
         dbSubmitDateContainer.style.display = 'none';
         document.getElementById('db_submit_date').value = '';
