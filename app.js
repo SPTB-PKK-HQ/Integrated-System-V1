@@ -8685,9 +8685,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (dateInput) {
           dateInput.min = todayStr;
           dateInput.max = todayStr;
-          if (!dateInput.value) {
-            dateInput.value = todayStr;
-          }
         }
       } else {
         dbSubmitDateContainer.style.display = 'none';
