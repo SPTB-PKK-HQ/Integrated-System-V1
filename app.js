@@ -8694,7 +8694,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (!cb) return;
     if (statusVal === 'DALAM QUEUE' || statusVal === 'TELAH DIHANTAR') {
       cb.checked = true;
-      cb.disabled = true;
+      cb.disabled = statusVal === 'TELAH DIHANTAR';
       if (label) label.textContent = statusVal === 'DALAM QUEUE' ? '⏳ Dalam Queue' : '✅ Telah Dihantar';
       if (statusDisp) {
         statusDisp.textContent = statusVal === 'DALAM QUEUE' ? '⏳ DALAM QUEUE' : '✅ TELAH DIHANTAR';
