@@ -8728,9 +8728,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const item = cachedData.find(d => d.row === currentRowVal);
       if (!item) return;
       if (cb.checked) {
+        const alamat = document.getElementById('db_alamat_perniagaan')?.value || 'Tiada alamat';
         const confirmed = await CustomAppModal.confirm(
-          `Hantar <b>${item.syarikat}</b> ke SPI? Tarikh hari ini akan digunakan.`,
-          'Hantar ke SPI', 'info', 'Ya, Hantar', false
+          "Adakah anda ingin hantar emel syarikat ini ke SPI?<br><br>" +
+          "🏢 <b>Alamat Perniagaan:</b><br>" + alamat + "<br><br>" +
+          "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(alamat) + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
+          "<br><br>Sila pastikan alamat adalah terkini.",
+          'Hantar Emel SPI', 'info', 'Ya, Hantar', false
         );
         if (!confirmed) { cb.checked = false; return; }
         const loadingEl = document.getElementById('loadingOverlay');
