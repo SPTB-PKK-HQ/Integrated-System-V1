@@ -1775,11 +1775,18 @@ function handleUpdateRecord(data, sheet) {
           removeFromQueue(existingData[0], 'SIASAT_QUEUE');
           removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
       } else {
-          if (syorLawatanYA && dateSubmitExists && hantarEmelSPI) {
+          const shouldSetSiasat = syorLawatanYA && dateSubmitExists && hantarEmelSPI;
+          const shouldSetPemutihan = syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan;
+          if (shouldSetSiasat) {
               sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
           }
-          if (syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan) {
+          if (shouldSetPemutihan) {
               sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+          }
+          if (!shouldSetSiasat && !shouldSetPemutihan) {
+              sheet.getRange(rowNum, 16, 1, 2).clearContent();
+              removeFromQueue(existingData[0], 'SIASAT_QUEUE');
+              removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
           }
       }
       
@@ -1925,7 +1932,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       formatJenisJustifikasi(data.jenis, data.justifikasi), data.pengesyor||"", 
       data.syor_status||"", data.tarikh_syor||"",
       // P-Q (Kolum 16-17): STATUS HANTAR SPI & TARIKH HANTAR SPI
-      data.hantar_emel_spi ? "DALAM QUEUE" : "",  // P (16) - Status Hantar SPI
+      (data.hantar_emel_spi && data.syor_lawatan && data.syor_lawatan.toString().toUpperCase() === 'YA' && data.date_submit && data.date_submit.toString().trim() !== '') ? "DALAM QUEUE" : "",  // P (16) - Status Hantar SPI
       "",                                          // Q (17) - Tarikh Hantar SPI
       // R-X (Kolum 18-24)
       data.lawatan_tarikh||"",        

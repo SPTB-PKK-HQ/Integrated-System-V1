@@ -12063,16 +12063,32 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const dbStartDateValue = document.getElementById('db_start_date')?.value || document.getElementById('borang_tarikh_mohon')?.value || '';
       
       // === LOGIK BARU SEMAKAN HANTAR SPI ===
-      const dbStatusHantarSpi = document.getElementById('db_status_hantar_spi')?.value || '';
       
+      // Bandingkan dengan data asal dari cachedData — modal hanya dilangkau jika tiada perubahan
+      let isTelahDihantarOriginal = false;
+      if (targetRow && cachedData) {
+        const origItem = cachedData.find(d => d.row == targetRow);
+        if (origItem) {
+          const origSudahDihantar = (origItem.status_hantar_spi === 'TELAH DIHANTAR' || origItem.status_hantar_spi === 'DALAM QUEUE');
+          const origSyorYA = origItem.syor_lawatan && origItem.syor_lawatan.toString().toUpperCase() === 'YA';
+          const origDateSubmitAda = origItem.date_submit && origItem.date_submit.toString().trim() !== '';
+          const currentSyorYA = dbSyorValue === 'YA';
+          const currentDateSubmitAda = dbSubmitDateValue && dbSubmitDateValue.trim() !== '';
+          const syorUnchanged = dbSyorValue === (origItem.syor_lawatan || '');
+          const dateUnchanged = dbSubmitDateValue === (origItem.date_submit || '');
+          // Hanya skip modal jika data asal sudah dihantar DAN tiada perubahan pada syor/date_submit
+          if (origSudahDihantar && origSyorYA && origDateSubmitAda && syorUnchanged && dateUnchanged) {
+            isTelahDihantarOriginal = true;
+          }
+        }
+      }
       let confirmHantarEmel = false;
       
       if (dbSyorValue === 'YA' && dbSubmitDateValue && dbSubmitDateValue.trim() !== '') {
         const hasSyorAndConfirmed = (dbSyorStatusValue.trim() !== '') && isConfirmed;
-        const isTelahDihantar = (dbStatusHantarSpi === 'TELAH DIHANTAR' || dbStatusHantarSpi === 'DALAM QUEUE');
         
-        // HANYA MINTA POPUP JIKA: Ia belum dihantar ke queue DAN sudah tekan SOKONG.
-        if (!hasSyorAndConfirmed && !isTelahDihantar) {
+        // HANYA MINTA POPUP JIKA: Ia belum dihantar ke queue (tiada perubahan) DAN sudah tekan SOKONG.
+        if (!hasSyorAndConfirmed && !isTelahDihantarOriginal) {
           confirmHantarEmel = await CustomAppModal.confirm(
               "Adakah anda ingin hantar emel syarikat ini ke SPI?<br><br>" +
               "🏢 <b>Alamat Perniagaan:</b><br>" +
