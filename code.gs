@@ -1622,7 +1622,7 @@ function handleUpdateRecord(data, sheet) {
       data.tatatertib !== undefined ? data.tatatertib : existingData[6],
       data.start_date !== undefined ? data.start_date : existingData[7],
       data.syor_lawatan_baru !== undefined ? data.syor_lawatan_baru : (data.syor_lawatan !== undefined ? data.syor_lawatan : existingData[8]),
-      data.date_submit !== undefined ? data.date_submit : existingData[9],
+      data.date_submit_baru !== undefined ? data.date_submit_baru : (data.date_submit !== undefined ? data.date_submit : existingData[9]),
       (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
       data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
       data.pengesyor !== undefined ? data.pengesyor : existingData[12],
@@ -1720,7 +1720,7 @@ function handleUpdateRecord(data, sheet) {
     try {
       // AUTO EMAIL LOGIC
       let syorLawatanValue = data.syor_lawatan_baru !== undefined ? data.syor_lawatan_baru : (data.syor_lawatan !== undefined ? data.syor_lawatan : existingData[8]);
-      let dateSubmitValue = data.date_submit !== undefined ? data.date_submit : existingData[9];
+      let dateSubmitValue = data.date_submit_baru !== undefined ? data.date_submit_baru : (data.date_submit !== undefined ? data.date_submit : existingData[9]);
       
       const syorLawatanYA = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'YA';
       const dateSubmitExists = dateSubmitValue && dateSubmitValue.toString().trim() !== '';
@@ -1745,7 +1745,8 @@ function handleUpdateRecord(data, sheet) {
         try { createSpiCalendarEvent(rowNum, emailData.syarikat, emailData.cidb, emailData.jenis, emailData.pengesyor, emailData.date_submit); } catch (e) { console.error(`[SPI Calendar] Gagal buat event row ${rowNum}: ${e.toString()}`); }
       }
       
-      const syorLawatanPemutihan = syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN';
+      const syorLawatanPemutihan = (syorLawatanValue && syorLawatanValue.toString().toUpperCase() === 'PEMUTIHAN')
+        || (data.kelulusan && data.kelulusan.toString().toUpperCase() === 'PEMUTIHAN');
       const tarikhLulusValue = data.tarikh_lulus !== undefined ? data.tarikh_lulus : existingData[24];
       const tarikhLulusExists = tarikhLulusValue && tarikhLulusValue.toString().trim() !== '';
       const hantarEmelSPIPemutihan = data.hantar_emel_spi_pemutihan === true;
@@ -1770,24 +1771,32 @@ function handleUpdateRecord(data, sheet) {
       }
       
       // === UPDATE KE DALAM QUEUE - Kolum P & Q (16 & 17) ===
-      if (data.date_submit === '') {
-          sheet.getRange(rowNum, 16, 1, 2).clearContent();
-          removeFromQueue(existingData[0], 'SIASAT_QUEUE');
-          removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
-      } else {
-          const shouldSetSiasat = syorLawatanYA && dateSubmitExists && hantarEmelSPI;
-          const shouldSetPemutihan = syorLawatanPemutihan && tarikhLulusExists && hantarEmelSPIPemutihan;
-          if (shouldSetSiasat) {
-              sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
-          }
-          if (shouldSetPemutihan) {
-              sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
-          }
-          if (!shouldSetSiasat && !shouldSetPemutihan) {
-              sheet.getRange(rowNum, 16, 1, 2).clearContent();
-              removeFromQueue(existingData[0], 'SIASAT_QUEUE');
-              removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
-          }
+      // Keahlian queue berasaskan keadaan rekod (state-based):
+      // - SIASAT: syor=YA DAN date_submit diisi
+      // - PEMUTIHAN: syor=PEMUTIHAN (atau keputusan=PEMUTIHAN) DAN tarikh_lulus diisi
+      const stateSiasat = syorLawatanYA && dateSubmitExists;
+      const statePemutihan = syorLawatanPemutihan && tarikhLulusExists;
+
+      if (!stateSiasat) {
+        removeFromQueue(existingData[0], 'SIASAT_QUEUE');
+      }
+      if (!statePemutihan) {
+        removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
+      }
+
+      if (stateSiasat && hantarEmelSPI) {
+        sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+      } else if (statePemutihan) {
+        sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+      } else if (!stateSiasat && !statePemutihan) {
+        sheet.getRange(rowNum, 16, 1, 2).clearContent();
+      }
+
+      // Diagnostik: log keadaan queue (semak di LOG sheet)
+      try {
+        logActivity('System', 'QUEUE_UPDATE', `Row ${rowNum} (${existingData[0] || ''}): syor='${syorLawatanValue}' date_submit='${dateSubmitValue}' tarikh_lulus='${tarikhLulusValue}' siasat=${stateSiasat}/${hantarEmelSPI} pemutihan=${statePemutihan}/${hantarEmelSPIPemutihan}`, '');
+      } catch (e) {
+        console.error('Gagal log QUEUE_UPDATE:', e.toString());
       }
       
       // V6.6.0: Auto inbox notification untuk pelulus bila syor diupdate dengan pelulus

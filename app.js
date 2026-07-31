@@ -12541,17 +12541,18 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       // 5. Fungsi pengesahan emel pemutihan (Hanya jika perlu)
       let confirmSpiPemutihan = false;
-      if (tukarSyor === 'PEMUTIHAN' || pelulusActiveItem.syor_lawatan === 'PEMUTIHAN') {
-        if (keputusan) {
-          confirmSpiPemutihan = await CustomAppModal.confirm(
-              "Adakah anda pasti ingin hantar permohonan ini ke SPI?",
-              "Pengesahan Hantar SPI",
-              "warning",
-              "Ya, Hantar",
-              false
-          );
-        }
+      const syorFinal = tukarSyor !== '' ? tukarSyor : (keputusan === 'PEMUTIHAN' ? 'PEMUTIHAN' : '');
+      console.log('[PELULUS-SPI] tukarSyor:', tukarSyor, '| keputusan:', keputusan, '| syorFinal:', syorFinal, '| syorAsal:', pelulusActiveItem.syor_lawatan);
+      if (syorFinal === 'PEMUTIHAN' || pelulusActiveItem.syor_lawatan === 'PEMUTIHAN') {
+        confirmSpiPemutihan = await CustomAppModal.confirm(
+            "Adakah anda pasti ingin hantar permohonan ini ke SPI?",
+            "Pengesahan Hantar SPI",
+            "warning",
+            "Ya, Hantar",
+            false
+        );
       }
+      console.log('[PELULUS-SPI] confirmSpiPemutihan:', confirmSpiPemutihan);
 
       // 6. Sediakan data untuk dihantar
       const catatanPelulus = document.getElementById('pelulus_catatan')?.value || '';
@@ -12578,13 +12579,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       const payload = {
         row: pelulusActiveItem.row || '',
-        kelulusan: keputusan,
+        kelulusan: keputusan !== '' ? keputusan : (pelulusActiveItem.kelulusan || ''),
         alasan: document.getElementById('pelulus_alasan')?.value || '',
         tarikh_lulus: tarikhLulusLocal,
         pelulus: currentUser.name || '',
-        syor_lawatan_baru: tukarSyor,
+        syor_lawatan_baru: syorFinal !== '' ? syorFinal : undefined,
         justifikasi_baru: justifikasiPelulus,
-        date_submit_baru: dateSpiPelulus,
+        date_submit_baru: tukarSyor === 'YA' ? dateSpiPelulus : undefined,
         hantar_emel_spi_pemutihan: confirmSpiPemutihan,
         borang_json: newBorangJson, // Set ruangan catatan pelulus
         email: currentUser ? currentUser.email : '' 
