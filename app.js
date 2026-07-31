@@ -1261,6 +1261,20 @@ async function handleCredentialResponse(response) {
   const filterIncompleteDocPembaharuan = document.getElementById('filterIncompleteDocPembaharuan');
   const filterIncompleteDocUbahMaklumat = document.getElementById('filterIncompleteDocUbahMaklumat');
   const filterIncompleteDocUbahGred = document.getElementById('filterIncompleteDocUbahGred');
+
+  // Modal Senarai Kad Dashboard
+  const dashboardCardModal = document.getElementById('dashboardCardModal');
+  const dashboardCardModalClose = document.getElementById('dashboardCardModalClose');
+  const dashboardCardModalTitle = document.getElementById('dashboardCardModalTitle');
+  const dashboardCardModalInfo = document.getElementById('dashboardCardModalInfo');
+  const dashboardCardModalTbody = document.getElementById('dashboardCardModalTbody');
+  const btnCloseDashboardCardModal = document.getElementById('btnCloseDashboardCardModal');
+  const dashboardCardSearch = document.getElementById('dashboardCardSearch');
+  const filterDashCardAll = document.getElementById('filterDashCardAll');
+  const filterDashCardBaru = document.getElementById('filterDashCardBaru');
+  const filterDashCardPembaharuan = document.getElementById('filterDashCardPembaharuan');
+  const filterDashCardUbahMaklumat = document.getElementById('filterDashCardUbahMaklumat');
+  const filterDashCardUbahGred = document.getElementById('filterDashCardUbahGred');
   
   // Rekod Dipadam Elements
   const btnRefreshDeletedLogs = document.getElementById('btnRefreshDeletedLogs');
@@ -1878,6 +1892,23 @@ async function handleCredentialResponse(response) {
     if (labelRejectElement) labelRejectElement.textContent = lblReject;
     if (processCountElement) processCountElement.textContent = card4Value;
     if (labelStatusElement) labelStatusElement.textContent = lblStatus;
+
+    // Simpan senarai rekod setiap kad untuk modal popup (Dashboard utama)
+    const dCardSuccess = currentUser.role === 'PENGESYOR'
+      ? userSpecificData.filter(d => d.syor_status === 'SOKONG')
+      : userSpecificData.filter(d => d.kelulusan && d.kelulusan.includes('LULUS'));
+    const dCardReject = currentUser.role === 'PENGESYOR'
+      ? userSpecificData.filter(d => d.syor_status === 'TIDAK DISOKONG')
+      : userSpecificData.filter(d => d.kelulusan && (d.kelulusan.includes('TOLAK') || d.kelulusan.includes('SIASAT')));
+    const dCardProses = userSpecificData.filter(d => dCardSuccess.indexOf(d) === -1 && dCardReject.indexOf(d) === -1);
+    window.__dashboardCardData = {
+      total: userSpecificData,
+      success: dCardSuccess,
+      reject: dCardReject,
+      proses: dCardProses
+    };
+    window.__dashboardCardLabels = { success: lblSuccess, reject: lblReject, status: lblStatus };
+    window.__dashboardCardRole = currentUser.role;
     
     // Kira dokumen tidak lengkap untuk pengguna ini
     const userIncData = userSpecificData.filter(item => {
@@ -2883,6 +2914,9 @@ async function handleCredentialResponse(response) {
     document.getElementById('pkaStatSpi').textContent = diSPI.length;
     document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
 
+    // Simpan senarai rekod setiap kad untuk modal popup (Tab PKA)
+    window.__pkaCardData = { spi: diSPI, selesai: selesaiLawatan };
+
     loadSpiTimelinePKA();
   }
 
@@ -3305,14 +3339,24 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
     
     const total = filteredData.length;
-    const lulus = filteredData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS')).length;
-    const tolak = filteredData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
+    const lulusArr = filteredData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS'));
+    const tolakArr = filteredData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT')));
+    const lulus = lulusArr.length;
+    const tolak = tolakArr.length;
     const proses = total - (lulus + tolak);
     
     if (adminTotalCount) adminTotalCount.textContent = total;
     if (adminApprovedCount) adminApprovedCount.textContent = lulus;
     if (adminRejectedCount) adminRejectedCount.textContent = tolak;
     if (adminPendingCount) adminPendingCount.textContent = proses;
+
+    // Simpan senarai rekod setiap kad untuk modal popup (Admin Dashboard)
+    window.__adminCardData = {
+      total: filteredData,
+      lulus: lulusArr,
+      tolak: tolakArr,
+      proses: filteredData.filter(item => lulusArr.indexOf(item) === -1 && tolakArr.indexOf(item) === -1)
+    };
     
     const jenisStats = {
       'BARU': 0,
@@ -13126,6 +13170,184 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     incompleteDocModal.addEventListener('click', (e) => {
       if (e.target === incompleteDocModal) {
         incompleteDocModal.style.display = 'none';
+      }
+    });
+  }
+
+  // =========================================================================
+  // MODAL SENARAI KAD DASHBOARD (Semua Role & Semua Tab Dashboard)
+  // =========================================================================
+  let dashboardCardData = [];
+  let dashboardCardSearchQuery = '';
+  let dashboardCardFilterJenis = 'ALL';
+  const dashboardCardFilterBtns = [filterDashCardAll, filterDashCardBaru, filterDashCardPembaharuan, filterDashCardUbahMaklumat, filterDashCardUbahGred];
+  const dashCardFilterJenisMap = { filterDashCardAll: 'ALL', filterDashCardBaru: 'BARU', filterDashCardPembaharuan: 'PEMBAHARUAN', filterDashCardUbahMaklumat: 'UBAH MAKLUMAT', filterDashCardUbahGred: 'UBAH GRED' };
+
+  function getDashStatusLabel(item) {
+    if (item.kelulusan && item.kelulusan.trim() !== '') return item.kelulusan;
+    if (item.syor_status && item.syor_status.trim() !== '') return item.syor_status;
+    return 'DALAM PROSES';
+  }
+
+  function getDashStatusBadge(status) {
+    const s = (status || '').toUpperCase();
+    if (s.includes('LULUS') || s === 'SOKONG') return `<span class="status-badge bg-green">${status}</span>`;
+    if (s.includes('TOLAK') || s.includes('SIASAT') || s.includes('TIDAK')) return `<span class="status-badge bg-red">${status}</span>`;
+    return `<span class="status-badge bg-orange">${status || 'PROSES'}</span>`;
+  }
+
+  function openDashboardCardModal(title, color, data) {
+    if (!data || data.length === 0) return;
+    dashboardCardData = data;
+    dashboardCardSearchQuery = '';
+    dashboardCardFilterJenis = 'ALL';
+    if (dashboardCardSearch) dashboardCardSearch.value = '';
+    dashboardCardFilterBtns.forEach(b => { if (b) b.style.border = '2px solid transparent'; });
+    if (filterDashCardAll) filterDashCardAll.style.border = '2px solid ' + (color || '#2563eb');
+    if (dashboardCardModalTitle) {
+      dashboardCardModalTitle.textContent = title;
+      dashboardCardModalTitle.style.color = color || '#2563eb';
+    }
+    renderDashboardCardModal();
+    if (dashboardCardModal) dashboardCardModal.style.display = 'flex';
+  }
+
+  function renderDashboardCardModal() {
+    let filtered = dashboardCardData;
+    if (dashboardCardFilterJenis !== 'ALL') {
+      filtered = filtered.filter(item => item.jenis && item.jenis.toUpperCase().trim() === dashboardCardFilterJenis);
+    }
+    if (dashboardCardSearchQuery.trim() !== '') {
+      const q = dashboardCardSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(item =>
+        (item.syarikat && item.syarikat.toLowerCase().includes(q)) ||
+        (item.cidb && item.cidb.toLowerCase().includes(q))
+      );
+    }
+    if (dashboardCardModalInfo) {
+      dashboardCardModalInfo.textContent = `Menunjukkan ${filtered.length} daripada ${dashboardCardData.length} permohonan`;
+    }
+    if (dashboardCardModalTbody) {
+      let html = '';
+      if (filtered.length === 0) {
+        html = '<tr><td colspan="7" style="text-align:center; padding:20px;">Tiada permohonan ditemui</td></tr>';
+      } else {
+        filtered.forEach(item => {
+          const formatDate = (d) => { if (!d) return '-'; const dt = new Date(d); return isNaN(dt.getTime()) ? d : `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`; };
+          const jenisBadge = item.jenis ? `<span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${item.jenis}</span>` : '-';
+          html += `<tr>
+            <td style="padding:8px; text-align:left; font-weight:600;">${item.syarikat || '-'}</td>
+            <td style="padding:8px;">${item.cidb || '-'}</td>
+            <td style="padding:8px;">${item.gred || '-'}</td>
+            <td style="padding:8px;">${formatDate(item.start_date)}</td>
+            <td style="padding:8px;">${jenisBadge}</td>
+            <td style="padding:8px;">${getDashStatusBadge(getDashStatusLabel(item))}</td>
+            <td style="padding:8px;"><button class="btn-sm view-dash-card-btn" data-index="${cachedData.indexOf(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
+          </tr>`;
+        });
+      }
+      dashboardCardModalTbody.innerHTML = html;
+      dashboardCardModalTbody.querySelectorAll('.view-dash-card-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.getAttribute('data-index'));
+          if (idx >= 0 && idx < cachedData.length) {
+            if (dashboardCardModal) dashboardCardModal.style.display = 'none';
+            viewRecordOnly(cachedData[idx]);
+          }
+        });
+      });
+    }
+  }
+
+  // Wiring klik kad stat Dashboard utama (semua role)
+  function wireDashCardClick(cardEl, key, defaultLabel, color) {
+    if (!cardEl) return;
+    cardEl.style.cursor = 'pointer';
+    cardEl.title = 'Klik untuk lihat senarai permohonan';
+    cardEl.addEventListener('click', () => {
+      // Kad 4 Pelulus adalah peratusan (bukan senarai) - tiada popup
+      if (key === 'proses' && (window.__dashboardCardRole || '') === 'PELULUS') return;
+      const cardData = window.__dashboardCardData || {};
+      const labels = window.__dashboardCardLabels || {};
+      const data = cardData[key];
+      if (!data || data.length === 0) return;
+      const labelMap = { total: 'JUMLAH', success: labels.success || defaultLabel, reject: labels.reject || defaultLabel, proses: labels.status || defaultLabel };
+      const iconMap = { total: '📋', success: '✅', reject: '❌', proses: '⏳' };
+      openDashboardCardModal(`${iconMap[key] || '📋'} ${labelMap[key]} — ${data.length} Permohonan`, color, data);
+    });
+  }
+
+  wireDashCardClick(document.getElementById('card_total'), 'total', 'JUMLAH', '#2563eb');
+  wireDashCardClick(document.getElementById('card_success'), 'success', 'LULUS', '#22c55e');
+  wireDashCardClick(document.getElementById('card_reject'), 'reject', 'TOLAK', '#ef4444');
+  wireDashCardClick(document.getElementById('card_status'), 'proses', 'PROSES', '#f59e0b');
+
+  // Wiring klik kad stat Admin Dashboard
+  function wireAdminCardClick(cardEl, key, label, color) {
+    if (!cardEl) return;
+    cardEl.style.cursor = 'pointer';
+    cardEl.title = 'Klik untuk lihat senarai permohonan';
+    cardEl.addEventListener('click', () => {
+      const data = (window.__adminCardData || {})[key];
+      if (!data || data.length === 0) return;
+      openDashboardCardModal(`📋 ${label} — ${data.length} Permohonan`, color, data);
+    });
+  }
+
+  wireAdminCardClick(document.getElementById('admin-card-total'), 'total', 'JUMLAH KESELURUHAN', '#2563eb');
+  wireAdminCardClick(document.getElementById('admin-approved-count')?.closest('.stat-card'), 'lulus', 'LULUS', '#22c55e');
+  wireAdminCardClick(document.getElementById('admin-rejected-count')?.closest('.stat-card'), 'tolak', 'TOLAK', '#ef4444');
+  wireAdminCardClick(document.getElementById('admin-pending-count')?.closest('.stat-card'), 'proses', 'DALAM PROSES', '#f59e0b');
+
+  // Wiring klik kad stat Tab PKA
+  function wirePkaCardClick(cardEl, key, label, color) {
+    if (!cardEl) return;
+    cardEl.style.cursor = 'pointer';
+    cardEl.title = 'Klik untuk lihat senarai permohonan';
+    cardEl.addEventListener('click', () => {
+      const data = (window.__pkaCardData || {})[key];
+      if (!data || data.length === 0) return;
+      openDashboardCardModal(`📋 ${label} — ${data.length} Permohonan`, color, data);
+    });
+  }
+
+  wirePkaCardClick(document.getElementById('pkaStatSpi')?.closest('.pka-stat-card'), 'spi', 'DI SPI', '#0ea5e9');
+  wirePkaCardClick(document.getElementById('pkaStatSelesai')?.closest('.pka-stat-card'), 'selesai', 'SELESAI LAWATAN', '#10b981');
+
+  // Carian & filter modal
+  if (dashboardCardSearch) {
+    dashboardCardSearch.addEventListener('input', () => {
+      dashboardCardSearchQuery = dashboardCardSearch.value;
+      renderDashboardCardModal();
+    });
+  }
+  dashboardCardFilterBtns.forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const jenis = dashCardFilterJenisMap[btn.id];
+        if (jenis) {
+          dashboardCardFilterJenis = jenis;
+          dashboardCardFilterBtns.forEach(b => { if (b) b.style.border = '2px solid transparent'; });
+          btn.style.border = '2px solid #2563eb';
+          renderDashboardCardModal();
+        }
+      });
+    }
+  });
+  if (dashboardCardModalClose) {
+    dashboardCardModalClose.addEventListener('click', () => {
+      if (dashboardCardModal) dashboardCardModal.style.display = 'none';
+    });
+  }
+  if (btnCloseDashboardCardModal) {
+    btnCloseDashboardCardModal.addEventListener('click', () => {
+      if (dashboardCardModal) dashboardCardModal.style.display = 'none';
+    });
+  }
+  if (dashboardCardModal) {
+    dashboardCardModal.addEventListener('click', (e) => {
+      if (e.target === dashboardCardModal) {
+        dashboardCardModal.style.display = 'none';
       }
     });
   }
