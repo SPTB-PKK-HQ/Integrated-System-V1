@@ -90,8 +90,8 @@ function verifyUserAccess(email, allowedRolesArray) {
       };
     }
     
-    // Cari profil pengguna dari Sheet 'Users'
-    const userProfile = findUserByEmail(authResult.email);
+    // Cari profil pengguna dari Sheet 'Users' (V6.9.0: guna versi cache)
+    const userProfile = findUserByEmailCached(authResult.email);
     if (!userProfile) {
       return {
         isAuthorized: false,
@@ -264,6 +264,44 @@ function findUserByEmail(email) {
   }
 }
 
+// V6.9.0: Versi cache findUserByEmail untuk elak baca penuh sheet Users
+// pada setiap permintaan (mempercepatkan verifyUserAccess & processAI).
+// TTL 10 minit; cache dibuang dalam handleAddUser/UpdateUser/DeleteUser.
+const USER_CACHE_TTL_SECONDS = 600;
+
+function findUserByEmailCached(email) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const cacheKey = 'STB_USER_' + String(email).toLowerCase().trim();
+    
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    
+    const user = findUserByEmail(email);
+    if (user) {
+      try {
+        cache.put(cacheKey, JSON.stringify(user), USER_CACHE_TTL_SECONDS);
+      } catch (e) {}
+    }
+    return user;
+  } catch (error) {
+    Logger.log(`[V6.9.0] Ralat cache pengguna: ${error.toString()}`);
+    return findUserByEmail(email);
+  }
+}
+
+function invalidateUserCache(email) {
+  try {
+    if (!email) return;
+    const cache = CacheService.getScriptCache();
+    cache.remove('STB_USER_' + String(email).toLowerCase().trim());
+  } catch (e) {}
+}
+
 /**
  * Fungsi untuk mengendalikan permintaan checkAuth dari frontend
  * DIUBAH: Menerima email dari parameter GET/POST dan bukannya Session.getActiveUser()
@@ -284,8 +322,8 @@ function handleCheckAuth(email) {
       });
     }
     
-    // Cari profil pengguna dari Sheet 'Users'
-    const userProfile = findUserByEmail(authResult.email);
+    // Cari profil pengguna dari Sheet 'Users' (V6.9.0: guna versi cache)
+    const userProfile = findUserByEmailCached(authResult.email);
 
     if (!userProfile) {
       return createJSONOutput({
@@ -448,11 +486,11 @@ function doPost(e) {
       locked = true;
     }
     
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) {
-      return createJSONOutput({ status: "error", message: "Sheet not found" });
-    }
+    // NOTA PRESTASI (V6.9.0): Spreadsheet TIDAK dibuka di awal doPost.
+    // Ia hanya dibuka secara 'lazy' untuk action yang benar-benar memerlukan
+    // sheet (deleteRecord, restoreRecord, pkaUpdateLawatan, handleUpdateRecord,
+    // handleInsertNewRecord).
+    // Action seperti processAI/checkAuth tidak lagi membazir masa buka sheet.
     // =====================================================================
     // V6.4.9: HANDLER UNTUK CHECK AUTH MELALUI POST
     // Frontend boleh menghantar { action: 'checkAuth', email: '...' }
@@ -496,11 +534,19 @@ function doPost(e) {
     // Handler untuk padam rekod
     if (data.action === 'deleteRecord') {
       // V6.5.0: Pengesahan ketat untuk deleteRecord
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
       return handleDeleteRecord(data, sheet);
     }
     
     // Handler untuk restore rekod dari snapshot
     if (data.action === 'restoreRecord') {
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
       return handleRestoreRecord(data, sheet);
     }
     
@@ -704,6 +750,10 @@ function doPost(e) {
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
       return handlePKAUpdateLawatan(data, sheet);
     }
     
@@ -734,6 +784,10 @@ function doPost(e) {
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
       return handleUpdateRecord(data, sheet);
     } 
     // ============================================================
@@ -748,6 +802,10 @@ function doPost(e) {
       const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN]);
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
       }
       return handleInsertNewRecord(data, sheet, shouldCreateFolder);
     }
@@ -798,12 +856,14 @@ function handleSearchYoutube(query) {
 // =========================================================================
 // V6.4.8: FUNGSI HANDLER AI PROCESSING (BACKEND)
 // V6.5.0: Pengesahan dilakukan di doPost sebelum memanggil fungsi ini
+// V6.9.0: Cache hasil AI + pembersihan teks dipindah ke sini (key konsisten)
 // =========================================================================
 
 /**
  * Fungsi handleProcessAI: Mengendalikan permintaan AI processing dari frontend
  * Menerima teks PDF dan jenis prompt (borang/profile), menghantar ke API AI
- * dengan 3-Tier Fallback (DeepSeek -> Gemini -> OpenRouter)
+ * V6.9.0: Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
+ * timeout berhad, dan hasil dicache untuk elak panggilan API berulang.
  */
 function handleProcessAI(data) {
   try {
@@ -818,15 +878,47 @@ function handleProcessAI(data) {
       });
     }
     
-    Logger.log(`[V6.5.0] AI Processing diminta untuk jenis: ${promptType}, Model: ${selectedModel}, panjang teks: ${pdfText.length}`);
+    // V6.9.0: Bersihkan & potong teks DI SINI supaya key cache konsisten
+    const cleanedText = pdfText.replace(/\s+/g, ' ').trim();
+    const maxTextLength = 15000;
+    const truncatedText = cleanedText.length > maxTextLength
+      ? cleanedText.substring(0, maxTextLength)
+      : cleanedText;
+    
+    Logger.log(`[V6.9.0] AI Processing diminta untuk jenis: ${promptType}, Model: ${selectedModel}, panjang teks: ${truncatedText.length}`);
+    
+    // V6.9.0: Semak cache hasil AI (elak panggilan API berulang untuk PDF sama)
+    const cacheKey = buildAIResultCacheKey(promptType, selectedModel, truncatedText);
+    const cache = CacheService.getScriptCache();
+    const cachedResult = cache.get(cacheKey);
+    if (cachedResult) {
+      try {
+        const parsed = JSON.parse(cachedResult);
+        Logger.log(`[V6.9.0] AI result diambil dari cache untuk ${promptType}`);
+        return createJSONOutput({
+          success: true,
+          data: parsed,
+          provider: 'Cache',
+          message: 'Data diambil dari cache (ekstrak sebelumnya).'
+        });
+      } catch (e) {}
+    }
     
     // Hantar model yang dipilih ke fungsi utama
-    const result = processWithAI(pdfText, promptType, selectedModel);
+    const result = processWithAI(truncatedText, promptType, selectedModel);
 
     // ---> KESILAPAN DI SINI: Tertinggal statement IF <---
     if (result.success && result.data) {
       
-      Logger.log(`[V6.5.0] AI Processing berjaya untuk ${promptType}`);
+      Logger.log(`[V6.9.0] AI Processing berjaya untuk ${promptType} (${result.provider})`);
+      
+      // V6.9.0: Simpan hasil ke cache untuk elak panggilan API berulang
+      try {
+        cache.put(cacheKey, JSON.stringify(result.data), AI_RESULT_CACHE_TTL_SECONDS);
+      } catch (e) {
+        Logger.log(`[V6.9.0] Gagal simpan cache AI: ${e.toString()}`);
+      }
+      
       return createJSONOutput({
         success: true,
         data: result.data,
@@ -835,7 +927,7 @@ function handleProcessAI(data) {
       });
 
     } else {
-      Logger.log(`[V6.5.0] AI Processing gagal: ${result.error}`);
+      Logger.log(`[V6.9.0] AI Processing gagal: ${result.error}`);
 
       return createJSONOutput({
         success: false,
@@ -845,7 +937,7 @@ function handleProcessAI(data) {
     }
     
   } catch (error) {
-    Logger.log(`[V6.5.0] Ralat dalam handleProcessAI: ${error.toString()}`);
+    Logger.log(`[V6.9.0] Ralat dalam handleProcessAI: ${error.toString()}`);
 
     return createJSONOutput({
       success: false,
@@ -854,35 +946,43 @@ function handleProcessAI(data) {
   }
 }
 
+// V6.9.0: Bina key cache AI (SHA-256) supaya sama untuk teks/model/jenis sama
+const AI_RESULT_CACHE_TTL_SECONDS = 3600; // 1 jam
+
+function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    promptType + '|' + selectedModel + '|' + truncatedText
+  );
+  const hex = digest.map(function (b) {
+    var v = (b + 256) % 256;
+    return (v < 16 ? '0' : '') + v.toString(16);
+  }).join('');
+  return 'STB_AI_' + hex;
+}
+
 /**
- * Fungsi processWithAI: Memproses teks dengan AI menggunakan 3-Tier Fallback
+ * Fungsi processWithAI: Memproses teks dengan AI
+ * V6.9.0: Teks sudah dibersihkan/dipotong oleh handleProcessAI.
+ * Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
+ * timeout berhad untuk elak menunggu lama.
  */
-function processWithAI(pdfText, promptType, selectedModel = 'auto') {
-  // 1. Bersihkan teks: Tukar semua baris baru (\n), tab (\t) dan double-space menjadi satu jarak sahaja
-  let cleanedText = pdfText.replace(/\s+/g, ' ').trim();
-  
-  // 2. Kurangkan had maksimum aksara (Sebab teks dah padat, 15,000 aksara sudah sangat banyak)
-  const maxTextLength = 15000; 
-  
-  const truncatedText = cleanedText.length > maxTextLength 
-    ? cleanedText.substring(0, maxTextLength)
-    : cleanedText;
-  
+function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
   // Bina prompt berdasarkan jenis
   let prompt;
   let processResponseFn;
   
   if (promptType === 'profile') {
-    prompt = buildProfilePrompt(truncatedText);
+    prompt = buildProfilePrompt(cleanedText);
     processResponseFn = processProfileResponse;
   } else {
-    prompt = buildBorangPrompt(truncatedText);
+    prompt = buildBorangPrompt(cleanedText);
     processResponseFn = processBorangResponse;
   }
   
   // JIKA PENGGUNA PILIH MODEL SPESIFIK (TIADA FALLBACK)
   if (selectedModel === 'deepseek') {
-    Logger.log(`[V6.5.0] AI Processing: Menggunakan DeepSeek SAHAJA`);
+    Logger.log(`[V6.9.0] AI Processing: Menggunakan DeepSeek SAHAJA`);
     try {
       const deepseekResult = callDeepSeekAPI(prompt);
       if (deepseekResult) return { success: true, data: processResponseFn(deepseekResult), provider: 'DeepSeek', error: null };
@@ -891,7 +991,7 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
     }
   } 
   else if (selectedModel === 'gemini') {
-    Logger.log(`[V6.5.0] AI Processing: Menggunakan Gemini SAHAJA`);
+    Logger.log(`[V6.9.0] AI Processing: Menggunakan Gemini SAHAJA`);
     try {
       const geminiResult = callGeminiAPI(prompt);
       if (geminiResult) return { success: true, data: processResponseFn(geminiResult), provider: 'Gemini', error: null };
@@ -900,7 +1000,7 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
     }
   }
   else if (selectedModel === 'openrouter') {
-    Logger.log(`[V6.5.0] AI Processing: Menggunakan OpenRouter SAHAJA`);
+    Logger.log(`[V6.9.0] AI Processing: Menggunakan OpenRouter SAHAJA`);
     try {
       const openRouterResult = callOpenRouterAPI(prompt);
       if (openRouterResult) return { success: true, data: processResponseFn(openRouterResult), provider: 'OpenRouter', error: null };
@@ -909,8 +1009,8 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
     }
   }
   
-  // JIKA PENGGUNA PILIH 'AUTO' (KEKALKAN 3-TIER FALLBACK LAMA)
-  Logger.log(`[V6.5.0] 3-Tier Fallback Auto: Mencuba DeepSeek...`);
+  // JIKA PENGGUNA PILIH 'AUTO' (V6.9.0: 2-Tier Fallback sahaja - DeepSeek -> Gemini)
+  Logger.log(`[V6.9.0] 2-Tier Fallback Auto: Mencuba DeepSeek...`);
   
   // Tier 1: DeepSeek
   try {
@@ -920,10 +1020,10 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
       return { success: true, data: processedData, provider: 'DeepSeek (Auto)', error: null };
     }
   } catch (error) {
-    Logger.log(`[V6.5.0] DeepSeek gagal: ${error.toString()}. Mencuba Gemini...`);
+    Logger.log(`[V6.9.0] DeepSeek gagal: ${error.toString()}. Mencuba Gemini...`);
   }
   
-  // Tier 2: Gemini (Backup 1)
+  // Tier 2: Gemini (Backup)
   try {
     const geminiResult = callGeminiAPI(prompt);
     if (geminiResult) {
@@ -931,18 +1031,7 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
       return { success: true, data: processedData, provider: 'Gemini (Auto)', error: null };
     }
   } catch (error) {
-    Logger.log(`[V6.5.0] Gemini gagal: ${error.toString()}. Mencuba OpenRouter...`);
-  }
-  
-  // Tier 3: OpenRouter (Backup 2)
-  try {
-    const openRouterResult = callOpenRouterAPI(prompt);
-    if (openRouterResult) {
-      const processedData = processResponseFn(openRouterResult);
-      return { success: true, data: processedData, provider: 'OpenRouter (Auto)', error: null };
-    }
-  } catch (error) {
-    Logger.log(`[V6.5.0] OpenRouter gagal: ${error.toString()}. Semua API gagal.`);
+    Logger.log(`[V6.9.0] Gemini gagal: ${error.toString()}. Semua API Auto gagal.`);
   }
   
   // Jika semua gagal
@@ -950,7 +1039,7 @@ function processWithAI(pdfText, promptType, selectedModel = 'auto') {
     success: false, 
     data: null, 
     provider: 'none', 
-    error: "Ketiga-tiga API AI (DeepSeek, Gemini, OpenRouter) gagal memproses teks."
+    error: "Kedua-dua API AI (DeepSeek & Gemini) gagal memproses teks."
   };
 }
 // =========================================================================
@@ -1015,8 +1104,13 @@ function callDeepSeekAPI(prompt) {
     },
     payload: JSON.stringify({
       model: 'deepseek-v4-flash', // DIUBAH: Dikunci terus ke versi Flash yang jimat dan murah
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
+      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
+      max_tokens: 4096,
+      temperature: 0.2
     }),
+    // V6.9.0: Timeout eksplisit 30 saat (elak menunggu lama bila API tergantung)
+    timeoutSeconds: 30,
     muteHttpExceptions: true
   };
   const response = UrlFetchApp.fetch(DEEPSEEK_API_URL, options);
@@ -1047,8 +1141,15 @@ function callGeminiAPI(prompt) {
       'x-goog-api-key': getScriptProp('GEMINI_API_KEY')
     },
     payload: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
+      contents: [{ parts: [{ text: prompt }] }],
+      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
+      generationConfig: {
+        maxOutputTokens: 4096,
+        temperature: 0.2
+      }
     }),
+    // V6.9.0: Timeout eksplisit 20 saat (Gemini pantas; elak menunggu lama)
+    timeoutSeconds: 20,
     muteHttpExceptions: true
   };
 
@@ -1078,8 +1179,13 @@ function callOpenRouterAPI(prompt) {
     },
     payload: JSON.stringify({
       model: OPENROUTER_MODEL,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
+      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
+      max_tokens: 4096,
+      temperature: 0.2
     }),
+    // V6.9.0: Timeout eksplisit 20 saat (OpenRouter bukan fallback Auto lagi)
+    timeoutSeconds: 20,
     muteHttpExceptions: true
   };
 
@@ -2316,6 +2422,7 @@ function handleAddUser(data) {
     
     logActivity(data.adminName || "System", 'ADD_USER', `Tambah pengguna baru: ${data.name || ''} (${email}) - Role: ${rowData[idx.role]}`, '');
     invalidateDataCache();
+    invalidateUserCache(email);
     return createJSONOutput({ status: "success", message: "Pengguna berjaya ditambah" });
     
   } catch (error) {
@@ -2383,6 +2490,7 @@ function handleUpdateUser(data) {
     
     logActivity(data.adminName || "System", 'UPDATE_USER', `Kemaskini pengguna: ${email}`, '');
     invalidateDataCache();
+    invalidateUserCache(email);
     return createJSONOutput({ status: "success", message: "Pengguna berjaya dikemaskini" });
     
   } catch (error) {
@@ -2429,6 +2537,7 @@ function handleDeleteUser(data) {
     
     logActivity(data.adminName || "System", 'DELETE_USER', `Padam pengguna: ${userName} (${email})`, '');
     invalidateDataCache();
+    invalidateUserCache(email);
     return createJSONOutput({ status: "success", message: "Pengguna berjaya dipadam", deletedUser: { name: userName, email: email } });
     
   } catch (error) {
@@ -2991,6 +3100,15 @@ function logActivity(user, action, description, folderId) {
 
 function createJSONOutput(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// V6.9.0: Helper lazy-load sheet utama. Hanya dipanggil oleh action yang
+// benar-benar memerlukan sheet, elak bukaan spreadsheet yang tidak perlu
+// (mempercepatkan processAI/checkAuth dll).
+function getMainSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return null;
+  return ss.getSheetByName(SHEET_NAME);
 }
 
 function invalidateDataCache() {
