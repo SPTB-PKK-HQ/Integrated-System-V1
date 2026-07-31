@@ -1107,7 +1107,9 @@ function callDeepSeekAPI(prompt) {
       messages: [{ role: 'user', content: prompt }],
       // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
       max_tokens: 4096,
-      temperature: 0.2
+      temperature: 0.2,
+      // V6.9.1: Paksa output JSON tulen - elak parsing gagal & proses ulang
+      response_format: { type: 'json_object' }
     }),
     // V6.9.0: Timeout eksplisit 30 saat (elak menunggu lama bila API tergantung)
     timeoutSeconds: 30,
