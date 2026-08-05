@@ -888,20 +888,23 @@ function handleProcessAI(data) {
     Logger.log(`[V6.9.0] AI Processing diminta untuk jenis: ${promptType}, Model: ${selectedModel}, panjang teks: ${truncatedText.length}`);
     
     // V6.9.0: Semak cache hasil AI (elak panggilan API berulang untuk PDF sama)
+    // V6.9.1: Bypass cache jika diminta (butang "Ekstrak Semula" dari frontend)
     const cacheKey = buildAIResultCacheKey(promptType, selectedModel, truncatedText);
     const cache = CacheService.getScriptCache();
-    const cachedResult = cache.get(cacheKey);
-    if (cachedResult) {
-      try {
-        const parsed = JSON.parse(cachedResult);
-        Logger.log(`[V6.9.0] AI result diambil dari cache untuk ${promptType}`);
-        return createJSONOutput({
-          success: true,
-          data: parsed,
-          provider: 'Cache',
-          message: 'Data diambil dari cache (ekstrak sebelumnya).'
-        });
-      } catch (e) {}
+    if (!data.bypassCache) {
+      const cachedResult = cache.get(cacheKey);
+      if (cachedResult) {
+        try {
+          const parsed = JSON.parse(cachedResult);
+          Logger.log(`[V6.9.0] AI result diambil dari cache untuk ${promptType}`);
+          return createJSONOutput({
+            success: true,
+            data: parsed,
+            provider: 'Cache',
+            message: 'Data diambil dari cache (ekstrak sebelumnya).'
+          });
+        } catch (e) {}
+      }
     }
     
     // Hantar model yang dipilih ke fungsi utama
@@ -912,11 +915,20 @@ function handleProcessAI(data) {
       
       Logger.log(`[V6.9.0] AI Processing berjaya untuk ${promptType} (${result.provider})`);
       
+      // V6.9.1: Jangan cache hasil yang NAMPAKNYA TIDAK LENGKAP (alamat kosong).
+      // AI kadang-kadang miss rawak; hasil miss TIDAK boleh dibekukan dalam cache
+      // supaya cubaan seterusnya memanggil AI segar untuk peluang berjaya.
+      const incompleteResult = isAIResultIncomplete(promptType, result.data);
+      
       // V6.9.0: Simpan hasil ke cache untuk elak panggilan API berulang
-      try {
-        cache.put(cacheKey, JSON.stringify(result.data), AI_RESULT_CACHE_TTL_SECONDS);
-      } catch (e) {
-        Logger.log(`[V6.9.0] Gagal simpan cache AI: ${e.toString()}`);
+      if (!incompleteResult) {
+        try {
+          cache.put(cacheKey, JSON.stringify(result.data), AI_RESULT_CACHE_TTL_SECONDS);
+        } catch (e) {
+          Logger.log(`[V6.9.0] Gagal simpan cache AI: ${e.toString()}`);
+        }
+      } else {
+        Logger.log(`[V6.9.1] Hasil AI tidak lengkap (alamat kosong) - tidak dicache`);
       }
       
       return createJSONOutput({
@@ -959,6 +971,20 @@ function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
     return (v < 16 ? '0' : '') + v.toString(16);
   }).join('');
   return 'STB_AI_' + hex;
+}
+
+// V6.9.1: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP (alamat kosong).
+// Hasil sebegini TIDAK dicache supaya AI boleh dicuba semula pada panggilan seterusnya.
+function isAIResultIncomplete(promptType, data) {
+  try {
+    if (!data || typeof data !== 'object') return true;
+    if (promptType === 'profile') {
+      return !data.alamatUtama;
+    }
+    return !data.alamatPerniagaan && !data.alamatSuratMenyurat;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -1062,8 +1088,14 @@ function buildBorangPrompt(truncatedText) {
     "alamatPerniagaan": "Full BUSINESS ADDRESS only or ''",
     "alamatSuratMenyurat": "Full CORRESPONDENCE ADDRESS only or ''"
   }
-  IMPORTANT: Ignore REGISTERED ADDRESS. Only extract BUSINESS ADDRESS (Alamat Perniagaan) or CORRESPONDENCE ADDRESS (Alamat Surat-menyurat).
-  Priority: Return BUSINESS ADDRESS as alamatPerniagaan if found. Otherwise, return CORRESPONDENCE ADDRESS as alamatSuratMenyurat.
+  ADDRESS RULES (IMPORTANT):
+  - "alamatPerniagaan" = address labelled ALAMAT PERNIAGAAN / BUSINESS ADDRESS / ALAMAT UTAMA URUSAN NIAGA.
+  - "alamatSuratMenyurat" = address labelled ALAMAT SURAT-MENYURAT / CORRESPONDENCE ADDRESS / MAILING ADDRESS.
+  - Match by looking at the LABEL that appears right before or after the address text.
+  - If only ONE of the two exists in the document, return it in the correct field and leave the other as "".
+  - If any address line exists anywhere in the text (including ALAMAT BERDAFTAR / REGISTERED ADDRESS), NEVER return both fields empty - put it in the most appropriate field.
+  - The address may span multiple lines - return the FULL address text.
+  NAMES RULES: Extract ALL names in every list. Do NOT omit or truncate any entry. Include any name found even if partially legible.
   PDF Text: ${truncatedText}`;
 }
 
@@ -1088,6 +1120,7 @@ function buildProfilePrompt(truncatedText) {
     "emailSyarikat": "string",
     "webAddress": "string"
   }
+  ADDRESS RULES: If any address block exists anywhere in the text, NEVER leave "alamatUtama" and "alamatSuratMenyurat" both empty - the address may span multiple lines, return the full address text. Set "labelAlamatUtama" to the exact label shown (e.g. Alamat Berdaftar, Alamat Perniagaan, Business Address).
   PDF Text: ${truncatedText}`;
 }
 

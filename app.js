@@ -1149,6 +1149,8 @@ async function handleCredentialResponse(response) {
   const pdfExtractedData = document.getElementById('pdfExtractedData');
   const btnApplyPdfData = document.getElementById('btnApplyPdfData');
   const btnClearPdfData = document.getElementById('btnClearPdfData');
+  const btnReExtractPdfData = document.getElementById('btnReExtractPdfData');
+  const pdfExtractMeta = document.getElementById('pdfExtractMeta');
   
   // PDF Upload Elements for Profile Tab
   const profilePdfUploadArea = document.getElementById('profilePdfUploadArea');
@@ -1159,6 +1161,8 @@ async function handleCredentialResponse(response) {
   const btnProsesProfileAI = document.getElementById('btnProsesProfileAI');
   const btnApplyProfileData = document.getElementById('btnApplyProfileData');
   const btnClearProfileData = document.getElementById('btnClearProfileData');
+  const btnReExtractProfileData = document.getElementById('btnReExtractProfileData');
+  const profileExtractMeta = document.getElementById('profileExtractMeta');
   const btnCetakProfile = document.getElementById('btnCetakProfile');
   const btnResetProfile = document.getElementById('btnResetProfile');
   
@@ -4368,6 +4372,12 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     btnClearPdfData.addEventListener('click', clearPdfData);
   }
 
+  if (btnReExtractPdfData) {
+    btnReExtractPdfData.addEventListener('click', () => {
+      processPdfWithAI(true);
+    });
+  }
+
   function updateFileName(fileName) {
     if (pdfFileName) {
       pdfFileName.textContent = fileName;
@@ -4469,6 +4479,14 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
   async function setAIFileCacheResult(type, file, data) {
     try {
+      // V6.9.1: Jangan cache hasil yang NAMPAK TIDAK LENGKAP (alamat kosong).
+      // AI kadang-kadang miss rawak; fail sama tidak boleh dibekukan dengan hasil miss.
+      if (type === 'profile') {
+        if (!data || !data.alamatUtama) return;
+      } else {
+        if (!data || (!data.alamatPerniagaan && !data.alamatSuratMenyurat)) return;
+      }
+
       const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
       const cache = storage[AI_FILE_CACHE_KEY] || {};
       const key = getAIFileCacheKey(type, file);
@@ -4486,9 +4504,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     } catch (e) {}
   }
 
+  // V6.9.1: Buang entri cache bagi satu fail (diguna butang "Ekstrak Semula")
+  async function removeAIFileCacheResult(type, file) {
+    try {
+      const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
+      const cache = storage[AI_FILE_CACHE_KEY] || {};
+      delete cache[getAIFileCacheKey(type, file)];
+      await storageWrapper.set({ [AI_FILE_CACHE_KEY]: cache });
+    } catch (e) {}
+  }
+
   let isPdfAiProcessing = false;
 
-  async function processPdfWithAI() {
+  // V6.9.1: force = true (butang "Ekstrak Semula") - buang cache fail dan panggil AI segar
+  async function processPdfWithAI(force = false) {
     if (isPdfAiProcessing) return;
     if (!pdfFileInput.files.length) {
       await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
@@ -4505,14 +4534,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       return;
     }
 
+    if (force) {
+      await removeAIFileCacheResult('borang', file);
+    }
+
     let aiInterval = null;
 
     // V6.9.1: Cache per-fail - papar hasil serta-merta untuk fail yang sama
+    // (skip bila force = true supaya panggilan AI segar dijalankan)
     const cachedResult = await getAIFileCacheResult('borang', file);
-    if (cachedResult) {
+    if (cachedResult && !force) {
       extractedPdfData = cachedResult;
       displayExtractedData(extractedPdfData);
       if (pdfResult) pdfResult.style.display = 'block';
+      if (pdfExtractMeta) pdfExtractMeta.innerText = 'Hasil dari cache fail ini. Guna "Ekstrak Semula" untuk panggilan AI segar.';
       storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
       await playSuccessSound();
       isPdfAiProcessing = false;
@@ -4567,7 +4602,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
+        // V6.9.1: Kekal struktur baris (hasEOL) supaya AI kenal pasti blok alamat berbilang baris
+        const pageText = textContent.items.map(item => {
+          return item.str + (item.hasEOL ? '\n' : ' ');
+        }).join('').replace(/[ \t]+\n/g, '\n');
         fullText += pageText + '\n';
         
         const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
@@ -4575,6 +4613,14 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
 
       console.log("V6.5.2 PDF Extracted. Length:", fullText.length);
+
+      // V6.9.1: Pengesan dokumen imbas - tiada lapisan teks bermakna AI tidak dapat ekstrak
+      if (fullText.replace(/\s+/g, '').length < 50) {
+        throw new Error("Dokumen ini nampaknya imbas/imej (tiada lapisan teks). AI hanya boleh baca PDF berteks - sila gunakan fail PDF asal.");
+      }
+
+      // V6.9.1: Info diagnosa - muka surat & panjang teks
+      if (pdfExtractMeta) pdfExtractMeta.innerText = `Muka: ${maxPagesToRead}/${pdf.numPages} | Teks: ${fullText.length} aksara`;
       
       updateProgress(45, "Menghantar ke AI...");
       
@@ -4586,7 +4632,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
       }, 500);
 
-      extractedPdfData = await processPdfTextWithAI(fullText);
+      extractedPdfData = await processPdfTextWithAI(fullText, force);
       
       if (aiInterval) clearInterval(aiInterval);
       
@@ -4625,7 +4671,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
-  async function processPdfTextWithAI(pdfText) {
+  async function processPdfTextWithAI(pdfText, bypassCache = false) {
     // V6.9.1: Sejajar dengan had backend (15,000 aksara) - elak upload berlebihan
     const maxTextLength = 15000;
     const truncatedText = pdfText.length > maxTextLength
@@ -4642,7 +4688,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       type: 'borang',
       text: truncatedText,
       model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '' 
+      email: currentUser ? currentUser.email : '',
+      bypassCache: bypassCache // V6.9.1: Paksa panggilan AI segar
     };
 
     const response = await fetchWithRetry(SCRIPT_URL, {
@@ -4890,6 +4937,12 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         <span class="extracted-label">${labelAlamat}:</span>
         <span class="extracted-value">${alamatDisplay}</span>
       </div>`;
+    } else {
+      // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
+      html += `<div class="extracted-item">
+        <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
+        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Cuba "Ekstrak Semula" jika yakin alamat wujud dalam dokumen.</span>
+      </div>`;
     }
 
     if (data.directors.length > 0) {
@@ -5089,6 +5142,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       btnProcessAI.disabled = true;
     }
     extractedPdfData = null;
+    if (pdfExtractMeta) pdfExtractMeta.innerText = '';
 
     storageWrapper.remove(['stb_extracted_pdf_data']);
   }
@@ -5171,6 +5225,12 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     btnClearProfileData.addEventListener('click', clearProfileData);
   }
 
+  if (btnReExtractProfileData) {
+    btnReExtractProfileData.addEventListener('click', () => {
+      processProfileWithAI(true);
+    });
+  }
+
   if (btnResetProfile) {
     btnResetProfile.addEventListener('click', async () => {
       const isConfirmed = await CustomAppModal.confirm(
@@ -5226,6 +5286,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (profilePdfExtractedData) {
       profilePdfExtractedData.innerHTML = '';
     }
+    if (profileExtractMeta) profileExtractMeta.innerText = '';
     if (btnProsesProfileAI) {
       btnProsesProfileAI.disabled = true;
     }
@@ -5242,7 +5303,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
   let isProfileAiProcessing = false;
 
-  async function processProfileWithAI() {
+  // V6.9.1: force = true (butang "Ekstrak Semula") - buang cache fail dan panggil AI segar
+  async function processProfileWithAI(force = false) {
     if (isProfileAiProcessing) return;
     if (!profilePdfInput.files.length) {
       await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
@@ -5259,14 +5321,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       return;
     }
 
+    if (force) {
+      await removeAIFileCacheResult('profile', file);
+    }
+
     let aiInterval = null;
 
     // V6.9.1: Cache per-fail - papar hasil serta-merta untuk fail yang sama
+    // (skip bila force = true supaya panggilan AI segar dijalankan)
     const cachedResult = await getAIFileCacheResult('profile', file);
-    if (cachedResult) {
+    if (cachedResult && !force) {
       extractedProfileData = cachedResult;
       displayProfileExtractedData(extractedProfileData);
       if (profilePdfResult) profilePdfResult.style.display = 'block';
+      if (profileExtractMeta) profileExtractMeta.innerText = 'Hasil dari cache fail ini. Guna "Ekstrak Semula" untuk panggilan AI segar.';
       storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
       await playSuccessSound();
       isProfileAiProcessing = false;
@@ -5321,7 +5389,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
+        // V6.9.1: Kekal struktur baris (hasEOL) supaya AI kenal pasti blok alamat berbilang baris
+        const pageText = textContent.items.map(item => {
+          return item.str + (item.hasEOL ? '\n' : ' ');
+        }).join('').replace(/[ \t]+\n/g, '\n');
         fullText += pageText + '\n';
         
         const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
@@ -5329,6 +5400,14 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
 
       console.log("V6.5.2 Profile PDF extracted. Length:", fullText.length);
+
+      // V6.9.1: Pengesan dokumen imbas - tiada lapisan teks bermakna AI tidak dapat ekstrak
+      if (fullText.replace(/\s+/g, '').length < 50) {
+        throw new Error("Dokumen ini nampaknya imbas/imej (tiada lapisan teks). AI hanya boleh baca PDF berteks - sila gunakan fail PDF asal.");
+      }
+
+      // V6.9.1: Info diagnosa - muka surat & panjang teks
+      if (profileExtractMeta) profileExtractMeta.innerText = `Muka: ${maxPagesToRead}/${pdf.numPages} | Teks: ${fullText.length} aksara`;
       
       updateProgress(45, "Menghantar ke AI...");
       
@@ -5340,7 +5419,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
       }, 500);
 
-      extractedProfileData = await processProfileTextWithAI(fullText);
+      extractedProfileData = await processProfileTextWithAI(fullText, force);
       
       if (aiInterval) clearInterval(aiInterval);
       
@@ -5381,7 +5460,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
-  async function processProfileTextWithAI(pdfText) {
+  async function processProfileTextWithAI(pdfText, bypassCache = false) {
     // V6.9.1: Sejajar dengan had backend (15,000 aksara) - elak upload berlebihan
     const maxTextLength = 15000;
     const truncatedText = pdfText.length > maxTextLength
@@ -5398,7 +5477,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       type: 'profile',
       text: truncatedText,
       model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '' 
+      email: currentUser ? currentUser.email : '',
+      bypassCache: bypassCache // V6.9.1: Paksa panggilan AI segar
     };
 
     const response = await fetchWithRetry(SCRIPT_URL, {
@@ -5503,6 +5583,14 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       html += `<div class="extracted-item">
         <span class="extracted-label">Alamat Surat-menyurat:</span>
         <span class="extracted-value">${data.alamatSuratMenyurat}</span>
+      </div>`;
+    }
+
+    if (!data.alamatUtama && !data.alamatSuratMenyurat) {
+      // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
+      html += `<div class="extracted-item">
+        <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
+        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Cuba "Ekstrak Semula" jika yakin alamat wujud dalam dokumen.</span>
       </div>`;
     }
 
