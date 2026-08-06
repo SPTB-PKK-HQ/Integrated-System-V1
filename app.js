@@ -6881,10 +6881,13 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       let targetName = '';
       if (['4', '5', '6'].includes(lastDigit)) {
         targetName = 'ROZAAN';
-      } else if (['0', '1', '2', '9'].includes(lastDigit)) {
+      } else if (['0', '1', '2'].includes(lastDigit)) {
+        targetName = 'NOORAIN';
+      } else if (['3', '7', '8'].includes(lastDigit)) {
+        targetName = 'NORHAFIDAH';
+      } else if (lastDigit === '9') {
         if (/^[A-M]$/.test(firstLetter)) targetName = 'NOORAIN';
-      } else if (['3', '7', '8', '9'].includes(lastDigit)) {
-        if (/^[N-Z]$/.test(firstLetter)) targetName = 'NORHAFIDAH';
+        else if (/^[N-Z]$/.test(firstLetter)) targetName = 'NORHAFIDAH';
       }
       if (!targetName) {
         setAutoSelectStatus(`Auto-pilih: tiada padanan (digit akhir ${lastDigit}, huruf awal '${firstLetter || '-'}') — pilih manual`, true);
