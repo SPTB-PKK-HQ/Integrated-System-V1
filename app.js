@@ -6835,6 +6835,11 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     });
 
     console.log(`V6.6.0 Pelulus button group populated with ${pelulusList.length} pelulus`);
+
+    // Jika checkbox pengesahan sudah ditanda sebelum butang dimuat, auto-pilih semula
+    if (dbSahSyor && dbSahSyor.checked) {
+      autoSelectPelulusByCIDB();
+    }
   }
 
   // Auto-pilih pelulus berdasarkan digit akhir CIDB & huruf awal nama syarikat
@@ -6863,12 +6868,19 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       if (!targetName) return;
 
       const targetUpper = targetName.toUpperCase();
+      const nameMatches = (full) => {
+        const t = (full || '').trim().toUpperCase();
+        if (!t) return false;
+        return t.split(/[\s,;:]+/).includes(targetUpper) || t.startsWith(targetUpper + ' ');
+      };
+
       const btn = Array.from(buttonGroup.querySelectorAll('button')).find(b => {
-        const label = (b.textContent || '').split('\n')[0].trim().toUpperCase();
-        return label === targetUpper;
+        const label = (b.textContent || '').split('\n')[0].trim();
+        return nameMatches(label);
       });
 
-      const pelulus = (usersList || []).find(u => u.role === 'PELULUS' && (u.name || '').trim().toUpperCase() === targetUpper);
+      const pelulus = (usersList || []).find(u => u.role === 'PELULUS' && nameMatches(u.name));
+      console.log('Auto-select pelulus -> target:', targetName, '| butang dijumpai:', !!btn, '| pelulus dijumpai:', !!pelulus, '| CIDB:', cidb, '| Syarikat:', syarikatEl ? syarikatEl.value : '');
       if (btn) {
         btn.click();
       } else if (pelulus) {
