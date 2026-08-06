@@ -14108,73 +14108,74 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const ds = chart.data.datasets[0];
     if (!ds) return;
     try {
+      const p = ((now - chart.$aliveT0) % 2600) / 2600;
       if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
         const meta = chart.getDatasetMeta(0);
         const els = meta.data;
         if (!els || !els.length) return;
-        const arc0 = meta.data[0];
+        const arc0 = els[0];
         const cx = arc0.x, cy = arc0.y;
         const outer = arc0.outerRadius;
         const inner = arc0.innerRadius;
         if (!(outer > 0) || !(inner >= 0)) return;
         const mid = (inner + outer) / 2;
-        const a = els[0].startAngle + ((now - chart.$aliveT0) / 9000) * Math.PI * 2;
+        const a = els[0].startAngle + p * Math.PI * 2;
         let color = resolveAliveColor(ds, els.length - 1);
         for (let i = 0; i < els.length; i++) {
           const s = els[i].startAngle, e = els[i].endAngle;
           if (a >= s - 0.0001 && a < e) { color = resolveAliveColor(ds, i); break; }
         }
-        const seg = Math.PI / 7;
+        const seg = Math.PI / 6;
         ctx.save();
         ctx.lineCap = 'round';
-        ctx.lineWidth = Math.max(4, (outer - inner) * 0.28);
-        ctx.globalAlpha = 0.25; ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 3.2, a - seg); ctx.stroke();
-        ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(3, (outer - inner) * 0.18);
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg, a - seg * 0.3); ctx.stroke();
-        ctx.globalAlpha = 0.95; ctx.lineWidth = Math.max(3, (outer - inner) * 0.14);
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.3, a); ctx.stroke();
+        ctx.lineWidth = Math.max(4, (outer - inner) * 0.4);
+        ctx.globalAlpha = 0.45; ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 2.4, a - seg * 0.6); ctx.stroke();
+        ctx.globalAlpha = 0.85; ctx.lineWidth = Math.max(3, (outer - inner) * 0.24);
+        ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.6, a); ctx.stroke();
+        ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(2, (outer - inner) * 0.14);
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.35, a); ctx.stroke();
         ctx.restore();
       } else if (chart.config.type === 'bar') {
         const meta = chart.getDatasetMeta(0);
         const els = meta.data;
         if (!els || !els.length) return;
-        const horiz = chart.config.indexAxis === 'y';
-        const W = area.right - area.left;
-        const H = area.bottom - area.top;
-        if (W <= 0 || H <= 0) return;
-        const prog = ((now - chart.$aliveT0) % 4000) / 4000;
-        let color = resolveAliveColor(ds, 0);
-        let bandSize = 18;
-        if (horiz) {
-          const sy = area.top + prog * H;
-          for (let i = 0; i < els.length; i++) {
-            const b = els[i];
-            const bw = b.height || 0;
-            if (isFinite(b.y) && Math.abs(b.y - sy) < bw / 2 + 1) { color = resolveAliveColor(ds, i); bandSize = bw || 18; break; }
-          }
+        els.forEach((b) => {
+          if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
+          const top = Math.min(b.y, b.base);
+          const bottom = Math.max(b.y, b.base);
+          const left = b.x - b.width / 2;
+          const right = b.x + b.width / 2;
+          const bh = Math.abs(b.base - b.y);
+          const bw = Math.abs(right - left);
+          if (!(bh > 1) || !(bw > 1) || b.width === undefined) return;
           ctx.save();
-          ctx.globalAlpha = 0.25; ctx.fillStyle = color;
-          ctx.fillRect(area.left, sy - bandSize / 2, W, bandSize);
-          ctx.globalAlpha = 0.95; ctx.lineWidth = 3; ctx.lineCap = 'round';
-          ctx.strokeStyle = color;
-          ctx.beginPath(); ctx.moveTo(area.left, sy); ctx.lineTo(area.right, sy); ctx.stroke();
-          ctx.restore();
-        } else {
-          const sx = area.left + prog * W;
-          for (let i = 0; i < els.length; i++) {
-            const b = els[i];
-            const bw = b.width || 0;
-            if (isFinite(b.x) && Math.abs(b.x - sx) < bw / 2 + 1) { color = resolveAliveColor(ds, i); bandSize = bw || 18; break; }
+          ctx.beginPath();
+          ctx.rect(left, top, bw, bh);
+          ctx.clip();
+          if (chart.config.indexAxis === 'y') {
+            const bandW = Math.max(6, bw * 0.35);
+            const bx = left + p * (bw - bandW);
+            const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(bx, top, bandW, bh);
+          } else {
+            const bandH = Math.max(6, bh * 0.35);
+            const by = top + p * (bh - bandH);
+            const g = ctx.createLinearGradient(0, by, 0, by + bandH);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(left, by, bw, bandH);
           }
-          ctx.save();
-          ctx.globalAlpha = 0.25; ctx.fillStyle = color;
-          ctx.fillRect(sx - bandSize / 2, area.top, bandSize, H);
-          ctx.globalAlpha = 0.95; ctx.lineWidth = 3; ctx.lineCap = 'round';
-          ctx.strokeStyle = color;
-          ctx.beginPath(); ctx.moveTo(sx, area.top); ctx.lineTo(sx, area.bottom); ctx.stroke();
           ctx.restore();
-        }
+        });
       }
     } catch (e) { /* gagal senyap */ }
   }
