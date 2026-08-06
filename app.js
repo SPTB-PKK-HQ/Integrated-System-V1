@@ -6842,6 +6842,22 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
+  function setAutoSelectStatus(msg, isError) {
+    let el = document.getElementById('pelulus_autoselect_status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pelulus_autoselect_status';
+      el.style.cssText = 'font-size:0.75rem;font-weight:600;margin-top:4px;';
+      const container = document.getElementById('pelulus_whatsapp_container');
+      const group = document.getElementById('pelulus_button_group');
+      if (container && group) container.insertBefore(el, group.nextSibling);
+    }
+    if (el) {
+      el.style.color = isError ? '#dc2626' : '#059669';
+      el.textContent = msg;
+    }
+  }
+
   // Auto-pilih pelulus berdasarkan digit akhir CIDB & huruf awal nama syarikat
   function autoSelectPelulusByCIDB() {
     try {
@@ -6851,21 +6867,29 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       if (!cidbEl || !buttonGroup) return;
 
       const cidb = (cidbEl.value || '').trim();
-      if (!cidb) return;
+      if (!cidb) {
+        setAutoSelectStatus('Auto-pilih: masukkan No. CIDB dahulu', true);
+        return;
+      }
       const lastDigit = cidb.slice(-1);
-      if (!/^\d$/.test(lastDigit)) return;
+      if (!/^\d$/.test(lastDigit)) {
+        setAutoSelectStatus('Auto-pilih: No. CIDB mesti berakhir dengan digit (0-9)', true);
+        return;
+      }
+      const firstLetter = (syarikatEl ? (syarikatEl.value || '').trim().charAt(0) : '').toUpperCase();
 
       let targetName = '';
       if (['4', '5', '6'].includes(lastDigit)) {
         targetName = 'ROZAAN';
       } else if (['0', '1', '2', '9'].includes(lastDigit)) {
-        const firstLetter = (syarikatEl ? (syarikatEl.value || '').trim().charAt(0) : '').toUpperCase();
         if (/^[A-M]$/.test(firstLetter)) targetName = 'NOORAIN';
       } else if (['3', '7', '8', '9'].includes(lastDigit)) {
-        const firstLetter = (syarikatEl ? (syarikatEl.value || '').trim().charAt(0) : '').toUpperCase();
         if (/^[N-Z]$/.test(firstLetter)) targetName = 'NORHAFIDAH';
       }
-      if (!targetName) return;
+      if (!targetName) {
+        setAutoSelectStatus(`Auto-pilih: tiada padanan (digit akhir ${lastDigit}, huruf awal '${firstLetter || '-'}') — pilih manual`, true);
+        return;
+      }
 
       const targetUpper = targetName.toUpperCase();
       const nameMatches = (full) => {
@@ -6883,11 +6907,15 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       console.log('Auto-select pelulus -> target:', targetName, '| butang dijumpai:', !!btn, '| pelulus dijumpai:', !!pelulus, '| CIDB:', cidb, '| Syarikat:', syarikatEl ? syarikatEl.value : '');
       if (btn) {
         btn.click();
+        setAutoSelectStatus(`✓ Auto-pilih pelulus: ${targetName}`);
       } else if (pelulus) {
         const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
         const hiddenName = document.getElementById('db_pelulus_name');
         if (hiddenPhone) hiddenPhone.value = pelulus.phone || '';
         if (hiddenName) hiddenName.value = pelulus.name || '';
+        setAutoSelectStatus(`✓ Auto-pilih pelulus: ${targetName}`);
+      } else {
+        setAutoSelectStatus(`Auto-pilih: pelulus '${targetName}' tidak dijumpai dalam senarai — pilih manual`, true);
       }
     } catch (e) {
       console.error("Auto-select pelulus gagal:", e);
@@ -9193,6 +9221,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     });
   }
+
+  // Auto-jalan semula bila CIDB/Syarikat diisi atau diubah semasa checkbox pengesahan ditanda
+  ['db_cidb', 'db_syarikat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', () => {
+        if (dbSahSyor && dbSahSyor.checked) autoSelectPelulusByCIDB();
+      });
+    }
+  });
 
   initSystem();
 
