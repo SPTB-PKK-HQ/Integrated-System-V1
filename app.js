@@ -6837,6 +6837,51 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     console.log(`V6.6.0 Pelulus button group populated with ${pelulusList.length} pelulus`);
   }
 
+  // Auto-pilih pelulus berdasarkan digit akhir CIDB & huruf awal nama syarikat
+  function autoSelectPelulusByCIDB() {
+    try {
+      const cidbEl = document.getElementById('db_cidb');
+      const syarikatEl = document.getElementById('db_syarikat');
+      const buttonGroup = document.getElementById('pelulus_button_group');
+      if (!cidbEl || !buttonGroup) return;
+
+      const cidb = (cidbEl.value || '').trim();
+      if (!cidb) return;
+      const lastDigit = cidb.slice(-1);
+      if (!/^\d$/.test(lastDigit)) return;
+
+      let targetName = '';
+      if (['4', '5', '6'].includes(lastDigit)) {
+        targetName = 'ROZAAN';
+      } else if (['0', '1', '2', '9'].includes(lastDigit)) {
+        const firstLetter = (syarikatEl ? (syarikatEl.value || '').trim().charAt(0) : '').toUpperCase();
+        if (/^[A-M]$/.test(firstLetter)) targetName = 'NOORAIN';
+      } else if (['3', '7', '8', '9'].includes(lastDigit)) {
+        const firstLetter = (syarikatEl ? (syarikatEl.value || '').trim().charAt(0) : '').toUpperCase();
+        if (/^[N-Z]$/.test(firstLetter)) targetName = 'NORHAFIDAH';
+      }
+      if (!targetName) return;
+
+      const targetUpper = targetName.toUpperCase();
+      const btn = Array.from(buttonGroup.querySelectorAll('button')).find(b => {
+        const label = (b.textContent || '').split('\n')[0].trim().toUpperCase();
+        return label === targetUpper;
+      });
+
+      const pelulus = (usersList || []).find(u => u.role === 'PELULUS' && (u.name || '').trim().toUpperCase() === targetUpper);
+      if (btn) {
+        btn.click();
+      } else if (pelulus) {
+        const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
+        const hiddenName = document.getElementById('db_pelulus_name');
+        if (hiddenPhone) hiddenPhone.value = pelulus.phone || '';
+        if (hiddenName) hiddenName.value = pelulus.name || '';
+      }
+    } catch (e) {
+      console.error("Auto-select pelulus gagal:", e);
+    }
+  }
+
   function sendWhatsAppNotification(companyName, cidb, jenisPermohonan, syorStatus, tarikhSyor, pelulusPhone, ubahMaklumat, ubahGred) {
     if (!pelulusPhone || pelulusPhone.trim() === '') {
       console.log("V6.5.2 No phone number provided for WhatsApp notification");
@@ -9113,6 +9158,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       // V6.6.0: Papar butang pelulus serta-merta bila sah syor (wajib pilih)
       if (pelulusWhatsappContainer) {
         pelulusWhatsappContainer.style.display = isChecked ? 'block' : 'none';
+      }
+
+      if (isChecked) {
+        autoSelectPelulusByCIDB();
       }
       
       if (!isChecked) {
