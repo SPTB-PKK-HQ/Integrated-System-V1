@@ -345,6 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let dashboardReasonChart = null;
   let dashboardTrendChart = null;
   let dashboardKonsultansiChart = null;
+  let dashboardIncompleteChart = null;
   
   // =========================================================================
   // MOBILE MENU DOM ELEMENTS
@@ -1980,6 +1981,10 @@ async function handleCredentialResponse(response) {
     
     updateKonsultansiChart(userSpecificData);
     
+    if (typeof updateRecommenderIncompleteChart === 'function') {
+      updateRecommenderIncompleteChart(userSpecificData);
+    }
+    
     hideLoading();
   }
 
@@ -2398,6 +2403,7 @@ async function handleCredentialResponse(response) {
           x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
+          alive: { enabled: true },
           legend: { position: 'top' }
         }
       }
@@ -2484,7 +2490,105 @@ async function handleCredentialResponse(response) {
           x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
+          alive: { enabled: true },
           legend: { position: 'top' }
+        }
+      }
+    });
+  }
+
+  function updateRecommenderIncompleteChart(data) {
+    const container = document.getElementById('chartIncompleteDocContainer');
+    const canvasId = 'chartIncompleteDoc';
+    const ctx = document.getElementById(canvasId);
+    if (!container || !ctx) return;
+
+    dashboardIncompleteChart = safeDestroyChart(dashboardIncompleteChart, canvasId);
+
+    if (!data || data.length === 0 || currentUser.role !== 'PENGESYOR') {
+      container.style.display = 'none';
+      return;
+    }
+
+    const docLabels = [
+      { key: 'doc_carta', label: 'Carta Organisasi' },
+      { key: 'doc_peta', label: 'Peta Lakaran' },
+      { key: 'doc_gambar', label: 'Gambar Premis' },
+      { key: 'doc_sewa', label: 'Perjanjian Sewa' },
+      { key: 'ssm', label: 'SSM' },
+      { key: 'bank', label: 'Bank' },
+      { key: 'kwsp_1', label: 'KWSP Bulan 1' },
+      { key: 'kwsp_2', label: 'KWSP Bulan 2' },
+      { key: 'kwsp_3', label: 'KWSP Bulan 3' },
+      { key: 'personel_ic', label: 'Personel - IC' },
+      { key: 'personel_sb', label: 'Personel - Sijil Lahir' },
+      { key: 'personel_epf', label: 'Personel - EPF' }
+    ];
+
+    const counts = {};
+    docLabels.forEach(d => counts[d.key] = 0);
+
+    data.forEach(item => {
+      if (!item.borang_json || String(item.borang_json).trim() === '') return;
+      try {
+        const parsed = JSON.parse(item.borang_json);
+        const isInc = (v) => v && !v.includes('✓') && !/drive/i.test(v);
+        if (isInc(parsed.doc_carta_status)) counts.doc_carta++;
+        if (isInc(parsed.doc_peta_status)) counts.doc_peta++;
+        if (isInc(parsed.doc_gambar_status)) counts.doc_gambar++;
+        if (isInc(parsed.doc_sewa_status)) counts.doc_sewa++;
+        if (isInc(parsed.ssm_status)) counts.ssm++;
+        if (isInc(parsed.bank_status_input)) counts.bank++;
+        if (isInc(parsed.kwsp_s1)) counts.kwsp_1++;
+        if (isInc(parsed.kwsp_s2)) counts.kwsp_2++;
+        if (isInc(parsed.kwsp_s3)) counts.kwsp_3++;
+        if (parsed.personnel && Array.isArray(parsed.personnel)) {
+          const persons = parsed.personnel.filter(p => !p.isCompany);
+          if (persons.some(p => isInc(p.s_ic))) counts.personel_ic++;
+          if (persons.some(p => isInc(p.s_sb))) counts.personel_sb++;
+          if (persons.some(p => isInc(p.s_epf))) counts.personel_epf++;
+        }
+      } catch (e) { /* abaikan rekod dengan borang_json rosak */ }
+    });
+
+    const sorted = docLabels
+      .map(d => ({ label: d.label, count: counts[d.key] }))
+      .filter(x => x.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    if (sorted.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+
+    dashboardIncompleteChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(x => x.label),
+        datasets: [{
+          label: 'Bilangan',
+          data: sorted.map(x => x.count),
+          backgroundColor: '#3b82f6',
+          borderRadius: 8,
+          borderSkipped: false,
+          barPercentage: 0.7
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 1500, easing: 'easeOutQuart' },
+        plugins: {
+          alive: { enabled: true },
+          legend: { display: false }
+        },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: 'Bilangan' }, ticks: { stepSize: 1 }, grid: { display: false }, border: { display: false } },
+          y: { grid: { display: false }, border: { display: false } }
         }
       }
     });
@@ -2744,10 +2848,11 @@ async function handleCredentialResponse(response) {
     dashboardReasonChart = safeDestroyChart(dashboardReasonChart, 'chartReasonDist');
     dashboardTrendChart = safeDestroyChart(dashboardTrendChart, 'chartMonthlyTrend');
     dashboardKonsultansiChart = safeDestroyChart(dashboardKonsultansiChart, 'chartKonsultansi');
+    dashboardIncompleteChart = safeDestroyChart(dashboardIncompleteChart, 'chartIncompleteDoc');
     
     const canvases = [
       'chartMonthlyTrend', 'chartStatus', 'chartTypeMonthly', 'chartTypeYearly',
-      'chartTypeDist', 'chartReasonDist', 'chartKonsultansi'
+      'chartTypeDist', 'chartReasonDist', 'chartKonsultansi', 'chartIncompleteDoc'
     ];
     
     canvases.forEach(canvasId => {
@@ -13987,14 +14092,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // Mulakan jam sebaik sahaja sistem dimuatkan
   startDigitalClock();
   
-  // --- KOD BARU: Plugin Carta Hidup (Breathing Effect) ---
+  // --- KOD BARU: Plugin Carta Hidup (Doughnut Berputar & Bar Membesar) ---
   const alivePlugin = {
     id: 'alivePlugin',
     beforeDraw: (chart) => {
-      // Pastikan chart.ctx wujud sebelum draw
       if (chart.options.plugins.alive?.enabled && chart.ctx) {
         const timestamp = Date.now();
-        // Cipta pergerakan sinus yang sangat halus (scale antara 0.99 ke 1.01)
         const scale = 1 + Math.sin(timestamp / 1000) * 0.01;
         const ctx = chart.ctx;
         ctx.save();
@@ -14004,15 +14107,54 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     },
     afterDraw: (chart) => {
-      if (chart.options.plugins.alive?.enabled && chart.ctx) {
-        chart.ctx.restore();
-        // Arahkan browser lukis semula HANYA jika canvas masih aktif/wujud
-        requestAnimationFrame(() => {
-          if (chart && chart.canvas && chart.ctx) {
-            chart.render();
+      if (!(chart.options.plugins.alive?.enabled && chart.ctx)) return;
+      chart.ctx.restore();
+      if (chart.$aliveTicker) return;
+      chart.$aliveT0 = Date.now();
+      chart.$aliveLast = Date.now();
+      chart.$aliveRealData = chart.data.datasets.map(ds => (ds.data || []).slice());
+      const realMax = Math.max.apply(null, [0].concat(chart.$aliveRealData.map(ds => Math.max.apply(null, [0].concat(ds)))));
+      const horiz = chart.options.indexAxis === 'y';
+      const scaleKey = horiz ? 'x' : 'y';
+      const scale = chart.options.scales?.[scaleKey];
+      if (scale && realMax > 0) scale.suggestedMax = Math.ceil(realMax * 1.15);
+      chart.$aliveTicker = () => {
+        if (!chart || !chart.canvas || !chart.ctx || !chart.options ||
+            !(document.body.contains(chart.canvas)) ||
+            (typeof Chart.getChart === 'function' && Chart.getChart(chart.canvas) !== chart)) {
+          chart.$aliveTicker = null;
+          return;
+        }
+        const now = Date.now();
+        if (now - chart.$aliveLast < 33) { requestAnimationFrame(chart.$aliveTicker); return; }
+        chart.$aliveLast = now;
+        try {
+          if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+            chart.options.rotation = ((now - chart.$aliveT0) * 0.03) % 360;
+            chart.update('none');
+          } else if (chart.config.type === 'bar') {
+            const GROW_MS = 1500;
+            const HOLD_MS = 2500;
+            const CYCLE_MS = GROW_MS + HOLD_MS;
+            const phase = (now - chart.$aliveT0) % CYCLE_MS;
+            let t = phase / GROW_MS;
+            if (t > 1) t = 1;
+            if (t < 1) {
+              const eased = 1 - Math.pow(1 - t, 3);
+              chart.data.datasets.forEach((ds, i) => {
+                const real = chart.$aliveRealData[i] || [];
+                ds.data = ds.data.map((_, j) => Math.round((real[j] || 0) * eased));
+              });
+              chart.update('none');
+            }
           }
-        });
-      }
+        } catch (e) {
+          chart.$aliveTicker = null;
+          return;
+        }
+        chart.$aliveTicker && requestAnimationFrame(chart.$aliveTicker);
+      };
+      chart.$aliveTicker && requestAnimationFrame(chart.$aliveTicker);
     }
   };
   Chart.register(alivePlugin);
