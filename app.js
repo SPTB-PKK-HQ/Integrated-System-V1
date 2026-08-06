@@ -1313,6 +1313,9 @@ async function handleCredentialResponse(response) {
   const dbLawatanSubmitSptb = document.getElementById('db_lawatan_submit_sptb');
   const dbLawatanSyor = document.getElementById('db_lawatan_syor');
   const dbUlasanSpi = document.getElementById('db_ulasan_spi');
+  if (dbUlasanSpi) {
+    dbUlasanSpi.addEventListener('input', function() { autoResizeTextarea(this); });
+  }
 
   // WhatsApp Notification Elements
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
@@ -2993,6 +2996,13 @@ async function handleCredentialResponse(response) {
     } catch (e) { return '-'; }
   }
 
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.overflowY = 'hidden';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
   // =========================================================================
   // V6.8.0: PKA FUNCTIONS
   // =========================================================================
@@ -3207,6 +3217,7 @@ async function handleCredentialResponse(response) {
         <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar</button>
       </div>
     </div>`;
+    document.querySelectorAll('#pkaKeputusanList .editable-textarea').forEach(autoResizeTextarea);
   }
 
   function pkaRenderSejarahCards(data, list) {
@@ -3274,6 +3285,13 @@ async function handleCredentialResponse(response) {
     const sejarahSearch = document.getElementById('pkaSejarahSearch');
     if (sejarahSearch) sejarahSearch.addEventListener('input', window.pkaFilterSejarah);
 
+    const pkaKeputusanList = document.getElementById('pkaKeputusanList');
+    if (pkaKeputusanList) {
+      pkaKeputusanList.addEventListener('input', function(e) {
+        if (e.target.classList.contains('editable-textarea')) autoResizeTextarea(e.target);
+      });
+    }
+
     const containers = ['pkaInboxList', 'pkaKeputusanList', 'pkaSejarahList'].map(id => document.getElementById(id));
     containers.forEach(container => {
       if (!container) return;
@@ -3313,6 +3331,12 @@ async function handleCredentialResponse(response) {
         }
 
         if (action === 'hantar') {
+          const confirmedHantar = await CustomAppModal.confirm(
+            `Adakah anda pasti mahu menghantar syor SPI untuk ${item.syarikat}?`,
+            'Pengesahan Hantar Syor SPI', 'warning', 'Ya, Hantar', false, true
+          );
+          if (!confirmedHantar) return;
+
           const lawatanTarikh = document.getElementById(`pkaLawatanTarikh_${row}`)?.value || '';
           const lawatanSptb = document.getElementById(`pkaLawatanSptb_${row}`)?.value || '';
           const lawatanSyor = document.getElementById(`pkaLawatanSyor_${row}`)?.value || '';
@@ -10496,6 +10520,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         else el.value = '';
       }
     });
+    if (dbUlasanSpi) autoResizeTextarea(dbUlasanSpi);
 
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
@@ -11878,6 +11903,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       if (dbUlasanSpi) {
         dbUlasanSpi.value = item.ulasan_spi || '';
+        autoResizeTextarea(dbUlasanSpi);
       }
     }
     
