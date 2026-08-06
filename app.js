@@ -14114,28 +14114,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const meta = chart.getDatasetMeta(0);
         const els = meta.data;
         if (!els || !els.length) return;
-        const arc0 = els[0];
-        const cx = arc0.x, cy = arc0.y;
-        const outer = arc0.outerRadius;
-        const inner = arc0.innerRadius;
-        if (!(outer > 0) || !(inner >= 0)) return;
-        const mid = (inner + outer) / 2;
-        const a = els[0].startAngle + p * Math.PI * 2;
-        let color = resolveAliveColor(ds, els.length - 1);
-        for (let i = 0; i < els.length; i++) {
-          const s = els[i].startAngle, e = els[i].endAngle;
-          if (a >= s - 0.0001 && a < e) { color = resolveAliveColor(ds, i); break; }
-        }
-        const seg = Math.PI / 6;
-        ctx.save();
-        ctx.lineCap = 'round';
-        ctx.lineWidth = Math.max(4, (outer - inner) * 0.4);
-        ctx.globalAlpha = 0.45; ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 2.4, a - seg * 0.6); ctx.stroke();
-        ctx.globalAlpha = 0.85; ctx.lineWidth = Math.max(3, (outer - inner) * 0.24);
-        ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.6, a); ctx.stroke();
-        ctx.restore();
+        const sp = ((now - chart.$aliveT0) % 2800) / 2800;
+        els.forEach((arc, i) => {
+          const cx = arc.x, cy = arc.y;
+          const outer = arc.outerRadius;
+          const inner = arc.innerRadius;
+          if (!(outer > 0) || !(inner >= 0)) return;
+          const mid = (inner + outer) / 2;
+          const s = arc.startAngle, e = arc.endAngle;
+          const span = e - s;
+          if (!(span > 0.01)) return;
+          const arcLen = Math.min(span * 0.45, 0.7);
+          const a0 = s + sp * (span - arcLen);
+          const color = resolveAliveColor(ds, i);
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineWidth = Math.max(4, (outer - inner) * 0.4);
+          ctx.globalAlpha = 0.45; ctx.strokeStyle = color;
+          ctx.beginPath(); ctx.arc(cx, cy, mid, a0, a0 + arcLen * 0.6); ctx.stroke();
+          ctx.globalAlpha = 0.85; ctx.lineWidth = Math.max(3, (outer - inner) * 0.24);
+          ctx.strokeStyle = color;
+          ctx.beginPath(); ctx.arc(cx, cy, mid, a0 + arcLen * 0.6, a0 + arcLen); ctx.stroke();
+          ctx.restore();
+        });
       } else if (chart.config.type === 'bar') {
         const horiz = chart.options.indexAxis === 'y';
         for (let di = 0; di < chart.data.datasets.length; di++) {
