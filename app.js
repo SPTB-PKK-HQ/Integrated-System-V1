@@ -14108,7 +14108,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const ds = chart.data.datasets[0];
     if (!ds) return;
     try {
-      const p = ((now - chart.$aliveT0) % 2600) / 2600;
+      const phase = ((now - chart.$aliveT0) % 5200) / 2600;
+      const p = phase < 1 ? phase : 2 - phase;
       if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
         const meta = chart.getDatasetMeta(0);
         const els = meta.data;
