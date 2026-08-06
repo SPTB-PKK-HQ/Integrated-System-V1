@@ -14134,48 +14134,55 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         ctx.globalAlpha = 0.85; ctx.lineWidth = Math.max(3, (outer - inner) * 0.24);
         ctx.strokeStyle = color;
         ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.6, a); ctx.stroke();
-        ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(2, (outer - inner) * 0.14);
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.35, a); ctx.stroke();
         ctx.restore();
       } else if (chart.config.type === 'bar') {
-        const meta = chart.getDatasetMeta(0);
-        const els = meta.data;
-        if (!els || !els.length) return;
-        els.forEach((b) => {
-          if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
-          const top = Math.min(b.y, b.base);
-          const bottom = Math.max(b.y, b.base);
-          const left = b.x - b.width / 2;
-          const right = b.x + b.width / 2;
-          const bh = Math.abs(b.base - b.y);
-          const bw = Math.abs(right - left);
-          if (!(bh > 1) || !(bw > 1) || b.width === undefined) return;
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(left, top, bw, bh);
-          ctx.clip();
-          if (chart.config.indexAxis === 'y') {
-            const bandW = Math.max(6, bw * 0.35);
-            const bx = left + p * (bw - bandW);
-            const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
-            g.addColorStop(0, 'rgba(255,255,255,0)');
-            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-            g.addColorStop(1, 'rgba(255,255,255,0)');
-            ctx.fillStyle = g;
-            ctx.fillRect(bx, top, bandW, bh);
-          } else {
-            const bandH = Math.max(6, bh * 0.35);
-            const by = top + p * (bh - bandH);
-            const g = ctx.createLinearGradient(0, by, 0, by + bandH);
-            g.addColorStop(0, 'rgba(255,255,255,0)');
-            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-            g.addColorStop(1, 'rgba(255,255,255,0)');
-            ctx.fillStyle = g;
-            ctx.fillRect(left, by, bw, bandH);
-          }
-          ctx.restore();
-        });
+        const horiz = chart.config.indexAxis === 'y';
+        for (let di = 0; di < chart.data.datasets.length; di++) {
+          const meta = chart.getDatasetMeta(di);
+          const els = meta.data;
+          if (!els || !els.length) continue;
+          els.forEach((b) => {
+            if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
+            if (b.width === undefined || b.height === undefined) return;
+            let left, top, bw, bh;
+            if (horiz) {
+              left = Math.min(b.base, b.x);
+              top = b.y - b.height / 2;
+              bw = Math.abs(b.x - b.base);
+              bh = b.height;
+            } else {
+              left = b.x - b.width / 2;
+              top = Math.min(b.y, b.base);
+              bw = b.width;
+              bh = Math.abs(b.base - b.y);
+            }
+            if (!(bw > 1) || !(bh > 1)) return;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, bw, bh);
+            ctx.clip();
+            if (horiz) {
+              const bandW = Math.max(6, bw * 0.35);
+              const bx = left + p * (bw - bandW);
+              const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
+              g.addColorStop(0, 'rgba(255,255,255,0)');
+              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+              g.addColorStop(1, 'rgba(255,255,255,0)');
+              ctx.fillStyle = g;
+              ctx.fillRect(bx, top, bandW, bh);
+            } else {
+              const bandH = Math.max(6, bh * 0.35);
+              const by = top + p * (bh - bandH);
+              const g = ctx.createLinearGradient(0, by, 0, by + bandH);
+              g.addColorStop(0, 'rgba(255,255,255,0)');
+              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+              g.addColorStop(1, 'rgba(255,255,255,0)');
+              ctx.fillStyle = g;
+              ctx.fillRect(left, by, bw, bandH);
+            }
+            ctx.restore();
+          });
+        }
       }
     } catch (e) { /* gagal senyap */ }
   }
