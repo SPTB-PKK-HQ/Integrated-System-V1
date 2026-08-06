@@ -1838,7 +1838,7 @@ async function handleCredentialResponse(response) {
     
     console.log("V6.5.2 Data setelah filter:", filteredData.length);
 
-    let userSpecificData = filteredData.filter(item => {
+    const roleFilter = (item) => {
       if (currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
         return true;
       } else if (currentUser.role === 'PENGESYOR') {
@@ -1847,7 +1847,15 @@ async function handleCredentialResponse(response) {
         return item.pelulus && item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
       }
       return false;
+    };
+    let userSpecificData = filteredData.filter(roleFilter);
+    
+    const yearFilteredData = cachedData.filter(item => {
+      let dateToUse = resolveRecordDate(item);
+      if (!dateToUse || isNaN(dateToUse)) return false;
+      return dateToUse.getFullYear() === currentYear;
     });
+    const yearUserData = yearFilteredData.filter(roleFilter);
     
     console.log("V6.5.2 Data user-specific:", userSpecificData.length);
 
@@ -1950,11 +1958,11 @@ async function handleCredentialResponse(response) {
     
     if (currentUser.role === 'PENGESYOR') {
        if (typeof updateRecommenderCharts === 'function') {
-           updateRecommenderCharts(userSpecificData, filteredData);
+           updateRecommenderCharts(yearUserData, yearFilteredData);
        }
     } else if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
        if (typeof updateApproverCharts === 'function') {
-           updateApproverCharts(userSpecificData, filteredData);
+           updateApproverCharts(yearUserData, yearFilteredData);
        }
     }
     
@@ -2331,23 +2339,22 @@ async function handleCredentialResponse(response) {
     const monthlyData = {};
     const monthlyLabels = [];
     const currentYear = dashboardData.currentYear;
-    const currentMonth = dashboardData.currentMonth;
     
-    const monthsToShow = 6;
-    for (let i = monthsToShow - 1; i >= 0; i--) {
-      const date = new Date(currentYear, currentMonth - 1 - i, 1);
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentYear, i, 1);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${date.toLocaleString('ms-MY', { month: 'short' })} ${date.getFullYear()}`;
-      monthlyData[monthKey] = { label: monthLabel, supported: 0, notSupported: 0 };
+      const monthLabel = date.toLocaleString('ms-MY', { month: 'short' });
+      monthlyData[monthKey] = { label: monthLabel, total: 0, supported: 0, notSupported: 0 };
       monthlyLabels.push(monthKey);
     }
     
-    filteredData.forEach(item => {
+    userData.forEach(item => {
       let dateToUse = resolveRecordDate(item);
       if (dateToUse && !isNaN(dateToUse)) {
         const date = dateToUse;
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[monthKey]) {
+          monthlyData[monthKey].total++;
           if (item.syor_status && item.syor_status.includes('TIDAK DISOKONG')) monthlyData[monthKey].notSupported++;
           else if (item.syor_status && item.syor_status.includes('SOKONG')) monthlyData[monthKey].supported++;
         }
@@ -2360,17 +2367,24 @@ async function handleCredentialResponse(response) {
         labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
         datasets: [
           {
+            label: 'JUMLAH PERMOHONAN',
+            data: monthlyLabels.map(key => monthlyData[key]?.total || 0),
+            backgroundColor: '#3b82f6',
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
             label: 'SOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
             backgroundColor: '#10b981',
-            borderRadius: 6,        /* KOD BARU */
+            borderRadius: 6,
             borderSkipped: false
           },
           {
             label: 'TIDAK DISOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.notSupported || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 6,        /* KOD BARU */
+            borderRadius: 6,
             borderSkipped: false
           }
         ]
@@ -2378,14 +2392,13 @@ async function handleCredentialResponse(response) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 1500, easing: 'easeOutQuart' }, /* KOD BARU */
+        animation: { duration: 1500, easing: 'easeOutQuart' },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Syor' }, ticks: { stepSize: 1 }, border: { display: false } },
+          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
           x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
-          legend: { position: 'top' },
-          title: { display: true, text: 'Trend Syor Bulanan' }
+          legend: { position: 'top' }
         }
       }
     });
@@ -2401,18 +2414,27 @@ async function handleCredentialResponse(response) {
     const monthlyData = {};
     const monthlyLabels = [];
     const currentYear = dashboardData.currentYear;
-    const currentMonth = dashboardData.currentMonth;
     
-    const monthsToShow = 6;
-    for (let i = monthsToShow - 1; i >= 0; i--) {
-      const date = new Date(currentYear, currentMonth - 1 - i, 1);
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentYear, i, 1);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${date.toLocaleString('ms-MY', { month: 'short' })} ${date.getFullYear()}`;
-      monthlyData[monthKey] = { label: monthLabel, approved: 0, rejected: 0 };
+      const monthLabel = date.toLocaleString('ms-MY', { month: 'short' });
+      monthlyData[monthKey] = { label: monthLabel, total: 0, approved: 0, rejected: 0 };
       monthlyLabels.push(monthKey);
     }
     
-    filteredData.forEach(item => {
+    userData.forEach(item => {
+      let dateToUse = resolveRecordDate(item);
+      if (dateToUse && !isNaN(dateToUse)) {
+        const date = dateToUse;
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyData[monthKey]) {
+          monthlyData[monthKey].total++;
+        }
+      }
+    });
+    
+    userData.forEach(item => {
       // Guna tarikh_lulus (khas carta Pelulus) — rekod dikira tarikh ia dilulus/ditolak
       let dateToUse = resolveApprovalDate(item);
       if (dateToUse && !isNaN(dateToUse)) {
@@ -2431,17 +2453,24 @@ async function handleCredentialResponse(response) {
         labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
         datasets: [
           {
+            label: 'JUMLAH PERMOHONAN',
+            data: monthlyLabels.map(key => monthlyData[key]?.total || 0),
+            backgroundColor: '#3b82f6',
+            borderRadius: 6,
+            borderSkipped: false
+          },
+          {
             label: 'DILULUSKAN',
             data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
             backgroundColor: '#10b981',
-            borderRadius: 6,        /* KOD BARU */
+            borderRadius: 6,
             borderSkipped: false
           },
           {
             label: 'DITOLAK/SIASAT',
             data: monthlyLabels.map(key => monthlyData[key]?.rejected || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 6,        /* KOD BARU */
+            borderRadius: 6,
             borderSkipped: false
           }
         ]
@@ -2449,14 +2478,13 @@ async function handleCredentialResponse(response) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 1500, easing: 'easeOutQuart' }, /* KOD BARU */
+        animation: { duration: 1500, easing: 'easeOutQuart' },
         scales: {
           y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
           x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
-          legend: { position: 'top' },
-          title: { display: true, text: 'Trend Kelulusan Bulanan' }
+          legend: { position: 'top' }
         }
       }
     });
