@@ -14136,7 +14136,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.6, a); ctx.stroke();
         ctx.restore();
       } else if (chart.config.type === 'bar') {
-        const horiz = chart.config.indexAxis === 'y';
+        const horiz = chart.options.indexAxis === 'y';
         for (let di = 0; di < chart.data.datasets.length; di++) {
           const meta = chart.getDatasetMeta(di);
           const els = meta.data;
@@ -14172,7 +14172,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               ctx.fillRect(bx, top, bandW, bh);
             } else {
               const bandH = Math.max(6, bh * 0.35);
-              const by = top + p * (bh - bandH);
+              const by = top + (bh - bandH) * (1 - p);
               const g = ctx.createLinearGradient(0, by, 0, by + bandH);
               g.addColorStop(0, 'rgba(255,255,255,0)');
               g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
