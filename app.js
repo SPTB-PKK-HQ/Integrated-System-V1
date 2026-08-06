@@ -14092,32 +14092,101 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // Mulakan jam sebaik sahaja sistem dimuatkan
   startDigitalClock();
   
-  // --- KOD BARU: Plugin Carta Hidup (Doughnut Berputar & Bar Membesar) ---
+  // --- KOD BARU: Plugin Carta Hidup (Lingkaran berpandu mengikut warna carta) ---
+  function resolveAliveColor(dataset, index) {
+    const c = dataset?.backgroundColor;
+    if (Array.isArray(c)) return c[index] || c[0] || '#3b82f6';
+    return c || '#3b82f6';
+  }
+
+  function drawAliveOverlay(chart) {
+    const now = Date.now();
+    if (chart.$aliveT0 === undefined) chart.$aliveT0 = now;
+    const area = chart.chartArea;
+    if (!area || area.width <= 0 || area.height <= 0) return;
+    const ctx = chart.ctx;
+    const ds = chart.data.datasets[0];
+    if (!ds) return;
+    try {
+      if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+        const meta = chart.getDatasetMeta(0);
+        const els = meta.data;
+        if (!els || !els.length) return;
+        const arc0 = meta.data[0];
+        const cx = arc0.x, cy = arc0.y;
+        const outer = arc0.outerRadius;
+        const inner = arc0.innerRadius;
+        if (!(outer > 0) || !(inner >= 0)) return;
+        const mid = (inner + outer) / 2;
+        const a = els[0].startAngle + ((now - chart.$aliveT0) / 9000) * Math.PI * 2;
+        let color = resolveAliveColor(ds, els.length - 1);
+        for (let i = 0; i < els.length; i++) {
+          const s = els[i].startAngle, e = els[i].endAngle;
+          if (a >= s - 0.0001 && a < e) { color = resolveAliveColor(ds, i); break; }
+        }
+        const seg = Math.PI / 7;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(4, (outer - inner) * 0.28);
+        ctx.globalAlpha = 0.25; ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 3.2, a - seg); ctx.stroke();
+        ctx.globalAlpha = 0.55; ctx.lineWidth = Math.max(3, (outer - inner) * 0.18);
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg, a - seg * 0.3); ctx.stroke();
+        ctx.globalAlpha = 0.95; ctx.lineWidth = Math.max(3, (outer - inner) * 0.14);
+        ctx.beginPath(); ctx.arc(cx, cy, mid, a - seg * 0.3, a); ctx.stroke();
+        ctx.restore();
+      } else if (chart.config.type === 'bar') {
+        const meta = chart.getDatasetMeta(0);
+        const els = meta.data;
+        if (!els || !els.length) return;
+        const horiz = chart.config.indexAxis === 'y';
+        const W = area.right - area.left;
+        const H = area.bottom - area.top;
+        if (W <= 0 || H <= 0) return;
+        const prog = ((now - chart.$aliveT0) % 4000) / 4000;
+        let color = resolveAliveColor(ds, 0);
+        let bandSize = 18;
+        if (horiz) {
+          const sy = area.top + prog * H;
+          for (let i = 0; i < els.length; i++) {
+            const b = els[i];
+            const bw = b.height || 0;
+            if (isFinite(b.y) && Math.abs(b.y - sy) < bw / 2 + 1) { color = resolveAliveColor(ds, i); bandSize = bw || 18; break; }
+          }
+          ctx.save();
+          ctx.globalAlpha = 0.25; ctx.fillStyle = color;
+          ctx.fillRect(area.left, sy - bandSize / 2, W, bandSize);
+          ctx.globalAlpha = 0.95; ctx.lineWidth = 3; ctx.lineCap = 'round';
+          ctx.strokeStyle = color;
+          ctx.beginPath(); ctx.moveTo(area.left, sy); ctx.lineTo(area.right, sy); ctx.stroke();
+          ctx.restore();
+        } else {
+          const sx = area.left + prog * W;
+          for (let i = 0; i < els.length; i++) {
+            const b = els[i];
+            const bw = b.width || 0;
+            if (isFinite(b.x) && Math.abs(b.x - sx) < bw / 2 + 1) { color = resolveAliveColor(ds, i); bandSize = bw || 18; break; }
+          }
+          ctx.save();
+          ctx.globalAlpha = 0.25; ctx.fillStyle = color;
+          ctx.fillRect(sx - bandSize / 2, area.top, bandSize, H);
+          ctx.globalAlpha = 0.95; ctx.lineWidth = 3; ctx.lineCap = 'round';
+          ctx.strokeStyle = color;
+          ctx.beginPath(); ctx.moveTo(sx, area.top); ctx.lineTo(sx, area.bottom); ctx.stroke();
+          ctx.restore();
+        }
+      }
+    } catch (e) { /* gagal senyap */ }
+  }
+
   const alivePlugin = {
     id: 'alivePlugin',
-    beforeDraw: (chart) => {
-      if (chart.options.plugins.alive?.enabled && chart.ctx) {
-        const timestamp = Date.now();
-        const scale = 1 + Math.sin(timestamp / 1000) * 0.01;
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.translate(chart.width / 2, chart.height / 2);
-        ctx.scale(scale, scale);
-        ctx.translate(-chart.width / 2, -chart.height / 2);
-      }
-    },
     afterDraw: (chart) => {
       if (!(chart.options.plugins.alive?.enabled && chart.ctx)) return;
-      chart.ctx.restore();
+      drawAliveOverlay(chart);
       if (chart.$aliveTicker) return;
       chart.$aliveT0 = Date.now();
       chart.$aliveLast = Date.now();
-      chart.$aliveRealData = chart.data.datasets.map(ds => (ds.data || []).slice());
-      const realMax = Math.max.apply(null, [0].concat(chart.$aliveRealData.map(ds => Math.max.apply(null, [0].concat(ds)))));
-      const horiz = chart.options.indexAxis === 'y';
-      const scaleKey = horiz ? 'x' : 'y';
-      const scale = chart.options.scales?.[scaleKey];
-      if (scale && realMax > 0) scale.suggestedMax = Math.ceil(realMax * 1.15);
       chart.$aliveTicker = () => {
         if (!chart || !chart.canvas || !chart.ctx || !chart.options ||
             !(document.body.contains(chart.canvas)) ||
@@ -14126,28 +14195,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return;
         }
         const now = Date.now();
-        if (now - chart.$aliveLast < 33) { requestAnimationFrame(chart.$aliveTicker); return; }
+        if (now - chart.$aliveLast < 40) { requestAnimationFrame(chart.$aliveTicker); return; }
         chart.$aliveLast = now;
         try {
-          if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
-            chart.options.rotation = ((now - chart.$aliveT0) * 0.03) % 360;
-            chart.update('none');
-          } else if (chart.config.type === 'bar') {
-            const GROW_MS = 1500;
-            const HOLD_MS = 2500;
-            const CYCLE_MS = GROW_MS + HOLD_MS;
-            const phase = (now - chart.$aliveT0) % CYCLE_MS;
-            let t = phase / GROW_MS;
-            if (t > 1) t = 1;
-            if (t < 1) {
-              const eased = 1 - Math.pow(1 - t, 3);
-              chart.data.datasets.forEach((ds, i) => {
-                const real = chart.$aliveRealData[i] || [];
-                ds.data = ds.data.map((_, j) => Math.round((real[j] || 0) * eased));
-              });
-              chart.update('none');
-            }
-          }
+          chart.render();
         } catch (e) {
           chart.$aliveTicker = null;
           return;
