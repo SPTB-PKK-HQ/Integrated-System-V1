@@ -13032,6 +13032,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         await CustomAppModal.alert("Sila masukkan Justifikasi Lawatan apabila Syor Lawatan adalah PEMUTIHAN.", "Maklumat Diperlukan", "warning");
         return;
       }
+
+      // 3a. Batal syor pemutihan pengesyor: wajib catatan + pengesahan
+      const syorAsalPelulus = (pelulusActiveItem.syor_lawatan || '').toString().toUpperCase();
+      if (syorAsalPelulus === 'PEMUTIHAN' && syorFinal === 'TIDAK') {
+        const catatanBatal = document.getElementById('pelulus_catatan')?.value || '';
+        if (catatanBatal.trim() === '') {
+          await CustomAppModal.alert("Sila masukkan Catatan Pelulus untuk menjelaskan sebab membatalkan syor pemutihan pengesyor.", "Maklumat Diperlukan", "warning");
+          return;
+        }
+        const isBatal = await CustomAppModal.confirm(
+            "Adakah anda pasti ingin membatalkan syor pemutihan yang disyorkan oleh pengesyor? Catatan pelulus akan direkodkan sebagai sebab.",
+            "Batal Syor Pemutihan",
+            "warning",
+            "Ya, Batal Syor Pemutihan",
+            false
+        );
+        if (!isBatal) return;
+      }
       
       // 4. Pengesahan keputusan utama
       const isConfirmed = await CustomAppModal.confirm(
