@@ -1341,9 +1341,7 @@ async function handleCredentialResponse(response) {
   // Pelulus Elements untuk Tukar Syor Lawatan
   const pelulusTukarSyor = document.getElementById('pelulus_tukar_syor_lawatan');
   const divPelulusJustifikasi = document.getElementById('div_pelulus_justifikasi');
-  const divPelulusDateSpi = document.getElementById('div_pelulus_date_spi');
   const pelulusJustifikasi = document.getElementById('pelulus_justifikasi_lawatan');
-  const pelulusDateSpi = document.getElementById('pelulus_date_submit_spi');
   
   // Filter Container Elements
   const pengesyorFilterButtonsContainer = document.getElementById('pengesyorFilterButtonsContainer');
@@ -9112,13 +9110,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if (pelulusTukarSyor) {
     pelulusTukarSyor.addEventListener('change', (e) => {
       const val = e.target.value;
-      
+
       if (divPelulusJustifikasi) {
-        divPelulusJustifikasi.style.display = (val === 'YA' || val === 'PEMUTIHAN') ? 'block' : 'none';
-      }
-      
-      if (divPelulusDateSpi) {
-        divPelulusDateSpi.style.display = (val === 'YA') ? 'block' : 'none';
+        divPelulusJustifikasi.style.display = (val === 'PEMUTIHAN' || val === 'TIDAK') ? 'block' : 'none';
       }
     });
   }
@@ -12128,7 +12122,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (elAlasan) elAlasan.value = '';
     if (elCatatan) elCatatan.value = '';
     if (elSah) elSah.checked = false;
-    if (elTukarSyor) elTukarSyor.value = '';
+    const elJustifikasiPenuh = document.getElementById('pelulus_justifikasi_lawatan');
+    if (elJustifikasiPenuh) elJustifikasiPenuh.value = '';
+    if (elTukarSyor) setButtonGroupValue('pelulus_tukar_syor_lawatan', '');
 
     // Sembunyikan elemen-elemen UI bersyarat
     const divAlasan = document.getElementById('div_alasan');
@@ -12139,9 +12135,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const divJustifikasi = document.getElementById('div_pelulus_justifikasi');
     if (divJustifikasi) divJustifikasi.style.display = 'none';
-    
-    const divDateSpi = document.getElementById('div_pelulus_date_spi');
-    if (divDateSpi) divDateSpi.style.display = 'none';
+
+    // Auto-pilih butang PEMUTIHAN jika pengesyor mensyorkan syor lawatan PEMUTIHAN
+    const syorAsal = (item.syor_lawatan || '').toString().toUpperCase();
+    if (syorAsal === 'PEMUTIHAN') {
+      setButtonGroupValue('pelulus_tukar_syor_lawatan', 'PEMUTIHAN');
+      const hiddenSyor = document.getElementById('pelulus_tukar_syor_lawatan');
+      if (hiddenSyor) hiddenSyor.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     // ======================================================================================
 
     savePelulusState(); // Simpan keadaan kosong ini ke memori sistem
@@ -13005,12 +13006,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       // 2. Ambil nilai-nilai dari borang
       const tukarSyor = document.getElementById('pelulus_tukar_syor_lawatan')?.value || '';
       const justifikasiPelulus = document.getElementById('pelulus_justifikasi_lawatan')?.value || '';
-      const dateSpiPelulus = document.getElementById('pelulus_date_submit_spi')?.value || '';
       const keputusan = document.getElementById('pelulus_keputusan')?.value || '';
+      const syorFinal = tukarSyor !== '' ? tukarSyor : (keputusan === 'PEMUTIHAN' ? 'PEMUTIHAN' : '');
       
-      // 3. Validasi pertukaran syor kepada YA
-      if (tukarSyor === 'YA' && dateSpiPelulus === '') {
-        await CustomAppModal.alert("Sila masukkan Date Submit to SPI jika Syor Lawatan ditukar kepada YA.", "Maklumat Diperlukan", "warning");
+      // 3. Validasi: Syor PEMUTIHAN wajib ada justifikasi lawatan
+      if (syorFinal === 'PEMUTIHAN' && justifikasiPelulus.trim() === '') {
+        await CustomAppModal.alert("Sila masukkan Justifikasi Lawatan apabila Syor Lawatan adalah PEMUTIHAN.", "Maklumat Diperlukan", "warning");
         return;
       }
       
@@ -13026,7 +13027,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       // 5. Fungsi pengesahan emel pemutihan (Hanya jika perlu)
       let confirmSpiPemutihan = false;
-      const syorFinal = tukarSyor !== '' ? tukarSyor : (keputusan === 'PEMUTIHAN' ? 'PEMUTIHAN' : '');
       console.log('[PELULUS-SPI] tukarSyor:', tukarSyor, '| keputusan:', keputusan, '| syorFinal:', syorFinal, '| syorAsal:', pelulusActiveItem.syor_lawatan);
       if (syorFinal === 'PEMUTIHAN' || pelulusActiveItem.syor_lawatan === 'PEMUTIHAN') {
         confirmSpiPemutihan = await CustomAppModal.confirm(
@@ -13070,7 +13070,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         pelulus: currentUser.name || '',
         syor_lawatan_baru: syorFinal !== '' ? syorFinal : undefined,
         justifikasi_baru: justifikasiPelulus,
-        date_submit_baru: tukarSyor === 'YA' ? dateSpiPelulus : undefined,
         hantar_emel_spi_pemutihan: confirmSpiPemutihan,
         borang_json: newBorangJson, // Set ruangan catatan pelulus
         email: currentUser ? currentUser.email : '' 
