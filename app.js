@@ -12138,6 +12138,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     // Auto-pilih butang PEMUTIHAN jika pengesyor mensyorkan syor lawatan PEMUTIHAN
     const syorAsal = (item.syor_lawatan || '').toString().toUpperCase();
+    const divSyorAsal = document.getElementById('div_pelulus_syor_asal');
+    const elSyorAsal = document.getElementById('pelulus_syor_asal');
+    if (item.syor_lawatan && String(item.syor_lawatan).trim() !== '') {
+      if (divSyorAsal) divSyorAsal.style.display = 'block';
+      if (elSyorAsal) elSyorAsal.textContent = String(item.syor_lawatan);
+    } else {
+      if (divSyorAsal) divSyorAsal.style.display = 'none';
+      if (elSyorAsal) elSyorAsal.textContent = '';
+    }
     if (syorAsal === 'PEMUTIHAN') {
       setButtonGroupValue('pelulus_tukar_syor_lawatan', 'PEMUTIHAN');
       const hiddenSyor = document.getElementById('pelulus_tukar_syor_lawatan');
