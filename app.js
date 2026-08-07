@@ -12147,6 +12147,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (divSyorAsal) divSyorAsal.style.display = 'none';
       if (elSyorAsal) elSyorAsal.textContent = '';
     }
+    const divJustifikasiAsal = document.getElementById('div_pelulus_justifikasi_asal');
+    const elJustifikasiAsal = document.getElementById('pelulus_justifikasi_asal');
+    if (item.justifikasi && String(item.justifikasi).trim() !== '') {
+      if (divJustifikasiAsal) divJustifikasiAsal.style.display = 'block';
+      if (elJustifikasiAsal) elJustifikasiAsal.textContent = String(item.justifikasi);
+    } else {
+      if (divJustifikasiAsal) divJustifikasiAsal.style.display = 'none';
+      if (elJustifikasiAsal) elJustifikasiAsal.textContent = '';
+    }
     if (syorAsal === 'PEMUTIHAN') {
       setButtonGroupValue('pelulus_tukar_syor_lawatan', 'PEMUTIHAN');
       const hiddenSyor = document.getElementById('pelulus_tukar_syor_lawatan');
