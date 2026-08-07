@@ -13417,7 +13417,7 @@ if(data.personnel && data.personnel.length > 0) {
   const addBankBtn = document.getElementById('addBankBtn');
 
   function bankLogoItem(bankItem) {
-    return `<img src="${bankItem.logo || BANK_GENERIC_LOGO}" alt="" style="width:20px; height:20px; object-fit:contain; flex-shrink:0;" onerror="this.onerror=null; this.src=BANK_GENERIC_LOGO;">`;
+    return `<img src="${bankItem.logo || BANK_GENERIC_LOGO}" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0;" onerror="this.onerror=null; this.src=BANK_GENERIC_LOGO;">`;
   }
 
   function addBankCard(data) {
@@ -13432,8 +13432,9 @@ if(data.personnel && data.personnel.length > 0) {
       <div class="grid-3">
         <div>
           <label>Nama Bank</label>
-          <div style="position:relative;">
-            <input type="text" class="bank-name" placeholder="Pilih / taip nama bank..." autocomplete="off" style="padding-right:26px;">
+          <div style="display:flex; align-items:center; gap:6px; position:relative;">
+            <img class="bank-selected-logo" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0; display:none;">
+            <input type="text" class="bank-name" placeholder="Pilih / taip nama bank..." autocomplete="off" style="padding-right:26px; flex:1; min-width:0;">
             <div class="bank-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:50; max-height:220px; overflow-y:auto; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,0.15); margin-top:2px;"></div>
           </div>
         </div>
@@ -13533,10 +13534,11 @@ if(data.personnel && data.personnel.length > 0) {
     const dropdown = card.querySelector('.bank-dropdown');
     if (nameInput) {
       nameInput.addEventListener('focus', () => {
-        renderBankDropdown(card, '');
+        renderBankDropdown(nameInput, '');
       });
       nameInput.addEventListener('input', () => {
-        renderBankDropdown(card, nameInput.value.trim());
+        renderBankDropdown(nameInput, nameInput.value.trim());
+        setBankNameInput(card, nameInput.value);
       });
       document.addEventListener('click', (e) => {
         if (dropdown && !card.contains(e.target) && !dropdown.contains(e.target)) {
@@ -13577,7 +13579,7 @@ if(data.personnel && data.personnel.length > 0) {
     dropdown.style.display = 'block';
     dropdown.querySelectorAll('.bank-option').forEach(opt => {
       opt.addEventListener('click', () => {
-        input.value = opt.dataset.name;
+        setBankNameInput(card, opt.dataset.name);
         dropdown.style.display = 'none';
         saveFormData();
       });
@@ -13586,11 +13588,35 @@ if(data.personnel && data.personnel.length > 0) {
     });
   }
 
+  function setBankNameInput(card, bankName) {
+    const nameInput = card.querySelector('.bank-name');
+    const logoEl = card.querySelector('.bank-selected-logo');
+    if (!nameInput) return;
+    nameInput.value = bankName || '';
+    if (logoEl) {
+      const match = bankName && typeof BANK_LIST !== 'undefined' ? BANK_LIST.find(b => b.name === bankName) : null;
+      if (match) {
+        logoEl.src = match.logo || BANK_GENERIC_LOGO;
+        logoEl.style.display = 'inline-block';
+      } else if (bankName && typeof bankLogoDataURI === 'function') {
+        logoEl.src = bankLogoDataURI(bankName);
+        logoEl.style.display = 'inline-block';
+      } else if (bankName) {
+        logoEl.src = BANK_GENERIC_LOGO;
+        logoEl.style.display = 'inline-block';
+      } else {
+        logoEl.src = '';
+        logoEl.style.display = 'none';
+      }
+    }
+  }
+
   function applyBankCard(card, data) {
     const nameInput = card.querySelector('.bank-name');
     const account = card.querySelector('.bank-account');
     const bdate = card.querySelector('.bank-date');
     if (nameInput) nameInput.value = data.bank || '';
+    setBankNameInput(card, data.bank || '');
     if (account) account.value = data.account || '';
     if (bdate) bdate.value = data.bank_date || '';
 
