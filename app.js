@@ -9112,7 +9112,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const val = e.target.value;
 
       if (divPelulusJustifikasi) {
-        divPelulusJustifikasi.style.display = (val === 'PEMUTIHAN' || val === 'TIDAK') ? 'block' : 'none';
+        divPelulusJustifikasi.style.display = (val === 'PEMUTIHAN') ? 'block' : 'none';
       }
     });
   }
