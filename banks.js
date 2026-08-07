@@ -46,7 +46,8 @@ var BANK_LIST = [
   { name: 'BANK PEMBANGUNAN MALAYSIA', logo: 'banks/BANK-PEMBANGUNAN.png' },
   { name: 'AEON BANK (MALAYSIA)', logo: 'banks/AEON-BANK.png' },
   { name: 'GX BANK', logo: 'banks/GX-BANK.png' },
-  { name: 'BOOST BANK', logo: '' }
+  { name: 'BOOST BANK', logo: 'banks/BOOST-BANK.png' },
+  { name: 'RYT BANK', logo: 'banks/RYT-BANK.png' }
 ];
 
 var BANK_GENERIC_LOGO = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
