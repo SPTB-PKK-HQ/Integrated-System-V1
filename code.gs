@@ -63,6 +63,14 @@ const EMAIL_SENDER_NAME = "Sistem Bersepadu SPTB";
 // =========================================================================
 
 /**
+ * Normalisasi role: "KETUA SEKSYEN", "KETUA_SEKSYEN" dan "ketua seksyen"
+ * dianggap sama (buang ruang/garis bawah/sempang, huruf besar semua).
+ */
+function normalizeRoleKey(role) {
+  return String(role || '').toUpperCase().trim().replace(/[\s_-]+/g, '');
+}
+
+/**
  * Fungsi verifyUserAccess: Middleware pengesahan akses pengguna
  * Menyemak sama ada pengguna mempunyai role yang dibenarkan
  * @param {string} email - Alamat emel pengguna
@@ -100,13 +108,13 @@ function verifyUserAccess(email, allowedRolesArray) {
       };
     }
     
-    // Semak role pengguna
-    const userRole = userProfile.role ? userProfile.role.toUpperCase() : '';
-    if (!allowedRolesArray.includes(userRole)) {
+    // Semak role pengguna (normalisasi supaya "KETUA SEKSYEN" & "KETUA_SEKSYEN" dipadankan)
+    const userRoleNorm = normalizeRoleKey(userProfile.role);
+    if (!allowedRolesArray.some(ar => normalizeRoleKey(ar) === userRoleNorm)) {
       return {
         isAuthorized: false,
         userProfile: userProfile,
-        error: `Akses Ditolak: Role '${userRole}' tidak mempunyai kebenaran untuk tindakan ini.`
+        error: `Akses Ditolak: Role '${userProfile.role}' tidak mempunyai kebenaran untuk tindakan ini.`
       };
     }
     
@@ -4176,7 +4184,7 @@ function handleGetInbox(data) {
       messages.forEach(msg => {
         let shouldShow = false;
         
-        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
           shouldShow = true; // Admin/Pengarah/KetuaSeksyen boleh nampak semua
         } else if (msg.role === userRole) {
           shouldShow = true; // Contoh: msg.role = 'PENGESYOR' cocok dengan userRole
@@ -4428,7 +4436,7 @@ function handleMarkAllInboxRead(data) {
       let changed = false;
       messages = messages.map(function(msg) {
         var shouldShow = false;
-        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
           shouldShow = true;
         } else if (msg.role === userRole) {
           shouldShow = true;
@@ -4495,7 +4503,7 @@ function handleDeleteAllInbox(data) {
       var beforeCount = messages.length;
       messages = messages.filter(function(msg) {
         var shouldDelete = false;
-        if (userRole === 'ADMIN' || userRole === 'PENGARAH' || userRole === 'KETUA_SEKSYEN') {
+        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
           shouldDelete = true;
         } else if (msg.role === userRole) {
           shouldDelete = true;
@@ -4813,71 +4821,87 @@ function getSpiQueueData(email) {
     }
     const isPengesyor = accessCheck.userProfile && accessCheck.userProfile.role === ROLE_PENGESYOR;
     const pengesyorName = isPengesyor ? accessCheck.userProfile.name : '';
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const rows = sheet.getDataRange().getDisplayValues();
-    const result = [];
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const syorLawatan = (r[8] || '').toString().toUpperCase();
-      if (syorLawatan !== 'YA') continue;
-      if (r[8] && r[8].toString().toUpperCase() === 'PEMUTIHAN') continue;
-      const statusSpi = (r[15] || '').toString().trim();
-      if (statusSpi === '') continue;
-      if (isPengesyor) {
-        const rowPengesyor = (r[12] || '').toString().trim().toUpperCase();
-        if (rowPengesyor !== pengesyorName.toUpperCase()) continue;
-      }
-      const lawatanSyor = (r[19] || '').toString().trim();
-      const eventId = (() => {
-        try {
-          const j = JSON.parse(r[28] || '{}');
-          return j.spi_calendar_event_id || '';
-        } catch (e) { return ''; }
-      })();
-      let deadline = '';
-      let bakiHari = -1;
-      let hariLewat = 0;
-      let progressPct = 0;
-      const ds = r[9] ? r[9].toString().trim() : '';
-      if (ds) {
-        try {
-          const d = new Date(ds);
-          if (!isNaN(d.getTime())) {
-            const dd = addWorkingDays(d, 14);
-            deadline = Utilities.formatDate(dd, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const elapsed = countWorkingDays(d, today);
-            progressPct = Math.min(Math.round((elapsed / 14) * 100), 100);
-            if (dd >= today && !lawatanSyor) {
-              bakiHari = countWorkingDays(today, dd);
-            } else if (dd < today && !lawatanSyor) {
-              bakiHari = 0;
-              hariLewat = countWorkingDays(dd, today);
+    
+    // KACHE: Data timeline SPI dikira dalaman (tanpa tapisan pengesyor) dan
+    // disimpan mengikut versi data. Jika versi sama (tiada perubahan), guna cache.
+    const props = PropertiesService.getScriptProperties();
+    const cacheKey = 'SPI_QUEUE_RAW_' + (props.getProperty(APP_DATA_VERSION_KEY) || '0');
+    const cache = CacheService.getScriptCache();
+    const cachedRaw = cache.get(cacheKey);
+    let result;
+    if (cachedRaw) {
+      result = JSON.parse(cachedRaw);
+    } else {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      const rows = sheet.getDataRange().getDisplayValues();
+      result = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const syorLawatan = (r[8] || '').toString().toUpperCase();
+        if (syorLawatan !== 'YA') continue;
+        if (r[8] && r[8].toString().toUpperCase() === 'PEMUTIHAN') continue;
+        const statusSpi = (r[15] || '').toString().trim();
+        if (statusSpi === '') continue;
+        const lawatanSyor = (r[19] || '').toString().trim();
+        const eventId = (() => {
+          try {
+            const j = JSON.parse(r[28] || '{}');
+            return j.spi_calendar_event_id || '';
+          } catch (e) { return ''; }
+        })();
+        let deadline = '';
+        let bakiHari = -1;
+        let hariLewat = 0;
+        let progressPct = 0;
+        const ds = r[9] ? r[9].toString().trim() : '';
+        if (ds) {
+          try {
+            const d = new Date(ds);
+            if (!isNaN(d.getTime())) {
+              const dd = addWorkingDays(d, 14);
+              deadline = Utilities.formatDate(dd, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const elapsed = countWorkingDays(d, today);
+              progressPct = Math.min(Math.round((elapsed / 14) * 100), 100);
+              if (dd >= today && !lawatanSyor) {
+                bakiHari = countWorkingDays(today, dd);
+              } else if (dd < today && !lawatanSyor) {
+                bakiHari = 0;
+                hariLewat = countWorkingDays(dd, today);
+              }
             }
-          }
-        } catch (ex) {}
+          } catch (ex) {}
+        }
+        result.push({
+          row: i + 1,
+          syarikat: r[0] || '',
+          cidb: r[1] || '',
+          gred: r[2] || '',
+          jenis: r[3] || '',
+          pengesyor: r[12] || '',
+          date_submit: r[9] || '',
+          deadline: deadline,
+          baki_hari: bakiHari,
+          hari_lewat: hariLewat,
+          progress_pct: progressPct,
+          status_hantar_spi: statusSpi,
+          tarikh_hantar_spi: r[16] || '',
+          lawatan_syor: lawatanSyor,
+          event_id: eventId
+        });
       }
-      result.push({
-        row: i + 1,
-        syarikat: r[0] || '',
-        cidb: r[1] || '',
-        gred: r[2] || '',
-        jenis: r[3] || '',
-        pengesyor: r[12] || '',
-        date_submit: r[9] || '',
-        deadline: deadline,
-        baki_hari: bakiHari,
-        hari_lewat: hariLewat,
-        progress_pct: progressPct,
-        status_hantar_spi: statusSpi,
-        tarikh_hantar_spi: r[16] || '',
-        lawatan_syor: lawatanSyor,
-        event_id: eventId
-      });
+      cache.put(cacheKey, JSON.stringify(result), 600); // TTL 10 minit
     }
-    return createJSONOutput({ success: true, data: result });
+    
+    // Tapisan pengesyor dilakukan per-permintaan ke atas data cache
+    let data = result;
+    if (isPengesyor) {
+      const nameUpper = pengesyorName.toUpperCase();
+      data = result.filter(x => (x.pengesyor || '').toString().toUpperCase() === nameUpper);
+    }
+    return createJSONOutput({ success: true, data: data });
   } catch (e) {
     return createJSONOutput({ success: false, error: e.toString() });
   }
