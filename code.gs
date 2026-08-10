@@ -4845,8 +4845,8 @@ function getSpiQueueData(email) {
         if (statusSpi === '') continue;
         const lawatanSyor = (r[19] || '').toString().trim();
         const kelulusan = (r[23] || '').toString().trim();
-        // Sembunyikan dari timeline jika lawatan siap DAN sudah ada kelulusan pelulus (mana-mana keputusan)
-        if (lawatanSyor && kelulusan !== '') continue;
+        // Sembunyikan dari timeline jika sudah ada kelulusan pelulus (mana-mana keputusan: LULUS/TOLAK/SIASAT)
+        if (kelulusan !== '') continue;
         const eventId = (() => {
           try {
             const j = JSON.parse(r[28] || '{}');

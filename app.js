@@ -15234,7 +15234,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (loading) loading.style.display = 'none';
       if (timelineView) timelineView.style.display = 'block';
       if (result.success) {
-        spiTimelineCacheData = result.data || [];
+        let rawData = result.data || [];
+        // Tapisan defensif: buang permohonan yang sudah ada kelulusan pelulus (apa-apa keputusan),
+        // supaya paparan kekal betul walaupun backend yang di-deploy masih versi lama
+        const kelulusanMap = {};
+        if (cachedData && cachedData.length) {
+          cachedData.forEach(c => { if (c && c.row) kelulusanMap[c.row] = c.kelulusan || ''; });
+        }
+        spiTimelineCacheData = rawData.filter(r => {
+          const k = (r.kelulusan || kelulusanMap[r.row] || '').toString().trim();
+          return k === '';
+        });
         renderSpiTimeline(spiTimelineCacheData);
         const statsEl = document.getElementById('spiStats');
         if (statsEl) {
