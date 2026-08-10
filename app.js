@@ -12142,30 +12142,32 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const divJustifikasi = document.getElementById('div_pelulus_justifikasi');
     if (divJustifikasi) divJustifikasi.style.display = 'none';
 
-    // Auto-pilih butang PEMUTIHAN jika pengesyor mensyorkan syor lawatan PEMUTIHAN
-    const syorAsal = (item.syor_lawatan || '').toString().toUpperCase();
-    const divSyorAsal = document.getElementById('div_pelulus_syor_asal');
-    const elSyorAsal = document.getElementById('pelulus_syor_asal');
-    if (item.syor_lawatan && String(item.syor_lawatan).trim() !== '') {
-      if (divSyorAsal) divSyorAsal.style.display = 'block';
-      if (elSyorAsal) elSyorAsal.textContent = String(item.syor_lawatan);
+    // Auto-pilih butang TIDAK/PEMUTIHAN berdasarkan syor lawatan pengesyor.
+    // Kosong: papar butang untuk pelulus pilih sendiri.
+    // YA/lain: sembunyikan seluruh bahagian ubah syor lawatan.
+    const syorAsal = (item.syor_lawatan || '').toString().trim().toUpperCase();
+    const divUbahSyor = document.getElementById('div_ubah_syor_lawatan');
+    if (syorAsal === 'TIDAK' || syorAsal === 'PEMUTIHAN') {
+      if (divUbahSyor) divUbahSyor.style.display = 'block';
+      setButtonGroupValue('pelulus_tukar_syor_lawatan', syorAsal);
+      if (syorAsal === 'PEMUTIHAN') {
+        if (elJustifikasiPenuh) elJustifikasiPenuh.value = String(item.justifikasi || '');
+        const hiddenSyor = document.getElementById('pelulus_tukar_syor_lawatan');
+        if (hiddenSyor) hiddenSyor.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        if (elJustifikasiPenuh) elJustifikasiPenuh.value = '';
+        if (divJustifikasi) divJustifikasi.style.display = 'none';
+      }
+    } else if (syorAsal === '') {
+      if (divUbahSyor) divUbahSyor.style.display = 'block';
+      if (elTukarSyor) setButtonGroupValue('pelulus_tukar_syor_lawatan', '');
+      if (elJustifikasiPenuh) elJustifikasiPenuh.value = '';
+      if (divJustifikasi) divJustifikasi.style.display = 'none';
     } else {
-      if (divSyorAsal) divSyorAsal.style.display = 'none';
-      if (elSyorAsal) elSyorAsal.textContent = '';
-    }
-    const divJustifikasiAsal = document.getElementById('div_pelulus_justifikasi_asal');
-    const elJustifikasiAsal = document.getElementById('pelulus_justifikasi_asal');
-    if (item.justifikasi && String(item.justifikasi).trim() !== '') {
-      if (divJustifikasiAsal) divJustifikasiAsal.style.display = 'block';
-      if (elJustifikasiAsal) elJustifikasiAsal.textContent = String(item.justifikasi);
-    } else {
-      if (divJustifikasiAsal) divJustifikasiAsal.style.display = 'none';
-      if (elJustifikasiAsal) elJustifikasiAsal.textContent = '';
-    }
-    if (syorAsal === 'PEMUTIHAN') {
-      setButtonGroupValue('pelulus_tukar_syor_lawatan', 'PEMUTIHAN');
-      const hiddenSyor = document.getElementById('pelulus_tukar_syor_lawatan');
-      if (hiddenSyor) hiddenSyor.dispatchEvent(new Event('change', { bubbles: true }));
+      if (divUbahSyor) divUbahSyor.style.display = 'none';
+      if (elTukarSyor) setButtonGroupValue('pelulus_tukar_syor_lawatan', '');
+      if (elJustifikasiPenuh) elJustifikasiPenuh.value = '';
+      if (divJustifikasi) divJustifikasi.style.display = 'none';
     }
     // ======================================================================================
 
