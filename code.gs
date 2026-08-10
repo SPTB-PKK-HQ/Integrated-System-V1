@@ -4844,6 +4844,9 @@ function getSpiQueueData(email) {
         const statusSpi = (r[15] || '').toString().trim();
         if (statusSpi === '') continue;
         const lawatanSyor = (r[19] || '').toString().trim();
+        const kelulusan = (r[23] || '').toString().trim();
+        // Sembunyikan dari timeline jika lawatan siap DAN sudah ada kelulusan pelulus (mana-mana keputusan)
+        if (lawatanSyor && kelulusan !== '') continue;
         const eventId = (() => {
           try {
             const j = JSON.parse(r[28] || '{}');
@@ -4889,6 +4892,7 @@ function getSpiQueueData(email) {
           status_hantar_spi: statusSpi,
           tarikh_hantar_spi: r[16] || '',
           lawatan_syor: lawatanSyor,
+          kelulusan: kelulusan,
           event_id: eventId
         });
       }

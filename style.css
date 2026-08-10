@@ -2535,6 +2535,20 @@
     padding: 12px 0;
     border-bottom: 1px solid #f1f5f9;
 }
+.spi-tl-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    border-radius: 50%;
+    background: #eef2ff;
+    color: #1e40af;
+    font-weight: 800;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
 .spi-timeline-item:last-child { border-bottom: none; }
 .spi-tl-left {
     width: 50%;

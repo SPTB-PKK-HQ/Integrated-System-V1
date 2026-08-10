@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwixJ9Ib-9IPq1xfXPjpnl9w6rJ96BZk1Hg1FoUxUoD9LMm-SPDthlmSJRnNh3FvJJe/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUzK8dkL8TIT8feTU1fRaleiDGWZWUo_3J8W-mNNEqX-YTokeX54fmbvPTr7eUt7w/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -15234,12 +15234,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (loading) loading.style.display = 'none';
       if (timelineView) timelineView.style.display = 'block';
       if (result.success) {
-        const data = result.data || [];
-        renderSpiTimeline(data);
+        spiTimelineCacheData = result.data || [];
+        renderSpiTimeline(spiTimelineCacheData);
         const statsEl = document.getElementById('spiStats');
         if (statsEl) {
-          const total = data.length;
-          const pending = data.filter(r => !r.lawatan_syor).length;
+          const total = spiTimelineCacheData.length;
+          const pending = spiTimelineCacheData.filter(r => !r.lawatan_syor).length;
           statsEl.textContent = `| ${total} permohonan, ${pending} menunggu PKA`;
         }
       }
@@ -15250,9 +15250,42 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   }
 
+  let spiTimelineCacheData = [];
+
+  function applySpiSearchFilter() {
+    const searchInput = document.getElementById('spiSearchInput');
+    const term = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    if (!term) {
+      renderSpiTimeline(spiTimelineCacheData);
+      return;
+    }
+    const filtered = spiTimelineCacheData.filter(r =>
+      (r.syarikat || '').toLowerCase().includes(term) ||
+      (r.cidb || '').toLowerCase().includes(term)
+    );
+    renderSpiTimeline(filtered);
+  }
+
+  function initSpiSearch() {
+    const btn = document.getElementById('btnSpiSearch');
+    if (btn && !btn._spiSearchInit) {
+      btn._spiSearchInit = true;
+      btn.addEventListener('click', applySpiSearchFilter);
+    }
+    const input = document.getElementById('spiSearchInput');
+    if (input && !input._spiSearchInit) {
+      input._spiSearchInit = true;
+      input.addEventListener('input', applySpiSearchFilter);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applySpiSearchFilter();
+      });
+    }
+  }
+
   function renderSpiTimeline(data, elementId) {
     const timeline = document.getElementById(elementId || 'spiTimelineBody');
     if (!timeline) return;
+    initSpiSearch();
     const allItems = data.filter(r => r.date_submit);
     if (!allItems.length) {
       timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan SPI</div>`;
@@ -15263,7 +15296,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (!a.lawatan_syor && b.lawatan_syor) return -1;
       return (a.date_submit || '').localeCompare(b.date_submit || '');
     });
-    timeline.innerHTML = sorted.map(r => {
+    timeline.innerHTML = sorted.map((r, idx) => {
+      const num = idx + 1;
       const siap = !!r.lawatan_syor;
       const isOverdue = !siap && r.hari_lewat && r.hari_lewat > 0;
       const barCls = siap ? 'spi-tl-bar-siap' : (isOverdue ? 'spi-tl-bar-overdue' : 'spi-tl-bar-pending');
@@ -15303,6 +15337,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       const pengerusi = r.pengesyor ? ` · ${r.pengesyor}` : '';
       return `<div class="spi-timeline-item">
+        <span class="spi-tl-num">${num}</span>
         <div class="spi-tl-left">
           <div class="spi-tl-name">${r.syarikat || '-'}</div>
           <div class="spi-tl-meta">${jenisBadge}${pengerusi}</div>
