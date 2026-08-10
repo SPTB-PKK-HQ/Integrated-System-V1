@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_YoMp9nKfnoQ3_UdwzschdH1j7sH-9csctvcOGJcYNffzVTMwf1lS2FulnLApI1HY/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw097fbtXO264RgCRg9VKlUCN-7zN6Edpo11JBXNU3aERdDNifVK4xKw6tRspkByqtI/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -3458,6 +3458,13 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     
     // V6.8.0: Init pengurusan pengguna dan arkib
     initAdminUserManagement();
+    
+    // Seksyen pengurusan sistem hanya untuk ADMIN (disembunyi dari KETUA SEKSYEN/PENGARAH)
+    const isFullAdmin = currentUser && currentUser.role === 'ADMIN';
+    ['adminDeletedRecordsSection', 'adminUsersSection', 'adminArchiveSection', 'adminFirebaseCleanupSection'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = isFullAdmin ? '' : 'none';
+    });
     
     if (!cachedData || cachedData.length === 0) {
       console.warn("V6.5.2 No data for admin dashboard");
@@ -11553,9 +11560,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         btnContainer.appendChild(btnDelete);
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
-        btn.className = 'btn-sm btn-proses';
-        btn.innerText = '⚡ Proses';
-        btn.onclick = function() { loadRecordToPelulus(item); }; 
+        if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+          btn.className = 'btn-sm btn-view-pending';
+          btn.innerText = 'Lihat';
+          btn.onclick = function() { viewRecordOnly(item); };
+        } else {
+          btn.className = 'btn-sm btn-proses';
+          btn.innerText = '⚡ Proses';
+          btn.onclick = function() { loadRecordToPelulus(item); };
+        }
         btnContainer.appendChild(btn);
         
         if (item.pautan) {
@@ -16239,7 +16252,8 @@ function renderInbox() {
             if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
               return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
             }
-            return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">⚙️ Proses</button>`;
+            const btnLabel = (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') ? '👁 Lihat' : '⚙️ Proses';
+            return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">${btnLabel}</button>`;
           })()}
           ${hasWALink ? `<button class="inbox-btn inbox-btn-wa-pilih" data-idx="${index}">💬 Hantar WA</button>` : ''}
           <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
