@@ -9265,6 +9265,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function saveFormState(tabName) {
     if (isRestoring) return;
 
+    // KOD BARU: Jangan simpan state tab Keputusan Pelulus (elak data silang syarikat)
+    if (tabName === 'pelulus-action') return;
+
     const tabContent = document.getElementById(`tab-${tabName}`);
     if (!tabContent) return;
 
@@ -9285,6 +9288,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   function restoreFormState(tabName) {
     isRestoring = true;
+
+    // KOD BARU: Jangan restore tab Keputusan Pelulus (elak data silang syarikat)
+    if (tabName === 'pelulus-action') {
+      isRestoring = false;
+      return;
+    }
 
     if (formStates[tabName]) {
       const state = formStates[tabName];
@@ -10300,10 +10309,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function savePelulusState() {
     if (isRestoring) return;
     const state = {
-      activeItem: pelulusActiveItem,
-      keputusan: document.getElementById('pelulus_keputusan')?.value || '',
-      alasan: document.getElementById('pelulus_alasan')?.value || '',
-      catatan: document.getElementById('pelulus_catatan')?.value || ''
+      activeItem: pelulusActiveItem
     };
     storageWrapper.set({ 'stb_pelulus_state': state });
   }
@@ -10313,19 +10319,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const state = stored.stb_pelulus_state;
     if(state && state.activeItem) {
       pelulusActiveItem = state.activeItem; 
-      const elKeputusan = document.getElementById('pelulus_keputusan');
-      if(elKeputusan) {
-        elKeputusan.value = state.keputusan || '';
-        
-        const alasanEl = document.getElementById('pelulus_alasan');
-        if (alasanEl) alasanEl.value = state.alasan || '';
-        
-        const catatanEl = document.getElementById('pelulus_catatan');
-        if (catatanEl) catatanEl.value = state.catatan || '';
-        
-        const evt = new Event('change');
-        elKeputusan.dispatchEvent(evt);
-      }
     }
     updateValidationCheckboxDisplay();
   }
@@ -12177,6 +12170,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     // ======================================================================================
 
     savePelulusState(); // Simpan keadaan kosong ini ke memori sistem
+    // KOD BARU: Buang state tab Keputusan yang lama (elak restore data syarikat lain)
+    delete formStates['pelulus-action'];
+    storageWrapper.set({ 'stb_form_states': formStates });
     renderPelulusView(false); 
     switchTab('pelulus-view');
   }
@@ -12184,6 +12180,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   function viewRecordOnly(item) {
     pelulusActiveItem = item;
     savePelulusState();
+    // KOD BARU: Buang state tab Keputusan yang lama (elak restore data syarikat lain)
+    delete formStates['pelulus-action'];
+    storageWrapper.set({ 'stb_form_states': formStates });
     
     renderPelulusView(true); 
     switchTab('pelulus-view');
