@@ -6268,6 +6268,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         createdFolderUrl = storage.stb_drive_folder_url;
         createdFolderId = extractFolderIdFromUrl(storage.stb_drive_folder_url) || '';
         driveFolderCreated = true;
+        syncUrusFailBorang();
       }
       
       if (storage.stb_user_folder_url) {
@@ -7434,6 +7435,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             
             await storageWrapper.set({ 'stb_drive_folder_url': folderUrl, 'stb_user_folder_url': userFolderUrl });
             updateOpenDriveButton();
+            syncUrusFailBorang();
             
             setTimeout(async () => {
               if (loadingOverlay) loadingOverlay.style.display = 'none';
@@ -7570,6 +7572,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const s_ic = card.querySelector('.status-ic')?.value.toUpperCase() || '';
       const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
+      let roleBadge = '';
+      if (!isCompany && (roles.includes('MAKER') || roles.includes('CHECKER'))) {
+        const rb = roles.includes('MAKER') && roles.includes('CHECKER') ? 'MAKER + CHECKER' : (roles.includes('MAKER') ? 'MAKER' : 'CHECKER');
+        roleBadge = ` <span style="background:#ffe600; font-weight:bold; padding:0 4px; border-radius:3px;">(${rb})</span>`;
+      }
     
     const tick = (role) => roles.includes(role) ? '✓' : '';
     
@@ -7590,7 +7597,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         </tr>`;
     } else {
         rowsHtml += `<tr>
-          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${roleBadge}</div></td>
           <td class="col-tick">${tick('PENGARAH')}</td>
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
@@ -9174,6 +9181,28 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     dbPautanDriveInput.addEventListener('change', toggleUrusFailButton);
   }
   toggleUrusFailButton();
+
+  function syncUrusFailBorang() {
+    const btn = document.getElementById('btnUrusFailBorang');
+    if (!btn) return;
+    const pautanVal = (document.getElementById('db_pautan_drive') || {}).value || '';
+    const hasFolder = driveFolderCreated === true || (pautanVal && pautanVal.trim() !== '');
+    btn.style.display = hasFolder ? 'inline-block' : 'none';
+  }
+  const btnUrusFailBorang = document.getElementById('btnUrusFailBorang');
+  if (btnUrusFailBorang) {
+    btnUrusFailBorang.addEventListener('click', () => {
+      const pautanVal = (document.getElementById('db_pautan_drive') || {}).value || '';
+      const folderUrl = (pautanVal && pautanVal.trim() !== '') ? pautanVal.trim() : (createdFolderUrl || '');
+      openFileManager(folderUrl);
+    });
+    const dbPautanDriveInputUrus = document.getElementById('db_pautan_drive');
+    if (dbPautanDriveInputUrus) {
+      dbPautanDriveInputUrus.addEventListener('input', syncUrusFailBorang);
+      dbPautanDriveInputUrus.addEventListener('change', syncUrusFailBorang);
+    }
+    syncUrusFailBorang();
+  }
 
   // V6.6.0: cb_notify_whatsapp tidak digunakan lagi - diganti dengan modal WhatsApp
 
@@ -11827,6 +11856,7 @@ if(data.personnel && data.personnel.length > 0) {
     document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    syncUrusFailBorang();
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -13205,12 +13235,14 @@ if(data.personnel && data.personnel.length > 0) {
       <input type="text" class="p-name" placeholder="NAMA PENUH">
       <div style="margin-top:5px;">
         <label>Jawatan:</label>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <label><input type="checkbox" value="PENGARAH" class="role-cb"> PENGARAH</label>
         <label><input type="checkbox" value="P.EKUITI" class="role-cb"> P.EKUITI</label>
         <label><input type="checkbox" value="P.SPKK" class="role-cb"> P.SPKK</label>
         <label><input type="checkbox" value="T.T CEK" class="role-cb"> T.T CEK</label>
         <label><input type="checkbox" value="K.KEW" class="role-cb"> K.KEW</label>
+        <label><input type="checkbox" value="MAKER" class="role-cb"> MAKER</label>
+        <label><input type="checkbox" value="CHECKER" class="role-cb"> CHECKER</label>
         </div>
       </div>
       <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
@@ -13467,6 +13499,28 @@ if(data.personnel && data.personnel.length > 0) {
     initBankCardEvents(div);
 
     if (data) applyBankCard(div, data);
+    styleBankCards();
+  }
+
+  function styleBankCards() {
+    if (!bankListEl) return;
+    const palette = [
+      ['#eff6ff', '#3b82f6'],
+      ['#faf5ff', '#a855f7'],
+      ['#f0fdf4', '#22c55e'],
+      ['#fffbeb', '#f59e0b'],
+      ['#fdf2f8', '#ec4899'],
+      ['#ecfeff', '#06b6d4']
+    ];
+    bankListEl.querySelectorAll('.bank-card').forEach((card, i) => {
+      const c = palette[i % palette.length];
+      card.style.background = c[0];
+      card.style.border = '1px solid ' + c[1];
+      card.style.borderLeft = '6px solid ' + c[1];
+      card.style.borderRadius = '12px';
+      card.style.padding = '12px';
+      card.style.marginBottom = '12px';
+    });
   }
 
   function esc(s) {
@@ -13539,6 +13593,17 @@ if(data.personnel && data.personnel.length > 0) {
       nameInput.addEventListener('input', () => {
         renderBankDropdown(nameInput, nameInput.value.trim());
         setBankNameInput(card, nameInput.value);
+      });
+      nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && dropdown && dropdown.style.display !== 'none') {
+          const firstOpt = dropdown.querySelector('.bank-option');
+          if (firstOpt) {
+            e.preventDefault();
+            setBankNameInput(card, firstOpt.dataset.name);
+            dropdown.style.display = 'none';
+            saveFormData();
+          }
+        }
       });
       document.addEventListener('click', (e) => {
         if (dropdown && !card.contains(e.target) && !dropdown.contains(e.target)) {
@@ -13702,8 +13767,10 @@ if(data.personnel && data.personnel.length > 0) {
       const account = esc(b.account || '—');
       const dateStr = b.bank_date ? esc(formatDateDisplay(b.bank_date)) : '—';
       const cekCell = modeCek ? `${esc(b.sign_syarat || '—')} (${esc(b.sign_status || '—')})` : '—';
-      const onlineCell = modeOnline ? `${esc(b.online_maker || '—')} / ${esc(b.online_checker || '—')}` : '—';
-      rowsHtml += `<tr><td>${i + 1}</td><td>${bankName}</td><td>${account}</td><td>${dateStr}</td><td>${cekCell}</td><td>${onlineCell}</td></tr>`;
+      const onlineCell = modeOnline
+        ? `<td style="text-align:center; border-right:1px solid #94a3b8;">${esc(b.online_maker || '—')}</td><td style="text-align:center;">${esc(b.online_checker || '—')}</td>`
+        : `<td colspan="2" style="text-align:center;">—</td>`;
+      rowsHtml += `<tr><td>${i + 1}</td><td>${bankName}</td><td>${account}</td><td>${dateStr}</td><td>${cekCell}</td>${onlineCell}</tr>`;
     });
     tbody.innerHTML = rowsHtml;
   }
@@ -13730,6 +13797,7 @@ if(data.personnel && data.personnel.length > 0) {
     bankListEl.querySelectorAll('.bank-card .bank-title').forEach((t, i) => {
       t.textContent = `🏦 Bank ${i + 1}`;
     });
+    styleBankCards();
   }
 
   if (addBankBtn) {
