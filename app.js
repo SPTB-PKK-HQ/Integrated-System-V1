@@ -12120,8 +12120,19 @@ if(data.personnel && data.personnel.length > 0) {
             }
 
             // 3a. Load Senarai Bank
-            if (parsedData.banks && Array.isArray(parsedData.banks)) {
+            if (parsedData.banks && Array.isArray(parsedData.banks) && parsedData.banks.length > 0) {
                 restoreBankCards(parsedData.banks);
+            } else if (parsedData.bank_date_input || parsedData.bank_sign_input || parsedData.bank_status_input) {
+                restoreBankCards([{
+                    bank: '',
+                    account: '',
+                    bank_date: parsedData.bank_date_input || '',
+                    mode: ['CEK'],
+                    sign_syarat: parsedData.bank_sign_input || '',
+                    sign_status: parsedData.bank_status_input || '',
+                    online_maker: '',
+                    online_checker: ''
+                }]);
             } else {
                 restoreBankCards([]);
             }
