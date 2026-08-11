@@ -7572,6 +7572,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     cards.forEach(card => {
       const name = card.querySelector('.p-name')?.value.toUpperCase() || '';
+      if (!name.trim()) return;
       const roles = [];
       card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
       const isCompany = card.querySelector('.is-company')?.checked || false;
@@ -7608,10 +7609,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         </tr>`;
     }
     });
-
-    for(let i = cards.length; i < 6; i++) {
-      rowsHtml += `<tr><td style="height:35px;"></td><td class="col-tick"></td><td class="col-tick"></td><td class="col-tick"></td><td class="col-tick"></td><td class="col-tick"></td><td class="col-tick"></td><td class="col-tick"></td></tr>`;
-    }
 
     tbody.innerHTML = rowsHtml;
 
