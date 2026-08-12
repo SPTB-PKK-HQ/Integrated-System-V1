@@ -11728,6 +11728,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const historySupported = historySupportedForList(listType);
     const historyToolbar = document.getElementById('historyToolbar');
     if (historyToolbar) historyToolbar.style.display = historySupported ? 'flex' : 'none';
+    // V6.10.2: Penunjuk window juga hanya perlu di tab sejarah (data window bermakna)
+    const windowInd = document.getElementById('windowIndicator');
+    if (windowInd) windowInd.style.display = historySupported ? 'block' : 'none';
     if (dataMode === 'history' && !historySupported) {
       dataMode = 'current';
       historyRange = { from: '', to: '' };
