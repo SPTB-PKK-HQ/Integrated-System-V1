@@ -1526,6 +1526,7 @@ async function handleCredentialResponse(response) {
     });
     
     fields.personnel = personnel;
+    fields.banks = collectBanks();
     formData.fields = fields;
     
     try {
@@ -1621,6 +1622,9 @@ async function handleCredentialResponse(response) {
             fields.personnel.forEach(person => {
               addPerson(person);
             });
+          }
+          if (fields.banks && Array.isArray(fields.banks)) {
+            restoreBankCards(fields.banks);
           }
           
           setTimeout(() => {
@@ -7047,6 +7051,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         createdFolderUrl = storage.stb_drive_folder_url;
         createdFolderId = extractFolderIdFromUrl(storage.stb_drive_folder_url) || '';
         driveFolderCreated = true;
+        syncUrusFailBorang();
       }
       
       if (storage.stb_user_folder_url) {
@@ -8218,6 +8223,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             
             await storageWrapper.set({ 'stb_drive_folder_url': folderUrl, 'stb_user_folder_url': userFolderUrl });
             updateOpenDriveButton();
+            syncUrusFailBorang();
             
             setTimeout(async () => {
               if (loadingOverlay) loadingOverlay.style.display = 'none';
@@ -8296,13 +8302,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     setTxt('print_no_telefon', val('borang_no_telefon'));
     
     setTxt('print_ssm_date', formatDateDisplay(val('ssm_date_input')));
-    setTxt('print_bank_date', formatDateDisplay(val('bank_date_input')));
     setTxt('print_ssm_status_display', val('ssm_status'));
-
-    const bankSign = val('bank_sign_input');
-    const bankStatus = val('bank_status_input');
-    const bankDisplay = bankStatus ? `${bankSign} (${bankStatus})` : bankSign;
-    setTxt('print_bank_sign', bankDisplay);
+    renderBankRows();
 
     setTxt('print_doc_carta', val('doc_carta_status'));
     setTxt('print_doc_peta', val('doc_peta_status'));
@@ -8360,6 +8361,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const s_ic = card.querySelector('.status-ic')?.value.toUpperCase() || '';
       const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
+      let roleBadge = '';
+      if (!isCompany && (roles.includes('MAKER') || roles.includes('CHECKER'))) {
+        const rb = roles.includes('MAKER') && roles.includes('CHECKER') ? 'MAKER + CHECKER' : (roles.includes('MAKER') ? 'MAKER' : 'CHECKER');
+        roleBadge = ` <span style="background:#ffe600; font-weight:bold; padding:0 4px; border-radius:3px;">(${rb})</span>`;
+      }
     
     const tick = (role) => roles.includes(role) ? '✓' : '';
     
@@ -8375,22 +8381,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
           <td class="col-tick">${tick('P.SPKK')}</td>
+          <td class="col-tick">${tick('K.KEW')}</td>
           <td colspan="3" style="text-align:center; font-size:9pt; font-weight:bold;">${combinedText}</td>
         </tr>`;
     } else {
         rowsHtml += `<tr>
-          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${roleBadge}</div></td>
           <td class="col-tick">${tick('PENGARAH')}</td>
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
           <td class="col-tick">${tick('P.SPKK')}</td>
+          <td class="col-tick">${tick('K.KEW')}</td>
           <td class="col-tick">${s_ic}</td>
           <td class="col-tick">${s_sb}</td>
           <td class="col-tick">${s_epf}</td>
         </tr>`;
     }
     });
-
     tbody.innerHTML = rowsHtml;
 
     // =========================================================================
@@ -9959,6 +9966,28 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
   toggleUrusFailButton();
 
+  function syncUrusFailBorang() {
+    const btn = document.getElementById('btnUrusFailBorang');
+    if (!btn) return;
+    const pautanVal = (document.getElementById('db_pautan_drive') || {}).value || '';
+    const hasFolder = driveFolderCreated === true || (pautanVal && pautanVal.trim() !== '');
+    btn.style.display = hasFolder ? 'inline-block' : 'none';
+  }
+  const btnUrusFailBorang = document.getElementById('btnUrusFailBorang');
+  if (btnUrusFailBorang) {
+    btnUrusFailBorang.addEventListener('click', () => {
+      const pautanVal = (document.getElementById('db_pautan_drive') || {}).value || '';
+      const folderUrl = (pautanVal && pautanVal.trim() !== '') ? pautanVal.trim() : (createdFolderUrl || '');
+      openFileManager(folderUrl);
+    });
+    const dbPautanDriveInputUrus = document.getElementById('db_pautan_drive');
+    if (dbPautanDriveInputUrus) {
+      dbPautanDriveInputUrus.addEventListener('input', syncUrusFailBorang);
+      dbPautanDriveInputUrus.addEventListener('change', syncUrusFailBorang);
+    }
+    syncUrusFailBorang();
+  }
+
   // V6.6.0: cb_notify_whatsapp tidak digunakan lagi - diganti dengan modal WhatsApp
 
   // === KOD BARU: Event Listener untuk Dropdown Syor (Input Database) ===
@@ -11175,6 +11204,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
     });
     formData.personnel = personnel;
+    formData.banks = collectBanks();
     storageWrapper.set({ 'stb_form_data': formData });
   }
 
@@ -11204,13 +11234,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
       }
 
-      if(data.personnel && data.personnel.length > 0) {
+if(data.personnel && data.personnel.length > 0) {
         data.personnel.forEach(p => addPerson(p));
       } else {
         addPerson();
       }
+      if (data.banks && Array.isArray(data.banks)) {
+        restoreBankCards(data.banks);
+      } else {
+        clearBankCards();
+        addBankCard();
+      }
     } else {
-      addPerson(); 
+      addPerson();
+      clearBankCards();
+      addBankCard();
     }
 
     const syorVal = document.getElementById('db_syor')?.value;
@@ -11453,6 +11491,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const personnelListEl = document.getElementById('personnelList');
     if (personnelListEl) personnelListEl.innerHTML = '';
+    clearBankCards();
 
     if (driveResult) driveResult.innerHTML = '';
     if (driveStatus) {
@@ -11551,6 +11590,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const personnelListEl = document.getElementById('personnelList');
     if (personnelListEl) personnelListEl.innerHTML = '';
+    clearBankCards();
+    addBankCard();
 
     addPerson();
 
@@ -12809,6 +12850,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    syncUrusFailBorang();
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -13069,6 +13111,24 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                 });
             } else {
                 addPerson(); // Tambah satu yang kosong jika tiada data
+            }
+
+            // 3a. Load Senarai Bank
+            if (parsedData.banks && Array.isArray(parsedData.banks) && parsedData.banks.length > 0) {
+                restoreBankCards(parsedData.banks);
+            } else if (parsedData.bank_date_input || parsedData.bank_sign_input || parsedData.bank_status_input) {
+                restoreBankCards([{
+                    bank: '',
+                    account: '',
+                    bank_date: parsedData.bank_date_input || '',
+                    mode: ['CEK'],
+                    sign_syarat: parsedData.bank_sign_input || '',
+                    sign_status: parsedData.bank_status_input || '',
+                    online_maker: '',
+                    online_checker: ''
+                }]);
+            } else {
+                restoreBankCards([]);
             }
 
             // 4. SELAMATKAN KE DALAM MEMORI (HINDARI OVERWRITE OLEH switchTab)
@@ -13694,6 +13754,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         });
       });
       borangJsonData['personnel'] = personnelListObj;
+
+      // Ambil maklumat bank dinamik (Surat Pengesahan Bank)
+      borangJsonData['banks'] = collectBanks();
       
       // V6.8.0: Snapshot sign/cop pengguna semasa ke dalam borang_json
       if (currentUser) {
@@ -13958,6 +14021,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     const personnelListEl = document.getElementById('personnelList');
     if (personnelListEl) personnelListEl.innerHTML = '';
+    clearBankCards();
+    addBankCard();
 
     addPerson();
 
@@ -14183,11 +14248,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       <input type="text" class="p-name" placeholder="NAMA PENUH">
       <div style="margin-top:5px;">
         <label>Jawatan:</label>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <label><input type="checkbox" value="PENGARAH" class="role-cb"> PENGARAH</label>
         <label><input type="checkbox" value="P.EKUITI" class="role-cb"> P.EKUITI</label>
         <label><input type="checkbox" value="P.SPKK" class="role-cb"> P.SPKK</label>
         <label><input type="checkbox" value="T.T CEK" class="role-cb"> T.T CEK</label>
+        <label><input type="checkbox" value="K.KEW" class="role-cb"> K.KEW</label>
+        <label><input type="checkbox" value="MAKER" class="role-cb"> MAKER</label>
+        <label><input type="checkbox" value="CHECKER" class="role-cb"> CHECKER</label>
         </div>
       </div>
       <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
@@ -14383,6 +14451,372 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   if(addPersonBtn) {
     addPersonBtn.addEventListener('click', () => { 
       addPerson(); 
+      saveFormData();
+    });
+  }
+
+  // =========================================================================
+  // SURAT PENGESAHAN BANK (BERBILANG BANK) — KOD BARU
+  // =========================================================================
+  const bankListEl = document.getElementById('bankList');
+  const addBankBtn = document.getElementById('addBankBtn');
+
+  function bankLogoItem(bankItem) {
+    return `<img src="${bankItem.logo || BANK_GENERIC_LOGO}" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0;" onerror="this.onerror=null; this.src=BANK_GENERIC_LOGO;">`;
+  }
+
+  function addBankCard(data) {
+    if (!bankListEl) return;
+    const div = document.createElement('div');
+    div.className = 'bank-card';
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <label class="bank-title" style="font-weight:bold; color:#0369a1;">🏦 Bank ${(bankListEl.querySelectorAll('.bank-card').length + 1)}</label>
+        <button type="button" class="bank-delete-btn" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:bold; cursor:pointer;">✕ Buang</button>
+      </div>
+      <div class="grid-3">
+        <div>
+          <label>Nama Bank</label>
+          <div style="display:flex; align-items:center; gap:6px; position:relative;">
+            <img class="bank-selected-logo" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0; display:none;">
+            <input type="text" class="bank-name" placeholder="Pilih / taip nama bank..." autocomplete="off" style="padding-right:26px; flex:1; min-width:0;">
+            <div class="bank-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:50; max-height:220px; overflow-y:auto; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,0.15); margin-top:2px;"></div>
+          </div>
+        </div>
+        <div><label>No. Akaun</label><input type="text" class="bank-account" placeholder="No. akaun bank"></div>
+        <div><label>Tarikh Surat Pengesahan Bank</label><input type="date" class="bank-date"></div>
+      </div>
+      <div style="margin-top:8px;">
+        <label>Jenis Semakan:</label>
+        <div style="display:flex; gap:8px; margin-top:4px;">
+          <button type="button" class="bank-mode-btn" data-mode="CEK" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#0369a1;">✍️ SIGN CEK</button>
+          <button type="button" class="bank-mode-btn" data-mode="ONLINE" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#7c3aed;">💻 ONLINE BANKING</button>
+        </div>
+      </div>
+      <div class="bank-fields-cek" style="display:none; margin-top:8px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px;">
+        <label style="font-weight:bold; color:#0369a1;">SIGN CEK</label>
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <div style="flex:1;"><label>Semakan Syarat Penandatangan</label><input type="text" class="bank-sign-syarat" placeholder="Nyatakan syarat..."></div>
+          <div style="flex:1;"><label>Status Semakan</label><div class="status-input-container"><input type="text" class="bank-sign-status status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+        </div>
+      </div>
+      <div class="bank-fields-online" style="display:none; margin-top:8px; background:#fdf4ff; border:1px solid #e9d5ff; border-radius:8px; padding:10px;">
+        <label style="font-weight:bold; color:#7c3aed;">ONLINE BANKING</label>
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <div style="flex:1;"><label>Semakan Maker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-maker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+          <div style="flex:1;"><label>Semakan Checker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-checker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+        </div>
+      </div>
+    `;
+    bankListEl.appendChild(div);
+    initBankCardEvents(div);
+
+    if (data) applyBankCard(div, data);
+    styleBankCards();
+  }
+
+  function styleBankCards() {
+    if (!bankListEl) return;
+    const palette = [
+      ['#eff6ff', '#3b82f6'],
+      ['#faf5ff', '#a855f7'],
+      ['#f0fdf4', '#22c55e'],
+      ['#fffbeb', '#f59e0b'],
+      ['#fdf2f8', '#ec4899'],
+      ['#ecfeff', '#06b6d4']
+    ];
+    bankListEl.querySelectorAll('.bank-card').forEach((card, i) => {
+      const c = palette[i % palette.length];
+      card.style.background = c[0];
+      card.style.border = '1px solid ' + c[1];
+      card.style.borderLeft = '6px solid ' + c[1];
+      card.style.borderRadius = '12px';
+      card.style.padding = '12px';
+      card.style.marginBottom = '12px';
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+    });
+  }
+
+  function initBankCardEvents(card) {
+    const modeBtns = card.querySelectorAll('.bank-mode-btn');
+    const fieldsCek = card.querySelector('.bank-fields-cek');
+    const fieldsOnline = card.querySelector('.bank-fields-online');
+
+    function updateModeViews() {
+      const hasCek = modeBtns[0].classList.contains('active');
+      const hasOnline = modeBtns[1].classList.contains('active');
+      if (fieldsCek) fieldsCek.style.display = hasCek ? 'block' : 'none';
+      if (fieldsOnline) fieldsOnline.style.display = hasOnline ? 'block' : 'none';
+    }
+
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('active')) {
+          btn.classList.remove('active');
+          btn.style.background = '#fff';
+          btn.style.borderColor = '#d1d5db';
+        } else {
+          btn.classList.add('active');
+          btn.style.background = btn.dataset.mode === 'CEK' ? '#dbeafe' : '#f3e8ff';
+          btn.style.borderColor = btn.dataset.mode === 'CEK' ? '#2563eb' : '#7c3aed';
+        }
+        updateModeViews();
+        saveFormData();
+      });
+    });
+
+    card.querySelectorAll('input, .bank-mode-btn').forEach(el => {
+      el.addEventListener('input', saveFormData);
+      el.addEventListener('change', saveFormData);
+    });
+
+    // Butang tick (✓ / ✗) dalam kad bank
+    card.querySelectorAll('.tick-btn').forEach(tick => {
+      tick.addEventListener('click', () => {
+        const parentInput = tick.closest('.status-input-container').querySelector('.status-input');
+        if (!parentInput) return;
+        const isRight = tick.classList.contains('tick-right');
+        parentInput.value = isRight ? '✓' : 'X';
+        parentInput.style.backgroundColor = isRight ? '#dcfce7' : '#fee2e2';
+        parentInput.style.color = isRight ? '#166534' : '#991b1b';
+        parentInput.dispatchEvent(new Event('input'));
+        saveFormData();
+      });
+    });
+
+    card.querySelectorAll('.status-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase();
+        saveFormData();
+      });
+    });
+
+    // Combobox nama bank (dropdown + taip filter + logo)
+    const nameInput = card.querySelector('.bank-name');
+    const dropdown = card.querySelector('.bank-dropdown');
+    if (nameInput) {
+      nameInput.addEventListener('focus', () => {
+        renderBankDropdown(nameInput, '');
+      });
+      nameInput.addEventListener('input', () => {
+        renderBankDropdown(nameInput, nameInput.value.trim());
+        setBankNameInput(card, nameInput.value);
+      });
+      nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && dropdown && dropdown.style.display !== 'none') {
+          const firstOpt = dropdown.querySelector('.bank-option');
+          if (firstOpt) {
+            e.preventDefault();
+            setBankNameInput(card, firstOpt.dataset.name);
+            dropdown.style.display = 'none';
+            saveFormData();
+          }
+        }
+      });
+      document.addEventListener('click', (e) => {
+        if (dropdown && !card.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.style.display = 'none';
+        }
+      });
+    }
+
+    // Butang buang
+    const delBtn = card.querySelector('.bank-delete-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', () => {
+        card.remove();
+        syncBankTitles();
+        saveFormData();
+      });
+    }
+
+    updateModeViews();
+  }
+
+  function renderBankDropdown(input, query) {
+    const card = input.closest('.bank-card');
+    const dropdown = card.querySelector('.bank-dropdown');
+    if (!dropdown || typeof BANK_LIST === 'undefined') return;
+    const q = query.toUpperCase();
+    const filtered = BANK_LIST.filter(b => b.name.toUpperCase().includes(q));
+    if (filtered.length === 0) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    dropdown.innerHTML = filtered.map(b => `
+      <div class="bank-option" data-name="${esc(b.name)}" style="display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border-bottom:1px solid #f1f5f9;">
+        ${bankLogoItem(b)}
+        <span style="font-size:0.85rem; font-weight:600;">${esc(b.name)}</span>
+      </div>
+    `).join('');
+    dropdown.style.display = 'block';
+    dropdown.querySelectorAll('.bank-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        setBankNameInput(card, opt.dataset.name);
+        dropdown.style.display = 'none';
+        saveFormData();
+      });
+      opt.addEventListener('mouseover', () => { opt.style.background = '#eff6ff'; });
+      opt.addEventListener('mouseout', () => { opt.style.background = '#fff'; });
+    });
+  }
+
+  function setBankNameInput(card, bankName) {
+    const nameInput = card.querySelector('.bank-name');
+    const logoEl = card.querySelector('.bank-selected-logo');
+    if (!nameInput) return;
+    nameInput.value = bankName || '';
+    if (logoEl) {
+      const match = bankName && typeof BANK_LIST !== 'undefined' ? BANK_LIST.find(b => b.name === bankName) : null;
+      if (match) {
+        logoEl.src = match.logo || BANK_GENERIC_LOGO;
+        logoEl.style.display = 'inline-block';
+      } else if (bankName && typeof bankLogoDataURI === 'function') {
+        logoEl.src = bankLogoDataURI(bankName);
+        logoEl.style.display = 'inline-block';
+      } else if (bankName) {
+        logoEl.src = BANK_GENERIC_LOGO;
+        logoEl.style.display = 'inline-block';
+      } else {
+        logoEl.src = '';
+        logoEl.style.display = 'none';
+      }
+    }
+  }
+
+  function applyBankCard(card, data) {
+    const nameInput = card.querySelector('.bank-name');
+    const account = card.querySelector('.bank-account');
+    const bdate = card.querySelector('.bank-date');
+    if (nameInput) nameInput.value = data.bank || '';
+    setBankNameInput(card, data.bank || '');
+    if (account) account.value = data.account || '';
+    if (bdate) bdate.value = data.bank_date || '';
+
+    const modeBtns = card.querySelectorAll('.bank-mode-btn');
+    const arr = data.mode || (data.bank_jenis ? String(data.bank_jenis).split('+') : null) || [];
+    arr.forEach(m => {
+      const target = Array.prototype.find.call(modeBtns, b => b.dataset.mode === m);
+      if (target) {
+        target.classList.add('active');
+        target.style.background = target.dataset.mode === 'CEK' ? '#dbeafe' : '#f3e8ff';
+        target.style.borderColor = target.dataset.mode === 'CEK' ? '#2563eb' : '#7c3aed';
+      }
+    });
+
+    const syarat = card.querySelector('.bank-sign-syarat');
+    const signStatus = card.querySelector('.bank-sign-status');
+    if (syarat) syarat.value = data.sign_syarat || '';
+    if (signStatus) {
+      signStatus.value = data.sign_status || '';
+      if (data.sign_status === '✓') { signStatus.style.backgroundColor = '#dcfce7'; signStatus.style.color = '#166534'; }
+      else if (data.sign_status === 'X') { signStatus.style.backgroundColor = '#fee2e2'; signStatus.style.color = '#991b1b'; }
+    }
+
+    const maker = card.querySelector('.bank-online-maker');
+    const checker = card.querySelector('.bank-online-checker');
+    if (maker) {
+      maker.value = data.online_maker || '';
+      if (data.online_maker === '✓') { maker.style.backgroundColor = '#dcfce7'; maker.style.color = '#166534'; }
+      else if (data.online_maker === 'X') { maker.style.backgroundColor = '#fee2e2'; maker.style.color = '#991b1b'; }
+    }
+    if (checker) {
+      checker.value = data.online_checker || '';
+      if (data.online_checker === '✓') { checker.style.backgroundColor = '#dcfce7'; checker.style.color = '#166534'; }
+      else if (data.online_checker === 'X') { checker.style.backgroundColor = '#fee2e2'; checker.style.color = '#991b1b'; }
+    }
+
+    // Kemas kini paparan medan ikut mode
+    const fieldsCek = card.querySelector('.bank-fields-cek');
+    const fieldsOnline = card.querySelector('.bank-fields-online');
+    const hasCek = modeBtns[0].classList.contains('active');
+    const hasOnline = modeBtns[1].classList.contains('active');
+    if (fieldsCek) fieldsCek.style.display = hasCek ? 'block' : 'none';
+    if (fieldsOnline) fieldsOnline.style.display = hasOnline ? 'block' : 'none';
+  }
+
+  function collectBanks() {
+    const banks = [];
+    if (!bankListEl) return banks;
+    bankListEl.querySelectorAll('.bank-card').forEach(card => {
+      const mode = [];
+      card.querySelectorAll('.bank-mode-btn.active').forEach(b => mode.push(b.dataset.mode));
+      banks.push({
+        bank: card.querySelector('.bank-name')?.value || '',
+        account: card.querySelector('.bank-account')?.value || '',
+        bank_date: card.querySelector('.bank-date')?.value || '',
+        mode: mode,
+        sign_syarat: card.querySelector('.bank-sign-syarat')?.value || '',
+        sign_status: card.querySelector('.bank-sign-status')?.value || '',
+        online_maker: card.querySelector('.bank-online-maker')?.value || '',
+        online_checker: card.querySelector('.bank-online-checker')?.value || ''
+      });
+    });
+    return banks;
+  }
+
+  function backupBankCards() {
+    return collectBanks();
+  }
+
+  function renderBankRows() {
+    const tbody = document.getElementById('print_bank_rows');
+    if (!tbody) return;
+    let banks = collectBanks();
+    const legacy = window.__legacyBankData;
+    if (banks.length === 0 && legacy) {
+      banks = [legacy];
+    }
+    let rowsHtml = '';
+    banks.forEach((b, i) => {
+      const modeCek = Array.isArray(b.mode) ? b.mode.indexOf('CEK') !== -1 : String(b.mode || '').indexOf('CEK') !== -1;
+      const modeOnline = Array.isArray(b.mode) ? b.mode.indexOf('ONLINE') !== -1 : String(b.mode || '').indexOf('ONLINE') !== -1;
+      const bankName = esc(b.bank || '—');
+      const account = esc(b.account || '—');
+      const dateStr = b.bank_date ? esc(formatDateDisplay(b.bank_date)) : '—';
+      const cekCell = modeCek ? `${esc(b.sign_syarat || '—')} (${esc(b.sign_status || '—')})` : '—';
+      const onlineCell = modeOnline
+        ? `<td style="text-align:center; border-right:1px solid #94a3b8;">${esc(b.online_maker || '—')}</td><td style="text-align:center;">${esc(b.online_checker || '—')}</td>`
+        : `<td colspan="2" style="text-align:center;">—</td>`;
+      rowsHtml += `<tr><td>${i + 1}</td><td>${bankName}</td><td>${account}</td><td>${dateStr}</td><td>${cekCell}</td>${onlineCell}</tr>`;
+    });
+    tbody.innerHTML = rowsHtml;
+  }
+
+  function clearBankCards() {
+    if (!bankListEl) return;
+    bankListEl.innerHTML = '';
+    window.__legacyBankData = null;
+  }
+
+  function restoreBankCards(banks) {
+    if (!bankListEl) return;
+    bankListEl.innerHTML = '';
+    if (banks && banks.length > 0) {
+      banks.forEach(b => addBankCard(b));
+    } else if (banks === null || banks === undefined) {
+      addBankCard();
+    }
+    syncBankTitles();
+  }
+
+  function syncBankTitles() {
+    if (!bankListEl) return;
+    bankListEl.querySelectorAll('.bank-card .bank-title').forEach((t, i) => {
+      t.textContent = `🏦 Bank ${i + 1}`;
+    });
+    styleBankCards();
+  }
+
+  if (addBankBtn) {
+    addBankBtn.addEventListener('click', () => {
+      addBankCard();
+      syncBankTitles();
       saveFormData();
     });
   }
@@ -16619,6 +17053,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           const backupPersonnelData = [];
+          const backupBanksData = backupBankCards();
           document.querySelectorAll('.person-card').forEach(card => {
               const roles = [];
               card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
@@ -16652,6 +17087,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (parsedData.personnel && Array.isArray(parsedData.personnel)) {
                   parsedData.personnel.forEach(p => addPerson(p));
               }
+              restoreBankCards(parsedData.banks && Array.isArray(parsedData.banks) ? parsedData.banks : []);
+              window.__legacyBankData = (!parsedData.banks || !parsedData.banks.length) && (parsedData.bank_date_input || parsedData.bank_sign_input || parsedData.bank_status_input) ? { bank: '', account: '', bank_date: parsedData.bank_date_input, mode: ['CEK'], sign_syarat: parsedData.bank_sign_input, sign_status: parsedData.bank_status_input, online_maker: '', online_checker: '' } : null;
           }
           
           pelulusActiveItem = item;
@@ -16685,6 +17122,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           if (personnelListEl) {
               personnelListEl.innerHTML = '';
               if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
+                  if (typeof backupBanksData !== 'undefined') restoreBankCards(backupBanksData);
               else addPerson();
           }
           // Kembalikan warna tick (jika ada)
@@ -16851,6 +17289,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           const backupPersonnelData = [];
+          const backupBanksData = backupBankCards();
           document.querySelectorAll('.person-card').forEach(card => {
               const roles = [];
               card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
@@ -16884,6 +17323,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (parsedData.personnel && Array.isArray(parsedData.personnel)) {
                   parsedData.personnel.forEach(p => addPerson(p));
               }
+              restoreBankCards(parsedData.banks && Array.isArray(parsedData.banks) ? parsedData.banks : []);
+              window.__legacyBankData = (!parsedData.banks || !parsedData.banks.length) && (parsedData.bank_date_input || parsedData.bank_sign_input || parsedData.bank_status_input) ? { bank: '', account: '', bank_date: parsedData.bank_date_input, mode: ['CEK'], sign_syarat: parsedData.bank_sign_input, sign_status: parsedData.bank_status_input, online_maker: '', online_checker: '' } : null;
           }
           
           pelulusActiveItem = item;
@@ -16940,6 +17381,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (personnelListEl) {
                   personnelListEl.innerHTML = '';
                   if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
+                  if (typeof backupBanksData !== 'undefined') restoreBankCards(backupBanksData);
                   else addPerson();
               }
               // Kembalikan warna tick (jika ada)
@@ -16969,6 +17411,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               }
           });
           const backupPersonnelData = [];
+          const backupBanksData = backupBankCards();
           document.querySelectorAll('.person-card').forEach(card => {
               const roles = [];
               card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
@@ -17002,6 +17445,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (parsedData.personnel && Array.isArray(parsedData.personnel)) {
                   parsedData.personnel.forEach(p => addPerson(p));
               }
+              restoreBankCards(parsedData.banks && Array.isArray(parsedData.banks) ? parsedData.banks : []);
+              window.__legacyBankData = (!parsedData.banks || !parsedData.banks.length) && (parsedData.bank_date_input || parsedData.bank_sign_input || parsedData.bank_status_input) ? { bank: '', account: '', bank_date: parsedData.bank_date_input, mode: ['CEK'], sign_syarat: parsedData.bank_sign_input, sign_status: parsedData.bank_status_input, online_maker: '', online_checker: '' } : null;
           }
           
           pelulusActiveItem = item;
@@ -17048,6 +17493,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           if (personnelListEl) {
               personnelListEl.innerHTML = '';
               if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
+                  if (typeof backupBanksData !== 'undefined') restoreBankCards(backupBanksData);
               else addPerson();
           }
           // Kembalikan warna tick (jika ada)
