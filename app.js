@@ -1810,6 +1810,8 @@ async function handleCredentialResponse(response) {
     const currentMonth = dashboardData.currentMonth;
     const currentDay = dashboardData.currentDay;
     const period = dashboardData.currentPeriod;
+    // V6.9.2: PELULUS dikira ikut hari pemprosesan (tarikh_lulus); role lain ikut tarikh tetap
+    const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
     
     let filteredData = [];
     
@@ -1817,14 +1819,14 @@ async function handleCredentialResponse(response) {
     
     if (period === 'yearly') {
       filteredData = cachedData.filter(item => {
-        // KOD BARU: Menggunakan resolveRecordDate untuk keutamaan dinamik
-        let dateToUse = resolveRecordDate(item);
+        // KOD BARU: Menggunakan dateResolver untuk keutamaan dinamik
+        let dateToUse = dateResolver(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear;
       });
     } else if (period === 'daily') {
       filteredData = cachedData.filter(item => {
-        let dateToUse = resolveRecordDate(item);
+        let dateToUse = dateResolver(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear && 
                dateToUse.getMonth() + 1 === currentMonth && 
@@ -1832,7 +1834,7 @@ async function handleCredentialResponse(response) {
       });
     } else {
       filteredData = cachedData.filter(item => {
-        let dateToUse = resolveRecordDate(item);
+        let dateToUse = dateResolver(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === currentYear && dateToUse.getMonth() + 1 === currentMonth;
       });
@@ -1853,7 +1855,7 @@ async function handleCredentialResponse(response) {
     let userSpecificData = filteredData.filter(roleFilter);
     
     const yearFilteredData = cachedData.filter(item => {
-      let dateToUse = resolveRecordDate(item);
+      let dateToUse = dateResolver(item);
       if (!dateToUse || isNaN(dateToUse)) return false;
       return dateToUse.getFullYear() === currentYear;
     });
