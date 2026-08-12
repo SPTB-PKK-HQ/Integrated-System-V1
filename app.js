@@ -1035,6 +1035,10 @@ async function handleCredentialResponse(response) {
   // V6.10.0: Agregat dashboard dari getDashboardStats (12 bulan, server-side)
   let dashboardStatsData = null;
   let dashboardStatsLoadedAt = 0;
+  // V6.10.1: Rekod tempoh dipilih (from/to) - untuk modal kad, jadual terperinci &
+  // dokumen tak lengkap supaya sepadan dengan nombor agregat.
+  let dashboardPeriodData = null; // { key, rows }
+  let adminPeriodData = null;     // { key, rows } untuk admin dashboard
   
   // USER FOLDER SYSTEM VARIABLES
   let mainFolderUrl = 'https://drive.google.com/drive/folders/1-IszGRdSjoJz2oOjUs_KO7HRz7oE2Hzn';
@@ -1799,7 +1803,15 @@ async function handleCredentialResponse(response) {
     return null;
   }
 
-  // Pilih data agregat untuk tempoh dipilih; null jika tiada (fallback client)
+  // (V6.10.1: getAggregateForPeriod dipindahkan ke blok bawah - versi zero-fill)
+
+  // V6.10.1: Objek agregat kosong (bulan/tahun tanpa rekod -> papar 0 yang konsisten)
+  function emptyAgg() {
+    return { total: 0, lulus: 0, tolak: 0, menunggu: 0, sokong: 0, tidakSokong: 0, jenis: {}, alasan: {} };
+  }
+
+  // V6.10.1: Pilih data agregat untuk tempoh dipilih. Pulangkan null hanya bila
+  // stats TIDAK dimuat (offline/gagal) -> fallback kiraan client.
   function getAggregateForPeriod() {
     if (!dashboardStatsData || !Array.isArray(dashboardStatsData.months)) return null;
     const monthsArr = dashboardStatsData.months;
@@ -1818,26 +1830,26 @@ async function handleCredentialResponse(response) {
     };
     if (period === 'yearly') {
       const inYear = monthsArr.filter(m => m.month.indexOf(String(year) + '-') === 0);
-      if (inYear.length === 0) return null;
+      if (inYear.length === 0) return emptyAgg();
       return sumMonths(inYear);
     }
     const monthKey = String(year) + '-' + String(dashboardData.currentMonth).padStart(2, '0');
     const m = monthsArr.find(x => x.month === monthKey);
-    return m || null;
+    return m || emptyAgg();
   }
 
-  // Agregat admin ikut filter bulan/tahun; null jika tiada (fallback client)
+  // V6.10.1: Agregat admin ikut filter bulan/tahun; null hanya bila stats tidak dimuat.
   function getAdminAggregate(month, year) {
     if (!dashboardStatsData || !Array.isArray(dashboardStatsData.months)) return null;
     const monthsArr = dashboardStatsData.months;
     if (month && year) {
       const key = String(year) + '-' + String(month).padStart(2, '0');
       const m = monthsArr.find(x => x.month === key);
-      return m || null;
+      return m || emptyAgg();
     }
     if (year) {
       const inYear = monthsArr.filter(m => m.month.indexOf(String(year) + '-') === 0);
-      if (inYear.length === 0) return null;
+      if (inYear.length === 0) return emptyAgg();
       const agg = { total: 0, lulus: 0, tolak: 0, menunggu: 0, jenis: {}, alasan: {} };
       inYear.forEach(m => {
         agg.total += m.total; agg.lulus += m.lulus; agg.tolak += m.tolak; agg.menunggu += m.menunggu;
@@ -1850,17 +1862,121 @@ async function handleCredentialResponse(response) {
     return { total: g.total, lulus: g.lulus, tolak: g.tolak, menunggu: g.menunggu, jenis: null, alasan: null };
   }
 
-  // V6.10.0: Widget yang perlukan rekod (modal popup, dokumen tak lengkap,
-  // carta konsultansi) - kekal guna cachedData window semasa.
+  // V6.10.1: Isi pilihan tahun dashboard/admin dari agregat (semua tahun berdata)
+  function populateYearsFromStats() {
+    const years = dashboardStatsData && dashboardStatsData.years;
+    if (!Array.isArray(years) || years.length === 0) return;
+    [dashboardYear, adminFilterYear].forEach(sel => {
+      if (!sel) return;
+      const currentVal = sel.value;
+      const existing = new Set(Array.from(sel.options).map(o => o.value).filter(v => v !== ''));
+      years.forEach(y => existing.add(String(y)));
+      const sorted = Array.from(existing).sort((a, b) => parseInt(b, 10) - parseInt(a, 10));
+      const hasAll = sel.querySelector('option[value=""]') !== null;
+      sel.innerHTML = '';
+      if (hasAll) {
+        const allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = 'Semua Tahun';
+        sel.appendChild(allOpt);
+      }
+      sorted.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        sel.appendChild(opt);
+      });
+      if (currentVal && sel.querySelector('option[value="' + currentVal + '"]')) sel.value = currentVal;
+    });
+  }
+
+  // V6.10.1: Muat rekod tempoh dashboard (from/to) - sumber widget rekod-level
+  async function loadDashboardPeriodData(force = false) {
+    if (!currentUser) return null;
+    const period = dashboardData.currentPeriod;
+    const year = dashboardData.currentYear;
+    let from, to, key;
+    if (period === 'daily') {
+      // Harian kekal guna data window semasa
+      key = 'WINDOW';
+      if (!force && dashboardPeriodData && dashboardPeriodData.key === key) return dashboardPeriodData;
+      dashboardPeriodData = { key: key, rows: Array.isArray(cachedData) ? cachedData : [] };
+      return dashboardPeriodData;
+    }
+    if (period === 'yearly') {
+      from = String(year) + '-01';
+      to = String(year) + '-12';
+      key = 'Y' + year;
+    } else {
+      from = String(year) + '-' + String(dashboardData.currentMonth).padStart(2, '0');
+      to = from;
+      key = from;
+    }
+    if (!force && dashboardPeriodData && dashboardPeriodData.key === key) return dashboardPeriodData;
+    try {
+      const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
+        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+      const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
+      dashboardPeriodData = { key: key, rows: rows };
+      return dashboardPeriodData;
+    } catch (e) {
+      console.error('V6.10.1 loadDashboardPeriodData error:', e);
+      dashboardPeriodData = { key: key, rows: Array.isArray(cachedData) ? cachedData : [] };
+      return dashboardPeriodData;
+    }
+  }
+
+  // V6.10.1: Muat rekod tempoh admin dashboard (from/to)
+  async function loadAdminPeriodData(month, year) {
+    let from, to, key;
+    if (month && year) {
+      from = key = String(year) + '-' + String(month).padStart(2, '0');
+      to = from;
+    } else if (year) {
+      from = String(year) + '-01';
+      to = String(year) + '-12';
+      key = 'Y' + year;
+    } else {
+      const years = (dashboardStatsData && dashboardStatsData.years) || [];
+      const minY = years.length ? years[years.length - 1] : (year || new Date().getFullYear());
+      from = String(minY) + '-01';
+      to = String(year || new Date().getFullYear()) + '-12';
+      key = 'ALL';
+    }
+    if (adminPeriodData && adminPeriodData.key === key) return adminPeriodData;
+    try {
+      const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
+        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+      const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
+      adminPeriodData = { key: key, rows: rows };
+      return adminPeriodData;
+    } catch (e) {
+      console.error('V6.10.1 loadAdminPeriodData error:', e);
+      adminPeriodData = { key: key, rows: Array.isArray(cachedData) ? cachedData : [] };
+      return adminPeriodData;
+    }
+  }
+
+  // V6.10.1: Widget yang perlukan rekod (modal popup, dokumen tak lengkap,
+  // carta konsultansi). Sumber: rekod tempoh dashboard (sepadan agregat) jika
+  // ada; fallback data window semasa.
   function refreshDashboardClientDetails() {
-    if (!currentUser || !Array.isArray(cachedData)) return;
+    if (!currentUser) return;
+    const srcRows = (dashboardPeriodData && dashboardPeriodData.rows)
+      ? dashboardPeriodData.rows
+      : (Array.isArray(cachedData) ? cachedData : []);
+    if (srcRows.length === 0) return;
     const roleFilter = (item) => {
       if (currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') return true;
       if (currentUser.role === 'PENGESYOR') return item.pengesyor && item.pengesyor.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
       if (currentUser.role === 'PELULUS') return item.pelulus && item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
       return false;
     };
-    const userData = cachedData.filter(roleFilter);
+    const userData = srcRows.filter(roleFilter);
     const dCardSuccess = currentUser.role === 'PENGESYOR'
       ? userData.filter(d => d.syor_status === 'SOKONG')
       : userData.filter(d => d.kelulusan && d.kelulusan.includes('LULUS'));
@@ -1961,10 +2077,11 @@ async function handleCredentialResponse(response) {
     });
   }
 
-  // V6.10.0: Trend bulanan 12 bulan dari agregat (bukan data rekod penuh)
+  // V6.10.0: Trend bulanan 12 bulan terkini dari agregat (bukan data rekod penuh)
   function updateTrendChartFromAgg() {
     const monthsArr = dashboardStatsData && dashboardStatsData.months;
     if (!Array.isArray(monthsArr)) return;
+    const latest12 = monthsArr.slice(0, 12); // V6.10.1: semua bulan tersedia; carta had 12 terkini
     const canvasId = 'chartMonthlyTrend';
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -1974,10 +2091,10 @@ async function handleCredentialResponse(response) {
     } else {
       if (approverMonthlyChart) { approverMonthlyChart.destroy(); approverMonthlyChart = null; }
     }
-    const labels = monthsArr.map(m => m.label || m.month.substring(5));
-    const totalData = monthsArr.map(m => m.total);
-    const good = monthsArr.map(m => isPengesyor ? (m.sokong || 0) : m.lulus);
-    const bad = monthsArr.map(m => isPengesyor ? (m.tidakSokong || 0) : m.tolak);
+    const labels = latest12.map(m => m.label || m.month.substring(5));
+    const totalData = latest12.map(m => m.total);
+    const good = latest12.map(m => isPengesyor ? (m.sokong || 0) : m.lulus);
+    const bad = latest12.map(m => isPengesyor ? (m.tidakSokong || 0) : m.tolak);
     const datasets = [
       { label: 'JUMLAH PERMOHONAN', data: totalData, backgroundColor: '#3b82f6', borderRadius: 6, borderSkipped: false },
       { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
@@ -2004,25 +2121,70 @@ async function handleCredentialResponse(response) {
     else approverMonthlyChart = newChart;
   }
 
-  function updateDetailedTableFromAgg() {
+  // V6.10.1: Jadual analisis terperinci - paparan TAHUNAN: 12 bulan tahun dipilih
+  // (data agregat lengkap untuk mana-mana tahun).
+  function updateDetailedTableFromYear(year) {
     if (!detailedTableBody) return;
-    const monthsArr = dashboardStatsData && dashboardStatsData.months;
-    if (!Array.isArray(monthsArr)) return;
+    const monthsArr = (dashboardStatsData && dashboardStatsData.months) || [];
     const isPengesyor = currentUser.role === 'PENGESYOR';
+    const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogos', 'Sep', 'Okt', 'Nov', 'Dis'];
     let rowsHtml = '';
-    monthsArr.forEach(m => {
-      const total = m.total;
-      const supported = m.sokong || 0;
-      const approved = m.lulus;
-      const rejected = m.tolak;
-      const inProcess = m.menunggu;
+    for (let i = 0; i < 12; i++) {
+      const key = String(year) + '-' + String(i + 1).padStart(2, '0');
+      const m = monthsArr.find(x => x.month === key);
+      const total = m ? m.total : 0;
+      const supported = m ? (m.sokong || 0) : 0;
+      const approved = m ? m.lulus : 0;
+      const rejected = m ? m.tolak : 0;
+      const notSupported = m ? (m.tidakSokong || 0) : 0;
+      const inProcess = m ? m.menunggu : 0;
       const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
       rowsHtml +=
-        '<tr><td>' + (m.label || m.month) + '</td><td>' + total + '</td><td>' +
+        '<tr><td>' + monthNames[i] + '</td><td>' + total + '</td><td>' +
         (isPengesyor ? supported : approved) + '</td><td>' +
-        (isPengesyor ? (m.tidakSokong || 0) : rejected) + '</td><td>' + inProcess +
+        (isPengesyor ? notSupported : rejected) + '</td><td>' + inProcess +
         '</td><td>' + rate + '%</td></tr>';
+    }
+    detailedTableBody.innerHTML = rowsHtml;
+  }
+
+  // V6.10.1: Jadual analisis terperinci - paparan BULANAN: pecahan minggu dari
+  // rekod tempoh (sepadan dengan agregat bulan yang dipilih).
+  function updateDetailedTableFromPeriod() {
+    if (!detailedTableBody) return;
+    const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
+    const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+    const monthName = monthNames[dashboardData.currentMonth - 1] || '';
+    if (rows.length === 0) {
+      detailedTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data untuk tempoh ini</td></tr>';
+      return;
+    }
+    const isPengesyor = currentUser.role === 'PENGESYOR';
+    const weeks = [];
+    rows.forEach(item => {
+      // Gunakan start_date (bulan permohonan) - selaras dengan pengumpulan agregat server
+      const sd = item.start_date ? new Date(item.start_date) : null;
+      if (!sd || isNaN(sd)) return;
+      const week = Math.ceil(sd.getDate() / 7);
+      if (!weeks[week]) weeks[week] = [];
+      weeks[week].push(item);
     });
+    let rowsHtml = '';
+    for (let week = 1; week <= 5; week++) {
+      const weekData = weeks[week] || [];
+      const total = weekData.length;
+      const supported = weekData.filter(item => item.syor_status && item.syor_status.includes('SOKONG') && !item.syor_status.includes('TIDAK')).length;
+      const notSupported = weekData.filter(item => item.syor_status && item.syor_status.includes('TIDAK DISOKONG')).length;
+      const approved = weekData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS')).length;
+      const rejected = weekData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
+      const inProcess = isPengesyor ? (total - supported - notSupported) : (total - approved - rejected);
+      const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
+      rowsHtml +=
+        '<tr><td>Minggu ' + week + ' (' + monthName + ')</td><td>' + total + '</td><td>' +
+        (isPengesyor ? supported : approved) + '</td><td>' +
+        (isPengesyor ? notSupported : rejected) + '</td><td>' + inProcess +
+        '</td><td>' + rate + '%</td></tr>';
+    }
     detailedTableBody.innerHTML = rowsHtml;
   }
 
@@ -2154,13 +2316,22 @@ async function handleCredentialResponse(response) {
 
     console.log("V6.10.0 Dashboard agregat:", { total, success, reject, card4Value });
 
-    // Widget rekod (modal popup, dokumen tak lengkap, carta konsultansi) guna cachedData window
+    // Widget rekod (modal popup, dokumen tak lengkap, carta konsultansi) -
+    // guna rekod tempoh (dashboardPeriodData) jika sudah dimuat, jika tidak window.
     refreshDashboardClientDetails();
 
     updateStatusChartFromAgg(agg);
     updateTypeChartFromAgg(agg);
     updateTrendChartFromAgg();
-    updateDetailedTableFromAgg();
+
+    // V6.10.1: Jadual terperinci ikut tempoh - TAHUNAN: 12 bulan tahun dipilih
+    // (agregat lengkap); BULANAN: pecahan minggu dari rekod tempoh.
+    const dPeriod = dashboardData.currentPeriod;
+    if (dPeriod === 'yearly') {
+      updateDetailedTableFromYear(dashboardData.currentYear);
+    } else if (dPeriod === 'monthly') {
+      updateDetailedTableFromPeriod();
+    }
 
     if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN') {
       updateRejectionReasonChartFromAgg(agg);
@@ -2172,6 +2343,13 @@ async function handleCredentialResponse(response) {
 
     updateApplicationTypeStatsFromAgg(agg);
     hideLoading();
+
+    // V6.10.1: Muat rekod tempoh (from/to) supaya modal kad & dokumen tak lengkap
+    // sepadan dengan nombor agregat. Re-render selepas siap.
+    loadDashboardPeriodData().then(() => {
+      refreshDashboardClientDetails();
+      if (dPeriod === 'monthly') updateDetailedTableFromPeriod();
+    });
   }
 
   function updateDashboard(showLoading = true) {
@@ -2642,6 +2820,8 @@ async function handleCredentialResponse(response) {
     console.log("V6.5.2 Initializing dashboard...");
     // V6.10.0: Muat agregat getDashboardStats sebelum render (fallback jika gagal)
     loadDashboardStats().then(() => {
+      // V6.10.1: Pilihan tahun lengkap dari agregat (semua tahun berdata)
+      populateYearsFromStats();
       updateDashboard(false);
     });
     if (dashboardDay) {
@@ -3497,17 +3677,11 @@ async function handleCredentialResponse(response) {
     );
     const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
     
-    // V6.10.0: Kad guna agregat getDashboardStats (12 bulan penuh) jika ada;
-    // popup senarai rekod kekal guna cachedData (window + rekod belum selesai).
-    let spiCount = diSPI.length;
-    let selesaiCount = selesaiLawatan.length;
-    if (dashboardStatsData && Array.isArray(dashboardStatsData.months)) {
-      spiCount = dashboardStatsData.months.reduce((s, m) => s + (m.pkaSpi || 0), 0);
-      selesaiCount = dashboardStatsData.months.reduce((s, m) => s + (m.pkaSelesai || 0), 0);
-    }
-    
-    document.getElementById('pkaStatSpi').textContent = spiCount;
-    document.getElementById('pkaStatSelesai').textContent = selesaiCount;
+    // V6.10.1: Kad PKA guna kiraan data window (bukan agregat 12 bulan) - supaya
+    // nombor kad sepadan dengan senarai popup. PKA ialah paparan kerja SEMASA
+    // (rekod belum selesai sentiasa lengkap dalam window), bukan statistik tempoh.
+    document.getElementById('pkaStatSpi').textContent = diSPI.length;
+    document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
 
     // Simpan senarai rekod setiap kad untuk modal popup (Tab PKA)
     window.__pkaCardData = { spi: diSPI, selesai: selesaiLawatan };
@@ -3903,6 +4077,69 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
+  // V6.10.1: Render jadual dokumen tidak lengkap by grade dari senarai rekod
+  function renderAdminIncompleteDocs(rows) {
+    const docLabels = [
+      { key: 'doc_carta', label: 'Carta Organisasi' },
+      { key: 'doc_peta', label: 'Peta Lakaran' },
+      { key: 'doc_gambar', label: 'Gambar Premis' },
+      { key: 'doc_sewa', label: 'Perjanjian Sewa' },
+      { key: 'ssm', label: 'SSM' },
+      { key: 'bank', label: 'Bank' },
+      { key: 'kwsp_1', label: 'KWSP Bulan 1' },
+      { key: 'kwsp_2', label: 'KWSP Bulan 2' },
+      { key: 'kwsp_3', label: 'KWSP Bulan 3' },
+      { key: 'personel_ic', label: 'Personel - IC' },
+      { key: 'personel_sb', label: 'Personel - Sijil Lahir' },
+      { key: 'personel_epf', label: 'Personel - EPF' }
+    ];
+    const grades = ['G4', 'G5', 'G6', 'G7'];
+    const gradeTotals = {};
+    const docByGrade = {};
+    grades.forEach(g => {
+      gradeTotals[g] = 0;
+      docByGrade[g] = {};
+      docLabels.forEach(d => { docByGrade[g][d.key] = 0; });
+    });
+    let grandTotal = 0;
+    (rows || []).forEach(item => {
+      const inc = countIncompleteInRecord(item);
+      let recTotal = 0;
+      docLabels.forEach(d => { recTotal += inc[d.key]; });
+      grandTotal += recTotal;
+      const gred = item.gred ? item.gred.toUpperCase().trim() : '';
+      if (grades.includes(gred)) {
+        gradeTotals[gred] += recTotal;
+        docLabels.forEach(d => { docByGrade[gred][d.key] += inc[d.key]; });
+      }
+    });
+    if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = grandTotal;
+    if (adminIncompleteDocsTbody) {
+      let html = '';
+      docLabels.forEach(d => {
+        const row = docLabels.indexOf(d);
+        let rowTotal = 0;
+        grades.forEach(g => { rowTotal += docByGrade[g][d.key]; });
+        html += `<tr${row % 2 === 0 ? ' style="background:#f8fafc;"' : ''}>`;
+        html += `<td style="padding:8px; font-weight:600;">${d.label}</td>`;
+        grades.forEach(g => {
+          html += `<td style="padding:8px; text-align:center;${docByGrade[g][d.key] > 0 ? ' color:#dc2626; font-weight:bold;' : ''}">${docByGrade[g][d.key]}</td>`;
+        });
+        html += `<td style="padding:8px; text-align:center; font-weight:bold;${rowTotal > 0 ? ' color:#dc2626;' : ''}">${rowTotal}</td>`;
+        html += '</tr>';
+      });
+      html += `<tr style="background:#1e40af; color:white; font-weight:bold;"><td style="padding:8px;">JUMLAH</td>`;
+      grades.forEach(g => {
+        html += `<td style="padding:8px; text-align:center;">${gradeTotals[g]}</td>`;
+      });
+      let grandTotalRow = 0;
+      grades.forEach(g => { grandTotalRow += gradeTotals[g]; });
+      html += `<td style="padding:8px; text-align:center;">${grandTotalRow}</td>`;
+      html += '</tr>';
+      adminIncompleteDocsTbody.innerHTML = html;
+    }
+  }
+
   async function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
     
@@ -3918,8 +4155,11 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
     // V6.10.0: Muat agregat getDashboardStats (12 bulan) - fallback client jika gagal
     await loadDashboardStats();
+    // V6.10.1: Pilihan tahun lengkap dari agregat
+    populateYearsFromStats();
     
-    if (!cachedData || cachedData.length === 0) {
+    // V6.10.1: Papar kosong hanya jika BOTH tiada cache DAN tiada agregat
+    if ((!cachedData || cachedData.length === 0) && !dashboardStatsData) {
       console.warn("V6.5.2 No data for admin dashboard");
       if (adminTotalCount) adminTotalCount.textContent = '0';
       if (adminApprovedCount) adminApprovedCount.textContent = '0';
@@ -3941,16 +4181,17 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     const selectedMonth = adminFilterMonth ? parseInt(adminFilterMonth.value) : null;
     const selectedYear = adminFilterYear ? parseInt(adminFilterYear.value) : dashboardData.currentYear;
     
-    let filteredData = cachedData;
+    // V6.10.1: filteredData ialah fallback client (window); kosong jika tiada cache
+    let filteredData = Array.isArray(cachedData) ? cachedData : [];
     if (selectedMonth && selectedYear) {
-      filteredData = cachedData.filter(item => {
+      filteredData = filteredData.filter(item => {
         // KOD BARU: Menyelaraskan tarikh tindakan sistem
         let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getMonth() + 1 === selectedMonth && dateToUse.getFullYear() === selectedYear;
       });
     } else if (selectedYear) {
-      filteredData = cachedData.filter(item => {
+      filteredData = filteredData.filter(item => {
         let dateToUse = resolveRecordDate(item);
         if (!dateToUse || isNaN(dateToUse)) return false;
         return dateToUse.getFullYear() === selectedYear;
@@ -4052,69 +4293,22 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     renderAdminPengesyorTable(pengesyorStats);
     renderAdminPelulusTable(pelulusStats);
     
-    // Kira dokumen tidak lengkap
-    const docLabels = [
-      { key: 'doc_carta', label: 'Carta Organisasi' },
-      { key: 'doc_peta', label: 'Peta Lakaran' },
-      { key: 'doc_gambar', label: 'Gambar Premis' },
-      { key: 'doc_sewa', label: 'Perjanjian Sewa' },
-      { key: 'ssm', label: 'SSM' },
-      { key: 'bank', label: 'Bank' },
-      { key: 'kwsp_1', label: 'KWSP Bulan 1' },
-      { key: 'kwsp_2', label: 'KWSP Bulan 2' },
-      { key: 'kwsp_3', label: 'KWSP Bulan 3' },
-      { key: 'personel_ic', label: 'Personel - IC' },
-      { key: 'personel_sb', label: 'Personel - Sijil Lahir' },
-      { key: 'personel_epf', label: 'Personel - EPF' }
-    ];
-    const grades = ['G4','G5','G6','G7'];
-    const gradeTotals = {};
-    const docByGrade = {};
-    grades.forEach(g => {
-      gradeTotals[g] = 0;
-      docByGrade[g] = {};
-      docLabels.forEach(d => { docByGrade[g][d.key] = 0; });
+    // V6.10.1: Dokumen tidak lengkap & modal kad admin guna rekod tempoh (from/to)
+    // supaya sepadan dengan nombor agregat. Sementara muat, guna data window.
+    const adminRowsFallback = (adminPeriodData && adminPeriodData.rows) || filteredData;
+    renderAdminIncompleteDocs(adminRowsFallback);
+    loadAdminPeriodData(selectedMonth, selectedYear).then((pd) => {
+      if (!pd || !Array.isArray(pd.rows)) return;
+      renderAdminIncompleteDocs(pd.rows);
+      const lArr = pd.rows.filter(item => item.kelulusan && item.kelulusan.includes('LULUS'));
+      const tArr = pd.rows.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT')));
+      window.__adminCardData = {
+        total: pd.rows,
+        lulus: lArr,
+        tolak: tArr,
+        proses: pd.rows.filter(item => lArr.indexOf(item) === -1 && tArr.indexOf(item) === -1)
+      };
     });
-    let grandTotal = 0;
-    filteredData.forEach(item => {
-      const inc = countIncompleteInRecord(item);
-      let recTotal = 0;
-      docLabels.forEach(d => { recTotal += inc[d.key]; });
-      grandTotal += recTotal;
-      const gred = item.gred ? item.gred.toUpperCase().trim() : '';
-      if (grades.includes(gred)) {
-        gradeTotals[gred] += recTotal;
-        docLabels.forEach(d => { docByGrade[gred][d.key] += inc[d.key]; });
-      }
-    });
-    if (adminIncompleteDocCount) adminIncompleteDocCount.textContent = grandTotal;
-    
-    // Render jadual dokumen tidak lengkap by grade
-    if (adminIncompleteDocsTbody) {
-      let html = '';
-      docLabels.forEach(d => {
-        const row = docLabels.indexOf(d);
-        let rowTotal = 0;
-        grades.forEach(g => { rowTotal += docByGrade[g][d.key]; });
-        html += `<tr${row % 2 === 0 ? ' style="background:#f8fafc;"' : ''}>`;
-        html += `<td style="padding:8px; font-weight:600;">${d.label}</td>`;
-        grades.forEach(g => {
-          html += `<td style="padding:8px; text-align:center;${docByGrade[g][d.key] > 0 ? ' color:#dc2626; font-weight:bold;' : ''}">${docByGrade[g][d.key]}</td>`;
-        });
-        html += `<td style="padding:8px; text-align:center; font-weight:bold;${rowTotal > 0 ? ' color:#dc2626;' : ''}">${rowTotal}</td>`;
-        html += '</tr>';
-      });
-      // Baris jumlah
-      html += `<tr style="background:#1e40af; color:white; font-weight:bold;"><td style="padding:8px;">JUMLAH</td>`;
-      grades.forEach(g => {
-        html += `<td style="padding:8px; text-align:center;">${gradeTotals[g]}</td>`;
-      });
-      let grandTotalRow = 0;
-      grades.forEach(g => { grandTotalRow += gradeTotals[g]; });
-      html += `<td style="padding:8px; text-align:center;">${grandTotalRow}</td>`;
-      html += '</tr>';
-      adminIncompleteDocsTbody.innerHTML = html;
-    }
     
     // V6.10.0: Alasan penolakan dari agregat jika ada; fallback kiraan client
     if (ag && ag.alasan && Object.keys(ag.alasan).length > 0) {
@@ -11513,10 +11707,33 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  // V6.10.1: Tab yang perlu data bulan lama (sejarah). Tab Belum Hantar/Inbox sentiasa
+  // lengkap kerana rekod belum selesai disertakan server tanpa mengira bulan.
+  function historySupportedForList(listType) {
+    if (listType === 'history') return true;
+    if (listType === 'submitted') {
+      const r = currentUser && currentUser.role;
+      return r === 'PENGESYOR' || r === 'PELULUS';
+    }
+    return false;
+  }
+
   function fetchAndRenderList(listType, silent) {
     if (!listStatus) return;
 
     activeListType = listType; 
+
+    // V6.10.1: Tab yang tidak perlukan data lama - sembunyikan butang & auto-keluar
+    // mod sejarah (fetch tab semasa akan bawa data window semula).
+    const historySupported = historySupportedForList(listType);
+    const historyToolbar = document.getElementById('historyToolbar');
+    if (historyToolbar) historyToolbar.style.display = historySupported ? 'flex' : 'none';
+    if (dataMode === 'history' && !historySupported) {
+      dataMode = 'current';
+      historyRange = { from: '', to: '' };
+      updateHistoryBanner();
+      updateWindowIndicator();
+    }
 
     if (!silent) simulateLoadingWithSteps(
       [

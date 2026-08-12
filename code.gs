@@ -3202,21 +3202,23 @@ function getDashboardStats(role, userName) {
 
     // Indeks kolum (A=0): jenis 3, start_date 7, syor_lawatan 8, date_submit 9,
     // pengesyor 12, syor_status 13, alasan 22, kelulusan 23, tarikh_lulus 24, pelulus 25.
-    const now = new Date();
-    const months = [];
-    const monthIndex = {};
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      monthIndex[key] = months.length;
-      months.push({
-        month: key,
-        label: d.toLocaleString('ms-MY', { month: 'short' }),
-        total: 0, lulus: 0, tolak: 0, menunggu: 0,
-        sokong: 0, tidakSokong: 0,
-        jenis: {}, alasan: {},
-        pkaSpi: 0, pkaSelesai: 0
-      });
+    // V6.10.1: Semua bulan yang ada data (bukan had 12) - supaya filter tahunan/bulanan
+    // lengkap untuk mana-mana tahun. Output kekal kecil (<50KB walaupun 20k rekod).
+    const monthMap = {};
+    function ensureMonth(key) {
+      if (!monthMap[key]) {
+        const p = key.split('-');
+        const d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1);
+        monthMap[key] = {
+          month: key,
+          label: d.toLocaleString('ms-MY', { month: 'short' }),
+          total: 0, lulus: 0, tolak: 0, menunggu: 0,
+          sokong: 0, tidakSokong: 0,
+          jenis: {}, alasan: {},
+          pkaSpi: 0, pkaSelesai: 0
+        };
+      }
+      return monthMap[key];
     }
 
     const years = new Set();
@@ -3247,7 +3249,6 @@ function getDashboardStats(role, userName) {
 
       const startDate = row[7] ? String(row[7]).trim() : '';
       const monthKey = /^\d{4}-\d{2}/.test(startDate) ? startDate.substring(0, 7) : '';
-      const mIdx = monthIndex[monthKey];
       const kelulusan = row[23] ? String(row[23]) : '';
       const tarikhLulus = row[24] ? String(row[24]).trim() : '';
       const syorStatus = row[13] ? String(row[13]) : '';
@@ -3282,8 +3283,8 @@ function getDashboardStats(role, userName) {
         if (!isNaN(yearNum)) years.add(yearNum);
       }
 
-      if (mIdx !== undefined) {
-        const m = months[mIdx];
+      if (monthKey) {
+        const m = ensureMonth(monthKey);
         m.total++;
         if (status === 'lulus') m.lulus++;
         else if (status === 'tolak') m.tolak++;
@@ -3316,6 +3317,10 @@ function getDashboardStats(role, userName) {
         else if (kelulusan.indexOf('TOLAK') !== -1 || kelulusan.indexOf('SIASAT') !== -1) pelulusStats[pelulus].tolak++;
       }
     }
+
+    // V6.10.1: Susun semua bulan menurun (bulan terkini dahulu)
+    const months = Object.keys(monthMap).sort(function (a, b) { return b.localeCompare(a); })
+      .map(function (k) { return monthMap[k]; });
 
     const payload = {
       months: months,
