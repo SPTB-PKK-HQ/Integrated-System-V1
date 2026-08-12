@@ -492,6 +492,25 @@
                 </div>
                 <div class="search-box" style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="searchListInput" placeholder="Cari..." style="flex:1;"><button class="btn btn-blue" id="btnRefreshList">🔄</button></div>
                 <div id="listStatus" style="text-align:center; color:#666; font-size:0.8rem; margin-bottom:5px;">...</div>
+                <!-- V6.10.0: Muat Data Bulan Lama (mod sejarah) + penunjuk window semasa -->
+                <div id="historyToolbar" style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px;">
+                    <button id="btnLoadOldData" class="btn btn-white" style="border:1px solid #cbd5e1;">📜 Muat Data Bulan Lama</button>
+                    <span id="oldDataPicker" style="display:none; align-items:center; gap:6px; flex-wrap:wrap; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px;">
+                        <span style="font-size:0.85rem; font-weight:bold; color:#1e40af;">Dari:</span>
+                        <select id="oldFromMonth" style="padding:4px;"></select>
+                        <select id="oldFromYear" style="padding:4px;"></select>
+                        <span style="font-size:0.85rem; font-weight:bold; color:#1e40af;">Hingga:</span>
+                        <select id="oldToMonth" style="padding:4px;"></select>
+                        <select id="oldToYear" style="padding:4px;"></select>
+                        <button id="btnFetchOldData" class="btn btn-blue" style="padding:4px 10px;">Muat</button>
+                        <button id="btnCancelOldData" class="btn btn-white" style="padding:4px 10px;">Batal</button>
+                    </span>
+                </div>
+                <div id="historyBanner" style="display:none; align-items:center; justify-content:space-between; gap:8px; background:#fef9c3; border:1px solid #fde047; border-radius:8px; padding:8px 12px; margin-bottom:8px;">
+                    <span id="historyBannerText" style="font-size:0.9rem; color:#854d0e;"></span>
+                    <button id="btnBackToCurrent" class="btn btn-white" style="padding:4px 10px; border:1px solid #eab308;">↩ Kembali ke 3 Bulan Semasa</button>
+                </div>
+                <div id="windowIndicator" style="text-align:center; color:#64748b; font-size:0.8rem; margin-bottom:5px;"></div>
                 <div id="applicationsList" class="app-list"></div>
             </div>
         </div>
@@ -1143,6 +1162,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
-    <script src="app.js?v=20260816"></script>
+    <script src="app.js?v=20260820"></script>
 </body>
 </html>

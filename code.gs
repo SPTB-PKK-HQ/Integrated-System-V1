@@ -61,6 +61,10 @@ const APP_DATA_CHUNK_COUNT_KEY = APP_DATA_CHUNK_PREFIX + 'COUNT';
 const APP_DATA_CHUNK_LIMIT = 45000; // 45KB per chunk (selamat di bawah 100KB/key)
 const APP_DATA_CHUNK_TTL = 600; // 10 minit
 
+// V6.10.0: Window bulan semasa - hanya data N bulan terkini dimuat secara lalai.
+// Data bulan lama dimuat atas permintaan (butang "Muat Data Bulan Lama").
+const DEFAULT_MONTHS_WINDOW = 3;
+
 // Email recipients for SPI notifications - disimpan di Script Properties
 // Key: EMAIL_TO_SPI, EMAIL_CC_SPTB
 
@@ -465,16 +469,23 @@ function doGet(e) {
     } else if (action === "refreshData") {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
-      result = getApplicationsData(role, userName, '', true);
+      result = getApplicationsData(role, userName, '', true, '', DEFAULT_MONTHS_WINDOW, '', '');
     } else if (action === "getRow") {
       const rowNum = parseInt(e.parameter.row);
       result = getSingleRowData(rowNum);
     } else if (action === "getData") {
-      // V6.9.3: Kes eksplisit getData - refresh=true paksa baca semula sheet
+      // V6.10.0: refresh=true paksa baca semula sheet; months lalai 3 (window bulan semasa);
+      // from/to untuk data bulan lama (mod sejarah); w = windowStart client untuk version check.
       const forceRefresh = e.parameter.refresh === 'true' || e.parameter.refresh === '1';
-      result = getApplicationsData(role, userName, clientVersion, forceRefresh);
+      result = getApplicationsData(role, userName, clientVersion, forceRefresh,
+        e.parameter.w || '', e.parameter.months || DEFAULT_MONTHS_WINDOW,
+        e.parameter.from || '', e.parameter.to || '');
+    } else if (action === "getDashboardStats") {
+      // V6.10.0: Agregat kecil untuk dashboard (12 bulan, <50KB, cache ScriptCache)
+      result = getDashboardStats(role, userName);
     } else {
-      result = getApplicationsData(role, userName, clientVersion, false);
+      result = getApplicationsData(role, userName, clientVersion, false,
+        e.parameter.w || '', DEFAULT_MONTHS_WINDOW, '', '');
     }
     
     return result;
@@ -2825,137 +2836,81 @@ function getRepeatedApplicationsData() {
   return createJSONOutput(repeatedCompanies);
 }
 
-// V6.9.3: Bina chunked cache (gzip + base64, pecah <=90KB) dalam DocumentCache.
-function buildChunkedAppDataCache(version, allRows) {
-  const cache = CacheService.getDocumentCache();
-  const json = JSON.stringify(allRows);
-  const compressed = Utilities.base64Encode(
-    Utilities.compress(Utilities.newBlob(json, 'application/json'), Utilities.CompressionAlgorithm.GZIP)
-  );
-  
-  const chunks = [];
-  for (let i = 0; i < compressed.length; i += APP_DATA_CHUNK_LIMIT) {
-    chunks.push(compressed.substring(i, i + APP_DATA_CHUNK_LIMIT));
-  }
-  if (chunks.length === 0) return;
+// =========================================================================
+// V6.10.0: WINDOW BULAN SEMASA (SERVER-SIDE)
+// Only data N bulan terkini dimuat secara lalai; bulan lama atas permintaan.
+// Kolum tarikh utama: start_date (H / indeks 7, format YYYY-MM-DD).
+// =========================================================================
 
-  // Buang chunk versi lama (best effort; TTL 10 minit kekal sebagai jaring keselamatan)
-  try {
-    const oldCountJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
-    if (oldCountJson) {
-      const old = JSON.parse(oldCountJson);
-      if (old.version && old.version !== version && old.count) {
-        for (let j = 0; j < old.count; j++) {
-          cache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + j);
-        }
-      }
-    }
-  } catch (e) {}
-
-  // Tulis setiap chunk dengan try/catch sendiri - jika mana-mana gagal,
-  // count key TIDAK ditulis supaya baca tidak guna data separa.
-  let allPutsOk = true;
-  for (let i = 0; i < chunks.length; i++) {
-    try {
-      cache.put(APP_DATA_CHUNK_PREFIX + version + '_' + i, chunks[i], APP_DATA_CHUNK_TTL);
-    } catch (e) {
-      allPutsOk = false;
-      Logger.log('[V6.9.3] Gagal tulis chunk ' + i + ': ' + e.toString());
-      break;
-    }
-  }
-
-  if (!allPutsOk) {
-    Logger.log('[V6.9.3] Gagal menyimpan chunked cache - cache tidak lengkap');
-    return;
-  }
-
-  try {
-    cache.put(APP_DATA_CHUNK_COUNT_KEY, JSON.stringify({ version: version, count: chunks.length }), APP_DATA_CHUNK_TTL);
-  } catch (e) {
-    Logger.log('[V6.9.3] Gagal tulis count key: ' + e.toString());
-    return;
-  }
-  Logger.log('[V6.9.3] Chunked cache dibina: ' + chunks.length + ' chunk untuk versi ' + version);
+function formatYYYYMMDD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-// V6.9.3: Baca chunked cache; pulangkan null jika tiada/luput/versi lama.
-function readChunkedAppDataCache(version) {
-  const cache = CacheService.getDocumentCache();
-  const countJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
-  if (!countJson) return null;
-  
-  let info;
-  try { info = JSON.parse(countJson); } catch (e) { return null; }
-  if (!info.version || info.version !== version || !info.count) return null;
-
-  let compressed = '';
-  for (let i = 0; i < info.count; i++) {
-    const part = cache.get(APP_DATA_CHUNK_PREFIX + version + '_' + i);
-    if (!part) return null;
-    compressed += part;
-  }
-
-  try {
-    const blob = Utilities.ungzip(Utilities.base64Decode(compressed));
-    return JSON.parse(blob.getDataAsString('utf-8'));
-  } catch (e) {
-    Logger.log('[V6.9.3] Gagal nyahmampat chunked cache: ' + e.toString());
-    return null;
-  }
+// Hari pertama bulan semasa tolak (months-1) bulan. Contoh: Aug 2026, months=3 -> 2026-06-01.
+function getServerWindowStart(months) {
+  const n = parseInt(months, 10);
+  const count = (!isNaN(n) && n > 0) ? n : DEFAULT_MONTHS_WINDOW;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - (count - 1), 1);
+  return formatYYYYMMDD(start);
 }
 
-function getApplicationsData(role, userName, clientVersion, forceRefresh) {
-  const props = PropertiesService.getScriptProperties();
-  const currentVersion = props.getProperty(APP_DATA_VERSION_KEY) || '0';
+// Validasi parameter from/to (format YYYY-MM). Pulangkan null jika tidak sah.
+function parseMonthParam(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  if (!/^\d{4}-\d{2}$/.test(s)) return null;
+  const parts = s.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return null;
+  return { year: y, month: m, key: s };
+}
 
-  // ======================
-  // CHECK VERSION (CLIENT HASH)
-  // ======================
-  if (!forceRefresh && clientVersion && clientVersion === currentVersion) {
-    return createJSONOutput({ cached: true, version: currentVersion, engine: 'v693' });
-  }
+function monthStartDate(monthKey) { return monthKey + '-01'; }
 
-  // ======================
-  // V6.9.3: CHUNKED CACHE HIT (elak baca sheet 24 saat jika data tidak berubah)
-  // ======================
-  if (!forceRefresh) {
-    const cachedAllRows = readChunkedAppDataCache(currentVersion);
-    if (cachedAllRows && Array.isArray(cachedAllRows)) {
-      const filtered = filterRowsByRole(cachedAllRows, role, userName);
-      return createJSONOutput({ cached: false, data: filtered, version: currentVersion, engine: 'v693' });
-    }
-  }
+function monthEndDate(monthKey) {
+  const parts = monthKey.split('-');
+  const last = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10), 0).getDate();
+  return monthKey + '-' + String(last).padStart(2, '0');
+}
 
-  // ======================
-  // READ FROM SHEET (FALLBACK ATAU REFRESH)
-  // ======================
-  const cache = CacheService.getScriptCache();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return createJSONOutput([]);
-  
+// Filter window: start_date >= windowStart ATAU rekod belum selesai (tarikh_lulus kosong)
+// tanpa mengira bulan - supaya kerja tergantung/bakul lama tidak hilang dari pandangan.
+function filterRowsByWindow(rows, windowStart) {
+  if (!windowStart) return rows;
+  return rows.filter(r => {
+    if (!r.tarikh_lulus || String(r.tarikh_lulus).trim() === '') return true;
+    const sd = r.start_date ? String(r.start_date).trim() : '';
+    return sd >= windowStart;
+  });
+}
+
+// Filter julat bulan (mod sejarah): start_date dalam [from-01, to-last-day] sahaja.
+// Perbandingan string lexicographic selamat kerana format tetap YYYY-MM-DD.
+function filterRowsByMonthRange(rows, fromKey, toKey) {
+  if (!fromKey || !toKey) return rows;
+  const fromDate = monthStartDate(fromKey);
+  const toDate = monthEndDate(toKey);
+  return rows.filter(r => {
+    const sd = r.start_date ? String(r.start_date).trim() : '';
+    return sd >= fromDate && sd <= toDate;
+  });
+}
+
+// Baca sheet penuh dan transform ke objek rekod (V6.10.0).
+function readSheetRows(sheet) {
   const lastRow = sheet.getLastRow();
-  let firstEmptyRow = 2;
-
-  if (lastRow > 1) {
-    const columnA = sheet.getRange("A2:A" + lastRow).getValues();
-    for (let i = 0; i < columnA.length; i++) {
-      if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
-        firstEmptyRow = i + 2;
-        break;
-      }
-    }
-    if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
-  }
-  
-  try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
-
+  if (lastRow < 1) return { rows: [], lastRow: 0 };
   const dataRange = sheet.getRange(1, 1, lastRow, sheet.getLastColumn());
   const data = dataRange.getDisplayValues();
-  const headers = data.shift();
+  data.shift(); // buang header
+  return { rows: transformSheetRows(data), lastRow: lastRow };
+}
 
-  // Transform ALL rows (unfiltered) untuk cache
+// Transform baris mentah (selepas header) ke objek rekod.
+// Diekstrak daripada getApplicationsData - logik sama seperti V6.9.3.
+function transformSheetRows(data) {
   const allRows = [];
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -2990,17 +2945,187 @@ function getApplicationsData(role, userName, clientVersion, forceRefresh) {
       ulasan_spi: row[31] || ""
     });
   }
+  return allRows;
+}
 
-  // V6.9.3: Simpan chunked cache (gantikan pendekatan lama yang buang cache setiap kali)
+// V6.10.0: Bina chunked cache ikut window - key: STB_APP_DATA_CHUNK_<version>_<windowStart>_<i>.
+function buildChunkedAppDataCache(version, windowStart, allRows) {
+  const cache = CacheService.getDocumentCache();
+  const json = JSON.stringify(allRows);
+  const compressed = Utilities.base64Encode(
+    Utilities.compress(Utilities.newBlob(json, 'application/json'), Utilities.CompressionAlgorithm.GZIP)
+  );
+  
+  const chunks = [];
+  for (let i = 0; i < compressed.length; i += APP_DATA_CHUNK_LIMIT) {
+    chunks.push(compressed.substring(i, i + APP_DATA_CHUNK_LIMIT));
+  }
+  if (chunks.length === 0) return;
+
+  // Buang chunk versi/window lama (best effort; TTL 10 minit kekal sebagai jaring keselamatan).
+  // Windows semasa TIDAK terhapus kerana cleanup ini hanya buang set yang berlainan
+  // (versi ATAU windowStart tidak padan) daripada count key tersimpan.
   try {
-    buildChunkedAppDataCache(currentVersion, allRows);
+    const oldCountJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
+    if (oldCountJson) {
+      const old = JSON.parse(oldCountJson);
+      if (old.version && old.count &&
+          (old.version !== version || old.windowStart !== windowStart)) {
+        for (let j = 0; j < old.count; j++) {
+          cache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + (old.windowStart || '') + '_' + j);
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Tulis setiap chunk dengan try/catch sendiri - jika mana-mana gagal,
+  // count key TIDAK ditulis supaya baca tidak guna data separa.
+  let allPutsOk = true;
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      cache.put(APP_DATA_CHUNK_PREFIX + version + '_' + windowStart + '_' + i, chunks[i], APP_DATA_CHUNK_TTL);
+    } catch (e) {
+      allPutsOk = false;
+      Logger.log('[V6.10.0] Gagal tulis chunk ' + i + ': ' + e.toString());
+      break;
+    }
+  }
+
+  if (!allPutsOk) {
+    Logger.log('[V6.10.0] Gagal menyimpan chunked cache - cache tidak lengkap');
+    return;
+  }
+
+  try {
+    cache.put(APP_DATA_CHUNK_COUNT_KEY, JSON.stringify({ version: version, windowStart: windowStart, count: chunks.length }), APP_DATA_CHUNK_TTL);
   } catch (e) {
-    Logger.log('[V6.9.3] Gagal bina chunked cache: ' + e.toString());
+    Logger.log('[V6.10.0] Gagal tulis count key: ' + e.toString());
+    return;
+  }
+  Logger.log('[V6.10.0] Chunked cache dibina: ' + chunks.length + ' chunk untuk versi ' + version + ' window ' + windowStart);
+}
+
+// V6.10.0: Baca chunked cache ikut window; pulangkan null jika tiada/luput/versi/window lain.
+function readChunkedAppDataCache(version, windowStart) {
+  const cache = CacheService.getDocumentCache();
+  const countJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
+  if (!countJson) return null;
+  
+  let info;
+  try { info = JSON.parse(countJson); } catch (e) { return null; }
+  if (!info.version || info.version !== version || !info.count) return null;
+  if (windowStart && info.windowStart !== windowStart) return null;
+
+  let compressed = '';
+  for (let i = 0; i < info.count; i++) {
+    const part = cache.get(APP_DATA_CHUNK_PREFIX + version + '_' + info.windowStart + '_' + i);
+    if (!part) return null;
+    compressed += part;
+  }
+
+  try {
+    const blob = Utilities.ungzip(Utilities.base64Decode(compressed));
+    return JSON.parse(blob.getDataAsString('utf-8'));
+  } catch (e) {
+    Logger.log('[V6.10.0] Gagal nyahmampat chunked cache: ' + e.toString());
+    return null;
+  }
+}
+
+// V6.10.0: getApplicationsData dengan window bulan semasa (months, lalai 3).
+// - from/to dihantar -> mod sejarah: filter start_date dalam julat bulan sahaja.
+// - months=N (atau tiada) -> window server-side: start_date >= windowStart ATAU rekod
+//   belum selesai (tarikh_lulus kosong). Filter bulan server-side SEBELUM role filter.
+// - cache chunked ikut window (key: <version>_<windowStart>); data lama SKIP cache.
+function getApplicationsData(role, userName, clientVersion, forceRefresh, clientWindowStart, months, from, to) {
+  const props = PropertiesService.getScriptProperties();
+  const currentVersion = props.getProperty(APP_DATA_VERSION_KEY) || '0';
+
+  // ======================
+  // V6.10.0: MOD SEJARAH (from/to) - tiada version check, tiada cache window.
+  // ======================
+  const fromKey = parseMonthParam(from);
+  const toKey = parseMonthParam(to);
+  if (fromKey && toKey) {
+    const sheet = getMainSheet();
+    if (!sheet) return createJSONOutput([]);
+    const rangeRows = filterRowsByMonthRange(readSheetRows(sheet).rows, fromKey.key, toKey.key);
+    const filtered = filterRowsByRole(rangeRows, role, userName);
+    return createJSONOutput({
+      mode: 'history', from: fromKey.key, to: toKey.key,
+      data: filtered, version: currentVersion, engine: 'v610',
+      windowStart: '', months: 0
+    });
+  }
+
+  // ======================
+  // V6.10.0: KIRA WINDOW SERVER-SIDE (bukan client)
+  // ======================
+  const windowCount = parseInt(months, 10);
+  const windowMonths = (!isNaN(windowCount) && windowCount > 0) ? windowCount : DEFAULT_MONTHS_WINDOW;
+  const windowStart = getServerWindowStart(windowMonths);
+
+  // ======================
+  // CHECK VERSION (CLIENT HASH + WINDOW)
+  // V6.10.0: cached:true HANYA jika window client sama dengan window server.
+  // Jika window dah berubah (bulan baharu masuk), terus hantar data baharu
+  // walaupun versi sama.
+  // ======================
+  if (!forceRefresh && clientVersion && clientVersion === currentVersion &&
+      (!clientWindowStart || clientWindowStart === windowStart)) {
+    return createJSONOutput({ cached: true, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+  }
+
+  // ======================
+  // V6.10.0: CHUNKED CACHE HIT (key termasuk windowStart)
+  // ======================
+  if (!forceRefresh) {
+    const cachedAllRows = readChunkedAppDataCache(currentVersion, windowStart);
+    if (cachedAllRows && Array.isArray(cachedAllRows)) {
+      const filtered = filterRowsByRole(cachedAllRows, role, userName);
+      return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+    }
+  }
+
+  // ======================
+  // READ FROM SHEET (FALLBACK ATAU REFRESH)
+  // ======================
+  const cache = CacheService.getScriptCache();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return createJSONOutput([]);
+  
+  const lastRow = sheet.getLastRow();
+  let firstEmptyRow = 2;
+
+  if (lastRow > 1) {
+    const columnA = sheet.getRange("A2:A" + lastRow).getValues();
+    for (let i = 0; i < columnA.length; i++) {
+      if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
+        firstEmptyRow = i + 2;
+        break;
+      }
+    }
+    if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
+  }
+  
+  try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
+
+  const allRows = readSheetRows(sheet).rows;
+
+  // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
+  const windowRows = filterRowsByWindow(allRows, windowStart);
+
+  // V6.10.0: Simpan chunked cache untuk window semasa sahaja
+  try {
+    buildChunkedAppDataCache(currentVersion, windowStart, windowRows);
+  } catch (e) {
+    Logger.log('[V6.10.0] Gagal bina chunked cache: ' + e.toString());
   }
 
   // Filter dan return
-  const filtered = filterRowsByRole(allRows, role, userName);
-  return createJSONOutput({ cached: false, data: filtered, version: currentVersion, engine: 'v693' });
+  const filtered = filterRowsByRole(windowRows, role, userName);
+  return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
 }
 
 function getSingleRowData(rowNum) {
@@ -3044,6 +3169,166 @@ function filterRowsByRole(rows, role, userName) {
     return rows.filter(r => !r.syor_lawatan || r.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
   }
   return rows;
+}
+
+// =========================================================================
+// V6.10.0: GETDASHBOARDSTATS - Agregat kecil untuk dashboard
+// Baca sheet penuh, kira kiraan per bulan (start_date = bulan permohonan)
+// untuk 12 bulan terkini. Output <50KB walaupun 20k rekod.
+// Cache: ScriptCache (bawah 100KB) - bukan DocumentCache/Chunked.
+// Status: tiada tarikh_lulus = menunggu; tarikh_lulus + kelulusan LULUS = lulus;
+//         tarikh_lulus + TOLAK/SIASAT = tolak; tarikh_lulus tanpa kelulusan = menunggu.
+// =========================================================================
+function getDashboardStats(role, userName) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const currentVersion = props.getProperty(APP_DATA_VERSION_KEY) || '0';
+    const roleNorm = normalizeRoleKey(role || '');
+    const userKey = (roleNorm === 'PENGESYOR' || roleNorm === 'PELULUS') ? String(userName || '').toUpperCase().trim() : '';
+    const cache = CacheService.getScriptCache();
+    const cacheKey = 'STB_DASH_STATS_' + currentVersion + '_' + roleNorm + '_' + userKey;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try { return createJSONOutput(JSON.parse(cached)); } catch (e) {}
+    }
+
+    const sheet = getMainSheet();
+    if (!sheet) return createJSONOutput({ error: "Sheet not found" });
+    const lastRow = sheet.getLastRow();
+    const empty = { months: [], years: [], grand: { total: 0, lulus: 0, tolak: 0, menunggu: 0, sokong: 0, tidakSokong: 0, pkaSpi: 0, pkaSelesai: 0 }, pengesyorStats: {}, pelulusStats: {} };
+    if (lastRow < 2) return createJSONOutput(empty);
+
+    const data = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS).getDisplayValues();
+
+    // Indeks kolum (A=0): jenis 3, start_date 7, syor_lawatan 8, date_submit 9,
+    // pengesyor 12, syor_status 13, alasan 22, kelulusan 23, tarikh_lulus 24, pelulus 25.
+    const now = new Date();
+    const months = [];
+    const monthIndex = {};
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      monthIndex[key] = months.length;
+      months.push({
+        month: key,
+        label: d.toLocaleString('ms-MY', { month: 'short' }),
+        total: 0, lulus: 0, tolak: 0, menunggu: 0,
+        sokong: 0, tidakSokong: 0,
+        jenis: {}, alasan: {},
+        pkaSpi: 0, pkaSelesai: 0
+      });
+    }
+
+    const years = new Set();
+    const grand = { total: 0, lulus: 0, tolak: 0, menunggu: 0, sokong: 0, tidakSokong: 0, pkaSpi: 0, pkaSelesai: 0 };
+    const pengesyorStats = {};
+    const pelulusStats = {};
+
+    const isPengesyor = roleNorm === 'PENGESYOR';
+    const isPelulus = roleNorm === 'PELULUS';
+    const isPKA = roleNorm === 'PKA';
+    const isAdminView = !isPengesyor && !isPelulus && !isPKA;
+    const userUpper = String(userName || '').toUpperCase().trim();
+
+    const JENIS_KEYS = ['BARU', 'PEMBAHARUAN', 'UBAH MAKLUMAT', 'UBAH GRED'];
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0] || row[0].toString().trim() === "") continue;
+
+      // Filter role (semantik selaras filterRowsByRole / roleFilter dashboard)
+      if (isPengesyor) {
+        if (!row[12] || row[12].toString().toUpperCase().trim() !== userUpper) continue;
+      } else if (isPelulus) {
+        if (!row[25] || row[25].toString().toUpperCase().trim() !== userUpper) continue;
+      } else if (isPKA) {
+        if (row[8] && row[8].toString().toUpperCase().trim() === 'PEMUTIHAN') continue;
+      }
+
+      const startDate = row[7] ? String(row[7]).trim() : '';
+      const monthKey = /^\d{4}-\d{2}/.test(startDate) ? startDate.substring(0, 7) : '';
+      const mIdx = monthIndex[monthKey];
+      const kelulusan = row[23] ? String(row[23]) : '';
+      const tarikhLulus = row[24] ? String(row[24]).trim() : '';
+      const syorStatus = row[13] ? String(row[13]) : '';
+
+      // Status permohonan
+      let status = 'menunggu';
+      if (tarikhLulus !== '') {
+        if (kelulusan.indexOf('LULUS') !== -1) status = 'lulus';
+        else if (kelulusan.indexOf('TOLAK') !== -1 || kelulusan.indexOf('SIASAT') !== -1) status = 'tolak';
+      }
+
+      const isSupported = syorStatus.indexOf('SOKONG') !== -1 && syorStatus.indexOf('TIDAK') === -1;
+      const isNotSupported = syorStatus.indexOf('TIDAK DISOKONG') !== -1;
+
+      grand.total++;
+      if (status === 'lulus') grand.lulus++;
+      else if (status === 'tolak') grand.tolak++;
+      else grand.menunggu++;
+      if (isSupported) grand.sokong++;
+      if (isNotSupported) grand.tidakSokong++;
+
+      // Metrik PKA (diSPI / selesaiLawatan)
+      const syorLawatan = row[8] ? String(row[8]).toUpperCase().trim() : '';
+      const hasSyorStatus = syorStatus.trim() !== '';
+      const lawatanSyor = row[19] ? String(row[19]).trim() : '';
+      const isDiSPI = syorLawatan === 'YA' && row[9] && String(row[9]).trim() !== '' && !hasSyorStatus && lawatanSyor === '';
+      if (isDiSPI) grand.pkaSpi++;
+      if (lawatanSyor !== '') grand.pkaSelesai++;
+
+      if (startDate) {
+        const yearNum = monthKey ? parseInt(monthKey.substring(0, 4), 10) : NaN;
+        if (!isNaN(yearNum)) years.add(yearNum);
+      }
+
+      if (mIdx !== undefined) {
+        const m = months[mIdx];
+        m.total++;
+        if (status === 'lulus') m.lulus++;
+        else if (status === 'tolak') m.tolak++;
+        else m.menunggu++;
+        if (isSupported) m.sokong++;
+        if (isNotSupported) m.tidakSokong++;
+        const jenis = row[3] ? String(row[3]).toUpperCase().trim() : '';
+        const jenisKey = JENIS_KEYS.indexOf(jenis) !== -1 ? jenis : 'LAIN';
+        m.jenis[jenisKey] = (m.jenis[jenisKey] || 0) + 1;
+        if (status === 'tolak' && row[22]) {
+          const alasan = String(row[22]).trim().substring(0, 80);
+          if (alasan) m.alasan[alasan] = (m.alasan[alasan] || 0) + 1;
+        }
+        if (isDiSPI) m.pkaSpi++;
+        if (lawatanSyor !== '') m.pkaSelesai++;
+      }
+
+      // Statistik per pengguna (jadual admin)
+      if (isAdminView) {
+        const pengesyor = row[12] ? String(row[12]).trim() : 'Tiada Pengesyor';
+        if (!pengesyorStats[pengesyor]) pengesyorStats[pengesyor] = { total: 0, sokong: 0, tidak_sokong: 0 };
+        pengesyorStats[pengesyor].total++;
+        if (isSupported) pengesyorStats[pengesyor].sokong++;
+        if (isNotSupported) pengesyorStats[pengesyor].tidak_sokong++;
+
+        const pelulus = row[25] ? String(row[25]).trim() : 'Tiada Pelulus';
+        if (!pelulusStats[pelulus]) pelulusStats[pelulus] = { total: 0, lulus: 0, tolak: 0 };
+        pelulusStats[pelulus].total++;
+        if (kelulusan.indexOf('LULUS') !== -1) pelulusStats[pelulus].lulus++;
+        else if (kelulusan.indexOf('TOLAK') !== -1 || kelulusan.indexOf('SIASAT') !== -1) pelulusStats[pelulus].tolak++;
+      }
+    }
+
+    const payload = {
+      months: months,
+      years: Array.from(years).sort(function (a, b) { return b - a; }),
+      grand: grand,
+      pengesyorStats: pengesyorStats,
+      pelulusStats: pelulusStats
+    };
+    try { cache.put(cacheKey, JSON.stringify(payload), 600); } catch (e) {}
+    return createJSONOutput(payload);
+  } catch (e) {
+    return createJSONOutput({ error: e.toString() });
+  }
 }
 
 // =========================================================================
@@ -3264,7 +3549,7 @@ function getMainSheet() {
 function invalidateDataCache() {
   const cache = CacheService.getScriptCache();
   cache.remove(APP_DATA_CACHE_KEY);
-  // V6.9.3: Buang chunked cache versi lama (best effort)
+  // V6.10.0: Buang chunked cache versi/window lama (best effort)
   try {
     const docCache = CacheService.getDocumentCache();
     const countJson = docCache.get(APP_DATA_CHUNK_COUNT_KEY);
@@ -3272,7 +3557,7 @@ function invalidateDataCache() {
       const old = JSON.parse(countJson);
       if (old.version && old.count) {
         for (let j = 0; j < old.count; j++) {
-          docCache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + j);
+          docCache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + (old.windowStart || '') + '_' + j);
         }
       }
       docCache.remove(APP_DATA_CHUNK_COUNT_KEY);

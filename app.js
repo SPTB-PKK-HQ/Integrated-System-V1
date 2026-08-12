@@ -999,6 +999,10 @@ async function handleCredentialResponse(response) {
   let createdFolderId = '';
   let userFolderUrl = '';
   let dataCacheVersion = '';
+  // V6.10.0: Window bulan semasa (server-side) + mod sejarah
+  let dataWindowStart = '';
+  let dataMode = 'current'; // 'current' = window 3 bulan | 'history' = data bulan lama
+  let historyRange = { from: '', to: '' };
   let allRecommenders = [];
   let allApprovers = [];
   
@@ -1027,6 +1031,10 @@ async function handleCredentialResponse(response) {
       types: {}
     }
   };
+
+  // V6.10.0: Agregat dashboard dari getDashboardStats (12 bulan, server-side)
+  let dashboardStatsData = null;
+  let dashboardStatsLoadedAt = 0;
   
   // USER FOLDER SYSTEM VARIABLES
   let mainFolderUrl = 'https://drive.google.com/drive/folders/1-IszGRdSjoJz2oOjUs_KO7HRz7oE2Hzn';
@@ -1761,7 +1769,411 @@ async function handleCredentialResponse(response) {
   // =========================================================================
   // FUNGSI UPDATE DASHBOARD
   // =========================================================================
-  
+
+  // ----------------------------------------------------------------------
+  // V6.10.0: DASHBOARD AGREGAT (getDashboardStats - 12 bulan server-side)
+  // Dashboard guna agregat kecil (<50KB) daripada action getDashboardStats.
+  // Jika panggilan gagal/offline -> dashboardStatsData=null -> fallback kiraan
+  // client dari cachedData (window semasa) supaya dashboard tidak kosong.
+  // ----------------------------------------------------------------------
+
+  // Muat agregat dashboard dari getDashboardStats (cache 2 minit client-side)
+  async function loadDashboardStats(force = false) {
+    if (!currentUser) return null;
+    if (!force && dashboardStatsData && (Date.now() - dashboardStatsLoadedAt) < 120000) return dashboardStatsData;
+    try {
+      const url = SCRIPT_URL + '?action=getDashboardStats&t=' + Date.now()
+        + '&role=' + encodeURIComponent(currentUser.role || '')
+        + '&userName=' + encodeURIComponent(currentUser.name || '');
+      const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
+      const data = await res.json();
+      if (data && !data.error && Array.isArray(data.months)) {
+        dashboardStatsData = data;
+        dashboardStatsLoadedAt = Date.now();
+        return data;
+      }
+      console.warn('V6.10.0 getDashboardStats respons tidak sah:', data);
+    } catch (e) {
+      console.error('V6.10.0 loadDashboardStats error:', e);
+    }
+    return null;
+  }
+
+  // Pilih data agregat untuk tempoh dipilih; null jika tiada (fallback client)
+  function getAggregateForPeriod() {
+    if (!dashboardStatsData || !Array.isArray(dashboardStatsData.months)) return null;
+    const monthsArr = dashboardStatsData.months;
+    const period = dashboardData.currentPeriod;
+    const year = dashboardData.currentYear;
+    if (period === 'daily') return null;
+    const sumMonths = (list) => {
+      const agg = { total: 0, lulus: 0, tolak: 0, menunggu: 0, sokong: 0, tidakSokong: 0, jenis: {}, alasan: {} };
+      list.forEach(m => {
+        agg.total += m.total; agg.lulus += m.lulus; agg.tolak += m.tolak; agg.menunggu += m.menunggu;
+        agg.sokong += (m.sokong || 0); agg.tidakSokong += (m.tidakSokong || 0);
+        Object.entries(m.jenis || {}).forEach(([k, v]) => { agg.jenis[k] = (agg.jenis[k] || 0) + v; });
+        Object.entries(m.alasan || {}).forEach(([k, v]) => { agg.alasan[k] = (agg.alasan[k] || 0) + v; });
+      });
+      return agg;
+    };
+    if (period === 'yearly') {
+      const inYear = monthsArr.filter(m => m.month.indexOf(String(year) + '-') === 0);
+      if (inYear.length === 0) return null;
+      return sumMonths(inYear);
+    }
+    const monthKey = String(year) + '-' + String(dashboardData.currentMonth).padStart(2, '0');
+    const m = monthsArr.find(x => x.month === monthKey);
+    return m || null;
+  }
+
+  // Agregat admin ikut filter bulan/tahun; null jika tiada (fallback client)
+  function getAdminAggregate(month, year) {
+    if (!dashboardStatsData || !Array.isArray(dashboardStatsData.months)) return null;
+    const monthsArr = dashboardStatsData.months;
+    if (month && year) {
+      const key = String(year) + '-' + String(month).padStart(2, '0');
+      const m = monthsArr.find(x => x.month === key);
+      return m || null;
+    }
+    if (year) {
+      const inYear = monthsArr.filter(m => m.month.indexOf(String(year) + '-') === 0);
+      if (inYear.length === 0) return null;
+      const agg = { total: 0, lulus: 0, tolak: 0, menunggu: 0, jenis: {}, alasan: {} };
+      inYear.forEach(m => {
+        agg.total += m.total; agg.lulus += m.lulus; agg.tolak += m.tolak; agg.menunggu += m.menunggu;
+        Object.entries(m.jenis || {}).forEach(([k, v]) => { agg.jenis[k] = (agg.jenis[k] || 0) + v; });
+        Object.entries(m.alasan || {}).forEach(([k, v]) => { agg.alasan[k] = (agg.alasan[k] || 0) + v; });
+      });
+      return agg;
+    }
+    const g = dashboardStatsData.grand;
+    return { total: g.total, lulus: g.lulus, tolak: g.tolak, menunggu: g.menunggu, jenis: null, alasan: null };
+  }
+
+  // V6.10.0: Widget yang perlukan rekod (modal popup, dokumen tak lengkap,
+  // carta konsultansi) - kekal guna cachedData window semasa.
+  function refreshDashboardClientDetails() {
+    if (!currentUser || !Array.isArray(cachedData)) return;
+    const roleFilter = (item) => {
+      if (currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') return true;
+      if (currentUser.role === 'PENGESYOR') return item.pengesyor && item.pengesyor.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+      if (currentUser.role === 'PELULUS') return item.pelulus && item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+      return false;
+    };
+    const userData = cachedData.filter(roleFilter);
+    const dCardSuccess = currentUser.role === 'PENGESYOR'
+      ? userData.filter(d => d.syor_status === 'SOKONG')
+      : userData.filter(d => d.kelulusan && d.kelulusan.includes('LULUS'));
+    const dCardReject = currentUser.role === 'PENGESYOR'
+      ? userData.filter(d => d.syor_status === 'TIDAK DISOKONG')
+      : userData.filter(d => d.kelulusan && (d.kelulusan.includes('TOLAK') || d.kelulusan.includes('SIASAT')));
+    const dCardProses = userData.filter(d => dCardSuccess.indexOf(d) === -1 && dCardReject.indexOf(d) === -1);
+    window.__dashboardCardData = { total: userData, success: dCardSuccess, reject: dCardReject, proses: dCardProses };
+    window.__dashboardCardLabels = {
+      success: currentUser.role === 'PENGESYOR' ? 'SOKONG' : 'LULUS',
+      reject: currentUser.role === 'PENGESYOR' ? 'TOLAK' : 'TOLAK',
+      status: currentUser.role === 'PENGESYOR' ? 'PROSES' : 'PROSES'
+    };
+    window.__dashboardCardRole = currentUser.role;
+
+    const userIncData = userData.filter(item => {
+      const inc = countIncompleteInRecord(item);
+      return Object.values(inc).some(v => v > 0);
+    });
+    const userIncTotal = userIncData.reduce((sum, item) => {
+      const inc = countIncompleteInRecord(item);
+      return sum + Object.values(inc).reduce((a, b) => a + b, 0);
+    }, 0);
+    if (incompleteDocCountEl) incompleteDocCountEl.textContent = userIncTotal;
+    if (incompleteDocCard) incompleteDocCard.style.display = userIncTotal > 0 ? '' : 'none';
+    window.__dashboardIncompleteData = userIncData;
+
+    updateKonsultansiChart(userData);
+    if (typeof updateRecommenderIncompleteChart === 'function') {
+      updateRecommenderIncompleteChart(userData);
+    }
+  }
+
+  function updateStatusChartFromAgg(agg) {
+    const canvasId = 'chartStatus';
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    dashboardStatusChart = safeDestroyChart(dashboardStatusChart, canvasId);
+    let labels = [], counts = [], colors = [];
+    if (currentUser.role === 'PENGESYOR') {
+      const sokong = agg.sokong || 0;
+      const tidak = agg.tidakSokong || 0;
+      const proses = agg.total - sokong - tidak;
+      labels = ['SOKONG', 'TIDAK SOKONG', 'DALAM PROSES'];
+      counts = [sokong, tidak, proses];
+      colors = ['#22c55e', '#ef4444', '#f59e0b'];
+    } else {
+      labels = ['LULUS', 'TOLAK/SIASAT', 'DALAM PROSES'];
+      counts = [agg.lulus, agg.tolak, agg.menunggu];
+      colors = ['#22c55e', '#ef4444', '#f59e0b'];
+    }
+    dashboardStatusChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{ data: counts, backgroundColor: colors, borderWidth: 3, borderColor: '#ffffff', hoverOffset: 15, borderRadius: 8 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '75%',
+        animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
+        plugins: {
+          alive: { enabled: true },
+          title: { display: true, text: currentUser.role === 'PENGESYOR' ? 'Status Syor' : 'Status Permohonan', font: { size: 14, weight: 'bold' } },
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  }
+
+  function updateTypeChartFromAgg(agg) {
+    const canvasId = 'chartTypeDist';
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    dashboardTypeChart = safeDestroyChart(dashboardTypeChart, canvasId);
+    const jenis = (agg && agg.jenis) || {};
+    const labels = Object.keys(jenis);
+    const values = Object.values(jenis);
+    if (labels.length === 0) return;
+    dashboardTypeChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{ data: values, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'], borderWidth: 3, borderColor: '#ffffff', hoverOffset: 15, borderRadius: 6 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        animation: { animateScale: true, duration: 1800, easing: 'easeOutQuart' },
+        plugins: {
+          alive: { enabled: true },
+          title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  }
+
+  // V6.10.0: Trend bulanan 12 bulan dari agregat (bukan data rekod penuh)
+  function updateTrendChartFromAgg() {
+    const monthsArr = dashboardStatsData && dashboardStatsData.months;
+    if (!Array.isArray(monthsArr)) return;
+    const canvasId = 'chartMonthlyTrend';
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const isPengesyor = currentUser.role === 'PENGESYOR';
+    if (isPengesyor) {
+      if (recommenderMonthlyChart) { recommenderMonthlyChart.destroy(); recommenderMonthlyChart = null; }
+    } else {
+      if (approverMonthlyChart) { approverMonthlyChart.destroy(); approverMonthlyChart = null; }
+    }
+    const labels = monthsArr.map(m => m.label || m.month.substring(5));
+    const totalData = monthsArr.map(m => m.total);
+    const good = monthsArr.map(m => isPengesyor ? (m.sokong || 0) : m.lulus);
+    const bad = monthsArr.map(m => isPengesyor ? (m.tidakSokong || 0) : m.tolak);
+    const datasets = [
+      { label: 'JUMLAH PERMOHONAN', data: totalData, backgroundColor: '#3b82f6', borderRadius: 6, borderSkipped: false },
+      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
+      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false }
+    ];
+    const newChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 1500, easing: 'easeOutQuart' },
+        scales: {
+          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
+        },
+        plugins: {
+          alive: { enabled: true },
+          legend: { position: 'top' }
+        }
+      }
+    });
+    if (isPengesyor) recommenderMonthlyChart = newChart;
+    else approverMonthlyChart = newChart;
+  }
+
+  function updateDetailedTableFromAgg() {
+    if (!detailedTableBody) return;
+    const monthsArr = dashboardStatsData && dashboardStatsData.months;
+    if (!Array.isArray(monthsArr)) return;
+    const isPengesyor = currentUser.role === 'PENGESYOR';
+    let rowsHtml = '';
+    monthsArr.forEach(m => {
+      const total = m.total;
+      const supported = m.sokong || 0;
+      const approved = m.lulus;
+      const rejected = m.tolak;
+      const inProcess = m.menunggu;
+      const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
+      rowsHtml +=
+        '<tr><td>' + (m.label || m.month) + '</td><td>' + total + '</td><td>' +
+        (isPengesyor ? supported : approved) + '</td><td>' +
+        (isPengesyor ? (m.tidakSokong || 0) : rejected) + '</td><td>' + inProcess +
+        '</td><td>' + rate + '%</td></tr>';
+    });
+    detailedTableBody.innerHTML = rowsHtml;
+  }
+
+  function updateRejectionReasonChartFromAgg(agg) {
+    const container = document.getElementById('chartReasonDistContainer');
+    const canvasId = 'chartReasonDist';
+    const ctx = document.getElementById(canvasId);
+    dashboardReasonChart = safeDestroyChart(dashboardReasonChart, canvasId);
+    if (!ctx || (currentUser.role !== 'PELULUS' && currentUser.role !== 'ADMIN' && currentUser.role !== 'KETUA SEKSYEN')) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+    const alasan = (agg && agg.alasan) || {};
+    const entries = Object.entries(alasan).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    if (entries.length === 0) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+    if (container) container.style.display = 'block';
+    const reasonLabels = entries.map(r => r[0].length > 30 ? r[0].substring(0, 27) + '...' : r[0]);
+    const reasonValues = entries.map(r => r[1]);
+    dashboardReasonChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: reasonLabels,
+        datasets: [{ label: 'Jumlah', data: reasonValues, backgroundColor: '#ef4444', borderRadius: 8, borderSkipped: false, barPercentage: 0.7 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 1500, easing: 'easeOutQuart' },
+        plugins: {
+          alive: { enabled: true },
+          title: { display: true, text: 'Alasan Penolakan', font: { size: 14, weight: 'bold' } }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function updateReasonStatsFromAgg(agg) {
+    if (!reasonStats) return;
+    const alasan = (agg && agg.alasan) || {};
+    const entries = Object.entries(alasan).sort((a, b) => b[1] - a[1]);
+    const totalRejected = entries.reduce((s, entry) => s + entry[1], 0);
+    const reasonColors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#06b6d4'];
+    let reasonCardsHtml = '';
+    entries.forEach((entry, i) => {
+      const reason = entry[0];
+      const count = entry[1];
+      const percentage = totalRejected > 0 ? Math.round((count / totalRejected) * 100) : 0;
+      const color = reasonColors[i % reasonColors.length];
+      reasonCardsHtml +=
+        '<div class="reason-card" style="border-left-color: ' + color + ';">' +
+        '<h4><span>' + reason + '</span><span class="reason-count">' + count + '</span></h4>' +
+        '<div>' + percentage + '% dari total ditolak</div>' +
+        '<div class="reason-bar"><div class="reason-fill" style="width: ' + percentage + '%; background: ' + color + ';"></div></div>' +
+        '</div>';
+    });
+    if (reasonCardsHtml === '') {
+      reasonCardsHtml = '<div style="color: #64748b; font-size: 0.9rem; text-align: center;">Tiada data alasan penolakan</div>';
+    }
+    reasonStats.innerHTML = reasonCardsHtml;
+  }
+
+  function updateApplicationTypeStatsFromAgg(agg) {
+    if (!typeStats) return;
+    const jenis = (agg && agg.jenis) || {};
+    const typeCounts = { 'BARU': 0, 'PEMBAHARUAN': 0, 'UBAH MAKLUMAT': 0, 'UBAH GRED': 0 };
+    Object.entries(jenis).forEach((entry) => {
+      const t = entry[0];
+      const c = entry[1];
+      if (typeCounts.hasOwnProperty(t)) typeCounts[t] += c;
+      else typeCounts[t] = c;
+    });
+    let badgesHtml = '';
+    const colors = {
+      'BARU': '#3b82f6',
+      'PEMBAHARUAN': '#10b981',
+      'UBAH MAKLUMAT': '#f59e0b',
+      'UBAH GRED': '#8b5cf6'
+    };
+    for (const [type, count] of Object.entries(typeCounts)) {
+      if (count > 0) {
+        const color = colors[type] || '#6b7280';
+        badgesHtml +=
+          '<div class="type-badge" style="background: ' + color + '20; border: 1px solid ' + color + '; color: ' + color + ';">' +
+          type + ' <span class="type-count" style="background: ' + color + '; color: white;">' + count + '</span></div>';
+      }
+    }
+    if (badgesHtml === '') {
+      badgesHtml = '<div style="color: #64748b; font-size: 0.9rem;">Tiada data jenis permohonan</div>';
+    }
+    typeStats.innerHTML = badgesHtml;
+  }
+
+  // V6.10.0: Render dashboard penuh dari agregat (kad + carta + jadual)
+  function renderDashboardFromAggregate(agg) {
+    const total = agg.total;
+    let success = 0, reject = 0, card4Value = 0;
+    let lblSuccess = '', lblReject = '', lblStatus = '';
+
+    if (currentUser.role === 'PENGESYOR') {
+      success = agg.sokong || 0;
+      reject = agg.tidakSokong || 0;
+      card4Value = total - success - reject;
+      lblSuccess = 'SOKONG'; lblReject = 'TOLAK'; lblStatus = 'PROSES';
+    } else if (currentUser.role === 'PELULUS') {
+      success = agg.lulus; reject = agg.tolak;
+      card4Value = total > 0 ? Math.round((success / total) * 100) + '%' : '0%';
+      lblSuccess = 'LULUS'; lblReject = 'GAGAL'; lblStatus = 'PERATUS';
+    } else {
+      success = agg.lulus; reject = agg.tolak;
+      card4Value = agg.menunggu;
+      lblSuccess = 'LULUS'; lblReject = 'TOLAK'; lblStatus = 'PROSES';
+    }
+
+    if (totalCountElement) totalCountElement.textContent = total;
+    if (successCountElement) successCountElement.textContent = success;
+    if (labelSuccessElement) labelSuccessElement.textContent = lblSuccess;
+    if (rejectCountElement) rejectCountElement.textContent = reject;
+    if (labelRejectElement) labelRejectElement.textContent = lblReject;
+    if (processCountElement) processCountElement.textContent = card4Value;
+    if (labelStatusElement) labelStatusElement.textContent = lblStatus;
+
+    console.log("V6.10.0 Dashboard agregat:", { total, success, reject, card4Value });
+
+    // Widget rekod (modal popup, dokumen tak lengkap, carta konsultansi) guna cachedData window
+    refreshDashboardClientDetails();
+
+    updateStatusChartFromAgg(agg);
+    updateTypeChartFromAgg(agg);
+    updateTrendChartFromAgg();
+    updateDetailedTableFromAgg();
+
+    if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN') {
+      updateRejectionReasonChartFromAgg(agg);
+      if (rejectionReasonChartContainer) rejectionReasonChartContainer.style.display = 'block';
+      updateReasonStatsFromAgg(agg);
+    } else if (rejectionReasonChartContainer) {
+      rejectionReasonChartContainer.style.display = 'none';
+    }
+
+    updateApplicationTypeStatsFromAgg(agg);
+    hideLoading();
+  }
+
   function updateDashboard(showLoading = true) {
     console.log("V6.5.2 updateDashboard dipanggil dengan:", {
       currentUser: currentUser?.name,
@@ -1786,6 +2198,24 @@ async function handleCredentialResponse(response) {
         dashboardUserRole.textContent = 'Pengarah';
         if(dashboardUserSpecificInfo) dashboardUserSpecificInfo.textContent = 'Statistik keseluruhan (Lihat Sahaja)';
       }
+    }
+
+    // V6.10.0: Mod agregat - kiraan dari getDashboardStats (12 bulan server-side).
+    // Jika agregat tiada (panggilan gagal/offline/tempoh luar 12 bulan) -> fallback
+    // kiraan client dari cachedData supaya dashboard tidak kosong.
+    const aggData = getAggregateForPeriod();
+    if (aggData) {
+      if (showLoading) {
+        simulateLoadingWithSteps(
+          ['Menganalisis data...', 'Mengira statistik...', 'Membina carta...', 'Siap!'],
+          'Menjana Dashboard'
+        );
+      } else {
+        if(document.getElementById('loading-overlay')) 
+           document.getElementById('loading-overlay').style.display = 'none';
+      }
+      renderDashboardFromAggregate(aggData);
+      return;
     }
 
     if (!cachedData || cachedData.length === 0) {
@@ -2210,7 +2640,10 @@ async function handleCredentialResponse(response) {
 
   function initializeDashboard() {
     console.log("V6.5.2 Initializing dashboard...");
-    
+    // V6.10.0: Muat agregat getDashboardStats sebelum render (fallback jika gagal)
+    loadDashboardStats().then(() => {
+      updateDashboard(false);
+    });
     if (dashboardDay) {
       dashboardDay.innerHTML = '';
       for (let i = 1; i <= 31; i++) {
@@ -2288,7 +2721,7 @@ async function handleCredentialResponse(response) {
     const btnLh = document.getElementById('btnLaporanHarian');
     if (btnLh) btnLh.style.display = (dashboardData.currentPeriod === 'daily') ? 'inline-block' : 'none';
     
-    updateDashboard(false);
+    // V6.10.0: updateDashboard(false) kini dipanggil dalam loadDashboardStats().then()
   }
 
   function updateApplicationTypeStats(data) {
@@ -3009,7 +3442,9 @@ async function handleCredentialResponse(response) {
 
   async function pkaLoadData() {
     try {
-      const res = await fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now(), {
+      // V6.10.0: months=3 (window bulan semasa) + w (windowStart untuk version check)
+      const res = await fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now()
+        + '&months=3&w=' + encodeURIComponent(dataWindowStart || ''), {
         method: 'GET',
         redirect: 'follow'
       }, 3, 1000);
@@ -3017,6 +3452,10 @@ async function handleCredentialResponse(response) {
       if (data && data.data && Array.isArray(data.data)) {
         cachedData = data.data;
         if (data.version) dataCacheVersion = data.version;
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+          storageWrapper.set({ 'stb_data_window': dataWindowStart });
+        }
       } else if (Array.isArray(data)) {
         cachedData = data;
       }
@@ -3058,8 +3497,17 @@ async function handleCredentialResponse(response) {
     );
     const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
     
-    document.getElementById('pkaStatSpi').textContent = diSPI.length;
-    document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
+    // V6.10.0: Kad guna agregat getDashboardStats (12 bulan penuh) jika ada;
+    // popup senarai rekod kekal guna cachedData (window + rekod belum selesai).
+    let spiCount = diSPI.length;
+    let selesaiCount = selesaiLawatan.length;
+    if (dashboardStatsData && Array.isArray(dashboardStatsData.months)) {
+      spiCount = dashboardStatsData.months.reduce((s, m) => s + (m.pkaSpi || 0), 0);
+      selesaiCount = dashboardStatsData.months.reduce((s, m) => s + (m.pkaSelesai || 0), 0);
+    }
+    
+    document.getElementById('pkaStatSpi').textContent = spiCount;
+    document.getElementById('pkaStatSelesai').textContent = selesaiCount;
 
     // Simpan senarai rekod setiap kad untuk modal popup (Tab PKA)
     window.__pkaCardData = { spi: diSPI, selesai: selesaiLawatan };
@@ -3455,7 +3903,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
-  function loadAdminDashboard() {
+  async function loadAdminDashboard() {
     console.log("V6.5.2 Loading admin dashboard...");
     
     // V6.8.0: Init pengurusan pengguna dan arkib
@@ -3467,6 +3915,9 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       const el = document.getElementById(id);
       if (el) el.style.display = isFullAdmin ? '' : 'none';
     });
+
+    // V6.10.0: Muat agregat getDashboardStats (12 bulan) - fallback client jika gagal
+    await loadDashboardStats();
     
     if (!cachedData || cachedData.length === 0) {
       console.warn("V6.5.2 No data for admin dashboard");
@@ -3506,12 +3957,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       });
     }
     
-    const total = filteredData.length;
+    // V6.10.0: Agregat server (12 bulan) jika ada; fallback kiraan client dari window.
+    // Popup senarai rekod (window.__adminCardData) kekal guna cachedData (window).
+    const ag = getAdminAggregate(selectedMonth, selectedYear);
     const lulusArr = filteredData.filter(item => item.kelulusan && item.kelulusan.includes('LULUS'));
     const tolakArr = filteredData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT')));
-    const lulus = lulusArr.length;
-    const tolak = tolakArr.length;
-    const proses = total - (lulus + tolak);
+    let total, lulus, tolak, proses;
+    if (ag) {
+      total = ag.total; lulus = ag.lulus; tolak = ag.tolak; proses = ag.menunggu;
+    } else {
+      total = filteredData.length;
+      lulus = lulusArr.length;
+      tolak = tolakArr.length;
+      proses = total - (lulus + tolak);
+    }
     
     if (adminTotalCount) adminTotalCount.textContent = total;
     if (adminApprovedCount) adminApprovedCount.textContent = lulus;
@@ -3526,7 +3985,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       proses: filteredData.filter(item => lulusArr.indexOf(item) === -1 && tolakArr.indexOf(item) === -1)
     };
     
-    const jenisStats = {
+    let jenisStats = {
       'BARU': 0,
       'PEMBAHARUAN': 0,
       'UBAH MAKLUMAT': 0,
@@ -3534,45 +3993,61 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       'LAIN-LAIN': 0
     };
     
-    filteredData.forEach(item => {
-      const jenis = item.jenis ? item.jenis.toUpperCase().trim() : 'LAIN-LAIN';
-      if (jenisStats.hasOwnProperty(jenis)) {
-        jenisStats[jenis]++;
-      } else {
-        jenisStats['LAIN-LAIN']++;
-      }
-    });
+    if (ag && ag.jenis && Object.keys(ag.jenis).length > 0) {
+      // V6.10.0: Pecahan jenis dari agregat server
+      Object.entries(ag.jenis).forEach((entry) => {
+        const t = entry[0];
+        const c = entry[1];
+        if (jenisStats.hasOwnProperty(t)) jenisStats[t] += c;
+        else jenisStats['LAIN-LAIN'] += c;
+      });
+    } else {
+      filteredData.forEach(item => {
+        const jenis = item.jenis ? item.jenis.toUpperCase().trim() : 'LAIN-LAIN';
+        if (jenisStats.hasOwnProperty(jenis)) {
+          jenisStats[jenis]++;
+        } else {
+          jenisStats['LAIN-LAIN']++;
+        }
+      });
+    }
     
     renderAdminJenisTable(jenisStats, total);
     
-    const pengesyorStats = {};
-    const pelulusStats = {};
+    let pengesyorStats = {};
+    let pelulusStats = {};
     
-    filteredData.forEach(item => {
-      const pengesyor = item.pengesyor || 'Tiada Pengesyor';
-      if (!pengesyorStats[pengesyor]) {
-        pengesyorStats[pengesyor] = { total: 0, sokong: 0, tidak_sokong: 0 };
-      }
-      pengesyorStats[pengesyor].total++;
-      
-      if (item.syor_status === 'SOKONG') {
-        pengesyorStats[pengesyor].sokong++;
-      } else if (item.syor_status === 'TIDAK DISOKONG') {
-        pengesyorStats[pengesyor].tidak_sokong++;
-      }
-      
-      const pelulus = item.pelulus || 'Tiada Pelulus';
-      if (!pelulusStats[pelulus]) {
-        pelulusStats[pelulus] = { total: 0, lulus: 0, tolak: 0 };
-      }
-      pelulusStats[pelulus].total++;
-      
-      if (item.kelulusan && item.kelulusan.includes('LULUS')) {
-        pelulusStats[pelulus].lulus++;
-      } else if (item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))) {
-        pelulusStats[pelulus].tolak++;
-      }
-    });
+    if (dashboardStatsData && dashboardStatsData.pengesyorStats && dashboardStatsData.pelulusStats) {
+      // V6.10.0: Jadual per pengguna dari agregat server (keseluruhan)
+      pengesyorStats = dashboardStatsData.pengesyorStats;
+      pelulusStats = dashboardStatsData.pelulusStats;
+    } else {
+      filteredData.forEach(item => {
+        const pengesyor = item.pengesyor || 'Tiada Pengesyor';
+        if (!pengesyorStats[pengesyor]) {
+          pengesyorStats[pengesyor] = { total: 0, sokong: 0, tidak_sokong: 0 };
+        }
+        pengesyorStats[pengesyor].total++;
+        
+        if (item.syor_status === 'SOKONG') {
+          pengesyorStats[pengesyor].sokong++;
+        } else if (item.syor_status === 'TIDAK DISOKONG') {
+          pengesyorStats[pengesyor].tidak_sokong++;
+        }
+        
+        const pelulus = item.pelulus || 'Tiada Pelulus';
+        if (!pelulusStats[pelulus]) {
+          pelulusStats[pelulus] = { total: 0, lulus: 0, tolak: 0 };
+        }
+        pelulusStats[pelulus].total++;
+        
+        if (item.kelulusan && item.kelulusan.includes('LULUS')) {
+          pelulusStats[pelulus].lulus++;
+        } else if (item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))) {
+          pelulusStats[pelulus].tolak++;
+        }
+      });
+    }
     
     renderAdminPengesyorTable(pengesyorStats);
     renderAdminPelulusTable(pelulusStats);
@@ -3641,11 +4116,21 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       adminIncompleteDocsTbody.innerHTML = html;
     }
     
-    renderAdminRejectionReasons(filteredData);
+    // V6.10.0: Alasan penolakan dari agregat jika ada; fallback kiraan client
+    if (ag && ag.alasan && Object.keys(ag.alasan).length > 0) {
+      renderAdminRejectionReasonsFromAgg(ag.alasan);
+    } else {
+      renderAdminRejectionReasons(filteredData);
+    }
     
     renderAdminPengesyorChart(pengesyorStats);
     renderAdminPelulusChart(pelulusStats);
-    renderAdminMonthlyChart(filteredData);
+    // V6.10.0: Carta bulanan 12 bulan dari agregat jika ada; fallback client
+    if (dashboardStatsData && Array.isArray(dashboardStatsData.months)) {
+      renderAdminMonthlyChartFromAgg(dashboardStatsData.months);
+    } else {
+      renderAdminMonthlyChart(filteredData);
+    }
     
     // Muat semula rekod dipadam dari Log
     if (typeof fetchDeletedLogs === 'function') fetchDeletedLogs();
@@ -3891,6 +4376,69 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     
     html += '</tbody></table>';
     adminRejectionReasonStats.innerHTML = html;
+  }
+
+  // V6.10.0: Alasan penolakan dari agregat getDashboardStats (objek alasan: {alasan: kiraan})
+  function renderAdminRejectionReasonsFromAgg(alasan) {
+    if (!adminRejectionReasonStats) return;
+    const entries = Object.entries(alasan || {}).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+      adminRejectionReasonStats.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">Tiada rekod penolakan untuk tempoh ini</div>';
+      return;
+    }
+    const totalRejected = entries.reduce((s, e) => s + e[1], 0);
+    let html = '<table style="width:100%; border-collapse:collapse;">';
+    html += '<thead><tr style="background:#1e40af; color:white;"><th>Alasan Penolakan</th><th>Bilangan</th><th>Peratusan</th></tr></thead><tbody>';
+    entries.forEach((entry) => {
+      const alasanText = entry[0];
+      const count = entry[1];
+      const percentage = totalRejected > 0 ? Math.round((count / totalRejected) * 100) : 0;
+      html +=
+        '<tr style="border-bottom:1px solid #e2e8f0;">' +
+        '<td style="padding:8px;">' + alasanText + '</td>' +
+        '<td style="padding:8px; text-align:center; font-weight:bold;">' + count + '</td>' +
+        '<td style="padding:8px;"><div style="display:flex; align-items:center;">' +
+        '<span style="width:50px;">' + percentage + '%</span>' +
+        '<div style="flex:1; height:8px; background:#fee2e2; border-radius:4px; margin-left:8px;">' +
+        '<div style="width:' + percentage + '%; height:8px; background:#ef4444; border-radius:4px;"></div>' +
+        '</div></div></td></tr>';
+    });
+    html += '</tbody></table>';
+    adminRejectionReasonStats.innerHTML = html;
+  }
+
+  // V6.10.0: Carta bulanan 12 bulan dari agregat getDashboardStats
+  function renderAdminMonthlyChartFromAgg(monthsArr) {
+    if (!adminMonthlyChartCanvas) return;
+    adminMonthlyChart = safeDestroyChart(adminMonthlyChart, 'adminMonthlyChart');
+    const labels = monthsArr.map(m => m.label || m.month.substring(5));
+    const totalByMonth = monthsArr.map(m => m.total);
+    const lulusByMonth = monthsArr.map(m => m.lulus);
+    const tolakByMonth = monthsArr.map(m => m.tolak);
+    if (totalByMonth.every(v => v === 0)) return;
+    const ctx = adminMonthlyChartCanvas.getContext('2d');
+    adminMonthlyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Jumlah', data: totalByMonth, backgroundColor: '#3b82f6', borderRadius: 4 },
+          { label: 'Lulus', data: lulusByMonth, backgroundColor: '#22c55e', borderRadius: 4 },
+          { label: 'Tolak', data: tolakByMonth, backgroundColor: '#ef4444', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
   }
 
   function showAdminStatsModal() {
@@ -6303,6 +6851,11 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       
       if (storage.stb_data_version) {
         dataCacheVersion = storage.stb_data_version;
+      }
+      
+      // V6.10.0: Window bulan semasa disimpan supaya version check server tepat
+      if (storage.stb_data_window) {
+        dataWindowStart = storage.stb_data_window;
       }
       
       if (storage.stb_extracted_pdf_data) {
@@ -9844,6 +10397,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (el) { el.style.display = 'block'; el.classList.add('active'); }
       setTimeout(async () => {
         if (!cachedData || cachedData.length === 0) await pkaLoadData();
+        // V6.10.0: Muat agregat getDashboardStats untuk kad PKA (12 bulan)
+        await loadDashboardStats();
         loadPKADashboard();
         restoreActiveElement();
       }, 200);
@@ -10556,6 +11111,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     }
   });
 
+  // V6.10.0: Butang Muat Data Bulan Lama + mod sejarah
+  const btnLoadOldData = document.getElementById('btnLoadOldData');
+  if (btnLoadOldData) btnLoadOldData.addEventListener('click', showOldDataPicker);
+  const btnCancelOldData = document.getElementById('btnCancelOldData');
+  if (btnCancelOldData) btnCancelOldData.addEventListener('click', () => {
+    const picker = document.getElementById('oldDataPicker');
+    if (picker) picker.style.display = 'none';
+  });
+  const btnFetchOldData = document.getElementById('btnFetchOldData');
+  if (btnFetchOldData) btnFetchOldData.addEventListener('click', fetchOldData);
+  const btnBackToCurrent = document.getElementById('btnBackToCurrent');
+  if (btnBackToCurrent) btnBackToCurrent.addEventListener('click', backToCurrentWindow);
+
   const btnLogoutTop = document.getElementById('btnLogoutTop');
   if (btnLogoutTop) {
     btnLogoutTop.addEventListener('click', async () => {
@@ -10803,6 +11371,148 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  // V6.10.0: Format label bulan 'YYYY-MM' -> 'Jun 2026'
+  function formatMonthLabel(ym) {
+    const parts = String(ym || '').split('-');
+    if (parts.length < 2) return ym || '';
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+    if (isNaN(d)) return ym;
+    return d.toLocaleString('ms-MY', { month: 'short', year: 'numeric' });
+  }
+
+  // V6.10.0: Papar penunjuk window semasa dalam senarai: "Data semasa: Jun 2026 – Ogos 2026 (N rekod)"
+  function updateWindowIndicator() {
+    const el = document.getElementById('windowIndicator');
+    if (!el) return;
+    if (dataMode === 'history' && historyRange.from && historyRange.to) {
+      el.textContent = '';
+      return;
+    }
+    if (!dataWindowStart) {
+      el.textContent = '';
+      return;
+    }
+    const parts = dataWindowStart.split('-');
+    const start = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+    if (isNaN(start)) { el.textContent = ''; return; }
+    const end = new Date(start.getFullYear(), start.getMonth() + 2, 1); // window 3 bulan
+    const fmt = (d) => d.toLocaleString('ms-MY', { month: 'short', year: 'numeric' });
+    const count = Array.isArray(cachedData) ? cachedData.length : 0;
+    el.textContent = 'Data semasa: ' + fmt(start) + ' – ' + fmt(end) + ' (' + count.toLocaleString('ms-MY') + ' rekod)';
+  }
+
+  // V6.10.0: Kemas kini banner mod sejarah
+  function updateHistoryBanner() {
+    const banner = document.getElementById('historyBanner');
+    const bannerText = document.getElementById('historyBannerText');
+    if (!banner) return;
+    const inHistory = dataMode === 'history' && historyRange.from && historyRange.to;
+    banner.style.display = inHistory ? 'flex' : 'none';
+    if (inHistory && bannerText) {
+      bannerText.innerHTML = 'Menunjukkan data <b>' + formatMonthLabel(historyRange.from) + ' – ' + formatMonthLabel(historyRange.to) + '</b> (' + (Array.isArray(cachedData) ? cachedData.length : 0) + ' rekod)';
+    }
+  }
+
+  // V6.10.0: Tunjukkan pemilih bulan lama
+  function showOldDataPicker() {
+    const picker = document.getElementById('oldDataPicker');
+    if (!picker) return;
+    const now = new Date();
+    const curYear = now.getFullYear();
+    // Default: to = sebulan sebelum window semasa; from = 3 bulan sebelum to
+    // (slice sejarah 3 bulan). Guna Date math supaya rollover tahun betul.
+    let winDate = new Date(curYear, now.getMonth(), 1); // bulan semasa
+    if (dataWindowStart) {
+      const p = dataWindowStart.split('-');
+      if (p.length >= 2) winDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1);
+    }
+    const toDate = new Date(winDate.getFullYear(), winDate.getMonth() - 1, 1);
+    const fromDate = new Date(winDate.getFullYear(), winDate.getMonth() - 4, 1);
+
+    const fromMonth = document.getElementById('oldFromMonth');
+    const toMonth = document.getElementById('oldToMonth');
+    const fromYear = document.getElementById('oldFromYear');
+    const toYear = document.getElementById('oldToYear');
+    const fillMonths = (sel) => {
+      const months = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+      sel.innerHTML = '';
+      months.forEach((name, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx + 1).padStart(2, '0');
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+    };
+    const fillYears = (sel) => {
+      sel.innerHTML = '';
+      const minYear = Math.max(2023, curYear - 5);
+      for (let y = curYear; y >= minYear; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        sel.appendChild(opt);
+      }
+    };
+    fillMonths(fromMonth);
+    fillMonths(toMonth);
+    fillYears(fromYear);
+    fillYears(toYear);
+    if (toMonth) toMonth.value = String(toDate.getMonth() + 1).padStart(2, '0');
+    if (toYear) toYear.value = toDate.getFullYear();
+    if (fromMonth) fromMonth.value = String(fromDate.getMonth() + 1).padStart(2, '0');
+    if (fromYear) fromYear.value = fromDate.getFullYear();
+    picker.style.display = 'flex';
+  }
+
+  // V6.10.0: Muat data bulan lama (from/to) - mod sejarah
+  function fetchOldData() {
+    const fromM = document.getElementById('oldFromMonth');
+    const fromY = document.getElementById('oldFromYear');
+    const toM = document.getElementById('oldToMonth');
+    const toY = document.getElementById('oldToYear');
+    if (!fromM || !fromY || !toM || !toY) return;
+    const from = String(fromY.value) + '-' + fromM.value;
+    const to = String(toY.value) + '-' + toM.value;
+    if (from > to) {
+      CustomAppModal.alert('Tarikh "Dari" tidak boleh lewat daripada tarikh "Hingga".', 'Julat Tidak Sah', 'warning');
+      return;
+    }
+    dataMode = 'history';
+    historyRange = { from: from, to: to };
+    document.getElementById('oldDataPicker').style.display = 'none';
+    simulateLoadingWithSteps([
+      'Menyambung ke pelayan...',
+      'Memuat turun data bulan lama...',
+      'Memproses rekod...',
+      'Menyusun senarai...'
+    ], 'Muat Data Bulan Lama');
+    const defaultList = activeListType || (currentUser && currentUser.role === 'PENGESYOR' ? 'drafts' : 'inbox');
+    return fetchAndRenderList(defaultList, true).then((rows) => {
+      if (rows) {
+        updateHistoryBanner();
+        updateWindowIndicator();
+      }
+      return rows;
+    });
+  }
+
+  // V6.10.0: Kembali ke window lalai (3 bulan semasa)
+  function backToCurrentWindow() {
+    if (dataMode !== 'history') return;
+    dataMode = 'current';
+    historyRange = { from: '', to: '' };
+    updateHistoryBanner();
+    // Paksa server hantar data window (bukan cached:true) - version check dilangkau,
+    // server guna chunked cache window (atau baca sheet) dan pulangkan windowStart baharu.
+    dataCacheVersion = '';
+    dataWindowStart = '';
+    const defaultList = activeListType || (currentUser && currentUser.role === 'PENGESYOR' ? 'drafts' : 'inbox');
+    return fetchAndRenderList(defaultList, true).then((rows) => {
+      updateWindowIndicator();
+      return rows;
+    });
+  }
+
   function fetchAndRenderList(listType, silent) {
     if (!listStatus) return;
 
@@ -10827,9 +11537,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       hideLoading();
     }
 
-    const versionParam = (!isInboxPelulus && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+    // V6.10.0: Mod sejarah guna from/to (tanpa version check, server skip cache);
+    // mod semasa guna months=3 + w (windowStart) untuk version check tepat.
+    let url;
+    if (dataMode === 'history' && historyRange.from && historyRange.to) {
+      url = SCRIPT_URL + '?action=getData&t=' + Date.now()
+        + '&from=' + encodeURIComponent(historyRange.from)
+        + '&to=' + encodeURIComponent(historyRange.to);
+    } else {
+      const versionParam = (!isInboxPelulus && dataCacheVersion) ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
+      url = SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam
+        + '&months=3&w=' + encodeURIComponent(dataWindowStart || '');
+    }
 
-    return fetchWithRetry(SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam, {
+    return fetchWithRetry(url, {
       method: 'GET',
       redirect: 'follow'
     }, 3, 1000)
@@ -10853,6 +11574,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // Jika server kata data tak berubah, guna cache sedia ada
         if (data && data.cached === true) {
           if (data.version) dataCacheVersion = data.version;
+          if (data.windowStart) {
+            dataWindowStart = data.windowStart;
+            storageWrapper.set({ 'stb_data_window': dataWindowStart });
+          }
+          updateWindowIndicator();
           if (isInboxPelulus || cachedData.length > 0) {
             renderFilteredList(listType);
             listStatus.innerText = isInboxPelulus
@@ -10870,13 +11596,21 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const newData = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
-        
-        
-        storageWrapper.set({ 
-          'stb_data_cache': newData,
-          'stb_cache_timestamp': Date.now(),
-          'stb_data_version': dataCacheVersion
-        });
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+        }
+        // V6.10.0: Data sejarah (mod history) TIDAK menimpa cache luar talian -
+        // supaya reload halaman kembali ke window semasa, bukan data bulan lama.
+        if (data.mode === 'history') {
+          storageWrapper.set({ 'stb_data_window': '' });
+        } else {
+          storageWrapper.set({ 
+            'stb_data_cache': newData,
+            'stb_cache_timestamp': Date.now(),
+            'stb_data_version': dataCacheVersion,
+            'stb_data_window': dataWindowStart
+          });
+        }
         
         updateDynamicYears(newData);
         
@@ -10885,7 +11619,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
         
         renderFilteredList(listType);
-        listStatus.innerText = `Kemaskini: ${newData.length} rekod`;
+        listStatus.innerText = data.mode === 'history'
+          ? `Data bulan lama: ${newData.length} rekod`
+          : `Kemaskini: ${newData.length} rekod`;
+        updateWindowIndicator();
+        updateHistoryBanner();
         
         setTimeout(() => {
           hideLoading();
@@ -16991,6 +17729,8 @@ function startTabAutoRefresh() {
   
   tabAutoRefreshInterval = setInterval(async () => {
     if (!currentUser || (currentUser.role !== 'PELULUS' && currentUser.role !== 'PENGESYOR')) return;
+    // V6.10.0: Jangan refresh latar belakang semasa mod sejarah - elak ganti data bulan lama
+    if (dataMode === 'history') return;
     const activeBtn = document.querySelector('.tab-btn.active');
     if (!activeBtn) return;
     const tabName = activeBtn.getAttribute('data-target');
@@ -17012,12 +17752,19 @@ function startTabAutoRefresh() {
     if (!shouldRefresh) return;
 
     try {
+      if (tabName === 'dashboard') {
+        // V6.10.0: Dashboard refresh guna agregat getDashboardStats (bukan getData penuh)
+        await loadDashboardStats(true);
+        if (typeof initializeDashboard === 'function') initializeDashboard();
+        return;
+      }
       // Inbox: tanpa version param (paksa server baca fresh dari sheet)
-      // Dashboard: guna version param untuk lightweight check
+      // V6.10.0: months=3 + w (windowStart) untuk versi check ikut window
       const versionParam = (!forceNoCache && dataCacheVersion)
         ? `&v=${encodeURIComponent(dataCacheVersion)}` : '';
       const response = await fetchWithRetry(
-        SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam,
+        SCRIPT_URL + '?action=getData&t=' + Date.now() + versionParam
+          + '&months=3&w=' + encodeURIComponent(dataWindowStart || ''),
         { method: 'GET', redirect: 'follow' }, 3, 1000
       );
       if (!response.ok) return;
@@ -17025,6 +17772,10 @@ function startTabAutoRefresh() {
 
       if (data && data.cached === true) {
         if (data.version) dataCacheVersion = data.version;
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+          storageWrapper.set({ 'stb_data_window': dataWindowStart });
+        }
         return;
       }
 
@@ -17032,6 +17783,10 @@ function startTabAutoRefresh() {
       if (newData.length > 0) {
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+          storageWrapper.set({ 'stb_data_window': dataWindowStart });
+        }
 
         storageWrapper.set({
           'stb_data_cache': newData,
@@ -17044,11 +17799,8 @@ function startTabAutoRefresh() {
           updatePengesyorFilter();
         }
 
-        if (tabName === 'dashboard') {
-          initializeDashboard();
-        } else if (tabName === 'inbox') {
-          renderFilteredList('inbox');
-        }
+        renderFilteredList('inbox');
+        updateWindowIndicator();
       }
     } catch (e) {
       console.error('Auto refresh tab error:', e);
