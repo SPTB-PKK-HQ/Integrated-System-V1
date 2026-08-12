@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxWLakQxQE0yXsBvVlxco4komCra1c-iapXDajahv34_5fjxEUJ1tP2oaNeefsSuJ18/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdRn6ljkpHMQcXx-Dn_HtznvAIJSgrKqmxigsio9VdheTtgGIMFGxIgUj7b88Tsjd3/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   
   // --- FETCH WITH RETRY MECHANISM ---
-  async function fetchWithRetry(url, options = {}, maxRetries = 3, delay = 1000) {
+  async function fetchWithRetry(url, options = {}, maxRetries = 1, delay = 1000) {
     let lastError = null;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -596,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (response.status === 503) {
           console.warn(`V6.5.2 Service Unavailable (503) on attempt ${attempt}. Retrying...`);
-          const backoffDelay = delay * Math.pow(2, attempt - 1);
+          const backoffDelay = delay * Math.pow(2, attempt);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           continue;
         }
@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
           throw lastError;
         }
         
-        const backoffDelay = delay * Math.pow(2, attempt - 1);
+        const backoffDelay = delay * Math.pow(2, attempt);
         await new Promise(resolve => setTimeout(resolve, backoffDelay));
       }
     }
@@ -9438,10 +9438,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       initAppBasedOnRole();
     }
     
-    // V6.6.0: Mula auto refresh inbox & tab bila log masuk
-    fetchInbox();
+    // V6.9.3: Panggilan awal dijarakkan supaya tidak membanjiri Apps Script serentak (throttle/404)
     startInboxAutoRefresh();
     startTabAutoRefresh();
+    setTimeout(() => fetchInbox(), 2000);
     
     resetInactivityTimer();
 
@@ -16965,22 +16965,22 @@ if (btnRefreshData) {
 // Setup WhatsApp scheduling UI
 setupWhatsAppSchedulingUI();
 
-// V6.6.0: Auto refresh inbox badge setiap 30 saat
+// V6.9.3: Auto refresh inbox badge setiap 2 minit (dahulu 30 saat - kurangkan beban backend)
 let inboxAutoRefreshInterval = null;
 
 function startInboxAutoRefresh() {
   if (inboxAutoRefreshInterval) clearInterval(inboxAutoRefreshInterval);
-  // Refresh inbox setiap 30 saat untuk update badge
+  // Refresh inbox setiap 2 minit untuk update badge
   inboxAutoRefreshInterval = setInterval(() => {
     if (currentUser && currentUser.email) {
       fetchInbox();
     }
-  }, 30000); // 30 saat
+  }, 120000); // 2 minit
 }
 
-// V6.6.0: Auto refresh dashboard & inbox tab
-// Inbox: refresh setiap 5 saat tanpa cache (buang cache di tab ini)
-// Dashboard: refresh setiap 30 saat guna version check
+// V6.9.3: Auto refresh dashboard & inbox tab
+// Inbox: refresh setiap 60 saat (dahulu 5 saat tanpa cache - elak beban)
+// Dashboard: refresh setiap 120 saat guna version check
 let tabAutoRefreshInterval = null;
 
 function startTabAutoRefresh() {
@@ -16999,11 +16999,11 @@ function startTabAutoRefresh() {
     let shouldRefresh = false;
     let forceNoCache = false;
     
-    if (tabName === 'inbox' && now - lastInboxRefresh >= 5000) {
+    if (tabName === 'inbox' && now - lastInboxRefresh >= 60000) {
       shouldRefresh = true;
       forceNoCache = true;
       lastInboxRefresh = now;
-    } else if (tabName === 'dashboard' && now - lastDashboardRefresh >= 30000) {
+    } else if (tabName === 'dashboard' && now - lastDashboardRefresh >= 120000) {
       shouldRefresh = true;
       forceNoCache = false;
       lastDashboardRefresh = now;

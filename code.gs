@@ -52,6 +52,15 @@ const APP_DATA_CACHE_KEY = 'STB_APP_DATA_V3';
 const APP_DATA_VERSION_KEY = 'STB_APP_DATA_VERSION';
 const APP_DATA_CACHE_TTL = 600; // 10 minit
 
+// V6.9.3: Chunked cache untuk getData - DocumentCache had 10MB/doc, 100KB/key.
+// Data JSON ~7.4MB dimampatkan gzip + base64 dan dipecah kepada beberapa chunk.
+// CHUNK 45KB: selamat di bawah had 100KB per entry dalam kedua-dua kiraan
+// (bait UTF-8 DAN unit UTF-16 - 90KB sebelumnya melebihi had jika dikira sebagai string UTF-16).
+const APP_DATA_CHUNK_PREFIX = 'STB_APP_DATA_CHUNK_';
+const APP_DATA_CHUNK_COUNT_KEY = APP_DATA_CHUNK_PREFIX + 'COUNT';
+const APP_DATA_CHUNK_LIMIT = 45000; // 45KB per chunk (selamat di bawah 100KB/key)
+const APP_DATA_CHUNK_TTL = 600; // 10 minit
+
 // Email recipients for SPI notifications - disimpan di Script Properties
 // Key: EMAIL_TO_SPI, EMAIL_CC_SPTB
 
@@ -456,12 +465,16 @@ function doGet(e) {
     } else if (action === "refreshData") {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
-      result = getApplicationsData(role, userName, '');
+      result = getApplicationsData(role, userName, '', true);
     } else if (action === "getRow") {
       const rowNum = parseInt(e.parameter.row);
       result = getSingleRowData(rowNum);
+    } else if (action === "getData") {
+      // V6.9.3: Kes eksplisit getData - refresh=true paksa baca semula sheet
+      const forceRefresh = e.parameter.refresh === 'true' || e.parameter.refresh === '1';
+      result = getApplicationsData(role, userName, clientVersion, forceRefresh);
     } else {
-      result = getApplicationsData(role, userName, clientVersion);
+      result = getApplicationsData(role, userName, clientVersion, false);
     }
     
     return result;
@@ -2812,26 +2825,112 @@ function getRepeatedApplicationsData() {
   return createJSONOutput(repeatedCompanies);
 }
 
-function getApplicationsData(role, userName, clientVersion) {
-  const cache = CacheService.getScriptCache();
+// V6.9.3: Bina chunked cache (gzip + base64, pecah <=90KB) dalam DocumentCache.
+function buildChunkedAppDataCache(version, allRows) {
+  const cache = CacheService.getDocumentCache();
+  const json = JSON.stringify(allRows);
+  const compressed = Utilities.base64Encode(
+    Utilities.compress(Utilities.newBlob(json, 'application/json'), Utilities.CompressionAlgorithm.GZIP)
+  );
+  
+  const chunks = [];
+  for (let i = 0; i < compressed.length; i += APP_DATA_CHUNK_LIMIT) {
+    chunks.push(compressed.substring(i, i + APP_DATA_CHUNK_LIMIT));
+  }
+  if (chunks.length === 0) return;
+
+  // Buang chunk versi lama (best effort; TTL 10 minit kekal sebagai jaring keselamatan)
+  try {
+    const oldCountJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
+    if (oldCountJson) {
+      const old = JSON.parse(oldCountJson);
+      if (old.version && old.version !== version && old.count) {
+        for (let j = 0; j < old.count; j++) {
+          cache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + j);
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Tulis setiap chunk dengan try/catch sendiri - jika mana-mana gagal,
+  // count key TIDAK ditulis supaya baca tidak guna data separa.
+  let allPutsOk = true;
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      cache.put(APP_DATA_CHUNK_PREFIX + version + '_' + i, chunks[i], APP_DATA_CHUNK_TTL);
+    } catch (e) {
+      allPutsOk = false;
+      Logger.log('[V6.9.3] Gagal tulis chunk ' + i + ': ' + e.toString());
+      break;
+    }
+  }
+
+  if (!allPutsOk) {
+    Logger.log('[V6.9.3] Gagal menyimpan chunked cache - cache tidak lengkap');
+    return;
+  }
+
+  try {
+    cache.put(APP_DATA_CHUNK_COUNT_KEY, JSON.stringify({ version: version, count: chunks.length }), APP_DATA_CHUNK_TTL);
+  } catch (e) {
+    Logger.log('[V6.9.3] Gagal tulis count key: ' + e.toString());
+    return;
+  }
+  Logger.log('[V6.9.3] Chunked cache dibina: ' + chunks.length + ' chunk untuk versi ' + version);
+}
+
+// V6.9.3: Baca chunked cache; pulangkan null jika tiada/luput/versi lama.
+function readChunkedAppDataCache(version) {
+  const cache = CacheService.getDocumentCache();
+  const countJson = cache.get(APP_DATA_CHUNK_COUNT_KEY);
+  if (!countJson) return null;
+  
+  let info;
+  try { info = JSON.parse(countJson); } catch (e) { return null; }
+  if (!info.version || info.version !== version || !info.count) return null;
+
+  let compressed = '';
+  for (let i = 0; i < info.count; i++) {
+    const part = cache.get(APP_DATA_CHUNK_PREFIX + version + '_' + i);
+    if (!part) return null;
+    compressed += part;
+  }
+
+  try {
+    const blob = Utilities.ungzip(Utilities.base64Decode(compressed));
+    return JSON.parse(blob.getDataAsString('utf-8'));
+  } catch (e) {
+    Logger.log('[V6.9.3] Gagal nyahmampat chunked cache: ' + e.toString());
+    return null;
+  }
+}
+
+function getApplicationsData(role, userName, clientVersion, forceRefresh) {
   const props = PropertiesService.getScriptProperties();
   const currentVersion = props.getProperty(APP_DATA_VERSION_KEY) || '0';
 
   // ======================
   // CHECK VERSION (CLIENT HASH)
   // ======================
-  if (clientVersion && clientVersion === currentVersion) {
-    return createJSONOutput({ cached: true, version: currentVersion });
+  if (!forceRefresh && clientVersion && clientVersion === currentVersion) {
+    return createJSONOutput({ cached: true, version: currentVersion, engine: 'v693' });
   }
 
   // ======================
-  // BUANG STALE CACHE (data melebihi 100KB limit)
+  // V6.9.3: CHUNKED CACHE HIT (elak baca sheet 24 saat jika data tidak berubah)
   // ======================
-  cache.remove(APP_DATA_CACHE_KEY);
+  if (!forceRefresh) {
+    const cachedAllRows = readChunkedAppDataCache(currentVersion);
+    if (cachedAllRows && Array.isArray(cachedAllRows)) {
+      const filtered = filterRowsByRole(cachedAllRows, role, userName);
+      return createJSONOutput({ cached: false, data: filtered, version: currentVersion, engine: 'v693' });
+    }
+  }
 
   // ======================
-  // READ FROM SHEET (FALLBACK)
+  // READ FROM SHEET (FALLBACK ATAU REFRESH)
   // ======================
+  const cache = CacheService.getScriptCache();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) return createJSONOutput([]);
@@ -2892,11 +2991,16 @@ function getApplicationsData(role, userName, clientVersion) {
     });
   }
 
-  // NOTA: CacheService had 100KB - data 3000+ rows exceeds limit, so skip caching
+  // V6.9.3: Simpan chunked cache (gantikan pendekatan lama yang buang cache setiap kali)
+  try {
+    buildChunkedAppDataCache(currentVersion, allRows);
+  } catch (e) {
+    Logger.log('[V6.9.3] Gagal bina chunked cache: ' + e.toString());
+  }
 
   // Filter dan return
   const filtered = filterRowsByRole(allRows, role, userName);
-  return createJSONOutput({ cached: false, data: filtered, version: currentVersion });
+  return createJSONOutput({ cached: false, data: filtered, version: currentVersion, engine: 'v693' });
 }
 
 function getSingleRowData(rowNum) {
@@ -3160,6 +3264,20 @@ function getMainSheet() {
 function invalidateDataCache() {
   const cache = CacheService.getScriptCache();
   cache.remove(APP_DATA_CACHE_KEY);
+  // V6.9.3: Buang chunked cache versi lama (best effort)
+  try {
+    const docCache = CacheService.getDocumentCache();
+    const countJson = docCache.get(APP_DATA_CHUNK_COUNT_KEY);
+    if (countJson) {
+      const old = JSON.parse(countJson);
+      if (old.version && old.count) {
+        for (let j = 0; j < old.count; j++) {
+          docCache.remove(APP_DATA_CHUNK_PREFIX + old.version + '_' + j);
+        }
+      }
+      docCache.remove(APP_DATA_CHUNK_COUNT_KEY);
+    }
+  } catch (e) {}
   const props = PropertiesService.getScriptProperties();
   const ver = (parseInt(props.getProperty(APP_DATA_VERSION_KEY) || '0') + 1).toString();
   props.setProperty(APP_DATA_VERSION_KEY, ver);
