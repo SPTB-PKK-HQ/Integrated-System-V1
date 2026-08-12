@@ -2081,7 +2081,6 @@ async function handleCredentialResponse(response) {
   function updateTrendChartFromAgg() {
     const monthsArr = dashboardStatsData && dashboardStatsData.months;
     if (!Array.isArray(monthsArr)) return;
-    const latest12 = monthsArr.slice(0, 12); // V6.10.1: semua bulan tersedia; carta had 12 terkini
     const canvasId = 'chartMonthlyTrend';
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -2091,10 +2090,29 @@ async function handleCredentialResponse(response) {
     } else {
       if (approverMonthlyChart) { approverMonthlyChart.destroy(); approverMonthlyChart = null; }
     }
-    const labels = latest12.map(m => m.label || m.month.substring(5));
-    const totalData = latest12.map(m => m.total);
-    const good = latest12.map(m => isPengesyor ? (m.sokong || 0) : m.lulus);
-    const bad = latest12.map(m => isPengesyor ? (m.tidakSokong || 0) : m.tolak);
+    // V6.10.2: Bina siri 12 bulan terkini secara KRONOLOGI (lama di kiri, baru di kanan).
+    // Bulan tanpa data diisi 0 supaya label siri berurutan tanpa lompang, dan label
+    // sertakan tahun (cth "Ogo '26") kerana siri merentas dua tahun kalendar.
+    const monthMap = {};
+    monthsArr.forEach(m => { monthMap[m.month] = m; });
+    const now = new Date();
+    const keys = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      keys.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+    const labels = keys.map(k => {
+      const p = k.split('-');
+      const d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1);
+      return d.toLocaleString('ms-MY', { month: 'short' }) + " '" + String(d.getFullYear()).substring(2);
+    });
+    const totalData = keys.map(k => (monthMap[k] ? monthMap[k].total : 0));
+    const good = keys.map(k => isPengesyor
+      ? (monthMap[k] ? (monthMap[k].sokong || 0) : 0)
+      : (monthMap[k] ? monthMap[k].lulus : 0));
+    const bad = keys.map(k => isPengesyor
+      ? (monthMap[k] ? (monthMap[k].tidakSokong || 0) : 0)
+      : (monthMap[k] ? monthMap[k].tolak : 0));
     const datasets = [
       { label: 'JUMLAH PERMOHONAN', data: totalData, backgroundColor: '#3b82f6', borderRadius: 6, borderSkipped: false },
       { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
@@ -4605,10 +4623,24 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
   function renderAdminMonthlyChartFromAgg(monthsArr) {
     if (!adminMonthlyChartCanvas) return;
     adminMonthlyChart = safeDestroyChart(adminMonthlyChart, 'adminMonthlyChart');
-    const labels = monthsArr.map(m => m.label || m.month.substring(5));
-    const totalByMonth = monthsArr.map(m => m.total);
-    const lulusByMonth = monthsArr.map(m => m.lulus);
-    const tolakByMonth = monthsArr.map(m => m.tolak);
+    // V6.10.2: 12 bulan terkini secara kronologi (lama di kiri, baru di kanan),
+    // bulan tanpa data diisi 0 supaya siri berurutan.
+    const monthMap = {};
+    monthsArr.forEach(m => { monthMap[m.month] = m; });
+    const now = new Date();
+    const keys = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      keys.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+    const labels = keys.map(k => {
+      const p = k.split('-');
+      const d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1);
+      return d.toLocaleString('ms-MY', { month: 'short' }) + " '" + String(d.getFullYear()).substring(2);
+    });
+    const totalByMonth = keys.map(k => (monthMap[k] ? monthMap[k].total : 0));
+    const lulusByMonth = keys.map(k => (monthMap[k] ? monthMap[k].lulus : 0));
+    const tolakByMonth = keys.map(k => (monthMap[k] ? monthMap[k].tolak : 0));
     if (totalByMonth.every(v => v === 0)) return;
     const ctx = adminMonthlyChartCanvas.getContext('2d');
     adminMonthlyChart = new Chart(ctx, {
