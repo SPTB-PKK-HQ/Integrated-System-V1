@@ -969,10 +969,12 @@ function handleProcessAI(data) {
 // V6.9.0: Bina key cache AI (SHA-256) supaya sama untuk teks/model/jenis sama
 const AI_RESULT_CACHE_TTL_SECONDS = 3600; // 1 jam
 
+const AI_PROMPT_VERSION = 'borang-v2'; // V6.9.2: Naikkan versi bila prompt AI berubah supaya cache lama tidak terpakai
+
 function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
   const digest = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
-    promptType + '|' + selectedModel + '|' + truncatedText
+    AI_PROMPT_VERSION + '|' + promptType + '|' + selectedModel + '|' + truncatedText
   );
   const hex = digest.map(function (b) {
     var v = (b + 256) % 256;
@@ -1100,8 +1102,9 @@ function buildBorangPrompt(truncatedText) {
   - "alamatPerniagaan" = address labelled ALAMAT PERNIAGAAN / BUSINESS ADDRESS / ALAMAT UTAMA URUSAN NIAGA.
   - "alamatSuratMenyurat" = address labelled ALAMAT SURAT-MENYURAT / CORRESPONDENCE ADDRESS / MAILING ADDRESS.
   - Match by looking at the LABEL that appears right before or after the address text.
-  - If only ONE of the two exists in the document, return it in the correct field and leave the other as "".
-  - If any address line exists anywhere in the text (including ALAMAT BERDAFTAR / REGISTERED ADDRESS), NEVER return both fields empty - put it in the most appropriate field.
+  - ALAMAT BERDAFTAR / REGISTERED ADDRESS / REGISTERED OFFICE must NEVER be placed into "alamatPerniagaan" or "alamatSuratMenyurat", even if it is the ONLY address in the document.
+  - If the document contains ONLY an ALAMAT BERDAFTAR / REGISTERED ADDRESS, return BOTH fields as "" (do not substitute).
+  - If only ONE of the two valid labels exists, return it in the correct field and leave the other as "".
   - The address may span multiple lines - return the FULL address text.
   NAMES RULES: Extract ALL names in every list. Do NOT omit or truncate any entry. Include any name found even if partially legible.
   PDF Text: ${truncatedText}`;
