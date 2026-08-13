@@ -2118,9 +2118,9 @@ async function handleCredentialResponse(response) {
     // Tinggi bar penuh = JUMLAH PERMOHONAN (dipaparkan dalam tooltip).
     // V6.10.4: Kemas - hanya hujung atas bar bulat, lebar bar seragam terkawal.
     const datasets = [
-      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 0, borderSkipped: false },
+      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 4, borderSkipped: 'end' },
       { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 0, borderSkipped: false },
-      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false }
+      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: 'start' }
     ];
     const newChart = new Chart(ctx, {
       type: 'bar',
@@ -3021,8 +3021,8 @@ async function handleCredentialResponse(response) {
             label: 'SOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
             backgroundColor: '#10b981',
-            borderRadius: 0,
-            borderSkipped: false
+            borderRadius: 4,
+            borderSkipped: 'end'
           },
           {
             label: 'TIDAK DISOKONG',
@@ -3036,7 +3036,7 @@ async function handleCredentialResponse(response) {
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.supported || 0) - (monthlyData[key]?.notSupported || 0))),
             backgroundColor: '#f59e0b',
             borderRadius: 6,
-            borderSkipped: false
+            borderSkipped: 'start'
           }
         ]
       },
@@ -3117,8 +3117,8 @@ async function handleCredentialResponse(response) {
             label: 'DILULUSKAN',
             data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
             backgroundColor: '#10b981',
-            borderRadius: 0,
-            borderSkipped: false
+            borderRadius: 4,
+            borderSkipped: 'end'
           },
           {
             label: 'DITOLAK/SIASAT',
@@ -3132,7 +3132,7 @@ async function handleCredentialResponse(response) {
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.approved || 0) - (monthlyData[key]?.rejected || 0))),
             backgroundColor: '#f59e0b',
             borderRadius: 6,
-            borderSkipped: false
+            borderSkipped: 'start'
           }
         ]
       },
