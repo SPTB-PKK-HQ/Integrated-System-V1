@@ -2037,7 +2037,7 @@ async function handleCredentialResponse(response) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '75%',
+        cutout: 0,
         animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
           alive: { enabled: true },
@@ -2061,13 +2061,13 @@ async function handleCredentialResponse(response) {
       type: 'doughnut',
       data: {
         labels: labels,
-        datasets: [{ data: values, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'], borderWidth: 3, borderColor: '#ffffff', hoverOffset: 15, borderRadius: 6 }]
+        datasets: [{ data: values, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'], borderWidth: 3, borderColor: '#ffffff', hoverOffset: 15, borderRadius: 8 }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
-        animation: { animateScale: true, duration: 1800, easing: 'easeOutQuart' },
+        cutout: 0,
+        animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
           alive: { enabled: true },
           title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
@@ -2113,10 +2113,15 @@ async function handleCredentialResponse(response) {
     const bad = keys.map(k => isPengesyor
       ? (monthMap[k] ? (monthMap[k].tidakSokong || 0) : 0)
       : (monthMap[k] ? monthMap[k].tolak : 0));
+    const inProc = keys.map(k => isPengesyor
+      ? (monthMap[k] ? Math.max(0, monthMap[k].total - (monthMap[k].sokong || 0) - (monthMap[k].tidakSokong || 0)) : 0)
+      : (monthMap[k] ? (monthMap[k].menunggu != null ? monthMap[k].menunggu : Math.max(0, monthMap[k].total - monthMap[k].lulus - monthMap[k].tolak)) : 0));
+    // V6.10.3: Bar bertindan - satu bar per bulan; segmen SOKONG/LULUS + TIDAK DISOKONG/TOLAK + DALAM PROSES.
+    // Tinggi bar penuh = JUMLAH PERMOHONAN (dipaparkan dalam tooltip).
     const datasets = [
-      { label: 'JUMLAH PERMOHONAN', data: totalData, backgroundColor: '#3b82f6', borderRadius: 6, borderSkipped: false },
       { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
-      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false }
+      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false },
+      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false }
     ];
     const newChart = new Chart(ctx, {
       type: 'bar',
@@ -2126,12 +2131,20 @@ async function handleCredentialResponse(response) {
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
-          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
           alive: { enabled: true },
-          legend: { position: 'top' }
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              footer: (items) => {
+                if (!items.length) return '';
+                return 'JUMLAH: ' + totalData[items[0].dataIndex];
+              }
+            }
+          }
         }
       }
     });
@@ -2657,7 +2670,7 @@ async function handleCredentialResponse(response) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '75%',              
+        cutout: 0,              
         animation: {
           animateScale: true,
           animateRotate: true,
@@ -2700,17 +2713,18 @@ async function handleCredentialResponse(response) {
           borderWidth: 3,
           borderColor: '#ffffff',
           hoverOffset: 15,          
-          borderRadius: 6           
+          borderRadius: 8           
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
+        cutout: 0,
         animation: {
           animateScale: true,
-          duration: 1800,
-          easing: 'easeOutQuart'    
+          animateRotate: true,
+          duration: 2000,
+          easing: 'easeOutElastic'    
         },
         plugins: {
           alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
@@ -3006,13 +3020,6 @@ async function handleCredentialResponse(response) {
         labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
         datasets: [
           {
-            label: 'JUMLAH PERMOHONAN',
-            data: monthlyLabels.map(key => monthlyData[key]?.total || 0),
-            backgroundColor: '#3b82f6',
-            borderRadius: 6,
-            borderSkipped: false
-          },
-          {
             label: 'SOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
             backgroundColor: '#10b981',
@@ -3025,6 +3032,13 @@ async function handleCredentialResponse(response) {
             backgroundColor: '#ef4444',
             borderRadius: 6,
             borderSkipped: false
+          },
+          {
+            label: 'DALAM PROSES',
+            data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.supported || 0) - (monthlyData[key]?.notSupported || 0))),
+            backgroundColor: '#f59e0b',
+            borderRadius: 6,
+            borderSkipped: false
           }
         ]
       },
@@ -3033,12 +3047,20 @@ async function handleCredentialResponse(response) {
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
-          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
           alive: { enabled: true },
-          legend: { position: 'top' }
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              footer: (items) => {
+                if (!items.length) return '';
+                return 'JUMLAH: ' + (monthlyData[monthlyLabels[items[0].dataIndex]]?.total || 0);
+              }
+            }
+          }
         }
       }
     });
@@ -3093,13 +3115,6 @@ async function handleCredentialResponse(response) {
         labels: monthlyLabels.map(key => monthlyData[key]?.label || key),
         datasets: [
           {
-            label: 'JUMLAH PERMOHONAN',
-            data: monthlyLabels.map(key => monthlyData[key]?.total || 0),
-            backgroundColor: '#3b82f6',
-            borderRadius: 6,
-            borderSkipped: false
-          },
-          {
             label: 'DILULUSKAN',
             data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
             backgroundColor: '#10b981',
@@ -3112,6 +3127,13 @@ async function handleCredentialResponse(response) {
             backgroundColor: '#ef4444',
             borderRadius: 6,
             borderSkipped: false
+          },
+          {
+            label: 'DALAM PROSES',
+            data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.approved || 0) - (monthlyData[key]?.rejected || 0))),
+            backgroundColor: '#f59e0b',
+            borderRadius: 6,
+            borderSkipped: false
           }
         ]
       },
@@ -3120,12 +3142,20 @@ async function handleCredentialResponse(response) {
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
-          x: { title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
           alive: { enabled: true },
-          legend: { position: 'top' }
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              footer: (items) => {
+                if (!items.length) return '';
+                return 'JUMLAH: ' + (monthlyData[monthlyLabels[items[0].dataIndex]]?.total || 0);
+              }
+            }
+          }
         }
       }
     });
