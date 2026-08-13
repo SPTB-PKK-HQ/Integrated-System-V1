@@ -2040,7 +2040,6 @@ async function handleCredentialResponse(response) {
         cutout: 0,
         animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
-          alive: { enabled: true },
           title: { display: true, text: currentUser.role === 'PENGESYOR' ? 'Status Syor' : 'Status Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -2069,7 +2068,6 @@ async function handleCredentialResponse(response) {
         cutout: 0,
         animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
-          alive: { enabled: true },
           title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -2678,7 +2676,6 @@ async function handleCredentialResponse(response) {
           easing: 'easeOutElastic'  
         },
         plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
           title: { display: true, text: currentUser.role === 'PENGESYOR' ? 'Status Syor' : 'Status Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -2727,7 +2724,6 @@ async function handleCredentialResponse(response) {
           easing: 'easeOutElastic'    
         },
         plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
           title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
