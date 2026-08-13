@@ -2075,6 +2075,33 @@ async function handleCredentialResponse(response) {
     });
   }
 
+  // V6.10.5: Segmen bar dinamik - puncak sentiasa melengkung walaupun DALAM PROSES kosong
+  function barSegTopmost(ctx) {
+    const i = ctx.dataIndex, di = ctx.datasetIndex;
+    const ds = ctx.chart.data.datasets;
+    for (let d = ds.length - 1; d > di; d--) if (ds[d].data[i]) return false;
+    return true;
+  }
+  function barSegBottommost(ctx) {
+    const i = ctx.dataIndex, di = ctx.datasetIndex;
+    const ds = ctx.chart.data.datasets;
+    for (let d = 0; d < di; d++) if (ds[d].data[i]) return false;
+    return true;
+  }
+  function barSegRadius(ctx) {
+    const top = barSegTopmost(ctx), bottom = barSegBottommost(ctx);
+    if (top) return 6;
+    if (bottom) return 4;
+    return 0;
+  }
+  function barSegSkipped(ctx) {
+    const top = barSegTopmost(ctx), bottom = barSegBottommost(ctx);
+    if (top && bottom) return false;
+    if (top) return 'start';
+    if (bottom) return 'end';
+    return false;
+  }
+
   // V6.10.0: Trend bulanan 12 bulan terkini dari agregat (bukan data rekod penuh)
   function updateTrendChartFromAgg() {
     const monthsArr = dashboardStatsData && dashboardStatsData.months;
@@ -2118,9 +2145,9 @@ async function handleCredentialResponse(response) {
     // Tinggi bar penuh = JUMLAH PERMOHONAN (dipaparkan dalam tooltip).
     // V6.10.4: Kemas - hanya hujung atas bar bulat, lebar bar seragam terkawal.
     const datasets = [
-      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 4, borderSkipped: 'end' },
-      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 0, borderSkipped: false },
-      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: 'start' }
+      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: barSegRadius, borderSkipped: barSegSkipped },
+      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: barSegRadius, borderSkipped: barSegSkipped },
+      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: barSegRadius, borderSkipped: barSegSkipped }
     ];
     const newChart = new Chart(ctx, {
       type: 'bar',
@@ -3021,22 +3048,22 @@ async function handleCredentialResponse(response) {
             label: 'SOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
             backgroundColor: '#10b981',
-            borderRadius: 4,
-            borderSkipped: 'end'
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'TIDAK DISOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.notSupported || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 0,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DALAM PROSES',
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.supported || 0) - (monthlyData[key]?.notSupported || 0))),
             backgroundColor: '#f59e0b',
-            borderRadius: 6,
-            borderSkipped: 'start'
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           }
         ]
       },
@@ -3117,22 +3144,22 @@ async function handleCredentialResponse(response) {
             label: 'DILULUSKAN',
             data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
             backgroundColor: '#10b981',
-            borderRadius: 4,
-            borderSkipped: 'end'
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DITOLAK/SIASAT',
             data: monthlyLabels.map(key => monthlyData[key]?.rejected || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 0,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DALAM PROSES',
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.approved || 0) - (monthlyData[key]?.rejected || 0))),
             backgroundColor: '#f59e0b',
-            borderRadius: 6,
-            borderSkipped: 'start'
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           }
         ]
       },
@@ -15335,51 +15362,85 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         });
       } else if (chart.config.type === 'bar') {
         const horiz = chart.options.indexAxis === 'y';
-        for (let di = 0; di < chart.data.datasets.length; di++) {
-          const meta = chart.getDatasetMeta(di);
-          const els = meta.data;
-          if (!els || !els.length) continue;
-          els.forEach((b) => {
-            if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
-            if (b.width === undefined || b.height === undefined) return;
-            let left, top, bw, bh;
-            if (horiz) {
-              left = Math.min(b.base, b.x);
-              top = b.y - b.height / 2;
-              bw = Math.abs(b.x - b.base);
-              bh = b.height;
-            } else {
-              left = b.x - b.width / 2;
-              top = Math.min(b.y, b.base);
-              bw = b.width;
-              bh = Math.abs(b.base - b.y);
+        const stacked = !!(chart.options.scales?.x?.stacked === true || chart.options.scales?.y?.stacked === true);
+        const drawBand = (left, top, width, height) => {
+          if (!(width > 1) || !(height > 1)) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(left, top, width, height);
+          ctx.clip();
+          if (horiz) {
+            const bandW = Math.max(6, width * 0.35);
+            const bx = left + p * (width - bandW);
+            const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(bx, top, bandW, height);
+          } else {
+            const bandH = Math.max(6, height * 0.35);
+            const by = top + (height - bandH) * (1 - p);
+            const g = ctx.createLinearGradient(0, by, 0, by + bandH);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(left, by, width, bandH);
+          }
+          ctx.restore();
+        };
+        if (stacked) {
+          const dsCount = chart.data.datasets.length;
+          const labelCount = (chart.data.labels || []).length;
+          for (let i = 0; i < labelCount; i++) {
+            let left = null, top = null, bottom = null, width = null;
+            for (let di = 0; di < dsCount; di++) {
+              const meta = chart.getDatasetMeta(di);
+              const b = meta.data && meta.data[i];
+              if (!b || !isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) continue;
+              if (horiz) {
+                const l = Math.min(b.base, b.x);
+                const w = Math.abs(b.x - b.base);
+                const t = b.y - b.height / 2;
+                const bt = b.y + b.height / 2;
+                if (left === null) { left = l; width = w; top = t; bottom = bt; }
+                else { left = Math.min(left, l); width = Math.max(width, w); top = Math.min(top, t); bottom = Math.max(bottom, bt); }
+              } else {
+                const l = b.x - b.width / 2;
+                const w = b.width;
+                const t = Math.min(b.y, b.base);
+                const bt = Math.max(b.y, b.base);
+                if (left === null) { left = l; width = w; top = t; bottom = bt; }
+                else { left = Math.min(left, l); width = Math.max(width, w); top = Math.min(top, t); bottom = Math.max(bottom, bt); }
+              }
             }
-            if (!(bw > 1) || !(bh > 1)) return;
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(left, top, bw, bh);
-            ctx.clip();
-            if (horiz) {
-              const bandW = Math.max(6, bw * 0.35);
-              const bx = left + p * (bw - bandW);
-              const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
-              g.addColorStop(0, 'rgba(255,255,255,0)');
-              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-              g.addColorStop(1, 'rgba(255,255,255,0)');
-              ctx.fillStyle = g;
-              ctx.fillRect(bx, top, bandW, bh);
-            } else {
-              const bandH = Math.max(6, bh * 0.35);
-              const by = top + (bh - bandH) * (1 - p);
-              const g = ctx.createLinearGradient(0, by, 0, by + bandH);
-              g.addColorStop(0, 'rgba(255,255,255,0)');
-              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-              g.addColorStop(1, 'rgba(255,255,255,0)');
-              ctx.fillStyle = g;
-              ctx.fillRect(left, by, bw, bandH);
-            }
-            ctx.restore();
-          });
+            if (left === null) continue;
+            drawBand(left, top, width, bottom - top);
+          }
+        } else {
+          for (let di = 0; di < chart.data.datasets.length; di++) {
+            const meta = chart.getDatasetMeta(di);
+            const els = meta.data;
+            if (!els || !els.length) continue;
+            els.forEach((b) => {
+              if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
+              if (b.width === undefined || b.height === undefined) return;
+              let left, top, bw, bh;
+              if (horiz) {
+                left = Math.min(b.base, b.x);
+                top = b.y - b.height / 2;
+                bw = Math.abs(b.x - b.base);
+                bh = b.height;
+              } else {
+                left = b.x - b.width / 2;
+                top = Math.min(b.y, b.base);
+                bw = b.width;
+                bh = Math.abs(b.base - b.y);
+              }
+              drawBand(left, top, bw, bh);
+            });
+          }
         }
       }
     } catch (e) { /* gagal senyap */ }
