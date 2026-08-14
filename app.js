@@ -1914,8 +1914,12 @@ async function handleCredentialResponse(response) {
     }
     if (!force && dashboardPeriodData && dashboardPeriodData.key === key) return dashboardPeriodData;
     try {
+      // V6.10.2: Hantar role/userName supaya rekod tempoh ditapis server
+      // (selaras dengan kad agregat yang per-pengguna untuk PENGESYOR/PELULUS).
       const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
-        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
+        + '&role=' + encodeURIComponent(currentUser.role || '')
+        + '&userName=' + encodeURIComponent(currentUser.name || '');
       const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
       const data = await res.json();
       const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
@@ -1923,7 +1927,9 @@ async function handleCredentialResponse(response) {
       return dashboardPeriodData;
     } catch (e) {
       console.error('V6.10.1 loadDashboardPeriodData error:', e);
-      dashboardPeriodData = { key: key, rows: Array.isArray(cachedData) ? cachedData : [] };
+      // V6.10.2: Fallback jangan guna window (bukan bulan dipilih) - papar kosong
+      // supaya jadual tidak menunjukkan bulan yang salah.
+      dashboardPeriodData = { key: key, rows: [] };
       return dashboardPeriodData;
     }
   }
@@ -2206,29 +2212,56 @@ async function handleCredentialResponse(response) {
     detailedTableBody.innerHTML = rowsHtml;
   }
 
-  // V6.10.1: Jadual analisis terperinci - paparan BULANAN: pecahan minggu dari
-  // rekod tempoh (sepadan dengan agregat bulan yang dipilih).
+  // V6.10.2: Paparan harian - ringkasan rekod bagi tarikh dipilih
+  function updateDetailedTableDaily() {
+    if (!detailedTableBody) return;
+    const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
+    const y = dashboardData.currentYear, m = dashboardData.currentMonth, d = dashboardData.currentDay;
+    const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
+    const dayRows = rows.filter(item => {
+      const dt = dateResolver(item);
+      return dt && !isNaN(dt) && dt.getFullYear() === y && dt.getMonth() + 1 === m && dt.getDate() === d;
+    });
+    const dayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+    const namaHari = dayNames[new Date(y, m - 1, d).getDay()];
+    detailedTableBody.innerHTML =
+      '<tr><td colspan="6" style="text-align:center;">' +
+      'Paparan Harian: ' + namaHari + ', ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + y +
+      '<br>Jumlah rekod: ' + dayRows.length +
+      '</td></tr>';
+  }
+
+  // V6.10.2: Jadual analisis terperinci - paparan BULANAN: pecahan MINGGU
+  // KALENDAR (Isnin-Ahad) dari rekod tempoh (sepadan dengan agregat bulan dipilih).
   function updateDetailedTableFromPeriod() {
     if (!detailedTableBody) return;
     const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
-    const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-    const monthName = monthNames[dashboardData.currentMonth - 1] || '';
+    const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
     if (rows.length === 0) {
       detailedTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data untuk tempoh ini</td></tr>';
       return;
     }
     const isPengesyor = currentUser.role === 'PENGESYOR';
+    const selYear = dashboardData.currentYear;
+    const selMonth = dashboardData.currentMonth;
+    const monthStart = new Date(selYear, selMonth - 1, 1);
+    const mondayOffset = (monthStart.getDay() + 6) % 7;
+    const daysInMonth = new Date(selYear, selMonth, 0).getDate();
+    const lastWeek = Math.ceil((daysInMonth + mondayOffset) / 7);
+    const fmt = (dt) => dt.getDate() + ' ' + monthNames[dt.getMonth()];
+
     const weeks = [];
     rows.forEach(item => {
       // Gunakan start_date (bulan permohonan) - selaras dengan pengumpulan agregat server
       const sd = item.start_date ? new Date(item.start_date) : null;
       if (!sd || isNaN(sd)) return;
-      const week = Math.ceil(sd.getDate() / 7);
+      // Minggu kalendar: Isnin = hari pertama minggu
+      const week = Math.ceil((sd.getDate() + mondayOffset) / 7);
       if (!weeks[week]) weeks[week] = [];
       weeks[week].push(item);
     });
     let rowsHtml = '';
-    for (let week = 1; week <= 5; week++) {
+    for (let week = 1; week <= lastWeek; week++) {
       const weekData = weeks[week] || [];
       const total = weekData.length;
       const supported = weekData.filter(item => item.syor_status && item.syor_status.includes('SOKONG') && !item.syor_status.includes('TIDAK')).length;
@@ -2237,8 +2270,11 @@ async function handleCredentialResponse(response) {
       const rejected = weekData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
       const inProcess = isPengesyor ? (total - supported - notSupported) : (total - approved - rejected);
       const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
+      const weekStart = new Date(selYear, selMonth - 1, 1 - mondayOffset + (week - 1) * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
       rowsHtml +=
-        '<tr><td>Minggu ' + week + ' (' + monthName + ')</td><td>' + total + '</td><td>' +
+        '<tr><td>Minggu ' + week + ' (' + fmt(weekStart) + ' - ' + fmt(weekEnd) + ')</td><td>' + total + '</td><td>' +
         (isPengesyor ? supported : approved) + '</td><td>' +
         (isPengesyor ? notSupported : rejected) + '</td><td>' + inProcess +
         '</td><td>' + rate + '%</td></tr>';
@@ -2382,13 +2418,14 @@ async function handleCredentialResponse(response) {
     updateTypeChartFromAgg(agg);
     updateTrendChartFromAgg();
 
-    // V6.10.1: Jadual terperinci ikut tempoh - TAHUNAN: 12 bulan tahun dipilih
-    // (agregat lengkap); BULANAN: pecahan minggu dari rekod tempoh.
+    // V6.10.2: Jadual terperinci ikut tempoh - TAHUNAN: 12 bulan tahun dipilih
+    // (agregat lengkap); BULANAN: pecahan minggu dari rekod tempoh (dibina
+    // selepas rekod tempoh dimuat supaya sepadan bulan yang dipilih).
     const dPeriod = dashboardData.currentPeriod;
     if (dPeriod === 'yearly') {
       updateDetailedTableFromYear(dashboardData.currentYear);
-    } else if (dPeriod === 'monthly') {
-      updateDetailedTableFromPeriod();
+    } else if (dPeriod === 'daily') {
+      updateDetailedTableDaily();
     }
 
     if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN') {
@@ -2402,9 +2439,10 @@ async function handleCredentialResponse(response) {
     updateApplicationTypeStatsFromAgg(agg);
     hideLoading();
 
-    // V6.10.1: Muat rekod tempoh (from/to) supaya modal kad & dokumen tak lengkap
-    // sepadan dengan nombor agregat. Re-render selepas siap.
-    loadDashboardPeriodData().then(() => {
+    // V6.10.2: Muat rekod tempoh (from/to) supaya modal kad & dokumen tak lengkap
+    // sepadan dengan nombor agregat. Re-render selepas siap (force = sentiasa
+    // muat semula bila bulan/tahun ditukar).
+    loadDashboardPeriodData(true).then(() => {
       refreshDashboardClientDetails();
       if (dPeriod === 'monthly') updateDetailedTableFromPeriod();
     });
@@ -3424,45 +3462,56 @@ async function handleCredentialResponse(response) {
       `;
       
     // ==========================================
-    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU)
+    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU KALENDAR)
     // ==========================================
     } else {
-      const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-      const monthName = monthNames[dashboardData.currentMonth - 1];
-      
+      const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+      const selYear = dashboardData.currentYear;
+      const selMonth = dashboardData.currentMonth;
+      const monthStart = new Date(selYear, selMonth - 1, 1);
+      const mondayOffset = (monthStart.getDay() + 6) % 7;
+      const daysInMonth = new Date(selYear, selMonth, 0).getDate();
+      const lastWeek = Math.ceil((daysInMonth + mondayOffset) / 7);
+      const fmt = (dt) => dt.getDate() + ' ' + monthNames[dt.getMonth()];
+      const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
+
       const weeks = [];
       data.forEach(item => {
-        let dateToUse = resolveRecordDate(item);
+        let dateToUse = dateResolver(item);
         if (dateToUse && !isNaN(dateToUse)) {
-          // Bahagi tarikh dengan 7 untuk dapatkan nombor minggu
-          const week = Math.ceil(dateToUse.getDate() / 7);
+          // Minggu kalendar: Isnin = hari pertama minggu
+          const week = Math.ceil((dateToUse.getDate() + mondayOffset) / 7);
           if (!weeks[week]) weeks[week] = [];
           weeks[week].push(item);
         }
       });
-      
-      for (let week = 1; week <= 5; week++) {
+
+      for (let week = 1; week <= lastWeek; week++) {
         const weekData = weeks[week] || [];
-        
+        const weekStart = new Date(selYear, selMonth - 1, 1 - mondayOffset + (week - 1) * 7);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const weekLabel = 'Minggu ' + week + ' (' + fmt(weekStart) + ' - ' + fmt(weekEnd) + ')';
+
         if (currentUser.role === 'PENGESYOR') {
           const user = currentUser.name.toUpperCase();
           const userData = weekData.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === user);
-          
+
           const total = userData.length;
-          const supported = userData.filter(item => 
+          const supported = userData.filter(item =>
             item.syor_status && item.syor_status.includes('SOKONG') && !item.syor_status.includes('TIDAK')
           ).length;
-          const notSupported = userData.filter(item => 
+          const notSupported = userData.filter(item =>
             item.syor_status && item.syor_status.includes('TIDAK DISOKONG')
           ).length;
-          const inProcess = userData.filter(item => 
+          const inProcess = userData.filter(item =>
             !item.syor_status || item.syor_status === ''
           ).length;
           const rate = total > 0 ? Math.round((supported / total) * 100) : 0;
-          
+
           rowsHtml += `
             <tr>
-              <td>Minggu ${week} (${monthName})</td>
+              <td>${weekLabel}</td>
               <td>${total}</td>
               <td>${supported}</td>
               <td>${notSupported}</td>
@@ -3472,20 +3521,20 @@ async function handleCredentialResponse(response) {
           `;
         } else {
           const total = weekData.length;
-          const approved = weekData.filter(item => 
+          const approved = weekData.filter(item =>
             item.kelulusan && item.kelulusan.includes('LULUS')
           ).length;
-          const rejected = weekData.filter(item => 
+          const rejected = weekData.filter(item =>
             item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))
           ).length;
-          const inProcess = weekData.filter(item => 
+          const inProcess = weekData.filter(item =>
             !item.kelulusan || item.kelulusan === ''
           ).length;
           const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
-          
+
           rowsHtml += `
             <tr>
-              <td>Minggu ${week} (${monthName})</td>
+              <td>${weekLabel}</td>
               <td>${total}</td>
               <td>${approved}</td>
               <td>${rejected}</td>

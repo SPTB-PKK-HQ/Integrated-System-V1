@@ -3163,8 +3163,9 @@ function filterRowsByRole(rows, role, userName) {
   if (role === ROLE_PENGESYOR && userName) {
     return rows.filter(r => r.pengesyor && r.pengesyor.toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PELULUS && userName) {
-    return rows.filter(r => r.syor_status && r.syor_status.toString().trim() !== ""
-      && r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
+    // V6.10.2: Tanpa syarat syor_status - selaras dengan kiraan getDashboardStats
+    // (rekod pelulus==user dikira dalam kad, jadi mesti dikira dalam jadual juga).
+    return rows.filter(r => r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PKA) {
     return rows.filter(r => !r.syor_lawatan || r.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
   }
