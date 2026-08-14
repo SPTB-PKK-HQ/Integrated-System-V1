@@ -2231,32 +2231,27 @@ async function handleCredentialResponse(response) {
       '</td></tr>';
   }
 
-  // V6.10.2: Jadual analisis terperinci - paparan BULANAN: pecahan MINGGU
-  // KALENDAR (Isnin-Ahad) dari rekod tempoh (sepadan dengan agregat bulan dipilih).
+  // V6.10.3: Jadual analisis terperinci - paparan BULANAN: pecahan minggu
+  // mudah (Minggu 1 = 1-7 hb, Minggu 2 = 8-14 hb, ...) dari rekod tempoh
+  // (sepadan dengan agregat bulan yang dipilih).
   function updateDetailedTableFromPeriod() {
     if (!detailedTableBody) return;
     const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
-    const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
     if (rows.length === 0) {
       detailedTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data untuk tempoh ini</td></tr>';
       return;
     }
     const isPengesyor = currentUser.role === 'PENGESYOR';
-    const selYear = dashboardData.currentYear;
-    const selMonth = dashboardData.currentMonth;
-    const monthStart = new Date(selYear, selMonth - 1, 1);
-    const mondayOffset = (monthStart.getDay() + 6) % 7;
-    const daysInMonth = new Date(selYear, selMonth, 0).getDate();
-    const lastWeek = Math.ceil((daysInMonth + mondayOffset) / 7);
-    const fmt = (dt) => dt.getDate() + ' ' + monthNames[dt.getMonth()];
+    const daysInMonth = new Date(dashboardData.currentYear, dashboardData.currentMonth, 0).getDate();
+    const lastWeek = Math.ceil(daysInMonth / 7);
 
     const weeks = [];
     rows.forEach(item => {
       // Gunakan start_date (bulan permohonan) - selaras dengan pengumpulan agregat server
       const sd = item.start_date ? new Date(item.start_date) : null;
       if (!sd || isNaN(sd)) return;
-      // Minggu kalendar: Isnin = hari pertama minggu
-      const week = Math.ceil((sd.getDate() + mondayOffset) / 7);
+      // Minggu mudah: 1-7, 8-14, 15-21, 22-28, 29-habis bulan
+      const week = Math.ceil(sd.getDate() / 7);
       if (!weeks[week]) weeks[week] = [];
       weeks[week].push(item);
     });
@@ -2270,11 +2265,10 @@ async function handleCredentialResponse(response) {
       const rejected = weekData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
       const inProcess = isPengesyor ? (total - supported - notSupported) : (total - approved - rejected);
       const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
-      const weekStart = new Date(selYear, selMonth - 1, 1 - mondayOffset + (week - 1) * 7);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
+      const dayStart = (week - 1) * 7 + 1;
+      const dayEnd = Math.min(week * 7, daysInMonth);
       rowsHtml +=
-        '<tr><td>Minggu ' + week + ' (' + fmt(weekStart) + ' - ' + fmt(weekEnd) + ')</td><td>' + total + '</td><td>' +
+        '<tr><td>Minggu ' + week + ' (' + dayStart + '-' + dayEnd + ' hb)</td><td>' + total + '</td><td>' +
         (isPengesyor ? supported : approved) + '</td><td>' +
         (isPengesyor ? notSupported : rejected) + '</td><td>' + inProcess +
         '</td><td>' + rate + '%</td></tr>';
@@ -3462,25 +3456,19 @@ async function handleCredentialResponse(response) {
       `;
       
     // ==========================================
-    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU KALENDAR)
+    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU MUDAH)
     // ==========================================
     } else {
-      const monthNames = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
-      const selYear = dashboardData.currentYear;
-      const selMonth = dashboardData.currentMonth;
-      const monthStart = new Date(selYear, selMonth - 1, 1);
-      const mondayOffset = (monthStart.getDay() + 6) % 7;
-      const daysInMonth = new Date(selYear, selMonth, 0).getDate();
-      const lastWeek = Math.ceil((daysInMonth + mondayOffset) / 7);
-      const fmt = (dt) => dt.getDate() + ' ' + monthNames[dt.getMonth()];
+      const daysInMonth = new Date(dashboardData.currentYear, dashboardData.currentMonth, 0).getDate();
+      const lastWeek = Math.ceil(daysInMonth / 7);
       const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
 
       const weeks = [];
       data.forEach(item => {
         let dateToUse = dateResolver(item);
         if (dateToUse && !isNaN(dateToUse)) {
-          // Minggu kalendar: Isnin = hari pertama minggu
-          const week = Math.ceil((dateToUse.getDate() + mondayOffset) / 7);
+          // Minggu mudah: 1-7, 8-14, 15-21, 22-28, 29-habis bulan
+          const week = Math.ceil(dateToUse.getDate() / 7);
           if (!weeks[week]) weeks[week] = [];
           weeks[week].push(item);
         }
@@ -3488,10 +3476,9 @@ async function handleCredentialResponse(response) {
 
       for (let week = 1; week <= lastWeek; week++) {
         const weekData = weeks[week] || [];
-        const weekStart = new Date(selYear, selMonth - 1, 1 - mondayOffset + (week - 1) * 7);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        const weekLabel = 'Minggu ' + week + ' (' + fmt(weekStart) + ' - ' + fmt(weekEnd) + ')';
+        const dayStart = (week - 1) * 7 + 1;
+        const dayEnd = Math.min(week * 7, daysInMonth);
+        const weekLabel = 'Minggu ' + week + ' (' + dayStart + '-' + dayEnd + ' hb)';
 
         if (currentUser.role === 'PENGESYOR') {
           const user = currentUser.name.toUpperCase();
