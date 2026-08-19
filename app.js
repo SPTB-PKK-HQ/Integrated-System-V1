@@ -924,6 +924,50 @@ async function handleCredentialResponse(response) {
     }
   };
 
+  // Taip digit padat (cth. 26022026, 2622026, 26226, 260226) -> Date ISO
+  function parseCompactDigits(s) {
+    if (!/^\d{5,8}$/.test(s)) return null;
+    const n = s.length;
+    let year, restStr;
+    if (n >= 7) {
+      year = parseInt(s.slice(n - 4), 10);
+      restStr = s.slice(0, n - 4);
+    } else {
+      year = 2000 + parseInt(s.slice(n - 2), 10);
+      restStr = s.slice(0, n - 2);
+    }
+    if (year < 2000 || year > 2100) return null;
+    const tryOrder = (dLen, mLen) => {
+      if (restStr.length !== dLen + mLen) return null;
+      const d = parseInt(restStr.slice(0, dLen), 10);
+      const m = parseInt(restStr.slice(dLen), 10);
+      if (d >= 1 && d <= 31 && m >= 1 && m <= 12) return { d, m };
+      return null;
+    };
+    const r = tryOrder(2, 2) || tryOrder(2, 1) || tryOrder(1, 2) || tryOrder(1, 1);
+    if (!r) return null;
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    if (r.m === 2 && leap) daysInMonth[1] = 29;
+    if (r.d > daysInMonth[r.m - 1]) return null;
+    return new Date(year, r.m - 1, r.d);
+  }
+
+  // Taip digit padat bulan-tahun KWSP (cth. 082026, 82026, 0826, 826) -> Date
+  function parseCompactMonth(s) {
+    if (!/^\d{3,6}$/.test(s)) return null;
+    let m, y;
+    if (s.length >= 5) {
+      m = parseInt(s.slice(0, s.length - 4), 10);
+      y = parseInt(s.slice(s.length - 4), 10);
+    } else {
+      m = parseInt(s.slice(0, s.length - 2), 10);
+      y = 2000 + parseInt(s.slice(s.length - 2), 10);
+    }
+    if (m < 1 || m > 12 || y < 2000 || y > 2100) return null;
+    return new Date(y, m - 1, 1);
+  }
+
   function initDatepickers(rootEl) {
     if (typeof flatpickr === 'undefined' || !rootEl) return;
     rootEl.querySelectorAll('input[type="date"], input[type="month"]').forEach((el) => {
@@ -935,6 +979,29 @@ async function handleCredentialResponse(response) {
         locale: MALAY_LOCALE,
         allowInput: true,
         disableMobile: true,
+        parseDate: (dateStr, format) => {
+          // Taip digit padat tanpa pemisah -> baca sebagai tarikh/bulan
+          const s = String(dateStr == null ? '' : dateStr).trim();
+          const monthFmt = format === 'Y-m' || format === 'F-Y';
+          if (monthFmt && /^\d{3,6}$/.test(s)) return parseCompactMonth(s);   // KWSP: 082026, 82026, 826
+          if (!monthFmt && /^\d{4,8}$/.test(s)) return parseCompactDigits(s); // tarikh: 26022026, 2622026
+          // Semua digit lain: hanya terima hasil padat yang sah;
+          // jangan biar parser lalai meneka digit yang tidak sah
+          try {
+            // Nama bulan Melayu disemak dahulu — parser statik flatpickr tidak
+            // kenal locale dan boleh salah meneka (cth. 'Januari-2026' -> Disember)
+            if (monthFmt) {
+              const m = s.match(/^([A-Za-z]+)\s*-\s*(\d{4})$/);
+              if (m) {
+                const idx = MALAY_LOCALE.months.longhand.findIndex(n => n.toLowerCase() === m[1].toLowerCase());
+                if (idx >= 0) return new Date(parseInt(m[2], 10), idx, 1);
+              }
+            }
+            const parsed = flatpickr.parseDate(dateStr, format); // parser lalai flatpickr
+            if (parsed && !isNaN(parsed.getTime())) return parsed;
+          } catch (e) { /* jatuh ke cubaan berikut */ }
+          return null;
+        },
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'd/m/Y',
