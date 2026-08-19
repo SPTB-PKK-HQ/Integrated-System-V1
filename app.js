@@ -1019,11 +1019,10 @@ async function handleCredentialResponse(response) {
           if (parsed && (!selectedDates.length || instance.formatDate(selectedDates[0], fmt) !== instance.formatDate(parsed, fmt))) {
             instance.setDate(parsed, false);
           }
-          // Lumpuhkan butang Hari Ini/Kosongkan jika tarikh terkunci (min=max)
+          // Lumpuhkan butang Hari Ini/Kosongkan hanya untuk rekod TELAH DIHANTAR
           const cal = instance.calendarContainer;
           if (cal) {
-            const locked = instance.config.minDate && instance.config.maxDate &&
-              instance.config.minDate.getTime() === instance.config.maxDate.getTime();
+            const locked = !!dbSubmitLockDate;
             cal.querySelectorAll('.fp-quick-btn').forEach(b => { b.disabled = locked; });
           }
         },
@@ -1036,12 +1035,15 @@ async function handleCredentialResponse(response) {
           footer.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-fp-action]');
             if (!btn) return;
-            // Tarikh terkunci (cth. rekod TELAH DIHANTAR): jangan benarkan ubah/kosongkan
-            const locked = instance.config.minDate && instance.config.maxDate &&
-              instance.config.minDate.getTime() === instance.config.maxDate.getTime();
+            // Tarikh terkunci hanya untuk rekod TELAH DIHANTAR: jangan benarkan ubah/kosongkan
+            const locked = !!dbSubmitLockDate;
             if (locked) return;
             if (btn.dataset.fpAction === 'today') {
-              instance.setDate(new Date(), true);
+              // Guna tengah malam (tanpa komponen masa) supaya tidak ditolak
+              // flatpickr bila kunci min/max = hari ini
+              const now = new Date();
+              const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              instance.setDate(midnight, true);
               instance.close();
             } else {
               instance.clear();
