@@ -911,6 +911,108 @@ async function handleCredentialResponse(response) {
     return '#2563eb';
   }
 
+  // --- FUNGSI BANTUAN: MODERN DATE PICKER (FLATPICKR, tema ikut --theme-color) ---
+  const MALAY_LOCALE = {
+    firstDayOfWeek: 1,
+    weekdays: {
+      shorthand: ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'],
+      longhand: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu']
+    },
+    months: {
+      shorthand: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'],
+      longhand: ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember']
+    }
+  };
+
+  function initDatepickers(rootEl) {
+    if (typeof flatpickr === 'undefined' || !rootEl) return;
+    rootEl.querySelectorAll('input[type="date"], input[type="month"]').forEach((el) => {
+      if (el.hasAttribute('readonly') || el.disabled) return;
+      if (el._flatpickr) el._flatpickr.destroy();
+      const isMonth = el.type === 'month';
+      if (isMonth && typeof monthSelectPlugin === 'undefined') return;
+      const opts = {
+        locale: MALAY_LOCALE,
+        allowInput: true,
+        disableMobile: true,
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd/m/Y',
+        altInputClass: 'fp-alt-input',
+        onOpen: (selectedDates, dateStr, instance) => {
+          const fmt = instance.config.dateFormat || 'Y-m-d';
+          const altText = instance.altInput ? instance.altInput.value.trim() : '';
+          const src = altText !== '' ? altText : (instance.input ? instance.input.value.trim() : '');
+          if (!src) {
+            if (selectedDates.length) instance.clear();
+            return;
+          }
+          const parseFmt = altText !== '' ? (instance.config.altFormat || fmt) : fmt;
+          const parsed = instance.parseDate(src, parseFmt);
+          if (parsed && (!selectedDates.length || instance.formatDate(selectedDates[0], fmt) !== instance.formatDate(parsed, fmt))) {
+            instance.setDate(parsed, false);
+          }
+        },
+        onReady: (selectedDates, dateStr, instance) => {
+          const cal = instance.calendarContainer;
+          if (!cal || cal.querySelector('.fp-quick-actions')) return;
+          const footer = document.createElement('div');
+          footer.className = 'fp-quick-actions';
+          footer.innerHTML = '<button type="button" class="fp-quick-btn" data-fp-action="clear">Kosongkan</button><button type="button" class="fp-quick-btn" data-fp-action="today">Hari Ini</button>';
+          footer.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-fp-action]');
+            if (!btn) return;
+            if (btn.dataset.fpAction === 'today') {
+              instance.setDate(new Date(), true);
+              instance.close();
+            } else {
+              instance.clear();
+            }
+          });
+          cal.appendChild(footer);
+        }
+      };
+      if (isMonth) {
+        opts.dateFormat = 'Y-m';
+        opts.altFormat = 'F-Y';
+        opts.plugins = [new monthSelectPlugin({ shorthand: false, dateFormat: 'Y-m', altFormat: 'F-Y' })];
+      }
+      flatpickr(el, opts);
+      const fp = el._flatpickr;
+      if (fp && fp.altInput) {
+        const inlineStyle = el.getAttribute('style');
+        if (inlineStyle) fp.altInput.setAttribute('style', inlineStyle);
+        if (el.style.display === 'none') fp.altInput.style.display = 'none';
+      }
+    });
+  }
+
+  // Selaraskan semula paparan datepicker selepas nilai diisi/dikosongkan secara kod
+  function syncDatepickers(rootEl) {
+    if (typeof flatpickr === 'undefined' || !rootEl) return;
+    rootEl.querySelectorAll('input').forEach((el) => {
+      const fp = el._flatpickr;
+      if (!fp) return;
+      try {
+        const raw = el.value ? el.value.trim() : '';
+        if (raw) fp.setDate(raw, false);
+        else fp.clear(false, false);
+      } catch (e) { /* abaikan nilai tidak sah */ }
+    });
+  }
+
+  // Tunjuk/sembunyi input tarikh + pasangan altInput flatpickr
+  function setDatepickerVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible ? 'block' : 'none';
+    if (el._flatpickr && el._flatpickr.altInput) {
+      el._flatpickr.altInput.style.display = visible ? 'block' : 'none';
+    }
+  }
+
+  // Modern date picker untuk input tarikh statik (tema ikut --theme-color pengguna)
+  initDatepickers(document.body);
+
   // --- FUNGSI BANTUAN DESTROY CHART ---
   function safeDestroyChart(chartInstance, canvasId) {
     if (chartInstance) {
@@ -3951,6 +4053,7 @@ async function handleCredentialResponse(response) {
       </div>
     </div>`;
     document.querySelectorAll('#pkaKeputusanList .editable-textarea').forEach(autoResizeTextarea);
+    initDatepickers(list);
   }
 
   function pkaRenderSejarahCards(data, list) {
@@ -6328,6 +6431,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     
     // KOD BARU: Alert dialih keluar kerana CustomAppModal sudah dipanggil di listener event klik butang
     console.log("V6.5.2 Profile form reset completed");
+    syncDatepickers(document.body);
   }
 
 
@@ -6752,6 +6856,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
 
     await CustomAppModal.alert("Data profile berjaya diisi ke borang!", "Berjaya", "success");
+    syncDatepickers(document.body);
   }
 
   function clearProfileData() {
@@ -10006,6 +10111,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (dbLawatanTarikh) dbLawatanTarikh.value = '';
         if (dbLawatanSubmitSptb) dbLawatanSubmitSptb.value = '';
         if (dbLawatanSyor) dbLawatanSyor.value = '';
+        syncDatepickers(document.body);
       }
     });
   }
@@ -10026,10 +10132,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (dateInput) {
           dateInput.min = todayStr;
           dateInput.max = todayStr;
+          if (dateInput._flatpickr) {
+            dateInput._flatpickr.set('minDate', todayStr);
+            dateInput._flatpickr.set('maxDate', todayStr);
+          }
         }
       } else {
         dbSubmitDateContainer.style.display = 'none';
         document.getElementById('db_submit_date').value = '';
+        syncDatepickers(document.body);
       }
     }
   }
@@ -11615,6 +11726,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    syncDatepickers(document.body);
 
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
@@ -12947,7 +13059,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     if (item.jenis_konsultansi) {
       document.querySelectorAll('.konsultansi-checkbox').forEach(cb => { cb.checked = false; });
-      document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; d.style.display = 'none'; });
+      document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; setDatepickerVisible(d, false); });
       
       const pattern = /(Emel|WhatsApp|Whatsapp|Call),?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
       let match;
@@ -12963,7 +13075,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           if (dateInput) {
             const parts = date.split('/');
             dateInput.value = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            dateInput.style.display = 'block';
+            setDatepickerVisible(dateInput, true);
           }
         }
       }
@@ -13192,6 +13304,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     
     // Jika tiada JSON, buka Input Database (lalai seperti sistem asal)
     switchTab('db');
+    syncDatepickers(document.body);
     // =====================================================================
   }
 
@@ -13999,7 +14112,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     if (statusDisp) statusDisp.style.display = 'none';
     
     document.querySelectorAll('.konsultansi-checkbox').forEach(cb => { cb.checked = false; });
-    document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; d.style.display = 'none'; });
+    document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; setDatepickerVisible(d, false); });
+    
+    syncDatepickers(document.body);
     
     if (cbSelesaiLawatan) cbSelesaiLawatan.checked = false;
     if (containerLawatan) containerLawatan.style.display = 'none';
@@ -14319,6 +14434,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       </div>
     `;
     personnelList.appendChild(div);
+    initDatepickers(div);
 
     const docTypes = ['ic', 'sb', 'epf', 'comp'];
     
@@ -14485,17 +14601,19 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const dateInput = document.getElementById(e.target.id.replace('cb_', 'date_'));
       if (dateInput) {
         if (e.target.checked) {
-          dateInput.style.display = 'block';
+          setDatepickerVisible(dateInput, true);
           if (!dateInput.value) {
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             dateInput.value = `${year}-${month}-${day}`;
+            if (dateInput._flatpickr) dateInput._flatpickr.setDate(dateInput.value, false);
           }
         } else {
-          dateInput.style.display = 'none';
+          setDatepickerVisible(dateInput, false);
           dateInput.value = '';
+          if (dateInput._flatpickr) dateInput._flatpickr.clear(false, false);
         }
       }
       saveDatabaseFormData();
