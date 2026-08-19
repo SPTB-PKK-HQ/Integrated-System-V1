@@ -61,6 +61,12 @@ const APP_DATA_CHUNK_COUNT_KEY = APP_DATA_CHUNK_PREFIX + 'COUNT';
 const APP_DATA_CHUNK_LIMIT = 45000; // 45KB per chunk (selamat di bawah 100KB/key)
 const APP_DATA_CHUNK_TTL = 600; // 10 minit
 
+// V6.11.0: Rebuild lock - elak "stampede" (banyak eksekusi baca sheet serentak
+// bila chunked cache tamat). Hanya SATU eksekusi baca spreadsheet; yang lain
+// dapat rebuilding:true dan cuba semula. TTL 90 saat cukup untuk rebuild penuh.
+const APP_DATA_REBUILD_KEY = 'STB_APP_DATA_REBUILDING';
+const APP_DATA_REBUILD_TTL = 90;
+
 // V6.10.0: Window bulan semasa - hanya data N bulan terkini dimuat secara lalai.
 // Data bulan lama dimuat atas permintaan (butang "Muat Data Bulan Lama").
 const DEFAULT_MONTHS_WINDOW = 3;
@@ -3089,43 +3095,63 @@ function getApplicationsData(role, userName, clientVersion, forceRefresh, client
 
   // ======================
   // READ FROM SHEET (FALLBACK ATAU REFRESH)
+  // V6.11.0: Rebuild lock - elak stampede. Bila chunked cache tamat, hanya SATU
+  // eksekusi baca sheet (pemilik rebuild); yang lain pulang rebuilding:true dan
+  // frontend cuba semula selepas jeda. Lock DIABAIKAN untuk forceRefresh (refresh
+  // paksa mesti baca sheet selalu) dan mod sejarah (sudah pulang awal di atas).
   // ======================
   const cache = CacheService.getScriptCache();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return createJSONOutput([]);
-  
-  const lastRow = sheet.getLastRow();
-  let firstEmptyRow = 2;
 
-  if (lastRow > 1) {
-    const columnA = sheet.getRange("A2:A" + lastRow).getValues();
-    for (let i = 0; i < columnA.length; i++) {
-      if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
-        firstEmptyRow = i + 2;
-        break;
-      }
+  if (!forceRefresh) {
+    const rebuilding = cache.get(APP_DATA_REBUILD_KEY);
+    if (rebuilding) {
+      return createJSONOutput({ cached: true, version: currentVersion, windowStart: windowStart, months: windowMonths, rebuilding: true, engine: 'v610' });
     }
-    if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
+    try { cache.put(APP_DATA_REBUILD_KEY, String(Date.now()), APP_DATA_REBUILD_TTL); } catch (e) {}
   }
-  
-  try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
 
-  const allRows = readSheetRows(sheet).rows;
-
-  // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
-  const windowRows = filterRowsByWindow(allRows, windowStart);
-
-  // V6.10.0: Simpan chunked cache untuk window semasa sahaja
   try {
-    buildChunkedAppDataCache(currentVersion, windowStart, windowRows);
-  } catch (e) {
-    Logger.log('[V6.10.0] Gagal bina chunked cache: ' + e.toString());
-  }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return createJSONOutput([]);
+    
+    const lastRow = sheet.getLastRow();
+    let firstEmptyRow = 2;
 
-  // Filter dan return
-  const filtered = filterRowsByRole(windowRows, role, userName);
-  return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+    if (lastRow > 1) {
+      const columnA = sheet.getRange("A2:A" + lastRow).getValues();
+      for (let i = 0; i < columnA.length; i++) {
+        if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
+          firstEmptyRow = i + 2;
+          break;
+        }
+      }
+      if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
+    }
+    
+    try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
+
+    const allRows = readSheetRows(sheet).rows;
+
+    // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
+    const windowRows = filterRowsByWindow(allRows, windowStart);
+
+    // V6.10.0: Simpan chunked cache untuk window semasa sahaja
+    try {
+      buildChunkedAppDataCache(currentVersion, windowStart, windowRows);
+    } catch (e) {
+      Logger.log('[V6.10.0] Gagal bina chunked cache: ' + e.toString());
+    }
+
+    // Filter dan return
+    const filtered = filterRowsByRole(windowRows, role, userName);
+    return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+  } finally {
+    // V6.11.0: Buang rebuild lock supaya eksekusi seterusnya boleh baca cache baru
+    if (!forceRefresh) {
+      try { cache.remove(APP_DATA_REBUILD_KEY); } catch (e) {}
+    }
+  }
 }
 
 function getSingleRowData(rowNum) {
@@ -3330,7 +3356,9 @@ function getDashboardStats(role, userName) {
       pengesyorStats: pengesyorStats,
       pelulusStats: pelulusStats
     };
-    try { cache.put(cacheKey, JSON.stringify(payload), 600); } catch (e) {}
+    // V6.11.0: TTL 3600 saat (1 jam) - stats jarang berubah, key guna versi data
+    // jadi auto-invalid bila data dikemas kini. Kurangkan kekerapan baca sheet penuh.
+    try { cache.put(cacheKey, JSON.stringify(payload), 3600); } catch (e) {}
     return createJSONOutput(payload);
   } catch (e) {
     return createJSONOutput({ error: e.toString() });

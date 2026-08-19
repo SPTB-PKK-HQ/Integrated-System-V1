@@ -580,7 +580,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   
   // --- FETCH WITH RETRY MECHANISM ---
+  // V6.11.0: Panggilan BACA (method GET, tidak menulis) guna retry lembut
+  // (maxRetries=2, delay=3000, backoff 6s/12s) untuk tahan 404/redirect sementara
+  // bila ramai pengguna serentak. Panggilan TULIS (POST dll) kekal maxRetries=1
+  // supaya tidak duplikat rekod. Retry tidak dijalankan untuk respons berjaya.
   async function fetchWithRetry(url, options = {}, maxRetries = 1, delay = 1000) {
+    const isRead = !options.method || String(options.method).toUpperCase() === 'GET';
+    if (isRead) {
+      maxRetries = 2;
+      delay = 3000;
+    }
     let lastError = null;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -617,6 +626,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     throw lastError;
+  }
+
+  // =========================================================================
+  // V6.11.0: RETRY REBUILD DATA (getData "stampede")
+  // Bila server pulang rebuilding:true (cache chunked sedang dibina semula oleh
+  // eksekusi lain), frontend guna data sedia ada dan cuba semula selepas 5-8s.
+  // Timer tunggal (tidak selari) dan had maksimum 3 cubaan.
+  // =========================================================================
+  let dataRebuildRetryTimer = null;
+  let dataRebuildRetryCount = 0;
+  const DATA_REBUILD_RETRY_MAX = 3;
+
+  function resetDataRebuildRetry() {
+    dataRebuildRetryCount = 0;
+    if (dataRebuildRetryTimer) {
+      clearTimeout(dataRebuildRetryTimer);
+      dataRebuildRetryTimer = null;
+    }
+  }
+
+  function scheduleDataRebuildRetry(fn) {
+    if (dataRebuildRetryTimer) return; // retry sudah berjadual - jangan selari
+    if (dataRebuildRetryCount >= DATA_REBUILD_RETRY_MAX) {
+      dataRebuildRetryCount = 0;
+      return;
+    }
+    dataRebuildRetryCount++;
+    const delayMs = 5000 + Math.random() * 3000; // 5-8 saat
+    console.log(`V6.11.0 Data sedang dibina semula di server - cuba semula dalam ${Math.round(delayMs / 1000)}s (cubaan ${dataRebuildRetryCount}/${DATA_REBUILD_RETRY_MAX})`);
+    dataRebuildRetryTimer = setTimeout(async () => {
+      dataRebuildRetryTimer = null;
+      try {
+        await fn();
+      } catch (e) {
+        console.warn('V6.11.0 Retry rebuild data gagal:', e.message);
+      }
+    }, delayMs);
   }
 
   // =========================================================================
@@ -3946,7 +3992,23 @@ async function handleCredentialResponse(response) {
         redirect: 'follow'
       }, 3, 1000);
       const data = await res.json();
+      // V6.11.0: Server sedang bina semula cache - guna data sedia ada, cuba semula
+      if (data && data.rebuilding === true) {
+        console.log('V6.11.0 PKA: data sedang dibina semula di server, cuba semula...');
+        scheduleDataRebuildRetry(() => pkaLoadData());
+        return;
+      }
+      if (data && data.cached === true) {
+        resetDataRebuildRetry();
+        if (data.version) dataCacheVersion = data.version;
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+          storageWrapper.set({ 'stb_data_window': dataWindowStart });
+        }
+        return;
+      }
       if (data && data.data && Array.isArray(data.data)) {
+        resetDataRebuildRetry();
         cachedData = data.data;
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {
@@ -3954,6 +4016,7 @@ async function handleCredentialResponse(response) {
           storageWrapper.set({ 'stb_data_window': dataWindowStart });
         }
       } else if (Array.isArray(data)) {
+        resetDataRebuildRetry();
         cachedData = data;
       }
     } catch (e) {
@@ -12146,8 +12209,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           return cachedData;
         }
 
+        // V6.11.0: Server sedang bina semula cache (stampede) - guna data
+        // sedia ada, jangan papar error, cuba semula selepas 5-8 saat.
+        if (data && data.rebuilding === true) {
+          if (data.version) dataCacheVersion = data.version;
+          updateWindowIndicator();
+          if (cachedData.length > 0) {
+            renderFilteredList(listType);
+            listStatus.innerText = `Memuat semula data... (cache: ${cachedData.length} rekod)`;
+          } else {
+            listStatus.innerText = "Memuat semula data...";
+          }
+          setTimeout(() => hideLoading(), 300);
+          scheduleDataRebuildRetry(() => fetchAndRenderList(listType, true));
+          return cachedData;
+        }
+
         // Jika server kata data tak berubah, guna cache sedia ada
         if (data && data.cached === true) {
+          resetDataRebuildRetry();
           if (data.version) dataCacheVersion = data.version;
           if (data.windowStart) {
             dataWindowStart = data.windowStart;
@@ -12168,6 +12248,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
         // Data baru dari server (handle old format array & new format object)
         console.log("V6.5.2 Response type:", Array.isArray(data) ? 'array' : typeof data, data && data.cached !== undefined ? 'cached:' + data.cached : '');
+        resetDataRebuildRetry();
         const newData = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
@@ -18405,7 +18486,19 @@ function startTabAutoRefresh() {
       if (!response.ok) return;
       const data = await response.json();
 
+      // V6.11.0: Server sedang bina semula cache - senyap, cuba semula selepas jeda
+      if (data && data.rebuilding === true) {
+        if (data.version) dataCacheVersion = data.version;
+        scheduleDataRebuildRetry(() => {
+          if (tabName === 'inbox') {
+            fetchAndRenderList('inbox', true);
+          }
+        });
+        return;
+      }
+
       if (data && data.cached === true) {
+        resetDataRebuildRetry();
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {
           dataWindowStart = data.windowStart;
@@ -18416,6 +18509,7 @@ function startTabAutoRefresh() {
 
       const newData = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
       if (newData.length > 0) {
+        resetDataRebuildRetry();
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {
