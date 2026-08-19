@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdRn6ljkpHMQcXx-Dn_HtznvAIJSgrKqmxigsio9VdheTtgGIMFGxIgUj7b88Tsjd3/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxplesqkeYT7pOKof-aMc0pT2Se9E_AiVbQ3K5PzQVwG-oaNtwvQ4cx84YPQqtXwa09/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -802,8 +802,6 @@ async function handleCredentialResponse(response) {
           : getDailyGreeting();
         await CustomAppModal.alert(greetingMsg, 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
-        // V6.6.0: Tunjuk changelog walkthrough jika ada versi baru
-        setTimeout(() => showChangelogWalkthrough(), 500);
       }, 1500); 
       
     } else {
@@ -7382,10 +7380,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
           });
       }
       setupUserUI();
-      // V6.6.0: Muat changelog dan tunjuk walkthrough jika ada versi baru
-      loadChangelog().then(() => {
-        setTimeout(() => showChangelogWalkthrough(), 500);
-      });
   }
 }
       
@@ -7544,356 +7538,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
       // Initialize Google Sign-In pada skrin login
       initializeGoogleSignIn();
-      
-      // V6.6.0: Muatkan changelog di landing page
-      loadChangelog();
     }
-  }
-
-  // V6.6.0: Changelog loader
-  async function loadChangelog() {
-    try {
-      const response = await fetchWithRetry(SCRIPT_URL + '?action=getChangelog&t=' + Date.now(), { method: 'GET' }, 2, 1000);
-      const result = await response.json();
-      if (result.status === 'success' && result.changelog && result.changelog.length > 0) {
-        cachedChangelog = result.changelog;
-        renderChangelog(cachedChangelog);
-      }
-    } catch (e) {
-      console.warn('Gagal muat changelog:', e);
-    }
-  }
-
-  let changelogAutoScroll = null;
-  let changelogCurrentIdx = 0;
-  let changelogData = [];
-
-  function renderChangelog(data) {
-    const slider = document.getElementById('changelogSlider');
-    const panel = document.getElementById('changelogPanel');
-    const count = document.getElementById('changelogCount');
-    if (!slider) return;
-    if (count) count.textContent = data.length;
-
-    changelogData = data;
-    changelogCurrentIdx = 0;
-
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
-
-    // Build slides
-    slider.innerHTML = data.map((item, i) => {
-      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
-      let content;
-      if (images.length > 0) {
-        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy" data-fallback="${i}">`;
-      } else {
-        content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
-      }
-      return `<div class="changelog-slide" data-idx="${i}">
-        ${content}
-        <div class="changelog-slide-overlay">
-          <span class="${i === 0 ? 'latest-badge' : ''}">${item.versi}</span>
-        </div>
-      </div>`;
-    }).join('');
-
-    // Image error fallback
-    slider.querySelectorAll('img[data-fallback]').forEach(img => {
-      img.addEventListener('error', function() {
-        const idx = parseInt(this.dataset.fallback);
-        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${featureIcons[idx % featureIcons.length]}</div>`;
-      });
-    });
-
-    // Build dots
-    const dotsEl = document.getElementById('clDots');
-    if (dotsEl && data.length > 1) {
-      dotsEl.innerHTML = data.map((_, i) =>
-        `<button class="changelog-dot${i === 0 ? ' active' : ''}" data-carousel-idx="${i}"></button>`
-      ).join('');
-      dotsEl.querySelectorAll('.changelog-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          const idx = parseInt(dot.dataset.carouselIdx);
-          goToSlide(idx);
-        });
-      });
-    } else if (dotsEl) {
-      dotsEl.innerHTML = '';
-    }
-
-    // Arrow handlers
-    const prevBtn = document.getElementById('clArrowPrev');
-    const nextBtn = document.getElementById('clArrowNext');
-    if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx - 1));
-    if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx + 1));
-
-    // Click slide to show description (auto-scroll tetap jalan)
-    slider.querySelectorAll('.changelog-slide').forEach(el => {
-      el.addEventListener('click', () => {
-        const idx = parseInt(el.dataset.idx);
-        const item = data[idx];
-        if (!item) return;
-        showChangelogDesc(idx);
-        goToSlide(idx);
-      });
-    });
-
-    // Position at first slide
-    goToSlide(0, true);
-
-    // Start auto
-    startChangelogAutoScroll();
-  }
-
-  const transitions = ['fade', 'left', 'right', 'slideup', 'rotate', 'zoom', 'swoosh'];
-  let lastTransition = '';
-
-  function pickTransition() {
-    let t;
-    do { t = transitions[Math.floor(Math.random() * transitions.length)]; }
-    while (t === lastTransition && transitions.length > 1);
-    lastTransition = t;
-    return t;
-  }
-
-  function goToSlide(idx, noAnim) {
-    const slider = document.getElementById('changelogSlider');
-    if (!slider || !changelogData.length) return;
-
-    if (idx < 0) idx = changelogData.length - 1;
-    if (idx >= changelogData.length) idx = 0;
-    const prevIdx = changelogCurrentIdx;
-    changelogCurrentIdx = idx;
-
-    const percent = -idx * 100;
-    const easing = 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)';
-    slider.style.transition = noAnim ? 'none' : easing;
-    slider.style.transform = `translateX(${percent}%)`;
-    if (noAnim) {
-      slider.offsetHeight;
-      slider.style.transition = easing;
-    }
-
-    const allSlides = slider.querySelectorAll('.changelog-slide');
-    const trans = noAnim ? 'fade' : pickTransition();
-
-    allSlides.forEach(slide => {
-      slide.classList.remove(
-        'active', 'exit-left', 'exit-right', 'exit-fade', 'exit-slideup',
-        'enter-left', 'enter-right', 'enter-fade', 'enter-slideup',
-        'enter-rotate', 'enter-zoom', 'enter-swoosh'
-      );
-    });
-
-    allSlides.forEach((slide, i) => {
-      if (i === idx) {
-        if (noAnim) {
-          slide.classList.add('active');
-        } else {
-          slide.classList.add(`enter-${trans}`);
-          requestAnimationFrame(() => {
-            slide.classList.remove(`enter-${trans}`);
-            slide.classList.add('active');
-          });
-        }
-      } else if (i === prevIdx && !noAnim && prevIdx !== idx) {
-        const exitMap = { fade: 'exit-fade', left: 'exit-left', right: 'exit-right', slideup: 'exit-slideup' };
-        slide.classList.add(exitMap[trans] || 'exit-fade');
-        setTimeout(() => slide.classList.remove(exitMap[trans] || 'exit-fade'), 500);
-      }
-    });
-
-    // Update dots
-    document.querySelectorAll('.changelog-dot').forEach(dot => {
-      dot.classList.toggle('active', parseInt(dot.dataset.carouselIdx) === idx);
-    });
-
-    // Arrows
-    const prevBtn = document.getElementById('clArrowPrev');
-    const nextBtn = document.getElementById('clArrowNext');
-    if (prevBtn) prevBtn.classList.toggle('hidden', idx === 0);
-    if (nextBtn) nextBtn.classList.toggle('hidden', idx === changelogData.length - 1);
-  }
-
-  function showChangelogDesc(idx) {
-    const item = changelogData[idx];
-    if (!item) return;
-    const panel = document.getElementById('changelogPanel');
-    const tag = document.getElementById('panelVersionTag');
-    const dateEl = document.getElementById('panelDate');
-    const descEl = document.getElementById('panelDesc');
-    if (tag) {
-      tag.textContent = item.versi;
-      tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
-    }
-    if (dateEl) dateEl.textContent = item.tarikh || '';
-    if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
-    if (panel) {
-      panel.style.display = 'block';
-      panel.style.animation = 'none';
-      panel.offsetHeight;
-      panel.style.animation = 'slideDown 0.35s ease';
-    }
-  }
-
-  function startChangelogAutoScroll() {
-    stopChangelogAutoScroll();
-    if (!changelogData || changelogData.length < 2) return;
-
-    changelogAutoScroll = setInterval(() => {
-      goToSlide(changelogCurrentIdx + 1);
-    }, 4000);
-  }
-
-  function stopChangelogAutoScroll() {
-    if (changelogAutoScroll) {
-      clearInterval(changelogAutoScroll);
-      changelogAutoScroll = null;
-    }
-  }
-
-  // V6.6.0: Changelog walkthrough carousel
-  let cachedChangelog = null;
-
-  async function getUserLastSeenVersion(email) {
-    try {
-      const r = await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'getUserLastSeenVersion', email })
-      }, 2, 1000);
-      const d = await r.json();
-      return d.status === 'success' ? (d.version || '') : '';
-    } catch (e) { return ''; }
-  }
-
-  async function updateUserLastSeenVersion(email, version) {
-    try {
-      await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'updateUserLastSeenVersion', email, version })
-      }, 2, 1000);
-    } catch (e) {}
-  }
-
-  async function showChangelogWalkthrough() {
-    if (!cachedChangelog || cachedChangelog.length === 0) return;
-    const email = currentUser ? currentUser.email : '';
-    if (!email) return;
-
-    const lastSeen = await getUserLastSeenVersion(email);
-    const latestVersion = cachedChangelog[0].versi;
-    if (lastSeen === latestVersion) return; // Already seen latest
-
-    // Show carousel
-    const overlay = document.getElementById('changelogOverlay');
-    const slide = document.getElementById('carouselSlide');
-    const body = document.getElementById('carouselBody');
-    const desc = document.getElementById('carouselDesc');
-    const dateEl = document.getElementById('carouselDate');
-    const badgeEl = document.getElementById('clVersionBadge');
-    const dots = document.getElementById('carouselDots');
-    const prevBtn = document.getElementById('carouselPrev');
-    const nextBtn = document.getElementById('carouselNext');
-    const closeBtn = document.getElementById('carouselClose');
-    const imgContainer = document.getElementById('carouselImageContainer');
-    const imgPlaceholder = document.getElementById('carouselImagePlaceholder');
-
-    if (!overlay || !body || !desc) return;
-
-    let currentIndex = 0;
-    let subIndex = 0;
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
-
-    function renderItem(idx, resetSub) {
-      const item = cachedChangelog[idx];
-      if (!item) return;
-      const icon = featureIcons[idx % featureIcons.length];
-      
-      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
-      if (resetSub) subIndex = 0;
-      if (subIndex >= images.length) subIndex = 0;
-      
-      if (images.length > 0) {
-        const currentImg = images[subIndex] || images[0];
-        let arrows = '';
-        if (images.length > 1) {
-          arrows = `
-            <button class="carousel-img-prev" data-subidx="-1">‹</button>
-            <div class="carousel-img-dots">${images.map((_, si) => `<span class="carousel-img-dot${si === subIndex ? ' active' : ''}"></span>`).join('')}</div>
-            <button class="carousel-img-next" data-subidx="1">›</button>
-          `;
-        }
-        const fallbackIcon = featureIcons[idx % featureIcons.length];
-        imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
-        
-        // Image error fallback
-        const carouselImg = imgContainer.querySelector('.carousel-img-multi img');
-        if (carouselImg) {
-          carouselImg.addEventListener('error', function handler() {
-            this.removeEventListener('error', handler);
-            const multi = this.closest('.carousel-img-multi');
-            if (multi) multi.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${fallbackIcon}</span></div>`;
-          });
-        }
-        
-        // Sub-image navigation
-        imgContainer.querySelectorAll('.carousel-img-prev, .carousel-img-next').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dir = parseInt(btn.dataset.subidx);
-            subIndex = Math.max(0, Math.min(images.length - 1, subIndex + dir));
-            renderItem(idx, false);
-          });
-        });
-      } else {
-        imgContainer.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${icon}</span></div>`;
-        subIndex = 0;
-      }
-      
-      badgeEl.textContent = item.versi;
-      dateEl.textContent = item.tarikh || '';
-      desc.innerHTML = item.penerangan.replace(/\n/g, '<br>');
-      
-      // Version dots (between versions)
-      dots.innerHTML = cachedChangelog.map((_, i) =>
-        `<button class="carousel-dot ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-idx="${i}"></button>`
-      ).join('');
-      
-      dots.querySelectorAll('.carousel-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          currentIndex = parseInt(dot.dataset.idx);
-          renderItem(currentIndex, true);
-          updateButtons();
-        });
-      });
-
-      updateButtons();
-      slide.style.animation = 'none';
-      slide.offsetHeight;
-      slide.style.animation = 'fadeSlideIn 0.4s ease';
-    }
-
-    function updateButtons() {
-      prevBtn.style.display = currentIndex === 0 ? 'none' : '';
-      nextBtn.style.display = currentIndex < cachedChangelog.length - 1 ? '' : 'none';
-      closeBtn.style.display = currentIndex >= cachedChangelog.length - 1 ? '' : 'none';
-    }
-
-    prevBtn.onclick = () => {
-      if (currentIndex > 0) { currentIndex--; renderItem(currentIndex, true); }
-    };
-    nextBtn.onclick = () => {
-      if (currentIndex < cachedChangelog.length - 1) { currentIndex++; renderItem(currentIndex, true); }
-    };
-    closeBtn.onclick = () => {
-      overlay.style.display = 'none';
-      updateUserLastSeenVersion(email, latestVersion);
-    };
-
-    renderItem(0, true);
-    overlay.style.display = 'flex';
   }
 
   function initButtonGroups() {
@@ -10601,10 +10246,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       initAppBasedOnRole();
     }
     
-    // V6.9.3: Panggilan awal dijarakkan supaya tidak membanjiri Apps Script serentak (throttle/404)
-    startInboxAutoRefresh();
     startTabAutoRefresh();
-    setTimeout(() => fetchInbox(), 2000);
     
     resetInactivityTimer();
 
@@ -17617,500 +17259,38 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
   }
 
-// =========================================================================
-// V6.6.0: INBOX / NOTIFICATION SYSTEM
-// =========================================================================
-
-let cachedInboxData = [];
-
-async function fetchInbox() {
-  if (!currentUser || !currentUser.email) return;
-  try {
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getInbox', email: currentUser.email, role: currentUser.role })
-    }, 3, 1000);
-    if (!response.ok) return;
-    const result = await response.json();
-    if (result.status === 'success') {
-      cachedInboxData = result.inbox || [];
-      renderInbox();
-      // V6.7.0: Bila inbox notification dapat data baru, paksa refresh data aplikasi untuk Pelulus
-      if (currentUser.role === 'PELULUS') {
-        setTimeout(() => fetchAndRenderList('inbox', true), 500);
-      }
+// V6.6.0: Force refresh data dari sheet
+const btnRefreshData = document.getElementById('btnRefreshData');
+if (btnRefreshData) {
+  btnRefreshData.addEventListener('click', async () => {
+    const confirmed = await CustomAppModal.confirm(
+      'Refresh data akan muat turun semula semua rekod dari sheet. Teruskan?',
+      'Refresh Data', 'info', 'Ya, Refresh', false
+    );
+    if (!confirmed) return;
+    
+    // Clear local cache
+    cachedData = [];
+    dataCacheVersion = '';
+    await storageWrapper.remove(['stb_data_cache', 'stb_cache_timestamp', 'stb_data_version']);
+    
+    // Force fetch with refresh action
+    try {
+      simulateLoadingWithSteps(['Menghubungi pelayan...', 'Muat turun data terkini...', 'Selesai!'], 'Refresh Data');
+      await fetchWithRetry(SCRIPT_URL + '?action=refreshData&role=' + currentUser.role + '&userName=' + encodeURIComponent(currentUser.name) + '&t=' + Date.now(), { method: 'GET' }, 3, 1000);
+      // Refetch the data
+      await fetchAndRenderList(activeListType || 'drafts');
+      hideLoading();
+      await CustomAppModal.alert('Data berjaya dikemas kini!', 'Selesai', 'success');
+    } catch (e) {
+      hideLoading();
+      await CustomAppModal.alert('Gagal refresh: ' + e.message, 'Ralat', 'error');
     }
-  } catch (e) {
-    console.error('Gagal fetch inbox:', e);
-  }
+  });
 }
 
-function updateInboxBadge() {
-  const unreadCount = cachedInboxData ? cachedInboxData.filter(m => !m.dibaca).length : 0;
-  const topBadge = document.getElementById('inboxTopBadge');
-  if (topBadge) {
-    if (unreadCount > 0) {
-      topBadge.style.display = 'inline';
-      topBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-    } else {
-      topBadge.style.display = 'none';
-    }
-  }
-}
-
-function renderInbox() {
-  const inboxList = document.getElementById('inboxList');
-  const inboxEmpty = document.getElementById('inboxEmpty');
-  const inboxCount = document.getElementById('inboxCount');
-  
-  if (!inboxList) return;
-  
-  if (!cachedInboxData || cachedInboxData.length === 0) {
-    inboxList.innerHTML = '';
-    if (inboxEmpty) inboxEmpty.style.display = 'block';
-    if (inboxCount) inboxCount.textContent = '0 mesej';
-    updateInboxBadge();
-    const toolbar = document.getElementById('inboxBatchToolbar');
-    if (toolbar) toolbar.style.display = 'none';
-    return;
-  }
-  
-  if (inboxEmpty) inboxEmpty.style.display = 'none';
-  if (inboxCount) inboxCount.textContent = `${cachedInboxData.length} mesej`;
-  
-  const unreadCount = cachedInboxData.filter(m => !m.dibaca).length;
-  updateInboxBadge();
-  
-  const toolbar = document.getElementById('inboxBatchToolbar');
-  if (toolbar) toolbar.style.display = 'flex';
-  
-  const searchVal = (document.getElementById('inboxSearchInput')?.value || '').toLowerCase().trim();
-  let html = '';
-  cachedInboxData.forEach((msg, index) => {
-    if (searchVal) {
-      const match = (msg.syarikat && msg.syarikat.toLowerCase().includes(searchVal)) ||
-        (msg.mesej && msg.mesej.toLowerCase().includes(searchVal)) ||
-        (msg.jenis && msg.jenis.toLowerCase().includes(searchVal));
-      if (!match) return;
-    }
-    const isUnread = !msg.dibaca;
-    const iconMap = { 'SUCCESS': '✅', 'ERROR': '❌', 'WARNING': '⚠️', 'INFO': 'ℹ️' };
-    let icon = iconMap[msg.jenisMsg] || 'ℹ️';
-    const badgeClass = { 'SUCCESS': 'inbox-badge-success', 'ERROR': 'inbox-badge-error', 'WARNING': 'inbox-badge-warning', 'INFO': 'inbox-badge-info' };
-    const badge = badgeClass[msg.jenisMsg] || 'inbox-badge-info';
-    
-    const kelulusan = (msg.kelulusan || '').toUpperCase();
-    if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
-      icon = '✗';
-    }
-    const isRejected = icon === '✗';
-    
-    let masaStr = '';
-    if (msg.masa) {
-      try {
-        const d = new Date(msg.masa);
-        masaStr = d.toLocaleString('ms-MY');
-      } catch (e) { masaStr = msg.masa; }
-    }
-    
-    const cleanMesej = msg.mesej
-      ? msg.mesej
-          .replace(/✅\s*https?:\/\/wa\.me\/[^\s\n]+/g, '')
-          .replace(/https?:\/\/wa\.me\/[^\s\n]+/g, '')
-          .replace(/\n\nMesej:[\s\S]*/, '')
-          .replace(/\n*📱 Klik link untuk hantar:[\s\S]*/, '')
-          .replace(/✅/g, '')
-          .trim()
-      : '';
-    
-    const hasWALink = msg.mesej && /https?:\/\/wa\.me\/\d+/g.test(msg.mesej);
-    
-    html += `
-      <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
-        <div class="inbox-check"><input type="checkbox" class="inbox-item-cb" data-index="${index}"></div>
-        <div class="inbox-icon ${isRejected ? 'inbox-icon-rejected' : ''}">${icon}</div>
-        <div class="inbox-content">
-          <div class="inbox-message" style="white-space:pre-line;">${cleanMesej}</div>
-          <div class="inbox-meta">
-            <span class="inbox-badge ${badge}">${msg.jenisMsg}</span>
-            ${msg.syarikat ? `<span>🏢 ${msg.syarikat}</span>` : ''}
-            ${msg.jenis ? `<span>📋 ${msg.jenis}</span>` : ''}
-            <span>⏱ ${masaStr}</span>
-          </div>
-        </div>
-        <div class="inbox-actions">
-          ${(() => {
-            if (!msg.row) return '';
-            const kelulusan = (msg.kelulusan || '').toUpperCase();
-            const waScheduled = msg.whatsapp_schedule && msg.whatsapp_schedule.trim() !== '';
-            if (waScheduled) return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            if (kelulusan.includes('LULUS')) {
-              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            }
-            if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
-              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            }
-            const btnLabel = (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') ? '👁 Lihat' : '⚙️ Proses';
-            return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">${btnLabel}</button>`;
-          })()}
-          ${hasWALink ? `<button class="inbox-btn inbox-btn-wa-pilih" data-idx="${index}">💬 Hantar WA</button>` : ''}
-          <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
-        </div>
-      </div>
-    `;
-  });
-  
-  inboxList.innerHTML = html;
-  
-  const selectAllCb = document.getElementById('inboxSelectAll');
-  const selectedCountEl = document.getElementById('inboxSelectedCount');
-  
-  function updateSelectedCount() {
-    const checked = inboxList.querySelectorAll('.inbox-item-cb:checked').length;
-    const total = inboxList.querySelectorAll('.inbox-item-cb').length;
-    if (selectedCountEl) selectedCountEl.textContent = checked + ' dipilih';
-    if (selectAllCb) selectAllCb.checked = total > 0 && checked === total;
-  }
-  
-  if (selectAllCb) {
-    if (selectAllCb._inboxHandler) {
-      selectAllCb.removeEventListener('change', selectAllCb._inboxHandler);
-    }
-    const handler = () => {
-      inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => cb.checked = selectAllCb.checked);
-      updateSelectedCount();
-    };
-    selectAllCb._inboxHandler = handler;
-    selectAllCb.addEventListener('change', handler);
-  }
-  
-  inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => {
-    cb.addEventListener('change', updateSelectedCount);
-  });
-  
-  updateSelectedCount();
-  
-  // Delete buttons
-  inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const msgId = e.target.getAttribute('data-msgid');
-      const row = e.target.getAttribute('data-row');
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      
-      closeInboxModal();
-      
-      const confirmed = await CustomAppModal.confirm('Padam mesej ini?', 'Padam Inbox', 'warning', 'Ya, Padam', true);
-      if (!confirmed) return;
-      
-      try {
-        const response = await fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'deleteInbox', msgId: msgId, row: row, email: currentUser.email })
-        }, 3, 1000);
-        const result = await response.json();
-        if (result.status === 'success') {
-          cachedInboxData.splice(idx, 1);
-          renderInbox();
-          showToast('Mesej dipadam', 'success');
-        } else {
-          await CustomAppModal.alert('Gagal padam: ' + result.message, 'Ralat', 'error');
-        }
-      } catch (err) {
-        await CustomAppModal.alert('Ralat: ' + err.message, 'Ralat', 'error');
-      }
-    });
-  });
-  
-  // View buttons
-  inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const msgId = e.target.getAttribute('data-msgid');
-      const row = e.target.getAttribute('data-row');
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      if (msgId && row && cachedInboxData[idx] && !cachedInboxData[idx].dibaca) {
-        try {
-          await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'markInboxRead', msgId: msgId, row: row, email: currentUser.email })
-          }, 2, 500);
-          cachedInboxData[idx].dibaca = true;
-          renderInbox();
-        } catch (e) {}
-      }
-      closeInboxModal();
-      const itemRow = parseInt(row);
-      if (!itemRow) return;
-      let item = cachedData ? cachedData.find(d => d.row === itemRow) : null;
-      if (!item) {
-        try {
-          const resp = await fetchWithRetry(SCRIPT_URL + '?action=getRow&row=' + itemRow + '&t=' + Date.now(), { method: 'GET' }, 2, 1000);
-          const result = await resp.json();
-          if (result.status === 'success' && result.data) {
-            item = result.data;
-          }
-        } catch (e) {}
-      }
-      if (item) viewRecordOnly(item);
-    });
-  });
-  
-  // WhatsApp buttons
-  inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      const msg = cachedInboxData[idx];
-      if (msg) openWhatsAppPicker(msg, idx);
-    });
-  });
-  
-  // Mark as read
-  inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
-    item.addEventListener('click', async (e) => {
-      if (e.target.closest('.inbox-actions')) return;
-      if (e.target.closest('button')) return;
-      if (e.target.closest('.inbox-check')) return;
-      const idx = parseInt(item.getAttribute('data-index'));
-      const msg = cachedInboxData[idx];
-      if (!msg || msg.dibaca) return;
-      
-      try {
-        await fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
-        }, 2, 500);
-      } catch (e) {}
-      
-      cachedInboxData[idx].dibaca = true;
-      renderInbox();
-      showToast('Mesej ditandakan dibaca', 'success');
-    });
-  });
-  
-  // Batch: Tandakan Dibaca
-  const btnMarkSelected = document.getElementById('btnMarkSelectedRead');
-  if (btnMarkSelected && !btnMarkSelected._inboxHandler) {
-    btnMarkSelected._inboxHandler = true;
-    btnMarkSelected.addEventListener('click', async () => {
-      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
-      if (!checked.length) {
-        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
-        return;
-      }
-      closeInboxModal();
-      const promises = [];
-      for (const cb of checked) {
-        const idx = parseInt(cb.getAttribute('data-index'));
-        const msg = cachedInboxData[idx];
-        if (msg && !msg.dibaca) {
-          promises.push(
-            fetchWithRetry(SCRIPT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
-            }, 2, 500).then(() => { cachedInboxData[idx].dibaca = true; }).catch(() => {})
-          );
-        }
-      }
-      const results = await Promise.allSettled(promises);
-      const success = results.filter(r => r.status === 'fulfilled').length;
-      renderInbox();
-      showToast(success + ' mesej ditandakan dibaca', 'success');
-    });
-  }
-  
-  // Batch: Padam Pilihan
-  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  if (btnDeleteSelected && !btnDeleteSelected._inboxHandler) {
-    btnDeleteSelected._inboxHandler = true;
-    btnDeleteSelected.addEventListener('click', async () => {
-      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
-      if (!checked.length) {
-        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
-        return;
-      }
-      closeInboxModal();
-      const confirmed = await CustomAppModal.confirm('Padam ' + checked.length + ' mesej yang dipilih?', 'Padam Pilihan', 'warning', 'Ya, Padam', false);
-      if (!confirmed) return;
-      const indices = [];
-      for (const cb of checked) {
-        indices.push(parseInt(cb.getAttribute('data-index')));
-      }
-      const promises = indices.map(idx => {
-        const msg = cachedInboxData[idx];
-        if (!msg) return Promise.resolve();
-        return fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'deleteInbox', msgId: msg.id, row: msg.row, email: currentUser.email })
-        }, 2, 500).catch(() => {});
-      });
-      await Promise.allSettled(promises);
-      indices.sort((a, b) => b - a);
-      for (const idx of indices) {
-        if (cachedInboxData[idx]) cachedInboxData.splice(idx, 1);
-      }
-      renderInbox();
-      showToast(indices.length + ' mesej dipadam', 'success');
-    });
-  }
-}
-
-// =========================================================================
-// V6.6.0: WHATSAPP PICKER MODAL (Pilih nombor untuk hantar)
-// =========================================================================
-
-function openWhatsAppPicker(msg, msgIndex) {
-  // Parse wa.me links from message
-  const waLinks = [];
-  if (msg.mesej) {
-    const regex = /https:\/\/wa\.me\/[^\s\n]+/g;
-    let m;
-    while ((m = regex.exec(msg.mesej)) !== null) {
-      const url = m[0];
-      const phoneMatch = url.match(/wa\.me\/(\d+)/);
-      const phone = phoneMatch ? phoneMatch[1] : '';
-      // Check if already sent (if message contains ✓ or ✅ before this URL)
-      const beforeUrl = msg.mesej.substring(0, m.index);
-      const sent = beforeUrl.includes('✅') && !beforeUrl.endsWith('\n');
-      waLinks.push({ url, phone, sent });
-    }
-  }
-  
-  if (waLinks.length === 0) {
-    CustomAppModal.alert('Tiada nombor WhatsApp tersedia.', 'Makluman', 'info');
-    return;
-  }
-  
-  // Create modal
-  const overlay = document.getElementById('waPickerModal') || createWAPickerModal();
-  
-  const titleEl = document.getElementById('waPickerTitle');
-  const listEl = document.getElementById('waPickerList');
-  const closeBtn = document.getElementById('waPickerClose');
-  
-  if (titleEl) {
-    titleEl.textContent = `📱 Hantar WhatsApp - ${msg.syarikat || 'Syarikat'}`;
-  }
-  
-  if (listEl) {
-    let listHtml = '';
-    waLinks.forEach((link, i) => {
-      // Format phone for display: 60XXXXXXXXX -> 0XX-XXXXXXX
-      let displayPhone = link.phone;
-      if (displayPhone.startsWith('60')) displayPhone = '0' + displayPhone.substring(2);
-      
-      listHtml += `
-        <div class="wa-picker-item" data-index="${i}" style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:8px; background:${link.sent ? '#f0fdf4' : 'white'}; border:2px solid ${link.sent ? '#22c55e' : '#e5e7eb'}; border-radius:10px;">
-          <div style="flex:1;">
-            <div style="font-weight:bold; font-size:1rem; color:${link.sent ? '#166534' : '#1e293b'};">
-              📱 ${displayPhone}
-              ${link.sent ? '<span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>' : ''}
-            </div>
-            <div style="font-size:0.8rem; color:#64748b; margin-top:3px;">
-              ${link.sent ? 'Telah dihantar' : 'Belum dihantar'}
-            </div>
-          </div>
-          <div style="display:flex; gap:6px;">
-            ${link.sent ? `
-              <button class="inbox-btn wa-picker-btn wa-picker-sent" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" style="background:#22c55e; color:white; cursor:default; opacity:0.7;">✅ Selesai</button>
-            ` : `
-              <button class="inbox-btn wa-picker-btn wa-picker-send" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" data-mid="${msg.id}" data-row="${msg.row}" style="background:#25D366; color:white;">💬 Hantar</button>
-            `}
-          </div>
-        </div>
-      `;
-    });
-    listEl.innerHTML = listHtml;
-    
-    // Hantar buttons
-    listEl.querySelectorAll('.wa-picker-send').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const url = e.target.getAttribute('data-url');
-        const phone = e.target.getAttribute('data-phone');
-        const mid = e.target.getAttribute('data-mid');
-        const row = e.target.getAttribute('data-row');
-        
-        // Open WhatsApp
-        window.open(url, '_blank');
-        
-        // Mark as sent in inbox message (update the cached message)
-        const msgData = cachedInboxData[msgIndex];
-        if (msgData && msgData.mesej) {
-          // Replace the URL in the message with ✅ marker
-          msgData.mesej = msgData.mesej.replace(url, `✅ ${url}`);
-          // Re-render to reflect changes
-          renderInbox();
-        }
-        
-        // Update the button state
-        const parent = e.target.closest('.wa-picker-item');
-        if (parent) {
-          parent.style.background = '#f0fdf4';
-          parent.style.borderColor = '#22c55e';
-          e.target.textContent = '✅ Selesai';
-          e.target.className = 'inbox-btn wa-picker-btn wa-picker-sent';
-          e.target.style.background = '#22c55e';
-          e.target.style.opacity = '0.7';
-          e.target.style.cursor = 'default';
-          e.target.disabled = true;
-          
-          const label = parent.querySelector('div:first-child div:first-child');
-          if (label && !label.innerHTML.includes('Selesai')) {
-            label.innerHTML += ' <span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>';
-          }
-          const status = parent.querySelector('div:first-child div:last-child');
-          if (status) status.textContent = 'Telah dihantar';
-        }
-      });
-    });
-    
-    // Already sent buttons - do nothing
-    listEl.querySelectorAll('.wa-picker-sent').forEach(btn => {
-      // No action needed
-    });
-  }
-  
-  // Close handler
-  if (closeBtn) {
-    closeBtn.onclick = () => { overlay.style.display = 'none'; };
-  }
-  
-  overlay.style.display = 'flex';
-  overlay.classList.add('show');
-}
-
-function createWAPickerModal() {
-  const div = document.createElement('div');
-  div.id = 'waPickerModal';
-  div.className = 'custom-modal-overlay';
-  div.innerHTML = `
-    <div class="custom-modal-card" style="max-width:500px; text-align:left; max-height:80vh; overflow-y:auto;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #25D366; padding-bottom:10px;">
-        <h3 id="waPickerTitle" style="margin:0; color:#075e54;">📱 Pilih Nombor</h3>
-        <button id="waPickerClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;">✕</button>
-      </div>
-      <div id="waPickerList"></div>
-      <div style="margin-top:15px; padding-top:10px; border-top:1px solid #e5e7eb; text-align:center;">
-        <button id="waPickerDone" class="btn btn-green" style="padding:10px 30px;">Selesai, Tutup</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(div);
-  
-  document.getElementById('waPickerDone').onclick = () => { div.style.display = 'none'; };
-  div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
-  
-  return div;
-}
-
-// =========================================================================
-// V6.6.0: FUNGSI SEMAKAN STATUS BEKU
-// =========================================================================
+// Setup WhatsApp scheduling UI
+setupWhatsAppSchedulingUI();
 
 async function checkFrozenStatus(cidb, companyName) {
     if (!cidb || !Array.isArray(cachedData) || cachedData.length === 0) return false;
@@ -18154,11 +17334,11 @@ async function checkFrozenStatus(cidb, companyName) {
         const companyDisplay = companyName || 'Syarikat ini';
 
         await CustomAppModal.alert(
-            '⚠️ AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
-            '📅 Mula Beku: ' + mulaStr + '<br>' +
-            '📅 Tamat Beku: ' + tamatStr + '<br><br>' +
+            'ΓÜá∩╕Å AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
+            '≡ƒôà Mula Beku: ' + mulaStr + '<br>' +
+            '≡ƒôà Tamat Beku: ' + tamatStr + '<br><br>' +
             'Permohonan baharu tidak boleh diproses sehingga tempoh beku tamat. Sila rujuk pentadbir jika perlu.',
-            '🚫 Syarikat Dalam Tempoh Beku',
+            '≡ƒÜ½ Syarikat Dalam Tempoh Beku',
             'warning'
         );
         return true;
@@ -18178,11 +17358,11 @@ async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
   const btnBatal = document.getElementById('waConfirmBatal');
   const titleEl = document.getElementById('waConfirmTitle');
   
-  if (titleEl) titleEl.innerHTML = '💬 Hantar Notifikasi WhatsApp';
+  if (titleEl) titleEl.innerHTML = '≡ƒÆ¼ Hantar Notifikasi WhatsApp';
   if (msgEl) {
     msgEl.innerHTML = `
       <div style="text-align:center; margin-bottom:15px;">
-        <div style="font-size:3rem; margin-bottom:10px;">💬</div>
+        <div style="font-size:3rem; margin-bottom:10px;">≡ƒÆ¼</div>
         <div style="font-weight:bold; font-size:1.1rem; color:#075e54;">Notifikasi Kepada Pelulus</div>
         <div style="color:#4b5563; margin-top:8px;">
           Hantar notifikasi WhatsApp ke <strong>${pelulusName}</strong> untuk permohonan <strong>${syarikat}</strong>?
@@ -18213,11 +17393,11 @@ function createWAConfirmModal() {
   div.className = 'custom-modal-overlay';
   div.innerHTML = `
     <div class="custom-modal-card" style="max-width:400px; border-top:6px solid #25D366 !important; text-align:center;">
-      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">💬 Hantar WhatsApp</div>
+      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">≡ƒÆ¼ Hantar WhatsApp</div>
       <div id="waConfirmMsg"></div>
       <div style="display:flex; gap:12px; justify-content:center; margin-top:15px;">
         <button id="waConfirmBatal" class="custom-modal-btn custom-modal-btn-cancel" style="flex:1;">Batal</button>
-        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">💬 Ya, Hantar</button>
+        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">≡ƒÆ¼ Ya, Hantar</button>
       </div>
     </div>
   `;
@@ -18337,99 +17517,6 @@ Terima kasih.`;
   
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMessage)}`;
   return whatsappUrl;
-}
-
-// =========================================================================
-// V6.6.0: INBOX REFRESH BUTTON
-// =========================================================================
-
-// Inbox modal buttons
-function closeInboxModal() {
-  const modal = document.getElementById('inboxModal');
-  if (modal) {
-    modal.classList.remove('show');
-    setTimeout(() => { modal.style.display = 'none'; }, 300);
-  }
-}
-
-const btnInboxTop = document.getElementById('btnInboxTop');
-const inboxModal = document.getElementById('inboxModal');
-const btnCloseInbox = document.getElementById('btnCloseInbox');
-const btnRefreshInbox = document.getElementById('btnRefreshInbox');
-
-if (btnInboxTop && inboxModal) {
-  btnInboxTop.addEventListener('click', () => {
-    fetchInbox();
-    inboxModal.style.display = 'flex';
-    inboxModal.classList.add('show');
-  });
-}
-
-if (btnCloseInbox && inboxModal) {
-  btnCloseInbox.addEventListener('click', closeInboxModal);
-}
-
-if (inboxModal) {
-  inboxModal.addEventListener('click', (e) => {
-    if (e.target === inboxModal) closeInboxModal();
-  });
-}
-
-if (btnRefreshInbox) {
-  btnRefreshInbox.addEventListener('click', fetchInbox);
-}
-
-const inboxSearchInput = document.getElementById('inboxSearchInput');
-if (inboxSearchInput) {
-  inboxSearchInput.addEventListener('input', () => renderInbox());
-}
-
-// V6.6.0: Butang Lihat Semua (tanda semua dibaca)
-
-// V6.6.0: Force refresh data dari sheet
-const btnRefreshData = document.getElementById('btnRefreshData');
-if (btnRefreshData) {
-  btnRefreshData.addEventListener('click', async () => {
-    const confirmed = await CustomAppModal.confirm(
-      'Refresh data akan muat turun semula semua rekod dari sheet. Teruskan?',
-      'Refresh Data', 'info', 'Ya, Refresh', false
-    );
-    if (!confirmed) return;
-    
-    // Clear local cache
-    cachedData = [];
-    dataCacheVersion = '';
-    await storageWrapper.remove(['stb_data_cache', 'stb_cache_timestamp', 'stb_data_version']);
-    
-    // Force fetch with refresh action
-    try {
-      simulateLoadingWithSteps(['Menghubungi pelayan...', 'Muat turun data terkini...', 'Selesai!'], 'Refresh Data');
-      await fetchWithRetry(SCRIPT_URL + '?action=refreshData&role=' + currentUser.role + '&userName=' + encodeURIComponent(currentUser.name) + '&t=' + Date.now(), { method: 'GET' }, 3, 1000);
-      // Refetch the data
-      await fetchAndRenderList(activeListType || 'drafts');
-      hideLoading();
-      await CustomAppModal.alert('Data berjaya dikemas kini!', 'Selesai', 'success');
-    } catch (e) {
-      hideLoading();
-      await CustomAppModal.alert('Gagal refresh: ' + e.message, 'Ralat', 'error');
-    }
-  });
-}
-
-// Setup WhatsApp scheduling UI
-setupWhatsAppSchedulingUI();
-
-// V6.9.3: Auto refresh inbox badge setiap 2 minit (dahulu 30 saat - kurangkan beban backend)
-let inboxAutoRefreshInterval = null;
-
-function startInboxAutoRefresh() {
-  if (inboxAutoRefreshInterval) clearInterval(inboxAutoRefreshInterval);
-  // Refresh inbox setiap 2 minit untuk update badge
-  inboxAutoRefreshInterval = setInterval(() => {
-    if (currentUser && currentUser.email) {
-      fetchInbox();
-    }
-  }, 120000); // 2 minit
 }
 
 // V6.9.3: Auto refresh dashboard & inbox tab
