@@ -10157,8 +10157,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           dateInput.min = todayStr;
           dateInput.max = todayStr;
           if (dateInput._flatpickr) {
-            dateInput._flatpickr.set('minDate', todayStr);
-            dateInput._flatpickr.set('maxDate', todayStr);
+            // flatpickr memadam tarikh di luar julat min/max — JANGAN kunci jika
+            // sudah ada nilai (rekod lama dimuat), supaya tarikh asal kekal
+            if (dateInput.value && dateInput.value.trim() !== '') {
+              dateInput._flatpickr.set('minDate', null);
+              dateInput._flatpickr.set('maxDate', null);
+            } else {
+              dateInput._flatpickr.set('minDate', todayStr);
+              dateInput._flatpickr.set('maxDate', todayStr);
+            }
           }
         }
       } else {
@@ -13038,6 +13045,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    // Tetapkan db_submit_date SEBELUM toggleDateSubmitSpi supaya tarikh lama
+    // tidak dipadam oleh kunci min/max flatpickr (flatpickr menolak tarikh luar julat)
+    const dbSubmitDateInput = document.getElementById('db_submit_date');
+    if (dbSubmitDateInput && item.date_submit) {
+      try {
+        dbSubmitDateInput.value = new Date(item.date_submit).toISOString().split('T')[0];
+      } catch (e) {
+        console.error('V6.5.2 Error parsing date_submit:', e);
+      }
+    }
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
