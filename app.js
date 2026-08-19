@@ -17335,10 +17335,10 @@ async function checkFrozenStatus(cidb, companyName) {
 
         await CustomAppModal.alert(
             'ΓÜá∩╕Å AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
-            '≡ƒôà Mula Beku: ' + mulaStr + '<br>' +
-            '≡ƒôà Tamat Beku: ' + tamatStr + '<br><br>' +
+            '📅 Mula Beku: ' + mulaStr + '<br>' +
+            '📅 Tamat Beku: ' + tamatStr + '<br><br>' +
             'Permohonan baharu tidak boleh diproses sehingga tempoh beku tamat. Sila rujuk pentadbir jika perlu.',
-            '≡ƒÜ½ Syarikat Dalam Tempoh Beku',
+            '🚫 Syarikat Dalam Tempoh Beku',
             'warning'
         );
         return true;
@@ -17358,11 +17358,11 @@ async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
   const btnBatal = document.getElementById('waConfirmBatal');
   const titleEl = document.getElementById('waConfirmTitle');
   
-  if (titleEl) titleEl.innerHTML = '≡ƒÆ¼ Hantar Notifikasi WhatsApp';
+  if (titleEl) titleEl.innerHTML = '💬 Hantar Notifikasi WhatsApp';
   if (msgEl) {
     msgEl.innerHTML = `
       <div style="text-align:center; margin-bottom:15px;">
-        <div style="font-size:3rem; margin-bottom:10px;">≡ƒÆ¼</div>
+        <div style="font-size:3rem; margin-bottom:10px;">💬</div>
         <div style="font-weight:bold; font-size:1.1rem; color:#075e54;">Notifikasi Kepada Pelulus</div>
         <div style="color:#4b5563; margin-top:8px;">
           Hantar notifikasi WhatsApp ke <strong>${pelulusName}</strong> untuk permohonan <strong>${syarikat}</strong>?
@@ -17393,11 +17393,11 @@ function createWAConfirmModal() {
   div.className = 'custom-modal-overlay';
   div.innerHTML = `
     <div class="custom-modal-card" style="max-width:400px; border-top:6px solid #25D366 !important; text-align:center;">
-      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">≡ƒÆ¼ Hantar WhatsApp</div>
+      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">💬 Hantar WhatsApp</div>
       <div id="waConfirmMsg"></div>
       <div style="display:flex; gap:12px; justify-content:center; margin-top:15px;">
         <button id="waConfirmBatal" class="custom-modal-btn custom-modal-btn-cancel" style="flex:1;">Batal</button>
-        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">≡ƒÆ¼ Ya, Hantar</button>
+        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">💬 Ya, Hantar</button>
       </div>
     </div>
   `;
