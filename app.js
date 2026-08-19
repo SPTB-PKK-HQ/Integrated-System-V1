@@ -952,6 +952,13 @@ async function handleCredentialResponse(response) {
           if (parsed && (!selectedDates.length || instance.formatDate(selectedDates[0], fmt) !== instance.formatDate(parsed, fmt))) {
             instance.setDate(parsed, false);
           }
+          // Lumpuhkan butang Hari Ini/Kosongkan jika tarikh terkunci (min=max)
+          const cal = instance.calendarContainer;
+          if (cal) {
+            const locked = instance.config.minDate && instance.config.maxDate &&
+              instance.config.minDate.getTime() === instance.config.maxDate.getTime();
+            cal.querySelectorAll('.fp-quick-btn').forEach(b => { b.disabled = locked; });
+          }
         },
         onReady: (selectedDates, dateStr, instance) => {
           const cal = instance.calendarContainer;
@@ -962,6 +969,10 @@ async function handleCredentialResponse(response) {
           footer.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-fp-action]');
             if (!btn) return;
+            // Tarikh terkunci (cth. rekod TELAH DIHANTAR): jangan benarkan ubah/kosongkan
+            const locked = instance.config.minDate && instance.config.maxDate &&
+              instance.config.minDate.getTime() === instance.config.maxDate.getTime();
+            if (locked) return;
             if (btn.dataset.fpAction === 'today') {
               instance.setDate(new Date(), true);
               instance.close();
@@ -10142,6 +10153,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
   const dbSyorSelect = document.getElementById('db_syor');
   const dbSubmitDateContainer = document.getElementById('db_submit_date_container');
+  let dbSubmitLockDate = null; // Tarikh kunci (ISO) untuk rekod TELAH DIHANTAR
   function toggleDateSubmitSpi() {
     if (dbSyorSelect && dbSubmitDateContainer) {
       const syorVal = dbSyorSelect.value;
@@ -10154,12 +10166,17 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const todayStr = `${yyyy}-${mm}-${dd}`;
         const dateInput = document.getElementById('db_submit_date');
         if (dateInput) {
-          dateInput.min = todayStr;
-          dateInput.max = todayStr;
+          const lockDate = dbSubmitLockDate || todayStr;
+          dateInput.min = lockDate;
+          dateInput.max = lockDate;
           if (dateInput._flatpickr) {
-            // flatpickr memadam tarikh di luar julat min/max — JANGAN kunci jika
-            // sudah ada nilai (rekod lama dimuat), supaya tarikh asal kekal
-            if (dateInput.value && dateInput.value.trim() !== '') {
+            if (dbSubmitLockDate) {
+              // Rekod sudah dihantar: kunci kepada tarikh penghantaran sahaja
+              dateInput._flatpickr.set('minDate', lockDate);
+              dateInput._flatpickr.set('maxDate', lockDate);
+            } else if (dateInput.value && dateInput.value.trim() !== '') {
+              // Nilai sedia ada (rekod lama dimuat) tanpa kunci: biar bebas,
+              // supaya tarikh asal tidak dipadam oleh flatpickr
               dateInput._flatpickr.set('minDate', null);
               dateInput._flatpickr.set('maxDate', null);
             } else {
@@ -11670,6 +11687,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       btnSyncToDb.style.display = 'none';
     }
 
+    dbSubmitLockDate = null;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -13045,16 +13063,26 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     document.getElementById('db_pautan_drive').value = item.pautan || '';
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
+    // Kunci Tarikh Hantar ke SPI kepada tarikh yang DIPAPARKAN (date_submit asal;
+    // fallback: tarikh sebenar penghantaran) supaya paparan tidak hilang dan tidak boleh diubah
+    dbSubmitLockDate = null;
+    let submitVal = '';
+    if (item.date_submit) {
+      try { submitVal = new Date(item.date_submit).toISOString().split('T')[0]; } catch (e) { /* abaikan */ }
+    }
+    if (item.status_hantar_spi === 'TELAH DIHANTAR') {
+      if (!submitVal && item.tarikh_hantar_spi) {
+        try {
+          const parts = String(item.tarikh_hantar_spi).split(' ')[0].split('/'); // dd/MM/yyyy
+          if (parts.length === 3) submitVal = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } catch (e) { /* abaikan format tidak sah */ }
+      }
+      if (submitVal) dbSubmitLockDate = submitVal;
+    }
     // Tetapkan db_submit_date SEBELUM toggleDateSubmitSpi supaya tarikh lama
     // tidak dipadam oleh kunci min/max flatpickr (flatpickr menolak tarikh luar julat)
     const dbSubmitDateInput = document.getElementById('db_submit_date');
-    if (dbSubmitDateInput && item.date_submit) {
-      try {
-        dbSubmitDateInput.value = new Date(item.date_submit).toISOString().split('T')[0];
-      } catch (e) {
-        console.error('V6.5.2 Error parsing date_submit:', e);
-      }
-    }
+    if (dbSubmitDateInput && submitVal) dbSubmitDateInput.value = submitVal;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();

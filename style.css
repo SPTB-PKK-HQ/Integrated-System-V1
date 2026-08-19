@@ -2781,3 +2781,9 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
     border-color: color-mix(in srgb, var(--theme-color) 85%, black);
     color: #ffffff;
 }
+
+.flatpickr-calendar .fp-quick-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
