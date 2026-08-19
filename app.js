@@ -1010,6 +1010,30 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  // PATCH AUTOMATIK: Bila kod lama tetapkan .value pada input tarikh yang
+  // sudah di-init flatpickr, selaraskan juga paparan altInput supaya tarikh
+  // lama (restore borang, load rekod, profil, reset) kembali kelihatan.
+  const inputValueDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  if (inputValueDescriptor && inputValueDescriptor.set) {
+    Object.defineProperty(HTMLInputElement.prototype, 'value', {
+      get: function () { return inputValueDescriptor.get.call(this); },
+      set: function (v) {
+        inputValueDescriptor.set.call(this, v);
+        const fp = this._flatpickr;
+        if (!fp || !fp.altInput) return;
+        if (this.__fpSyncingValue) return;
+        this.__fpSyncingValue = true;
+        try {
+          const raw = String(v == null ? '' : v);
+          if (raw.trim() !== '') fp.setDate(raw, false);
+          else fp.clear(false, false);
+        } catch (e) { /* abaikan nilai tidak sah */ }
+        this.__fpSyncingValue = false;
+      },
+      configurable: true
+    });
+  }
+
   // Modern date picker untuk input tarikh statik (tema ikut --theme-color pengguna)
   initDatepickers(document.body);
 
