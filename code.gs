@@ -3888,7 +3888,7 @@ function setupPemutihanCronJob() {
 }
 
 // =========================================================================
-// FUNGSI BERJADUAL: KUMPULAN EMEL SIASAT BIASA (SETIAP HARI BEKERJA 9 PAGI)
+// FUNGSI BERJADUAL: KUMPULAN EMEL SIASAT BIASA (SETIAP HARI BEKERJA 8 PAGI)
 // Ditambah logik sekatan cuti umum persekutuan Wilayah Persekutuan Putrajaya
 // =========================================================================
 function addToSiasatQueue(emailData) {
@@ -4017,9 +4017,9 @@ function setupSiasatCronJob() {
   ScriptApp.newTrigger('processSiasatQueue')
     .timeBased()
     .everyDays(1)
-    .atHour(9) 
+    .atHour(8) 
     .create();
-  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 9 pagi.");
+  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 8 pagi.");
 }
 
 // =========================================================================
