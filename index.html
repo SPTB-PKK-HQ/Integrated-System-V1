@@ -175,17 +175,8 @@
 
             <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                 <h2>🚀 Auto-Ekstrak Borang</h2>
-                
-                <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
-                    <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
-                    <select id="aiModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
-                        <option value="auto">Auto (Disyorkan)</option>
-                        <option value="deepseek">Satu</option>
-                        <option value="gemini">Dua</option>
-                        <option value="openrouter">Tiga</option>
-                    </select>
-                </div>
-                <div style="margin-top:-15px; margin-bottom:15px; text-align:center; font-size:0.75rem; color:#64748b;">Lambat? Cuba pilih "Dua" (Gemini) untuk respons lebih pantas.</div>
+
+                <div style="margin-bottom: 25px; text-align:center; font-size:0.78rem; color:#64748b;">Fail diproses secara tempatan (PDF ➜ MD ➜ Regex). Tak puas hati dengan hasil? Klik <b>"Guna AI"</b>.</div>
 
                 <div id="pdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
                     <div id="status-box-main" class="morph-box morph-circle">
@@ -208,7 +199,8 @@
                     <div class="pdf-extracted-data" id="pdfExtractedData" style="border: none; background: #f8fafc;"></div>
                     <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
                         <button class="btn btn-green" id="btnApplyPdfData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Gunakan Data Ini</button>
-                        <button class="btn btn-white" id="btnReExtractPdfData" title="Paksa AI ekstrak semula (buang cache)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-white" id="btnReExtractPdfData" title="Ulang ekstrak Manual (Regex)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-blue" id="btnUseAIPdfData" title="Ekstrak guna AI (fallback)">🤖 Guna AI</button>
                         <button class="btn btn-white" id="btnClearPdfData">Batal</button>
                     </div>
                     <div style="margin-top:8px; text-align:center; font-size:0.75rem; color:#94a3b8;" id="pdfExtractMeta"></div>
@@ -385,19 +377,10 @@
         <div id="tab-profile" class="tab-content no-print">
     <div style="margin-bottom: 15px;">
         <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
-    </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <h2>🚀 Auto-Ekstrak Profil (AI)</h2>
-        
-        <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
-            <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
-            <select id="aiProfileModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
-                <option value="auto">Auto (Disyorkan)</option>
-                <option value="deepseek">Satu</option>
-                <option value="gemini">Dua</option>
-                <option value="openrouter">Tiga</option>
-            </select>
-        </div>
-        <div style="margin-top:-15px; margin-bottom:15px; text-align:center; font-size:0.75rem; color:#64748b;">Lambat? Cuba pilih "Dua" (Gemini) untuk respons lebih pantas.</div>
+     </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2>🚀 Auto-Ekstrak Profil</h2>
+
+        <div style="margin-bottom: 25px; text-align:center; font-size:0.78rem; color:#64748b;">Fail diproses secara tempatan (PDF ➜ MD ➜ Regex). Tak puas hati dengan hasil? Klik <b>"Guna AI"</b>.</div>
 
                 <div id="profilePdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
                     <div id="status-box-profile" class="morph-box morph-circle">
@@ -419,7 +402,8 @@
                     <div class="pdf-extracted-data" id="profilePdfExtractedData" style="border: none; background: #f8fafc;"></div>
                     <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
                         <button class="btn btn-green" id="btnApplyProfileData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Isi Ke Borang Profil</button>
-                        <button class="btn btn-white" id="btnReExtractProfileData" title="Paksa AI ekstrak semula (buang cache)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-white" id="btnReExtractProfileData" title="Ulang ekstrak Manual (Regex)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-blue" id="btnUseAIProfileData" title="Ekstrak guna AI (fallback)">🤖 Guna AI</button>
                         <button class="btn btn-white" id="btnClearProfileData">Batal</button>
                     </div>
                     <div style="margin-top:8px; text-align:center; font-size:0.75rem; color:#94a3b8;" id="profileExtractMeta"></div>
@@ -1072,6 +1056,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
-    <script src="app.js?v=20260901"></script>
+    <script src="app.js?v=20260822l"></script>
 </body>
 </html>
