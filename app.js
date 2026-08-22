@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let bakulUnsubscribe = null;
 
   // URL APPSCRIPT
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdRn6ljkpHMQcXx-Dn_HtznvAIJSgrKqmxigsio9VdheTtgGIMFGxIgUj7b88Tsjd3/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxplesqkeYT7pOKof-aMc0pT2Se9E_AiVbQ3K5PzQVwG-oaNtwvQ4cx84YPQqtXwa09/exec';
   
   // Google Client ID
   const GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
@@ -335,10 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
   };
 
-  // --- AI Model Selection Elements (V6.4.5) ---
-  const aiModelSelect = document.getElementById('aiModelSelect');
-  const aiProfileModelSelect = document.getElementById('aiProfileModelSelect');
-
   // --- GLOBAL CHART VARIABLES ---
   let dashboardStatusChart = null;
   let dashboardTypeChart = null;
@@ -580,7 +576,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   
   // --- FETCH WITH RETRY MECHANISM ---
+  // V6.11.0: Panggilan BACA (method GET, tidak menulis) guna retry lembut
+  // (maxRetries=2, delay=3000, backoff 6s/12s) untuk tahan 404/redirect sementara
+  // bila ramai pengguna serentak. Panggilan TULIS (POST dll) kekal maxRetries=1
+  // supaya tidak duplikat rekod. Retry tidak dijalankan untuk respons berjaya.
   async function fetchWithRetry(url, options = {}, maxRetries = 1, delay = 1000) {
+    const isRead = !options.method || String(options.method).toUpperCase() === 'GET';
+    if (isRead) {
+      maxRetries = 2;
+      delay = 3000;
+    }
     let lastError = null;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -617,6 +622,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     throw lastError;
+  }
+
+  // =========================================================================
+  // V6.11.0: RETRY REBUILD DATA (getData "stampede")
+  // Bila server pulang rebuilding:true (cache chunked sedang dibina semula oleh
+  // eksekusi lain), frontend guna data sedia ada dan cuba semula selepas 5-8s.
+  // Timer tunggal (tidak selari) dan had maksimum 3 cubaan.
+  // =========================================================================
+  let dataRebuildRetryTimer = null;
+  let dataRebuildRetryCount = 0;
+  const DATA_REBUILD_RETRY_MAX = 3;
+
+  function resetDataRebuildRetry() {
+    dataRebuildRetryCount = 0;
+    if (dataRebuildRetryTimer) {
+      clearTimeout(dataRebuildRetryTimer);
+      dataRebuildRetryTimer = null;
+    }
+  }
+
+  function scheduleDataRebuildRetry(fn) {
+    if (dataRebuildRetryTimer) return; // retry sudah berjadual - jangan selari
+    if (dataRebuildRetryCount >= DATA_REBUILD_RETRY_MAX) {
+      dataRebuildRetryCount = 0;
+      return;
+    }
+    dataRebuildRetryCount++;
+    const delayMs = 5000 + Math.random() * 3000; // 5-8 saat
+    console.log(`V6.11.0 Data sedang dibina semula di server - cuba semula dalam ${Math.round(delayMs / 1000)}s (cubaan ${dataRebuildRetryCount}/${DATA_REBUILD_RETRY_MAX})`);
+    dataRebuildRetryTimer = setTimeout(async () => {
+      dataRebuildRetryTimer = null;
+      try {
+        await fn();
+      } catch (e) {
+        console.warn('V6.11.0 Retry rebuild data gagal:', e.message);
+      }
+    }, delayMs);
   }
 
   // =========================================================================
@@ -756,8 +798,6 @@ async function handleCredentialResponse(response) {
           : getDailyGreeting();
         await CustomAppModal.alert(greetingMsg, 'Selamat Datang ' + currentUser.name, 'success');
         setupUserUI();
-        // V6.6.0: Tunjuk changelog walkthrough jika ada versi baru
-        setTimeout(() => showChangelogWalkthrough(), 500);
       }, 1500); 
       
     } else {
@@ -910,6 +950,212 @@ async function handleCredentialResponse(response) {
     
     return '#2563eb';
   }
+
+  // --- FUNGSI BANTUAN: MODERN DATE PICKER (FLATPICKR, tema ikut --theme-color) ---
+  const MALAY_LOCALE = {
+    firstDayOfWeek: 1,
+    weekdays: {
+      shorthand: ['Ahd', 'Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab'],
+      longhand: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu']
+    },
+    months: {
+      shorthand: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'],
+      longhand: ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember']
+    }
+  };
+
+  // Taip digit padat (cth. 26022026, 2622026, 26226, 260226) -> Date ISO
+  function parseCompactDigits(s) {
+    if (!/^\d{5,8}$/.test(s)) return null;
+    const n = s.length;
+    let year, restStr;
+    if (n >= 7) {
+      year = parseInt(s.slice(n - 4), 10);
+      restStr = s.slice(0, n - 4);
+    } else {
+      year = 2000 + parseInt(s.slice(n - 2), 10);
+      restStr = s.slice(0, n - 2);
+    }
+    if (year < 2000 || year > 2100) return null;
+    const tryOrder = (dLen, mLen) => {
+      if (restStr.length !== dLen + mLen) return null;
+      const d = parseInt(restStr.slice(0, dLen), 10);
+      const m = parseInt(restStr.slice(dLen), 10);
+      if (d >= 1 && d <= 31 && m >= 1 && m <= 12) return { d, m };
+      return null;
+    };
+    const r = tryOrder(2, 2) || tryOrder(2, 1) || tryOrder(1, 2) || tryOrder(1, 1);
+    if (!r) return null;
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    if (r.m === 2 && leap) daysInMonth[1] = 29;
+    if (r.d > daysInMonth[r.m - 1]) return null;
+    return new Date(year, r.m - 1, r.d);
+  }
+
+  // Taip digit padat bulan-tahun KWSP (cth. 082026, 82026, 0826, 826) -> Date
+  function parseCompactMonth(s) {
+    if (!/^\d{3,6}$/.test(s)) return null;
+    let m, y;
+    if (s.length >= 5) {
+      m = parseInt(s.slice(0, s.length - 4), 10);
+      y = parseInt(s.slice(s.length - 4), 10);
+    } else {
+      m = parseInt(s.slice(0, s.length - 2), 10);
+      y = 2000 + parseInt(s.slice(s.length - 2), 10);
+    }
+    if (m < 1 || m > 12 || y < 2000 || y > 2100) return null;
+    return new Date(y, m - 1, 1);
+  }
+
+  function initDatepickers(rootEl) {
+    if (typeof flatpickr === 'undefined' || !rootEl) return;
+    rootEl.querySelectorAll('input[type="date"], input[type="month"]').forEach((el) => {
+      if (el.hasAttribute('readonly') || el.disabled) return;
+      if (el._flatpickr) el._flatpickr.destroy();
+      const isMonth = el.type === 'month';
+      if (isMonth && typeof monthSelectPlugin === 'undefined') return;
+      const opts = {
+        locale: MALAY_LOCALE,
+        allowInput: true,
+        disableMobile: true,
+        parseDate: (dateStr, format) => {
+          // Taip digit padat tanpa pemisah -> baca sebagai tarikh/bulan
+          const s = String(dateStr == null ? '' : dateStr).trim();
+          const monthFmt = format === 'Y-m' || format === 'F-Y';
+          if (monthFmt && /^\d{3,6}$/.test(s)) return parseCompactMonth(s);   // KWSP: 082026, 82026, 826
+          if (!monthFmt && /^\d{4,8}$/.test(s)) return parseCompactDigits(s); // tarikh: 26022026, 2622026
+          // Semua digit lain: hanya terima hasil padat yang sah;
+          // jangan biar parser lalai meneka digit yang tidak sah
+          try {
+            // Nama bulan Melayu disemak dahulu — parser statik flatpickr tidak
+            // kenal locale dan boleh salah meneka (cth. 'Januari-2026' -> Disember)
+            if (monthFmt) {
+              const m = s.match(/^([A-Za-z]+)\s*-\s*(\d{4})$/);
+              if (m) {
+                const idx = MALAY_LOCALE.months.longhand.findIndex(n => n.toLowerCase() === m[1].toLowerCase());
+                if (idx >= 0) return new Date(parseInt(m[2], 10), idx, 1);
+              }
+            }
+            const parsed = flatpickr.parseDate(dateStr, format); // parser lalai flatpickr
+            if (parsed && !isNaN(parsed.getTime())) return parsed;
+          } catch (e) { /* jatuh ke cubaan berikut */ }
+          return null;
+        },
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd/m/Y',
+        altInputClass: 'fp-alt-input',
+        onOpen: (selectedDates, dateStr, instance) => {
+          const fmt = instance.config.dateFormat || 'Y-m-d';
+          const altText = instance.altInput ? instance.altInput.value.trim() : '';
+          const src = altText !== '' ? altText : (instance.input ? instance.input.value.trim() : '');
+          if (!src) {
+            if (selectedDates.length) instance.clear();
+            return;
+          }
+          const parseFmt = altText !== '' ? (instance.config.altFormat || fmt) : fmt;
+          const parsed = instance.parseDate(src, parseFmt);
+          if (parsed && (!selectedDates.length || instance.formatDate(selectedDates[0], fmt) !== instance.formatDate(parsed, fmt))) {
+            instance.setDate(parsed, false);
+          }
+          // Lumpuhkan butang Hari Ini/Kosongkan hanya untuk rekod TELAH DIHANTAR
+          const cal = instance.calendarContainer;
+          if (cal) {
+            const locked = !!dbSubmitLockDate;
+            cal.querySelectorAll('.fp-quick-btn').forEach(b => { b.disabled = locked; });
+          }
+        },
+        onReady: (selectedDates, dateStr, instance) => {
+          const cal = instance.calendarContainer;
+          if (!cal || cal.querySelector('.fp-quick-actions')) return;
+          const footer = document.createElement('div');
+          footer.className = 'fp-quick-actions';
+          footer.innerHTML = '<button type="button" class="fp-quick-btn" data-fp-action="clear">Kosongkan</button><button type="button" class="fp-quick-btn" data-fp-action="today">Hari Ini</button>';
+          footer.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-fp-action]');
+            if (!btn) return;
+            // Tarikh terkunci hanya untuk rekod TELAH DIHANTAR: jangan benarkan ubah/kosongkan
+            const locked = !!dbSubmitLockDate;
+            if (locked) return;
+            if (btn.dataset.fpAction === 'today') {
+              // Guna tengah malam (tanpa komponen masa) supaya tidak ditolak
+              // flatpickr bila kunci min/max = hari ini
+              const now = new Date();
+              const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              instance.setDate(midnight, true);
+              instance.close();
+            } else {
+              instance.clear();
+            }
+          });
+          cal.appendChild(footer);
+        }
+      };
+      if (isMonth) {
+        opts.dateFormat = 'Y-m';
+        opts.altFormat = 'F-Y';
+        opts.plugins = [new monthSelectPlugin({ shorthand: false, dateFormat: 'Y-m', altFormat: 'F-Y' })];
+      }
+      flatpickr(el, opts);
+      const fp = el._flatpickr;
+      if (fp && fp.altInput) {
+        const inlineStyle = el.getAttribute('style');
+        if (inlineStyle) fp.altInput.setAttribute('style', inlineStyle);
+        if (el.style.display === 'none') fp.altInput.style.display = 'none';
+      }
+    });
+  }
+
+  // Selaraskan semula paparan datepicker selepas nilai diisi/dikosongkan secara kod
+  function syncDatepickers(rootEl) {
+    if (typeof flatpickr === 'undefined' || !rootEl) return;
+    rootEl.querySelectorAll('input').forEach((el) => {
+      const fp = el._flatpickr;
+      if (!fp) return;
+      try {
+        const raw = el.value ? el.value.trim() : '';
+        if (raw) fp.setDate(raw, false);
+        else fp.clear(false, false);
+      } catch (e) { /* abaikan nilai tidak sah */ }
+    });
+  }
+
+  // Tunjuk/sembunyi input tarikh + pasangan altInput flatpickr
+  function setDatepickerVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible ? 'block' : 'none';
+    if (el._flatpickr && el._flatpickr.altInput) {
+      el._flatpickr.altInput.style.display = visible ? 'block' : 'none';
+    }
+  }
+
+  // PATCH AUTOMATIK: Bila kod lama tetapkan .value pada input tarikh yang
+  // sudah di-init flatpickr, selaraskan juga paparan altInput supaya tarikh
+  // lama (restore borang, load rekod, profil, reset) kembali kelihatan.
+  const inputValueDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  if (inputValueDescriptor && inputValueDescriptor.set) {
+    Object.defineProperty(HTMLInputElement.prototype, 'value', {
+      get: function () { return inputValueDescriptor.get.call(this); },
+      set: function (v) {
+        inputValueDescriptor.set.call(this, v);
+        const fp = this._flatpickr;
+        if (!fp || !fp.altInput) return;
+        if (this.__fpSyncingValue) return;
+        this.__fpSyncingValue = true;
+        try {
+          const raw = String(v == null ? '' : v);
+          if (raw.trim() !== '') fp.setDate(raw, false);
+          else fp.clear(false, false);
+        } catch (e) { /* abaikan nilai tidak sah */ }
+        this.__fpSyncingValue = false;
+      },
+      configurable: true
+    });
+  }
+
+  // Modern date picker untuk input tarikh statik (tema ikut --theme-color pengguna)
+  initDatepickers(document.body);
 
   // --- FUNGSI BANTUAN DESTROY CHART ---
   function safeDestroyChart(chartInstance, canvasId) {
@@ -1157,7 +1403,6 @@ async function handleCredentialResponse(response) {
   // PDF Upload Elements for Main Form
   const pdfUploadArea = document.getElementById('pdfUploadArea');
   const pdfFileName = document.getElementById('pdfFileName');
-  const pdfProcessing = document.getElementById('pdfProcessing');
   const pdfResult = document.getElementById('pdfResult');
   const pdfExtractedData = document.getElementById('pdfExtractedData');
   const btnApplyPdfData = document.getElementById('btnApplyPdfData');
@@ -1168,10 +1413,9 @@ async function handleCredentialResponse(response) {
   // PDF Upload Elements for Profile Tab
   const profilePdfUploadArea = document.getElementById('profilePdfUploadArea');
   const profilePdfFileName = document.getElementById('profilePdfFileName');
-  const profilePdfProcessing = document.getElementById('profilePdfProcessing');
   const profilePdfResult = document.getElementById('profilePdfResult');
   const profilePdfExtractedData = document.getElementById('profilePdfExtractedData');
-  const btnProsesProfileAI = document.getElementById('btnProsesProfileAI');
+  const btnUseAIProfileData = document.getElementById('btnUseAIProfileData');
   const btnApplyProfileData = document.getElementById('btnApplyProfileData');
   const btnClearProfileData = document.getElementById('btnClearProfileData');
   const btnReExtractProfileData = document.getElementById('btnReExtractProfileData');
@@ -1204,9 +1448,8 @@ async function handleCredentialResponse(response) {
   // Profile PDF Input
   let profilePdfInput = document.getElementById('profilePdfInput');
   
-  // PDF Processing Buttons
-  const btnProcessManual = document.getElementById('btnProcessManual');
-  const btnProcessAI = document.getElementById('btnProcessAI');
+  // PDF Processing Buttons (V7.0.0: AI fallback)
+  const btnUseAIPdfData = document.getElementById('btnUseAIPdfData');
   
   // PDF File Input
   let pdfFileInput = document.getElementById('pdfFileInput');
@@ -1918,8 +2161,12 @@ async function handleCredentialResponse(response) {
     }
     if (!force && dashboardPeriodData && dashboardPeriodData.key === key) return dashboardPeriodData;
     try {
+      // V6.10.2: Hantar role/userName supaya rekod tempoh ditapis server
+      // (selaras dengan kad agregat yang per-pengguna untuk PENGESYOR/PELULUS).
       const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
-        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
+        + '&role=' + encodeURIComponent(currentUser.role || '')
+        + '&userName=' + encodeURIComponent(currentUser.name || '');
       const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
       const data = await res.json();
       const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
@@ -1927,7 +2174,9 @@ async function handleCredentialResponse(response) {
       return dashboardPeriodData;
     } catch (e) {
       console.error('V6.10.1 loadDashboardPeriodData error:', e);
-      dashboardPeriodData = { key: key, rows: Array.isArray(cachedData) ? cachedData : [] };
+      // V6.10.2: Fallback jangan guna window (bukan bulan dipilih) - papar kosong
+      // supaya jadual tidak menunjukkan bulan yang salah.
+      dashboardPeriodData = { key: key, rows: [] };
       return dashboardPeriodData;
     }
   }
@@ -2044,7 +2293,6 @@ async function handleCredentialResponse(response) {
         cutout: 0,
         animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
-          alive: { enabled: true },
           title: { display: true, text: currentUser.role === 'PENGESYOR' ? 'Status Syor' : 'Status Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -2073,12 +2321,38 @@ async function handleCredentialResponse(response) {
         cutout: 0,
         animation: { animateScale: true, animateRotate: true, duration: 2000, easing: 'easeOutElastic' },
         plugins: {
-          alive: { enabled: true },
           title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
       }
     });
+  }
+
+  // V6.10.5: Segmen bar dinamik - puncak sentiasa melengkung walaupun DALAM PROSES kosong
+  function barSegTopmost(ctx) {
+    const i = ctx.dataIndex, di = ctx.datasetIndex;
+    const ds = ctx.chart.data.datasets;
+    for (let d = ds.length - 1; d > di; d--) if (ds[d].data[i]) return false;
+    return true;
+  }
+  function barSegBottommost(ctx) {
+    const i = ctx.dataIndex, di = ctx.datasetIndex;
+    const ds = ctx.chart.data.datasets;
+    for (let d = 0; d < di; d++) if (ds[d].data[i]) return false;
+    return true;
+  }
+  function barSegRadius(ctx) {
+    const top = barSegTopmost(ctx), bottom = barSegBottommost(ctx);
+    if (top) return 6;
+    if (bottom) return 4;
+    return 0;
+  }
+  function barSegSkipped(ctx) {
+    const top = barSegTopmost(ctx), bottom = barSegBottommost(ctx);
+    if (top && bottom) return false;
+    if (top) return 'start';
+    if (bottom) return 'end';
+    return false;
   }
 
   // V6.10.0: Trend bulanan 12 bulan terkini dari agregat (bukan data rekod penuh)
@@ -2122,10 +2396,11 @@ async function handleCredentialResponse(response) {
       : (monthMap[k] ? (monthMap[k].menunggu != null ? monthMap[k].menunggu : Math.max(0, monthMap[k].total - monthMap[k].lulus - monthMap[k].tolak)) : 0));
     // V6.10.3: Bar bertindan - satu bar per bulan; segmen SOKONG/LULUS + TIDAK DISOKONG/TOLAK + DALAM PROSES.
     // Tinggi bar penuh = JUMLAH PERMOHONAN (dipaparkan dalam tooltip).
+    // V6.10.4: Kemas - hanya hujung atas bar bulat, lebar bar seragam terkawal.
     const datasets = [
-      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false },
-      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: 6, borderSkipped: false },
-      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: 6, borderSkipped: false }
+      { label: isPengesyor ? 'SOKONG' : 'DILULUSKAN', data: good, backgroundColor: '#10b981', borderRadius: barSegRadius, borderSkipped: barSegSkipped },
+      { label: isPengesyor ? 'TIDAK DISOKONG' : 'DITOLAK/SIASAT', data: bad, backgroundColor: '#ef4444', borderRadius: barSegRadius, borderSkipped: barSegSkipped },
+      { label: 'DALAM PROSES', data: inProc, backgroundColor: '#f59e0b', borderRadius: barSegRadius, borderSkipped: barSegSkipped }
     ];
     const newChart = new Chart(ctx, {
       type: 'bar',
@@ -2134,8 +2409,9 @@ async function handleCredentialResponse(response) {
         responsive: true,
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
+        datasets: { bar: { barPercentage: 0.65, categoryPercentage: 0.8, maxBarThickness: 30 } },
         scales: {
-          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' }, border: { display: false } },
           x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
@@ -2183,29 +2459,51 @@ async function handleCredentialResponse(response) {
     detailedTableBody.innerHTML = rowsHtml;
   }
 
-  // V6.10.1: Jadual analisis terperinci - paparan BULANAN: pecahan minggu dari
-  // rekod tempoh (sepadan dengan agregat bulan yang dipilih).
+  // V6.10.2: Paparan harian - ringkasan rekod bagi tarikh dipilih
+  function updateDetailedTableDaily() {
+    if (!detailedTableBody) return;
+    const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
+    const y = dashboardData.currentYear, m = dashboardData.currentMonth, d = dashboardData.currentDay;
+    const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
+    const dayRows = rows.filter(item => {
+      const dt = dateResolver(item);
+      return dt && !isNaN(dt) && dt.getFullYear() === y && dt.getMonth() + 1 === m && dt.getDate() === d;
+    });
+    const dayNames = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
+    const namaHari = dayNames[new Date(y, m - 1, d).getDay()];
+    detailedTableBody.innerHTML =
+      '<tr><td colspan="6" style="text-align:center;">' +
+      'Paparan Harian: ' + namaHari + ', ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + y +
+      '<br>Jumlah rekod: ' + dayRows.length +
+      '</td></tr>';
+  }
+
+  // V6.10.3: Jadual analisis terperinci - paparan BULANAN: pecahan minggu
+  // mudah (Minggu 1 = 1-7 hb, Minggu 2 = 8-14 hb, ...) dari rekod tempoh
+  // (sepadan dengan agregat bulan yang dipilih).
   function updateDetailedTableFromPeriod() {
     if (!detailedTableBody) return;
     const rows = (dashboardPeriodData && dashboardPeriodData.rows) || [];
-    const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-    const monthName = monthNames[dashboardData.currentMonth - 1] || '';
     if (rows.length === 0) {
       detailedTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Tiada data untuk tempoh ini</td></tr>';
       return;
     }
     const isPengesyor = currentUser.role === 'PENGESYOR';
+    const daysInMonth = new Date(dashboardData.currentYear, dashboardData.currentMonth, 0).getDate();
+    const lastWeek = Math.ceil(daysInMonth / 7);
+
     const weeks = [];
     rows.forEach(item => {
       // Gunakan start_date (bulan permohonan) - selaras dengan pengumpulan agregat server
       const sd = item.start_date ? new Date(item.start_date) : null;
       if (!sd || isNaN(sd)) return;
+      // Minggu mudah: 1-7, 8-14, 15-21, 22-28, 29-habis bulan
       const week = Math.ceil(sd.getDate() / 7);
       if (!weeks[week]) weeks[week] = [];
       weeks[week].push(item);
     });
     let rowsHtml = '';
-    for (let week = 1; week <= 5; week++) {
+    for (let week = 1; week <= lastWeek; week++) {
       const weekData = weeks[week] || [];
       const total = weekData.length;
       const supported = weekData.filter(item => item.syor_status && item.syor_status.includes('SOKONG') && !item.syor_status.includes('TIDAK')).length;
@@ -2214,8 +2512,10 @@ async function handleCredentialResponse(response) {
       const rejected = weekData.filter(item => item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))).length;
       const inProcess = isPengesyor ? (total - supported - notSupported) : (total - approved - rejected);
       const rate = total > 0 ? Math.round(((isPengesyor ? supported : approved) / total) * 100) : 0;
+      const dayStart = (week - 1) * 7 + 1;
+      const dayEnd = Math.min(week * 7, daysInMonth);
       rowsHtml +=
-        '<tr><td>Minggu ' + week + ' (' + monthName + ')</td><td>' + total + '</td><td>' +
+        '<tr><td>Minggu ' + week + ' (' + dayStart + '-' + dayEnd + ' hb)</td><td>' + total + '</td><td>' +
         (isPengesyor ? supported : approved) + '</td><td>' +
         (isPengesyor ? notSupported : rejected) + '</td><td>' + inProcess +
         '</td><td>' + rate + '%</td></tr>';
@@ -2359,13 +2659,14 @@ async function handleCredentialResponse(response) {
     updateTypeChartFromAgg(agg);
     updateTrendChartFromAgg();
 
-    // V6.10.1: Jadual terperinci ikut tempoh - TAHUNAN: 12 bulan tahun dipilih
-    // (agregat lengkap); BULANAN: pecahan minggu dari rekod tempoh.
+    // V6.10.2: Jadual terperinci ikut tempoh - TAHUNAN: 12 bulan tahun dipilih
+    // (agregat lengkap); BULANAN: pecahan minggu dari rekod tempoh (dibina
+    // selepas rekod tempoh dimuat supaya sepadan bulan yang dipilih).
     const dPeriod = dashboardData.currentPeriod;
     if (dPeriod === 'yearly') {
       updateDetailedTableFromYear(dashboardData.currentYear);
-    } else if (dPeriod === 'monthly') {
-      updateDetailedTableFromPeriod();
+    } else if (dPeriod === 'daily') {
+      updateDetailedTableDaily();
     }
 
     if (currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN') {
@@ -2379,9 +2680,10 @@ async function handleCredentialResponse(response) {
     updateApplicationTypeStatsFromAgg(agg);
     hideLoading();
 
-    // V6.10.1: Muat rekod tempoh (from/to) supaya modal kad & dokumen tak lengkap
-    // sepadan dengan nombor agregat. Re-render selepas siap.
-    loadDashboardPeriodData().then(() => {
+    // V6.10.2: Muat rekod tempoh (from/to) supaya modal kad & dokumen tak lengkap
+    // sepadan dengan nombor agregat. Re-render selepas siap (force = sentiasa
+    // muat semula bila bulan/tahun ditukar).
+    loadDashboardPeriodData(true).then(() => {
       refreshDashboardClientDetails();
       if (dPeriod === 'monthly') updateDetailedTableFromPeriod();
     });
@@ -2682,7 +2984,6 @@ async function handleCredentialResponse(response) {
           easing: 'easeOutElastic'  
         },
         plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
           title: { display: true, text: currentUser.role === 'PENGESYOR' ? 'Status Syor' : 'Status Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -2731,7 +3032,6 @@ async function handleCredentialResponse(response) {
           easing: 'easeOutElastic'    
         },
         plugins: {
-          alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
           title: { display: true, text: 'Jenis Permohonan', font: { size: 14, weight: 'bold' } },
           legend: { position: 'bottom' }
         }
@@ -3027,22 +3327,22 @@ async function handleCredentialResponse(response) {
             label: 'SOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.supported || 0),
             backgroundColor: '#10b981',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'TIDAK DISOKONG',
             data: monthlyLabels.map(key => monthlyData[key]?.notSupported || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DALAM PROSES',
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.supported || 0) - (monthlyData[key]?.notSupported || 0))),
             backgroundColor: '#f59e0b',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           }
         ]
       },
@@ -3050,8 +3350,9 @@ async function handleCredentialResponse(response) {
         responsive: true,
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
+        datasets: { bar: { barPercentage: 0.65, categoryPercentage: 0.8, maxBarThickness: 30 } },
         scales: {
-          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' }, border: { display: false } },
           x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
@@ -3122,22 +3423,22 @@ async function handleCredentialResponse(response) {
             label: 'DILULUSKAN',
             data: monthlyLabels.map(key => monthlyData[key]?.approved || 0),
             backgroundColor: '#10b981',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DITOLAK/SIASAT',
             data: monthlyLabels.map(key => monthlyData[key]?.rejected || 0),
             backgroundColor: '#ef4444',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           },
           {
             label: 'DALAM PROSES',
             data: monthlyLabels.map(key => Math.max(0, (monthlyData[key]?.total || 0) - (monthlyData[key]?.approved || 0) - (monthlyData[key]?.rejected || 0))),
             backgroundColor: '#f59e0b',
-            borderRadius: 6,
-            borderSkipped: false
+            borderRadius: barSegRadius,
+            borderSkipped: barSegSkipped
           }
         ]
       },
@@ -3145,8 +3446,9 @@ async function handleCredentialResponse(response) {
         responsive: true,
         maintainAspectRatio: false,
         animation: { duration: 1500, easing: 'easeOutQuart' },
+        datasets: { bar: { barPercentage: 0.65, categoryPercentage: 0.8, maxBarThickness: 30 } },
         scales: {
-          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, border: { display: false } },
+          y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Bilangan Permohonan' }, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' }, border: { display: false } },
           x: { stacked: true, title: { display: true, text: 'Bulan' }, grid: { display: false }, border: { display: false } }
         },
         plugins: {
@@ -3401,45 +3703,49 @@ async function handleCredentialResponse(response) {
       `;
       
     // ==========================================
-    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU)
+    // BAHAGIAN 3: PAPARAN BULANAN (KIRA MINGGU MUDAH)
     // ==========================================
     } else {
-      const monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-      const monthName = monthNames[dashboardData.currentMonth - 1];
-      
+      const daysInMonth = new Date(dashboardData.currentYear, dashboardData.currentMonth, 0).getDate();
+      const lastWeek = Math.ceil(daysInMonth / 7);
+      const dateResolver = currentUser.role === 'PELULUS' ? resolveApprovalDate : resolveRecordDate;
+
       const weeks = [];
       data.forEach(item => {
-        let dateToUse = resolveRecordDate(item);
+        let dateToUse = dateResolver(item);
         if (dateToUse && !isNaN(dateToUse)) {
-          // Bahagi tarikh dengan 7 untuk dapatkan nombor minggu
+          // Minggu mudah: 1-7, 8-14, 15-21, 22-28, 29-habis bulan
           const week = Math.ceil(dateToUse.getDate() / 7);
           if (!weeks[week]) weeks[week] = [];
           weeks[week].push(item);
         }
       });
-      
-      for (let week = 1; week <= 5; week++) {
+
+      for (let week = 1; week <= lastWeek; week++) {
         const weekData = weeks[week] || [];
-        
+        const dayStart = (week - 1) * 7 + 1;
+        const dayEnd = Math.min(week * 7, daysInMonth);
+        const weekLabel = 'Minggu ' + week + ' (' + dayStart + '-' + dayEnd + ' hb)';
+
         if (currentUser.role === 'PENGESYOR') {
           const user = currentUser.name.toUpperCase();
           const userData = weekData.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === user);
-          
+
           const total = userData.length;
-          const supported = userData.filter(item => 
+          const supported = userData.filter(item =>
             item.syor_status && item.syor_status.includes('SOKONG') && !item.syor_status.includes('TIDAK')
           ).length;
-          const notSupported = userData.filter(item => 
+          const notSupported = userData.filter(item =>
             item.syor_status && item.syor_status.includes('TIDAK DISOKONG')
           ).length;
-          const inProcess = userData.filter(item => 
+          const inProcess = userData.filter(item =>
             !item.syor_status || item.syor_status === ''
           ).length;
           const rate = total > 0 ? Math.round((supported / total) * 100) : 0;
-          
+
           rowsHtml += `
             <tr>
-              <td>Minggu ${week} (${monthName})</td>
+              <td>${weekLabel}</td>
               <td>${total}</td>
               <td>${supported}</td>
               <td>${notSupported}</td>
@@ -3449,20 +3755,20 @@ async function handleCredentialResponse(response) {
           `;
         } else {
           const total = weekData.length;
-          const approved = weekData.filter(item => 
+          const approved = weekData.filter(item =>
             item.kelulusan && item.kelulusan.includes('LULUS')
           ).length;
-          const rejected = weekData.filter(item => 
+          const rejected = weekData.filter(item =>
             item.kelulusan && (item.kelulusan.includes('TOLAK') || item.kelulusan.includes('SIASAT'))
           ).length;
-          const inProcess = weekData.filter(item => 
+          const inProcess = weekData.filter(item =>
             !item.kelulusan || item.kelulusan === ''
           ).length;
           const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
-          
+
           rowsHtml += `
             <tr>
-              <td>Minggu ${week} (${monthName})</td>
+              <td>${weekLabel}</td>
               <td>${total}</td>
               <td>${approved}</td>
               <td>${rejected}</td>
@@ -3681,7 +3987,23 @@ async function handleCredentialResponse(response) {
         redirect: 'follow'
       }, 3, 1000);
       const data = await res.json();
+      // V6.11.0: Server sedang bina semula cache - guna data sedia ada, cuba semula
+      if (data && data.rebuilding === true) {
+        console.log('V6.11.0 PKA: data sedang dibina semula di server, cuba semula...');
+        scheduleDataRebuildRetry(() => pkaLoadData());
+        return;
+      }
+      if (data && data.cached === true) {
+        resetDataRebuildRetry();
+        if (data.version) dataCacheVersion = data.version;
+        if (data.windowStart) {
+          dataWindowStart = data.windowStart;
+          storageWrapper.set({ 'stb_data_window': dataWindowStart });
+        }
+        return;
+      }
       if (data && data.data && Array.isArray(data.data)) {
+        resetDataRebuildRetry();
         cachedData = data.data;
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {
@@ -3689,6 +4011,7 @@ async function handleCredentialResponse(response) {
           storageWrapper.set({ 'stb_data_window': dataWindowStart });
         }
       } else if (Array.isArray(data)) {
+        resetDataRebuildRetry();
         cachedData = data;
       }
     } catch (e) {
@@ -3892,6 +4215,7 @@ async function handleCredentialResponse(response) {
       </div>
     </div>`;
     document.querySelectorAll('#pkaKeputusanList .editable-textarea').forEach(autoResizeTextarea);
+    initDatepickers(list);
   }
 
   function pkaRenderSejarahCards(data, list) {
@@ -5313,26 +5637,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     pdfFileInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
         updateFileName(e.target.files[0].name);
-        
-        // --- KOD BARU: Arahkan sistem terus proses AI ---
-        processPdfWithAI();
-        // ----------------------------------------------
-        
+
+        // V7.0.0: Auto-ekstrak Manual (regex) dahulu - AI hanya fallback
+        processPdfRegex();
+
       } else {
         updateFileName('Tiada fail dipilih');
       }
     });
   }
 
-  if (btnProcessManual) {
-    btnProcessManual.addEventListener('click', () => {
-      processPdfManual();
-    });
-  }
-
-  if (btnProcessAI) {
-    btnProcessAI.addEventListener('click', () => {
-      processPdfWithAI();
+  // V7.0.0: Butang fallback "Guna AI" - dipanggil bila pengesyor tak puas hati dengan regex
+  if (btnUseAIPdfData) {
+    btnUseAIPdfData.addEventListener('click', () => {
+      processPdfWithAI(true);
     });
   }
 
@@ -5344,9 +5662,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     btnClearPdfData.addEventListener('click', clearPdfData);
   }
 
+  // V7.0.0: "Ekstrak Semula" = ulang regex segar
   if (btnReExtractPdfData) {
     btnReExtractPdfData.addEventListener('click', () => {
-      processPdfWithAI(true);
+      processPdfRegex();
     });
   }
 
@@ -5356,75 +5675,143 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       pdfFileName.style.fontWeight = 'bold';
       pdfFileName.style.color = '#3b82f6';
     }
-    if (btnProcessManual) {
-      btnProcessManual.disabled = fileName === 'Tiada fail dipilih';
-    }
-    if (btnProcessAI) {
-      btnProcessAI.disabled = fileName === 'Tiada fail dipilih';
-    }
   }
 
-  async function processPdfManual() {
-    if (!pdfFileInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
+  // =========================================================================
+  // V7.0.0: ANIMASI MORPH KONGSI (Borang + Profile)
+  // =========================================================================
+  function makeMorphUpdater(boxId, ringId, pctId, msgId, resultEl) {
+    return (percent, message) => {
+      const statusBox = document.getElementById(boxId);
+      const progressRing = document.getElementById(ringId);
+      const percentageText = document.getElementById(pctId);
+      const progressMsg = document.getElementById(msgId);
+
+      if (statusBox.classList.contains('morph-circle')) {
+        statusBox.classList.replace('morph-circle', 'morph-square');
+      }
+
+      percentageText.innerHTML = `${percent}%`;
+      progressMsg.style.display = 'block';
+      progressMsg.innerText = message;
+
+      const circumference = 440;
+      progressRing.style.strokeDashoffset = circumference - (percent / 100) * circumference;
+
+      if (resultEl) resultEl.style.display = 'none';
+    };
+  }
+
+  function resetMorphBox(boxId, ringId, pctId, msgId, iconLabel, afterFn, delay = 600) {
+    setTimeout(() => {
+      const statusBox = document.getElementById(boxId);
+      if (statusBox.classList.contains('morph-square')) {
+        statusBox.classList.replace('morph-square', 'morph-circle');
+      }
+      document.getElementById(ringId).style.strokeDashoffset = 440;
+      document.getElementById(pctId).innerHTML = iconLabel;
+      document.getElementById(msgId).style.display = 'none';
+      if (afterFn) afterFn();
+    }, delay);
+  }
+
+  // =========================================================================
+  // V7.0.0: PDF -> MD DALAM-BROWSER (pdf.js, baris dikekalkan)
+  // =========================================================================
+  async function convertPdfToMd(file, opts = {}) {
+    const maxPages = opts.maxPages || 4;
+    const onProgress = opts.onProgress || (() => {});
+
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error("PDF processing library tidak dimuatkan. Sila muat semula halaman.");
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+
+    const pagesToRead = Math.min(pdf.numPages, maxPages);
+    let md = '';
+
+    for (let pageNum = 1; pageNum <= pagesToRead; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      const lines = [];
+      let currentLine = '';
+      textContent.items.forEach(item => {
+        currentLine += item.str + ' ';
+        if (item.hasEOL) {
+          lines.push(currentLine.replace(/[ \t]+/g, ' ').trim());
+          currentLine = '';
+        }
+      });
+      if (currentLine.trim()) lines.push(currentLine.replace(/[ \t]+/g, ' ').trim());
+
+      md += `## Halaman ${pageNum}\n\n${lines.filter(Boolean).join('\n')}\n\n`;
+      onProgress(pageNum, pagesToRead);
     }
 
+    // Pengesan dokumen imbas - tiada lapisan teks
+    if (md.replace(/\s+/g, '').length < 50) {
+      throw new Error("Dokumen ini nampaknya imbas/imej (tiada lapisan teks). Sila gunakan fail PDF berteks asal.");
+    }
+
+    return { md, numPages: pdf.numPages, pagesRead: pagesToRead };
+  }
+
+  // =========================================================================
+  // V7.0.0: EKSTRAK MANUAL (REGEX) - BORANG
+  // =========================================================================
+  let isPdfRegexProcessing = false;
+
+  async function processPdfRegex() {
+    if (isPdfRegexProcessing || isPdfAiProcessing) return;
+    if (!pdfFileInput.files.length) return;
+
     const file = pdfFileInput.files[0];
-    
     if (file.size > 10 * 1024 * 1024) {
       await CustomAppModal.alert("Fail terlalu besar. Sila pilih fail kurang daripada 10MB.", "Ralat Saiz", "error");
       return;
     }
 
-    if (pdfProcessing) {
-      pdfProcessing.style.display = 'block';
-      pdfProcessing.textContent = 'Memproses PDF... Sila tunggu.';
-    }
-    if (pdfResult) {
-      pdfResult.style.display = 'none';
-    }
+    isPdfRegexProcessing = true;
+    const updateProgress = makeMorphUpdater('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', pdfResult);
 
     try {
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        console.error("V6.5.2 PDF.js library not loaded");
-        await CustomAppModal.alert("PDF processing library tidak dimuatkan. Sila muat semula halaman.", "Ralat Sistem", "error");
-        return;
-      }
+      updateProgress(8, "Tukar PDF ke MD...");
 
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
-      }
+      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
+        onProgress: (p, t) => updateProgress(8 + Math.round((p / t) * 42), `Tukar ke MD... (${p}/${t})`)
+      });
 
-      console.log("V6.5.2 PDF Text extracted (first 5000 chars):", fullText.substring(0, 5000));
-      
-      extractedPdfData = extractDataFromPdfSimple(fullText);
-      
-      displayExtractedData(extractedPdfData);
-      
-      if (pdfResult) {
-        pdfResult.style.display = 'block';
-      }
-      
+      console.log("V7.0.0 Markdown:", md.substring(0, 30000));
+
+      updateProgress(60, "Regex menganalisis dokumen...");
+      extractedPdfData = extractDataFromPdfMd(md);
+
+      updateProgress(100, "Selesai!");
+      await playSuccessSound();
+
+      resetMorphBox('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', `📄<br><span>Pilih PDF</span>`, () => {
+        displayExtractedData(extractedPdfData);
+        if (pdfResult) pdfResult.style.display = 'block';
+        if (pdfExtractMeta) pdfExtractMeta.innerText = `Kaedah: Manual (Regex) | Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
+      }, 300);
+
       storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
-      
+
     } catch (error) {
-      console.error("V6.5.2 Error processing PDF:", error);
+      console.error("V7.0.0 Regex Error:", error);
       await playErrorSound();
+      const progressMsg = document.getElementById('pdfProgressMsg');
+      if (progressMsg) progressMsg.innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
       await CustomAppModal.alert("Ralat memproses PDF: " + error.message, "Ralat Sistem", "error");
+    } finally {
+      isPdfRegexProcessing = false;
     }
-}
+  }
 
   // =========================================================================
   // V6.9.1: CACHE PER-FAIL UNTUK HASIL AI (localStorage)
@@ -5488,7 +5875,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
   let isPdfAiProcessing = false;
 
-  // V6.9.1: force = true (butang "Ekstrak Semula") - buang cache fail dan panggil AI segar
+  // V7.0.0: Fallback AI - force = true sentiasa (butang "Guna AI")
   async function processPdfWithAI(force = false) {
     if (isPdfAiProcessing) return;
     if (!pdfFileInput.files.length) {
@@ -5496,13 +5883,11 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       return;
     }
     isPdfAiProcessing = true;
-    if (btnProcessAI) btnProcessAI.disabled = true;
 
     const file = pdfFileInput.files[0];
     if (file.size > 10 * 1024 * 1024) {
       await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
       isPdfAiProcessing = false;
-      if (btnProcessAI) btnProcessAI.disabled = false;
       return;
     }
 
@@ -5519,83 +5904,28 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       extractedPdfData = cachedResult;
       displayExtractedData(extractedPdfData);
       if (pdfResult) pdfResult.style.display = 'block';
-      if (pdfExtractMeta) pdfExtractMeta.innerText = 'Hasil dari cache fail ini. Guna "Ekstrak Semula" untuk panggilan AI segar.';
+      if (pdfExtractMeta) pdfExtractMeta.innerText = 'Kaedah: AI (cache fail ini)';
       storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
       await playSuccessSound();
       isPdfAiProcessing = false;
-      if (btnProcessAI) btnProcessAI.disabled = false;
       return;
     }
 
-    // --- KOD ANIMASI BARU (Morphing & Outliner) ---
-    const updateProgress = (percent, message) => {
-      const statusBox = document.getElementById('status-box-main');
-      const progressRing = document.getElementById('progress-ring-main');
-      const percentageText = document.getElementById('percentage-main');
-      const progressMsg = document.getElementById('pdfProgressMsg');
-
-      // 1. Morph bentuk: Bulat -> Petak bila proses mula
-      if (statusBox.classList.contains('morph-circle')) {
-        statusBox.classList.replace('morph-circle', 'morph-square');
-      }
-
-      // 2. Kemaskini teks peratusan & mesej
-      percentageText.innerHTML = `${percent}%`;
-      progressMsg.style.display = 'block';
-      progressMsg.innerText = message;
-
-      // 3. Gerakkan outliner SVG (Panjang garisan ialah 440)
-      const circumference = 440;
-      const offset = circumference - (percent / 100) * circumference;
-      progressRing.style.strokeDashoffset = offset;
-
-      if (pdfResult) pdfResult.style.display = 'none';
-    };
+    const updateProgress = makeMorphUpdater('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', pdfResult);
 
     try {
-      updateProgress(5, "Membaca fail...");
-      
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        throw new Error("PDF.js library not loaded");
-      }
+      updateProgress(5, "Tukar PDF ke MD...");
 
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      const totalPages = pdf.numPages;
+      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
+        onProgress: (p, t) => updateProgress(5 + Math.round((p / t) * 35), `Tukar ke MD... (${p}/${t})`)
+      });
 
-      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
-      const maxPagesToRead = Math.min(totalPages, 4); 
+      console.log("V7.0.0 PDF MD Extracted. Length:", md.length);
 
-      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        // V6.9.1: Kekal struktur baris (hasEOL) supaya AI kenal pasti blok alamat berbilang baris
-        const pageText = textContent.items.map(item => {
-          return item.str + (item.hasEOL ? '\n' : ' ');
-        }).join('').replace(/[ \t]+\n/g, '\n');
-        fullText += pageText + '\n';
-        
-        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
-      }
+      if (pdfExtractMeta) pdfExtractMeta.innerText = `Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
 
-      console.log("V6.5.2 PDF Extracted. Length:", fullText.length);
-
-      // V6.9.1: Pengesan dokumen imbas - tiada lapisan teks bermakna AI tidak dapat ekstrak
-      if (fullText.replace(/\s+/g, '').length < 50) {
-        throw new Error("Dokumen ini nampaknya imbas/imej (tiada lapisan teks). AI hanya boleh baca PDF berteks - sila gunakan fail PDF asal.");
-      }
-
-      // V6.9.1: Info diagnosa - muka surat & panjang teks
-      if (pdfExtractMeta) pdfExtractMeta.innerText = `Muka: ${maxPagesToRead}/${pdf.numPages} | Teks: ${fullText.length} aksara`;
-      
       updateProgress(45, "Menghantar ke AI...");
-      
+
       // V6.9.1: Progress sebenar dengan pemasa masa menunggu AI
       const aiStartTime = Date.now();
       aiInterval = setInterval(() => {
@@ -5604,34 +5934,25 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
       }, 500);
 
-      extractedPdfData = await processPdfTextWithAI(fullText, force);
-      
-      if (aiInterval) clearInterval(aiInterval);
-      
-      updateProgress(100, "Selesai!");
-      
-      // MEMAINKAN BUNYI SUCCESS KETIKA MENCAPAI 100%
-      await playSuccessSound(); 
-      
-      // Tunggu sekejap untuk bagi pengguna lihat "100% Selesai" sebelum memaparkan kotak hijau
-      setTimeout(() => {
-        // Kembalikan kotak ke keadaan asal
-        document.getElementById('status-box-main').classList.replace('morph-square', 'morph-circle');
-        document.getElementById('progress-ring-main').style.strokeDashoffset = 440;
-        document.getElementById('percentage-main').innerHTML = `📄<br><span>Pilih PDF</span>`;
-        document.getElementById('pdfProgressMsg').style.display = 'none';
+      extractedPdfData = await processPdfTextWithAI(md, force);
 
+      if (aiInterval) clearInterval(aiInterval);
+
+      updateProgress(100, "Selesai!");
+
+      await playSuccessSound();
+
+      resetMorphBox('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', `📄<br><span>Pilih PDF</span>`, () => {
         displayExtractedData(extractedPdfData);
-        if (pdfResult) {
-          pdfResult.style.display = 'block';
-        }
-      }, 600);
-      
+        if (pdfResult) pdfResult.style.display = 'block';
+        if (pdfExtractMeta) pdfExtractMeta.innerText = `Kaedah: AI | Muka: ${pagesRead}/${numPages}`;
+      });
+
       storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
       setAIFileCacheResult('borang', file, extractedPdfData);
-      
+
     } catch (error) {
-      console.error("V6.5.2 AI Error:", error);
+      console.error("V7.0.0 AI Error:", error);
       if (aiInterval) clearInterval(aiInterval);
       await playErrorSound();
 
@@ -5639,7 +5960,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       await CustomAppModal.alert("Gagal memproses: " + error.message, "Ralat Sistem", "error");
     } finally {
       isPdfAiProcessing = false;
-      if (btnProcessAI) btnProcessAI.disabled = false;
     }
   }
 
@@ -5652,8 +5972,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
     console.log("V6.5.2 (Web) Menghantar teks borang ke backend untuk AI processing...");
     
-    // Dapatkan nilai dari dropdown model AI
-    const selectedModel = document.getElementById('aiModelSelect') ? document.getElementById('aiModelSelect').value : 'auto';
+    // V7.0.11: Model AI dikunci ke 'auto' (dropdown dibuang)
+    const selectedModel = 'auto';
     
     const payload = {
       action: 'processAI',
@@ -5679,7 +5999,38 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     return result.data;
   }
 
-  function extractDataFromPdfSimple(pdfText) {
+  // V7.0.0: Cari blok alamat berlabel dalam baris MD (berbilang baris)
+  function extractAddressBlockFromLines(lines, labelPattern) {
+    const labelRe = new RegExp(labelPattern, 'i');
+    const otherLabelRe = /(ALAMAT\s+(PERNIAGAAN|BERDAFTAR|SURAT)|BUSINESS\s+ADDRESS|REGISTERED|CORRESPONDENCE|MAILING)/i;
+    const stopLineRe = /^(\d{1,2}\.\s+[A-Z]|TEL(?:E(?:PHONE)?)?|FAX\b|FAKS|URL\b|WEB\b|EMEL\b|EMAIL\b|H\/P\b|HP\b|MOBILE|BIMBIT|HAND?PHONE|NO\.?\s+(?:TEL|TELEFON|FAX|H\/P))/i;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (!labelRe.test(lines[i])) continue;
+
+      // Nilai mungkin bermula pada baris yang sama selepas label
+      let firstValue = lines[i].replace(labelRe, '').replace(/^[\s:\-]+/, '').replace(/[\s,]+$/, '').trim();
+      const parts = [];
+      if (firstValue && !otherLabelRe.test(firstValue) && !stopLineRe.test(firstValue)) parts.push(firstValue);
+
+      for (let j = i + 1; j < lines.length && parts.length < 6; j++) {
+        const ln = lines[j];
+        if (!ln || ln.startsWith('##')) break;
+        if (otherLabelRe.test(ln)) break;
+        if (stopLineRe.test(ln)) break;
+        if (parts.length === 0 && ln.length < 3) continue;
+        parts.push(ln.replace(/[\s,]+$/, ''));
+        if (/\d{5}/.test(ln)) break; // baris mengandungi poskod - anggap alamat selesai
+      }
+
+      const addr = parts.join(', ').replace(/[\s,]+$/, '');
+      if (addr.length >= 8) return addr;
+    }
+    return '';
+  }
+
+  // V7.0.0: Regex extractor borang - input markdown dari convertPdfToMd
+  function extractDataFromPdfMd(md) {
     const extractedData = {
       companyName: '',
       cidbNumber: '',
@@ -5697,15 +6048,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       alamatSuratMenyurat: ''
     };
 
-    console.log("V6.5.2 Mula mengekstrak data...");
+    console.log("V7.0.0 Mula mengekstrak data (regex)...");
 
-    const rawText = pdfText.toUpperCase().replace(/\s+/g, ' ');
-    const cleanHeaderText = rawText.replace(/TEL\s*:\s*[\d-]+\s*/g, '');
+    const rawText = md.toUpperCase().replace(/\s+/g, ' ');
+    const mdLinesUp = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim().toUpperCase()).filter(Boolean);
+    const cleanHeaderText = rawText.replace(/TEL\s*:\s*[\d-]+\s*/g, '').replace(/#+\s*HALAMAN\s*\d+/gi, '');
 
-    const companyMatch = cleanHeaderText.match(/([A-Z0-9\s\.\&\-]+?)\s*\(\d{6,}[-\s]?[A-Z0-9]+\)/);
+    // V7.0.9: No. pendaftaran pelbagai format: "001176979-M", "JM0907073-P", "PPK0236"
+    const companyMatch = cleanHeaderText.match(/([A-Z0-9\s\.\&\-]+?)\s*\([A-Z]*\d{3,}[-\s]?[A-Z0-9]*\)/);
     if (companyMatch && companyMatch[1]) {
       let name = companyMatch[1].trim();
       name = name.replace(/.*(?:ADDR|ALAMAT|LUMPUR|SELANGOR|JOHOR|KUALA)[:\s]*/, '').trim();
+      // V7.0.1: Buang nombor siri di hadapan nama (cth: "3300 EHSAN PANTAS...")
+      name = name.replace(/^(?:BIL|NO\.?)\s*\d+\s+/i, '').trim();
+      name = name.replace(/^\d{3,}[\s.\-]*\s*/, '').trim();
       extractedData.companyName = name;
     }
 
@@ -5729,17 +6085,68 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       extractedData.stbEndDate = stbMatch[2]; 
     }
     
-    const phoneRegex = /(?:TEL|H\/P|PHONE)[\s:]*([\d\s\-\(\)\+]+)/gi;
-    let phoneMatch;
+    // V7.0.7: Telefon - label pelbagai termasuk HANDPHONENO (label tercantum)
     const phones = new Set();
-    while ((phoneMatch = phoneRegex.exec(rawText)) !== null) {
-      let phoneNum = phoneMatch[1].trim();
-      phoneNum = phoneNum.replace(/\s+/g, '');
-      if (phoneNum.length >= 6) {
-        phones.add(phoneNum);
+
+    const phoneLabelRe = /(?:H\/P|HP|HAND?PHONE(?:NO\.?)?|MOBILE|BIMBIT|PHONE|(?:NO\.?\s*)?TEL(?:E(?:PHONE)?)?(?:\.)?)\b\s*(?:NO\.?|NUMBER)?\s*[:.) ]?\s*\(?([\d][\d\s\-(),]{6,})\)?/gi;
+    let phoneMatch;
+    while ((phoneMatch = phoneLabelRe.exec(rawText)) !== null) {
+      const group = phoneMatch[1].replace(/\s+/g, '').trim();
+      const numbers = group.split(',');
+      for (let num of numbers) {
+        num = num.replace(/[^\d+]/g, '');
+        if (num.length >= 6) phones.add(num);
       }
     }
+
+    // V7.0.7: Fallback bimbit 01x tanpa label - no. CIDB ditapis oleh cidbScanRe di bawah
+    const mobileRe = /(?<![\d])(01[0-46-9]-?\d{7,8})(?![\d])/g;
+    let mobileMatch;
+    while ((mobileMatch = mobileRe.exec(rawText)) !== null) {
+      const num = mobileMatch[1].replace(/\D+/g, '');
+      if (num.length >= 10) phones.add(num);
+    }
+
+    // V7.0.2: Buang nombor yang sebenarnya bahagian no. CIDB (cth: "0120201118" dalam "0120201118-KD061300")
+    const cidbPrefixes = new Set();
+    const cidbScanRe = /\b(\d{6,12})[\s\-()]*[A-Z]{2}[\s\-()]*\d{5,6}\b/g;
+    let cidbScan;
+    while ((cidbScan = cidbScanRe.exec(rawText)) !== null) cidbPrefixes.add(cidbScan[1]);
+    if (cidbPrefixes.size > 0) {
+      for (const p of [...phones]) {
+        for (const cp of cidbPrefixes) {
+          if (p === cp || (p.length > cp.length && p.startsWith(cp))) phones.delete(p);
+        }
+      }
+    }
+
+    // V7.0.5: Buang hotline CIDB - talian darat (bukan 01x) berlabel TEL/TELEPHONE/PHONE
+    // yang berdekatan (<=4 baris) dengan baris mengandungi no. CIDB.
+    // Nombor bimbit (01x) tidak pernah dibuang.
+    const cidbLineIdx = [];
+    for (let i = 0; i < mdLinesUp.length; i++) {
+      if (/\d{6,12}[\s\-()]*[A-Z]{2}[\s\-()]*\d{5,6}/.test(mdLinesUp[i])) cidbLineIdx.push(i);
+    }
+    const hotlineRe = /(?:TEL(?:E(?:PHONE)?)?|PHONE)\b[^0-9]*([0-9][0-9\s\-()]{6,})/i;
+    const hotlineDigits = new Set();
+    for (const idx of cidbLineIdx) {
+      for (let i = Math.max(0, idx - 4); i <= Math.min(mdLinesUp.length - 1, idx + 4); i++) {
+        const m = mdLinesUp[i].match(hotlineRe);
+        if (m) {
+          const digits = m[1].replace(/[^\d+]/g, '');
+          if (digits.length >= 6 && !/^01\d{8,}/.test(digits)) hotlineDigits.add(digits);
+        }
+      }
+    }
+    for (const p of [...phones]) {
+      if (hotlineDigits.has(p)) phones.delete(p);
+    }
+
     extractedData.phoneNumbers = Array.from(phones);
+
+    // V7.0.0: Alamat berlabel (berbilang baris) - ALAMAT BERDAFTAR tidak pernah digunakan
+    extractedData.alamatPerniagaan = extractAddressBlockFromLines(mdLinesUp, 'ALAMAT\\s+PERNIAGAAN|BUSINESS\\s+ADDRESS|ALAMAT\\s+UTAMA\\s+URUS\\s*NIAGA');
+    extractedData.alamatSuratMenyurat = extractAddressBlockFromLines(mdLinesUp, 'ALAMAT\\s+SURAT[-\\s]?MENYURAT|CORRESPONDENCE\\s+ADDRESS|MAILING\\s+ADDRESS');
 
     function sanitizeName(rawName) {
       let name = rawName.trim();
@@ -5758,10 +6165,17 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
           name = name.substring(0, idx).trim();
         }
       }
-      
+
+      // V7.0.12: Buang gelaran di hujung nama (cth: ", DATO ' SRI HAJI", "DATIN SRI HAJJAH")
+      name = name.replace(/[,;]?\s*DAT[OI]N?\s*['']?\s+SRI\s+(?:HAJ{1,2}(?:AH|I)?)?\s*$/i, '');
+      name = name.replace(/[,;]\s*$/, '');
+
       name = name.replace(/[^A-Z0-9\)\.\@\&\-\/\s]*$/, ''); 
       name = name.replace(/^[\d\.\)\-\s]+/, '');   
-      
+
+      // V7.0.3: Gabung serpihan huruf pendek (pdf.js pecahkan nama: "SYA FI Q" -> "SYAFIQ")
+      name = name.replace(/ ([A-Z]{1,2})(?= [A-Z]{1,2}(?: |$))/g, '$1');
+
       return name.trim();
     }
 
@@ -5780,7 +6194,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         "EQUITY", "BUMIPUTERA", "ASING", "BUKAN BUMIPUTERA", "AGENSI BERKAITAN"
       ];
 
-      const regex = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z\s\.\'\@\&\-\(\)\/]+?)(?=\s+(?:\d{6,}|\d{5,}[A-Z]|[A-Z]\d{5,}|MALAYSIA|MELAYU|CINA|INDIA|LELAKI|PEREMPUAN|DIRECTOR|PENGARAH|MANAGING|WARGANEGARA))/g;
+      const regex = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z\s\.\'\@\&\-\(\)\/,]+?)(?=\s+(?:\d{6,}|\d{5,}[A-Z]|[A-Z]\d{5,}|MALAYSIA|MELAYU|CINA|INDIA|LELAKI|PEREMPUAN|DIRECTOR|PENGARAH|MANAGING|WARGANEGARA))/g;
 
       let match;
       const names = [];
@@ -5807,6 +6221,26 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
           }
         }
       }
+
+      // V7.0.3: Fallback - nama tanpa IC/marker (hanya dipisah nombor baris).
+      // Hanya guna bila padanan utama kosong supaya tidak mencemar hasil yang lengkap.
+      if (names.length === 0) {
+        const fallbackRe = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z][A-Z\s\.\'\@\&\-\(\)\/,]{3,60}?)(?=\s+(?:\d{1,2}[\.\)]|$))/g;
+        let fallbackMatch;
+        while ((fallbackMatch = fallbackRe.exec(cleanStream)) !== null) {
+          let potentialName = fallbackMatch[2].trim();
+          let isHeader = false;
+          for (let block of headerBlocklist) {
+            if (potentialName.includes(block)) { isHeader = true; break; }
+          }
+          if (isHeader) continue;
+          if (potentialName.length > 80 || potentialName.length < 3) continue;
+          let clean = sanitizeName(potentialName);
+          if (clean.length > 3 && /[A-Z]/.test(clean) && !names.includes(clean)) {
+            if (!/^[\W\d]+$/.test(clean)) names.push(clean);
+          }
+        }
+      }
       return names;
     }
 
@@ -5815,38 +6249,80 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       return m ? m.index : -1;
     };
 
-    const idxDir = getIndex(/4\.\s*(?:DIRECTORS|PENGARAH)/);
-    const idxShare = getIndex(/5\.\s*(?:SHAREHOLDERS|PEMEGANG)/);
+    // V7.0.1: Pecah seksyen guna panjang header sebenar (bukan +15/+25 rapuh)
+    // V7.0.10: Cuba pattern ketat dahulu; loose hanya jika tiada (elak padanan
+    // dalam perkataan seperti "DIRECTOR/OFFICERS" di dalam teks lain).
+    const getSection = (strictPattern, loosePattern, nextPatterns) => {
+      const m = rawText.match(strictPattern) || rawText.match(loosePattern);
+      if (!m) return '';
+      const start = m.index + m[0].length;
+      let end = rawText.length;
+      for (const np of nextPatterns) {
+        const nm = rawText.slice(start).match(np);
+        if (nm) end = Math.min(end, start + nm.index);
+      }
+      return rawText.slice(start, end);
+    };
 
-    let idxNext = getIndex(/6\.\s*(?:KEY|PERSONEL)/);
-    if (idxNext === -1) idxNext = getIndex(/7\.\s*(?:TECHNICAL|TEKNIKAL)/);
+    // V7.0.3: Cari seksyen bebas nombor - dokumen mungkin guna nombor berbeza
+    // (cth: "3. PENGARAH" bukan "4.", atau "4. (PENGARAH)")
+    const findSection = (...patterns) => {
+      for (const p of patterns) {
+        const m = rawText.match(p);
+        if (m) return m.index;
+      }
+      return -1;
+    };
+
+    // V7.0.10: (?<![A-Z\/]) elak padanan dalam "DIRECTOR/OFFICERS", "SHAREHOLDER'S" dsb.
+    const dirHeader = /4\.\s*\(?(?:DIRECTORS|PENGARAH)/;
+    const dirHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?(?:DIRECTORS?|PENGARAH|BOARD\s+OF\s+DIRECTORS|SENARAI\s+PENGARAH)/;
+    const shareHeader = /5\.\s*\(?(?:SHAREHOLDERS|PEMEGANG)/;
+    const shareHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?(?:SHAREHOLDERS?|PEMEGANG\s+SAHAM|BUSINESS\s+PARTNERSHIP)/;
+    const keyHeader = /6\.\s*\(?(?:KEY|PERSONEL)/;
+    const keyHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?(?:KEY\s+(?:MANAGEMENT|PERSONNEL)|PERSONEL\s+PENGURUSAN)/;
+    const techHeader = /7\.\s*\(?(?:TECHNICAL|TEKNIKAL)/;
+    const techHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?(?:TECHNICAL\s+PERSONNEL|PERSONEL\s+TEKNIKAL)/;
+    const spkkHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?SPKK\s+(?:RESPONSIBLE|PENAMA)/;
+    const chequeHeaderLoose = /(?<![A-Z\/])(?:\d{1,2}(?:\.\d)?[\.\)]\s*)?\(?CHEQUE\s+(?:SIGNATORIES|PENANDATANGAN)/;
+
+    const idxDir = findSection(dirHeader, dirHeaderLoose);
+    const idxShare = findSection(shareHeader, shareHeaderLoose);
 
     const idxSpkk = getIndex(/(\d+\.\s+SPKK\s+(?:RESPONSIBLE|PENAMA))/);
     const idxCheque = getIndex(/(\d+\.\s+CHEQUE\s+(?:SIGNATORIES|PENANDATANGAN))/);
 
-    let idxStopCheque = getIndex(/(?:MANDATORY|JOINT VENTURE|INTERNATIONAL|DISCLAIMER|20\.|21\.)/);
-    if (idxStopCheque === -1 || idxStopCheque < idxCheque) idxStopCheque = rawText.length;
+    // V7.0.5: Slicing hanya bergantung pada header seksyen itu sendiri -
+    // bahagian akhir dicari dari section seterusnya yang wujud.
+    const strDirectors = (idxDir !== -1)
+      ? getSection(dirHeader, dirHeaderLoose, [shareHeader, shareHeaderLoose, keyHeader, keyHeaderLoose, techHeader, techHeaderLoose, spkkHeaderLoose, chequeHeaderLoose])
+      : "";
+    const strShareholders = (idxShare !== -1)
+      ? getSection(shareHeader, shareHeaderLoose, [keyHeader, keyHeaderLoose, techHeader, techHeaderLoose, spkkHeaderLoose, chequeHeaderLoose])
+      : "";
 
-    const strDirectors = (idxDir !== -1 && idxShare !== -1) ? rawText.substring(idxDir + 15, idxShare) : "";
-    const strShareholders = (idxShare !== -1 && idxNext !== -1) ? rawText.substring(idxShare + 15, idxNext) : "";
+    const strSpkk = (idxSpkk !== -1)
+      ? getSection(/(?:\d+\.\s+SPKK\s+(?:RESPONSIBLE|PENAMA))/, spkkHeaderLoose, [/(?:\d+\.\s+CHEQUE\s+(?:SIGNATORIES|PENANDATANGAN))/, chequeHeaderLoose, /(?:MANDATORY|JOINT VENTURE|INTERNATIONAL|DISCLAIMER|20\.|21\.)/])
+      : "";
 
-    let strSpkk = "";
-    if (idxSpkk !== -1) {
-      const endSpkk = (idxCheque !== -1) ? idxCheque : rawText.length;
-      strSpkk = rawText.substring(idxSpkk + 25, endSpkk); 
-    }
-
-    let strCheque = "";
-    if (idxCheque !== -1) {
-      strCheque = rawText.substring(idxCheque + 25, idxStopCheque);
-    }
+    const strCheque = (idxCheque !== -1)
+      ? getSection(/(?:\d+\.\s+CHEQUE\s+(?:SIGNATORIES|PENANDATANGAN))/, chequeHeaderLoose, [/(?:MANDATORY|JOINT VENTURE|INTERNATIONAL|DISCLAIMER|20\.|21\.)/])
+      : "";
 
     extractedData.directors = extractNamesFromStream(strDirectors);
     extractedData.shareholders = extractNamesFromStream(strShareholders);
     extractedData.spkkPersons = extractNamesFromStream(strSpkk);
     extractedData.chequeSignatories = extractNamesFromStream(strCheque);
 
-    console.log("V6.5.2 Final Clean Data:", extractedData);
+    // V7.0.6: Diagnosa slicing seksyen (bantu baiki penama/pengarah)
+    console.log("V7.0.6 Slicing:", JSON.stringify({
+      dir: strDirectors.substring(0, 150),
+      share: strShareholders.substring(0, 150),
+      spkk: strSpkk.substring(0, 150),
+      cheque: strCheque.substring(0, 150)
+    }));
+
+    console.log("V7.0.0 Final Clean Data (regex):", extractedData);
     return extractedData;
   }
 
@@ -5913,7 +6389,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
       html += `<div class="extracted-item">
         <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Cuba "Ekstrak Semula" jika yakin alamat wujud dalam dokumen.</span>
+        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Klik "Guna AI" untuk ekstrakan AI.</span>
       </div>`;
     }
 
@@ -6107,12 +6583,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (pdfExtractedData) {
       pdfExtractedData.innerHTML = '';
     }
-    if (btnProcessManual) {
-      btnProcessManual.disabled = true;
-    }
-    if (btnProcessAI) {
-      btnProcessAI.disabled = true;
-    }
     extractedPdfData = null;
     if (pdfExtractMeta) pdfExtractMeta.innerText = '';
 
@@ -6161,11 +6631,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     profilePdfInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
         updateProfileFileName(e.target.files[0].name);
-        
-        // --- KOD BARU: Arahkan sistem terus proses AI Profile ---
-        processProfileWithAI();
-        // ------------------------------------------------------
-        
+
+        // V7.0.0: Auto-ekstrak Manual (regex) dahulu - AI hanya fallback
+        processProfileRegex();
+
       } else {
         updateProfileFileName('Tiada fail dipilih');
       }
@@ -6178,14 +6647,12 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       profilePdfFileName.style.fontWeight = 'bold';
       profilePdfFileName.style.color = '#3b82f6';
     }
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = fileName === 'Tiada fail dipilih';
-    }
   }
 
-  if (btnProsesProfileAI) {
-    btnProsesProfileAI.addEventListener('click', () => {
-      processProfileWithAI();
+  // V7.0.0: Butang fallback "Guna AI" untuk profil
+  if (btnUseAIProfileData) {
+    btnUseAIProfileData.addEventListener('click', () => {
+      processProfileWithAI(true);
     });
   }
 
@@ -6197,9 +6664,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     btnClearProfileData.addEventListener('click', clearProfileData);
   }
 
+  // V7.0.0: "Ekstrak Semula" = ulang regex segar
   if (btnReExtractProfileData) {
     btnReExtractProfileData.addEventListener('click', () => {
-      processProfileWithAI(true);
+      processProfileRegex();
     });
   }
 
@@ -6259,37 +6727,33 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       profilePdfExtractedData.innerHTML = '';
     }
     if (profileExtractMeta) profileExtractMeta.innerText = '';
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = true;
-    }
-    
+
     extractedProfileData = null;
     
     storageWrapper.remove(['stb_extracted_profile_data']);
     
     // KOD BARU: Alert dialih keluar kerana CustomAppModal sudah dipanggil di listener event klik butang
     console.log("V6.5.2 Profile form reset completed");
+    syncDatepickers(document.body);
   }
 
 
 
   let isProfileAiProcessing = false;
 
-  // V6.9.1: force = true (butang "Ekstrak Semula") - buang cache fail dan panggil AI segar
+  // V7.0.0: Fallback AI profil - force = true sentiasa (butang "Guna AI")
   async function processProfileWithAI(force = false) {
-    if (isProfileAiProcessing) return;
+    if (isProfileAiProcessing || isProfileRegexProcessing) return;
     if (!profilePdfInput.files.length) {
       await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
       return;
     }
     isProfileAiProcessing = true;
-    if (btnProsesProfileAI) btnProsesProfileAI.disabled = true;
 
     const file = profilePdfInput.files[0];
     if (file.size > 10 * 1024 * 1024) {
       await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
       isProfileAiProcessing = false;
-      if (btnProsesProfileAI) btnProsesProfileAI.disabled = false;
       return;
     }
 
@@ -6306,83 +6770,28 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       extractedProfileData = cachedResult;
       displayProfileExtractedData(extractedProfileData);
       if (profilePdfResult) profilePdfResult.style.display = 'block';
-      if (profileExtractMeta) profileExtractMeta.innerText = 'Hasil dari cache fail ini. Guna "Ekstrak Semula" untuk panggilan AI segar.';
+      if (profileExtractMeta) profileExtractMeta.innerText = 'Kaedah: AI (cache fail ini)';
       storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
       await playSuccessSound();
       isProfileAiProcessing = false;
-      if (btnProsesProfileAI) btnProsesProfileAI.disabled = false;
       return;
     }
 
-    // --- KOD ANIMASI BARU (Morphing & Outliner) UNTUK PROFILE ---
-    const updateProgress = (percent, message) => {
-      const statusBox = document.getElementById('status-box-profile');
-      const progressRing = document.getElementById('progress-ring-profile');
-      const percentageText = document.getElementById('percentage-profile');
-      const progressMsg = document.getElementById('profilePdfProgressMsg');
-
-      // 1. Morph bentuk: Bulat -> Petak bila proses mula
-      if (statusBox.classList.contains('morph-circle')) {
-        statusBox.classList.replace('morph-circle', 'morph-square');
-      }
-
-      // 2. Kemaskini teks peratusan & mesej
-      percentageText.innerHTML = `${percent}%`;
-      progressMsg.style.display = 'block';
-      progressMsg.innerText = message;
-
-      // 3. Gerakkan outliner SVG (Panjang garisan ialah 440)
-      const circumference = 440;
-      const offset = circumference - (percent / 100) * circumference;
-      progressRing.style.strokeDashoffset = offset;
-
-      if (profilePdfResult) profilePdfResult.style.display = 'none';
-    };
+    const updateProgress = makeMorphUpdater('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', profilePdfResult);
 
     try {
-      updateProgress(5, "Membaca fail...");
+      updateProgress(5, "Tukar PDF ke MD...");
 
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } else {
-        throw new Error("PDF.js library not loaded");
-      }
+      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
+        onProgress: (p, t) => updateProgress(5 + Math.round((p / t) * 35), `Tukar ke MD... (${p}/${t})`)
+      });
 
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      let fullText = '';
-      const totalPages = pdf.numPages;
+      console.log("V7.0.0 Profile PDF MD Extracted. Length:", md.length);
 
-      // Setkan maksimum 4 halaman sahaja (atau terpulang kepada keperluan dokumen anda)
-      const maxPagesToRead = Math.min(totalPages, 4); 
+      if (profileExtractMeta) profileExtractMeta.innerText = `Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
 
-      for (let pageNum = 1; pageNum <= maxPagesToRead; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        // V6.9.1: Kekal struktur baris (hasEOL) supaya AI kenal pasti blok alamat berbilang baris
-        const pageText = textContent.items.map(item => {
-          return item.str + (item.hasEOL ? '\n' : ' ');
-        }).join('').replace(/[ \t]+\n/g, '\n');
-        fullText += pageText + '\n';
-        
-        const progress = 10 + Math.round((pageNum / maxPagesToRead) * 30);
-        updateProgress(progress, `Mengekstrak halaman ${pageNum}/${maxPagesToRead}`);
-      }
-
-      console.log("V6.5.2 Profile PDF extracted. Length:", fullText.length);
-
-      // V6.9.1: Pengesan dokumen imbas - tiada lapisan teks bermakna AI tidak dapat ekstrak
-      if (fullText.replace(/\s+/g, '').length < 50) {
-        throw new Error("Dokumen ini nampaknya imbas/imej (tiada lapisan teks). AI hanya boleh baca PDF berteks - sila gunakan fail PDF asal.");
-      }
-
-      // V6.9.1: Info diagnosa - muka surat & panjang teks
-      if (profileExtractMeta) profileExtractMeta.innerText = `Muka: ${maxPagesToRead}/${pdf.numPages} | Teks: ${fullText.length} aksara`;
-      
       updateProgress(45, "Menghantar ke AI...");
-      
+
       // V6.9.1: Progress sebenar dengan pemasa masa menunggu AI
       const aiStartTime = Date.now();
       aiInterval = setInterval(() => {
@@ -6391,45 +6800,206 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
       }, 500);
 
-      extractedProfileData = await processProfileTextWithAI(fullText, force);
-      
-      if (aiInterval) clearInterval(aiInterval);
-      
-      updateProgress(100, "Selesai!");
-      
-      // MEMAINKAN BUNYI SUCCESS KETIKA MENCAPAI 100%
-      await playSuccessSound();
-      
-      // Tunggu sekejap untuk paparkan "100% Selesai" sebelum memaparkan borang Profile
-      setTimeout(() => {
-        // Kembalikan kotak ke keadaan asal (bulat semula)
-        document.getElementById('status-box-profile').classList.replace('morph-square', 'morph-circle');
-        document.getElementById('progress-ring-profile').style.strokeDashoffset = 440;
-        document.getElementById('percentage-profile').innerHTML = `🏢<br><span>Pilih Profil</span>`;
-        document.getElementById('profilePdfProgressMsg').style.display = 'none';
+      extractedProfileData = await processProfileTextWithAI(md, force);
 
+      if (aiInterval) clearInterval(aiInterval);
+
+      updateProgress(100, "Selesai!");
+
+      await playSuccessSound();
+
+      resetMorphBox('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', `🏢<br><span>Pilih Profil</span>`, () => {
         displayProfileExtractedData(extractedProfileData);
-        if (profilePdfResult) {
-          profilePdfResult.style.display = 'block';
-        }
-      }, 600);
-      
+        if (profilePdfResult) profilePdfResult.style.display = 'block';
+        if (profileExtractMeta) profileExtractMeta.innerText = `Kaedah: AI | Muka: ${pagesRead}/${numPages}`;
+      });
+
       storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
       setAIFileCacheResult('profile', file, extractedProfileData);
-      
+
     } catch (error) {
-      console.error("V6.5.2 Profile AI Error:", error);
+      console.error("V7.0.0 Profile AI Error:", error);
       if (aiInterval) clearInterval(aiInterval);
-      
-      // MEMAINKAN BUNYI ERROR JIKA GAGAL
+
       await playErrorSound();
-      
+
       document.getElementById('profilePdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
       await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
     } finally {
       isProfileAiProcessing = false;
-      if (btnProsesProfileAI) btnProsesProfileAI.disabled = false;
     }
+  }
+
+  // =========================================================================
+  // V7.0.0: EKSTRAK MANUAL (REGEX) - PROFILE
+  // =========================================================================
+  let isProfileRegexProcessing = false;
+
+  async function processProfileRegex() {
+    if (isProfileRegexProcessing || isProfileAiProcessing) return;
+    if (!profilePdfInput.files.length) return;
+
+    const file = profilePdfInput.files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
+      return;
+    }
+
+    isProfileRegexProcessing = true;
+    const updateProgress = makeMorphUpdater('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', profilePdfResult);
+
+    try {
+      updateProgress(8, "Tukar PDF ke MD...");
+
+      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
+        onProgress: (p, t) => updateProgress(8 + Math.round((p / t) * 42), `Tukar ke MD... (${p}/${t})`)
+      });
+
+      updateProgress(60, "Regex menganalisis dokumen...");
+      extractedProfileData = extractProfileDataFromMd(md);
+
+      updateProgress(100, "Selesai!");
+      await playSuccessSound();
+
+      resetMorphBox('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', `🏢<br><span>Pilih Profil</span>`, () => {
+        displayProfileExtractedData(extractedProfileData);
+        if (profilePdfResult) profilePdfResult.style.display = 'block';
+        if (profileExtractMeta) profileExtractMeta.innerText = `Kaedah: Manual (Regex) | Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
+      }, 300);
+
+      storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
+
+    } catch (error) {
+      console.error("V7.0.0 Profile Regex Error:", error);
+      await playErrorSound();
+      const progressMsg = document.getElementById('profilePdfProgressMsg');
+      if (progressMsg) progressMsg.innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
+      await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
+    } finally {
+      isProfileRegexProcessing = false;
+    }
+  }
+
+  // V7.0.0: Regex extractor profil - skema sama dengan prompt AI (buildProfilePrompt)
+  function extractProfileDataFromMd(md) {
+    const data = {
+      applicantName: '', jawatan: '', icNumber: '', phoneNumber: '', email: '',
+      companyName: '', registrationNumber: '', grade: '', registrationDate: '',
+      jenisPendaftaran: '', alamatUtama: '', labelAlamatUtama: '',
+      alamatSuratMenyurat: '', noTelefonSyarikat: '', noFax: '',
+      emailSyarikat: '', webAddress: ''
+    };
+
+    const rawText = md.toUpperCase().replace(/\s+/g, ' ');
+    const linesUp = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim().toUpperCase()).filter(Boolean);
+    const linesOrig = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean);
+
+    // V7.0.1: Nilai berlabel guna baris asal (elak emel/web jadi UPPERCASE)
+    const findLabeledValue = (patterns) => {
+      const inlineRe = new RegExp('(?:' + patterns.join('|') + ')\\s*:?\\s*(.+)', 'i');
+      const labelOnlyRe = new RegExp('^(?:' + patterns.join('|') + ')\\s*:?\\s*$', 'i');
+      for (let i = 0; i < linesOrig.length; i++) {
+        const m = linesOrig[i].match(inlineRe);
+        if (m && m[1] && m[1].trim().length >= 2) return m[1].trim();
+        if (labelOnlyRe.test(linesOrig[i]) && linesOrig[i + 1]) return linesOrig[i + 1].trim();
+      }
+      return '';
+    };
+
+    // Nama syarikat & no pendaftaran
+    const companyMatch = rawText.match(/(?:NAMA\s+SYARIKAT|COMPANY\s+NAME)\s*:?\s*([A-Z0-9\s\.\&\-]+?)(?:\s{2,}|NO\.?\s|TARIKH|ROC|ROB|$)/);
+    if (companyMatch) data.companyName = companyMatch[1].trim();
+    if (!data.companyName) {
+      const m2 = rawText.match(/([A-Z0-9\s\.\&\-]+?)\s*\(([A-Z]*\d{3,}[-\s]?[A-Z0-9]*)\)/);
+      if (m2) data.companyName = m2[1].trim();
+    }
+
+    const regMatch = rawText.match(/(\d{6,}-[A-Z]{2,}\d{5,})/);
+    if (regMatch) data.registrationNumber = regMatch[1];
+    else {
+      const regNo = findLabeledValue(['NO\\.?\\s+(PENDAFTARAN|SYARIKAT|DAFTAR|PERNIAGAAN)|REGISTRATION\\s+NO']);
+      if (regNo) data.registrationNumber = regNo.split(/\s{2,}/)[0].trim();
+    }
+
+    const gradeMatch = rawText.match(/\b(G[1-7])\b/);
+    if (gradeMatch) data.grade = gradeMatch[1];
+
+    // Jenis pendaftaran ROC/ROB
+    const jenisMatch = rawText.match(/\b(ROB|ROC)\b/);
+    if (jenisMatch) data.jenisPendaftaran = jenisMatch[1];
+
+    // Tarikh daftar
+    const dateLabelMatch = rawText.match(/(?:TARIKH\s+(?:DAFTAR|MULA|PERNIAGAAN)|DATE\s+OF\s+(?:REGISTRATION|INCORPORATION))\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/);
+    if (dateLabelMatch) data.registrationDate = dateLabelMatch[1].replace(/-/g, '/');
+
+    // Maklumat pemohon
+    data.applicantName = findLabeledValue(['NAMA\\s+PEMOHON|NAMA\\s+PENUH\\s+PEMOHON']);
+    data.jawatan = findLabeledValue(['JAWATAN|DESIGNATION|POSITION']);
+    // No. IC: utamakan format ber sempadan, kemudian label NO. KAD PENGENALAN
+    let icMatch = rawText.match(/\b(\d{6}-\d{2}-\d{4})\b/);
+    if (icMatch) {
+      data.icNumber = icMatch[1];
+    } else {
+      const icLabeled = findLabeledValue(['NO\\.?\\s+(KAD\\s+PENGENALAN|IC|KP)', 'IC\\s*(NO|NUM)']);
+      const digits = ((icLabeled.match(/\d/g)) || []).join('');
+      if (digits.length >= 12) data.icNumber = digits.slice(0, 6) + '-' + digits.slice(6, 8) + '-' + digits.slice(8, 12);
+    }
+
+    // Telefon / emel
+    const hpMatch = rawText.match(/(?:H\/P|HAND?PHONE(?:NO\.?)?|NO\.?\s+TELEFON\s+(?:BIMBIT|PERIBADI)|TELEFON\s+PEMOHON|HANDPHONE|MOBILE)\s*:?\s*(\+?[\d\s\-()]{8,})/);
+    if (hpMatch) data.phoneNumber = hpMatch[1].replace(/\s+/g, '').trim();
+    if (!data.phoneNumber) {
+      const telAll = rawText.match(/(?:TEL|TELEFON|PHONE)\s*\.?\s*:?\s*(\+?[\d\s\-()]{8,})/);
+      if (telAll) data.phoneNumber = telAll[1].replace(/\s+/g, '').trim();
+    }
+
+    const emailMatches = md.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || [];
+    const emailLabeled = findLabeledValue(['EMEL\\s+PEMOHON|EMAIL\\s+PEMOHON']);
+    if (emailLabeled && /@/.test(emailLabeled)) data.email = emailLabeled;
+    else if (emailMatches.length > 0) data.email = emailMatches[0];
+
+    const companyEmailLabeled = findLabeledValue(['EMEL\\s+SYARIKAT', 'EMAIL\\s+SYARIKAT']);
+    if (companyEmailLabeled && /@/.test(companyEmailLabeled)) data.emailSyarikat = companyEmailLabeled;
+    else if (emailMatches.length > 1) data.emailSyarikat = emailMatches[1];
+
+    // Telefon syarikat & fax
+    // Telefon syarikat: baris TEL/TELEFON pejabat (elak BIMBIT/H/P & baris no. CIDB/hotline)
+    for (const ln of linesUp) {
+      if (/^(TEL|TELEFON|PHONE|NO\.?\s*TELEFON)\b/.test(ln) && !/(BIMBIT|H\/P)/.test(ln)
+          && !/\d{6,12}[\s\-()]*[A-Z]{2}[\s\-()]*\d{5,6}/.test(ln)) {
+        const numMatch = ln.match(/(\+?[\d\-()]{8,})/);
+        if (numMatch) {
+          data.noTelefonSyarikat = numMatch[1].replace(/[^\d+]/g, '').trim();
+          break;
+        }
+      }
+    }
+
+    const faxMatch = rawText.match(/(?:FAX|FAKS)\s*\.?\s*:?\s*(\+?[\d\s\-()]{8,})/);
+    if (faxMatch) data.noFax = faxMatch[1].replace(/[^\d+]/g, '').trim();
+
+    // Web
+    const webMatch = rawText.match(/((?:WWW\.|HTTP[S]?:\/\/)[A-Z0-9.\-\/]+)/);
+    const webLabeled = findLabeledValue(['WEB\\s*(ADDRESS|SITE)?|LAMAN\\s+WEB']);
+    if (webLabeled && /(WWW\.|HTTP)/.test(webLabeled)) data.webAddress = webLabeled;
+    else if (webMatch) data.webAddress = webMatch[1];
+
+    // Alamat berlabel
+    const perniagaanLabels = 'ALAMAT\\s+PERNIAGAAN|BUSINESS\\s+ADDRESS';
+    const suratLabels = 'ALAMAT\\s+SURAT[-\\s]?MENYURAT|CORRESPONDENCE\\s+ADDRESS|MAILING\\s+ADDRESS';
+    const berdaftarLabels = 'ALAMAT\\s+BERDAFTAR|REGISTERED\\s+(OFFICE|ADDRESS)|REGISTERED';
+
+    data.alamatUtama = extractAddressBlockFromLines(linesUp, perniagaanLabels)
+      || extractAddressBlockFromLines(linesUp, berdaftarLabels);
+    if (extractAddressBlockFromLines(linesUp, perniagaanLabels)) {
+      data.labelAlamatUtama = 'Alamat Perniagaan';
+    } else if (data.alamatUtama) {
+      data.labelAlamatUtama = 'Alamat Berdaftar';
+    }
+    data.alamatSuratMenyurat = extractAddressBlockFromLines(linesUp, suratLabels);
+
+    console.log("V7.0.0 Final Clean Data (regex profil):", data);
+    return data;
   }
 
   async function processProfileTextWithAI(pdfText, bypassCache = false) {
@@ -6441,8 +7011,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
     console.log("V6.5.2 (Web) Menghantar teks profil ke backend untuk AI processing...");
     
-    // Dapatkan nilai dari dropdown model AI profil
-    const selectedModel = document.getElementById('aiProfileModelSelect') ? document.getElementById('aiProfileModelSelect').value : 'auto';
+    // V7.0.11: Model AI dikunci ke 'auto' (dropdown dibuang)
+    const selectedModel = 'auto';
     
     const payload = {
       action: 'processAI',
@@ -6562,7 +7132,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
       html += `<div class="extracted-item">
         <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Cuba "Ekstrak Semula" jika yakin alamat wujud dalam dokumen.</span>
+        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Klik "Guna AI" untuk ekstrakan AI.</span>
       </div>`;
     }
 
@@ -6693,6 +7263,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
 
     await CustomAppModal.alert("Data profile berjaya diisi ke borang!", "Berjaya", "success");
+    syncDatepickers(document.body);
   }
 
   function clearProfileData() {
@@ -6710,9 +7281,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
     if (profilePdfExtractedData) {
       profilePdfExtractedData.innerHTML = '';
-    }
-    if (btnProsesProfileAI) {
-      btnProsesProfileAI.disabled = true;
     }
     extractedProfileData = null;
 
@@ -7051,10 +7619,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
           });
       }
       setupUserUI();
-      // V6.6.0: Muat changelog dan tunjuk walkthrough jika ada versi baru
-      loadChangelog().then(() => {
-        setTimeout(() => showChangelogWalkthrough(), 500);
-      });
   }
 }
       
@@ -7214,356 +7778,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
       // Initialize Google Sign-In pada skrin login
       initializeGoogleSignIn();
-      
-      // V6.6.0: Muatkan changelog di landing page
-      loadChangelog();
     }
-  }
-
-  // V6.6.0: Changelog loader
-  async function loadChangelog() {
-    try {
-      const response = await fetchWithRetry(SCRIPT_URL + '?action=getChangelog&t=' + Date.now(), { method: 'GET' }, 2, 1000);
-      const result = await response.json();
-      if (result.status === 'success' && result.changelog && result.changelog.length > 0) {
-        cachedChangelog = result.changelog;
-        renderChangelog(cachedChangelog);
-      }
-    } catch (e) {
-      console.warn('Gagal muat changelog:', e);
-    }
-  }
-
-  let changelogAutoScroll = null;
-  let changelogCurrentIdx = 0;
-  let changelogData = [];
-
-  function renderChangelog(data) {
-    const slider = document.getElementById('changelogSlider');
-    const panel = document.getElementById('changelogPanel');
-    const count = document.getElementById('changelogCount');
-    if (!slider) return;
-    if (count) count.textContent = data.length;
-
-    changelogData = data;
-    changelogCurrentIdx = 0;
-
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
-
-    // Build slides
-    slider.innerHTML = data.map((item, i) => {
-      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
-      let content;
-      if (images.length > 0) {
-        content = `<img src="${images[0]}" alt="${item.versi}" loading="lazy" data-fallback="${i}">`;
-      } else {
-        content = `<div class="changelog-slide-icon">${featureIcons[i % featureIcons.length]}</div>`;
-      }
-      return `<div class="changelog-slide" data-idx="${i}">
-        ${content}
-        <div class="changelog-slide-overlay">
-          <span class="${i === 0 ? 'latest-badge' : ''}">${item.versi}</span>
-        </div>
-      </div>`;
-    }).join('');
-
-    // Image error fallback
-    slider.querySelectorAll('img[data-fallback]').forEach(img => {
-      img.addEventListener('error', function() {
-        const idx = parseInt(this.dataset.fallback);
-        this.parentElement.innerHTML = `<div class="changelog-slide-icon">${featureIcons[idx % featureIcons.length]}</div>`;
-      });
-    });
-
-    // Build dots
-    const dotsEl = document.getElementById('clDots');
-    if (dotsEl && data.length > 1) {
-      dotsEl.innerHTML = data.map((_, i) =>
-        `<button class="changelog-dot${i === 0 ? ' active' : ''}" data-carousel-idx="${i}"></button>`
-      ).join('');
-      dotsEl.querySelectorAll('.changelog-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          const idx = parseInt(dot.dataset.carouselIdx);
-          goToSlide(idx);
-        });
-      });
-    } else if (dotsEl) {
-      dotsEl.innerHTML = '';
-    }
-
-    // Arrow handlers
-    const prevBtn = document.getElementById('clArrowPrev');
-    const nextBtn = document.getElementById('clArrowNext');
-    if (prevBtn) prevBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx - 1));
-    if (nextBtn) nextBtn.addEventListener('click', () => goToSlide(changelogCurrentIdx + 1));
-
-    // Click slide to show description (auto-scroll tetap jalan)
-    slider.querySelectorAll('.changelog-slide').forEach(el => {
-      el.addEventListener('click', () => {
-        const idx = parseInt(el.dataset.idx);
-        const item = data[idx];
-        if (!item) return;
-        showChangelogDesc(idx);
-        goToSlide(idx);
-      });
-    });
-
-    // Position at first slide
-    goToSlide(0, true);
-
-    // Start auto
-    startChangelogAutoScroll();
-  }
-
-  const transitions = ['fade', 'left', 'right', 'slideup', 'rotate', 'zoom', 'swoosh'];
-  let lastTransition = '';
-
-  function pickTransition() {
-    let t;
-    do { t = transitions[Math.floor(Math.random() * transitions.length)]; }
-    while (t === lastTransition && transitions.length > 1);
-    lastTransition = t;
-    return t;
-  }
-
-  function goToSlide(idx, noAnim) {
-    const slider = document.getElementById('changelogSlider');
-    if (!slider || !changelogData.length) return;
-
-    if (idx < 0) idx = changelogData.length - 1;
-    if (idx >= changelogData.length) idx = 0;
-    const prevIdx = changelogCurrentIdx;
-    changelogCurrentIdx = idx;
-
-    const percent = -idx * 100;
-    const easing = 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)';
-    slider.style.transition = noAnim ? 'none' : easing;
-    slider.style.transform = `translateX(${percent}%)`;
-    if (noAnim) {
-      slider.offsetHeight;
-      slider.style.transition = easing;
-    }
-
-    const allSlides = slider.querySelectorAll('.changelog-slide');
-    const trans = noAnim ? 'fade' : pickTransition();
-
-    allSlides.forEach(slide => {
-      slide.classList.remove(
-        'active', 'exit-left', 'exit-right', 'exit-fade', 'exit-slideup',
-        'enter-left', 'enter-right', 'enter-fade', 'enter-slideup',
-        'enter-rotate', 'enter-zoom', 'enter-swoosh'
-      );
-    });
-
-    allSlides.forEach((slide, i) => {
-      if (i === idx) {
-        if (noAnim) {
-          slide.classList.add('active');
-        } else {
-          slide.classList.add(`enter-${trans}`);
-          requestAnimationFrame(() => {
-            slide.classList.remove(`enter-${trans}`);
-            slide.classList.add('active');
-          });
-        }
-      } else if (i === prevIdx && !noAnim && prevIdx !== idx) {
-        const exitMap = { fade: 'exit-fade', left: 'exit-left', right: 'exit-right', slideup: 'exit-slideup' };
-        slide.classList.add(exitMap[trans] || 'exit-fade');
-        setTimeout(() => slide.classList.remove(exitMap[trans] || 'exit-fade'), 500);
-      }
-    });
-
-    // Update dots
-    document.querySelectorAll('.changelog-dot').forEach(dot => {
-      dot.classList.toggle('active', parseInt(dot.dataset.carouselIdx) === idx);
-    });
-
-    // Arrows
-    const prevBtn = document.getElementById('clArrowPrev');
-    const nextBtn = document.getElementById('clArrowNext');
-    if (prevBtn) prevBtn.classList.toggle('hidden', idx === 0);
-    if (nextBtn) nextBtn.classList.toggle('hidden', idx === changelogData.length - 1);
-  }
-
-  function showChangelogDesc(idx) {
-    const item = changelogData[idx];
-    if (!item) return;
-    const panel = document.getElementById('changelogPanel');
-    const tag = document.getElementById('panelVersionTag');
-    const dateEl = document.getElementById('panelDate');
-    const descEl = document.getElementById('panelDesc');
-    if (tag) {
-      tag.textContent = item.versi;
-      tag.className = 'changelog-panel-tag' + (idx === 0 ? ' latest' : '');
-    }
-    if (dateEl) dateEl.textContent = item.tarikh || '';
-    if (descEl) descEl.innerHTML = item.penerangan.replace(/\n/g, '<br>');
-    if (panel) {
-      panel.style.display = 'block';
-      panel.style.animation = 'none';
-      panel.offsetHeight;
-      panel.style.animation = 'slideDown 0.35s ease';
-    }
-  }
-
-  function startChangelogAutoScroll() {
-    stopChangelogAutoScroll();
-    if (!changelogData || changelogData.length < 2) return;
-
-    changelogAutoScroll = setInterval(() => {
-      goToSlide(changelogCurrentIdx + 1);
-    }, 4000);
-  }
-
-  function stopChangelogAutoScroll() {
-    if (changelogAutoScroll) {
-      clearInterval(changelogAutoScroll);
-      changelogAutoScroll = null;
-    }
-  }
-
-  // V6.6.0: Changelog walkthrough carousel
-  let cachedChangelog = null;
-
-  async function getUserLastSeenVersion(email) {
-    try {
-      const r = await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'getUserLastSeenVersion', email })
-      }, 2, 1000);
-      const d = await r.json();
-      return d.status === 'success' ? (d.version || '') : '';
-    } catch (e) { return ''; }
-  }
-
-  async function updateUserLastSeenVersion(email, version) {
-    try {
-      await fetchWithRetry(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'updateUserLastSeenVersion', email, version })
-      }, 2, 1000);
-    } catch (e) {}
-  }
-
-  async function showChangelogWalkthrough() {
-    if (!cachedChangelog || cachedChangelog.length === 0) return;
-    const email = currentUser ? currentUser.email : '';
-    if (!email) return;
-
-    const lastSeen = await getUserLastSeenVersion(email);
-    const latestVersion = cachedChangelog[0].versi;
-    if (lastSeen === latestVersion) return; // Already seen latest
-
-    // Show carousel
-    const overlay = document.getElementById('changelogOverlay');
-    const slide = document.getElementById('carouselSlide');
-    const body = document.getElementById('carouselBody');
-    const desc = document.getElementById('carouselDesc');
-    const dateEl = document.getElementById('carouselDate');
-    const badgeEl = document.getElementById('clVersionBadge');
-    const dots = document.getElementById('carouselDots');
-    const prevBtn = document.getElementById('carouselPrev');
-    const nextBtn = document.getElementById('carouselNext');
-    const closeBtn = document.getElementById('carouselClose');
-    const imgContainer = document.getElementById('carouselImageContainer');
-    const imgPlaceholder = document.getElementById('carouselImagePlaceholder');
-
-    if (!overlay || !body || !desc) return;
-
-    let currentIndex = 0;
-    let subIndex = 0;
-    const featureIcons = ['🚀', '💬', '📋', '⚖️', '🎨', '🔧', '📊', '🔒', '📁', '🔄', '✨', '🎯'];
-
-    function renderItem(idx, resetSub) {
-      const item = cachedChangelog[idx];
-      if (!item) return;
-      const icon = featureIcons[idx % featureIcons.length];
-      
-      const images = item.imej ? item.imej.split('|').map(s => s.trim()).filter(Boolean) : [];
-      if (resetSub) subIndex = 0;
-      if (subIndex >= images.length) subIndex = 0;
-      
-      if (images.length > 0) {
-        const currentImg = images[subIndex] || images[0];
-        let arrows = '';
-        if (images.length > 1) {
-          arrows = `
-            <button class="carousel-img-prev" data-subidx="-1">‹</button>
-            <div class="carousel-img-dots">${images.map((_, si) => `<span class="carousel-img-dot${si === subIndex ? ' active' : ''}"></span>`).join('')}</div>
-            <button class="carousel-img-next" data-subidx="1">›</button>
-          `;
-        }
-        const fallbackIcon = featureIcons[idx % featureIcons.length];
-        imgContainer.innerHTML = `<div class="carousel-img-multi"><img src="${currentImg}" alt="${item.versi}" loading="lazy">${arrows}</div>`;
-        
-        // Image error fallback
-        const carouselImg = imgContainer.querySelector('.carousel-img-multi img');
-        if (carouselImg) {
-          carouselImg.addEventListener('error', function handler() {
-            this.removeEventListener('error', handler);
-            const multi = this.closest('.carousel-img-multi');
-            if (multi) multi.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${fallbackIcon}</span></div>`;
-          });
-        }
-        
-        // Sub-image navigation
-        imgContainer.querySelectorAll('.carousel-img-prev, .carousel-img-next').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dir = parseInt(btn.dataset.subidx);
-            subIndex = Math.max(0, Math.min(images.length - 1, subIndex + dir));
-            renderItem(idx, false);
-          });
-        });
-      } else {
-        imgContainer.innerHTML = `<div class="carousel-image-placeholder"><span class="carousel-image-icon">${icon}</span></div>`;
-        subIndex = 0;
-      }
-      
-      badgeEl.textContent = item.versi;
-      dateEl.textContent = item.tarikh || '';
-      desc.innerHTML = item.penerangan.replace(/\n/g, '<br>');
-      
-      // Version dots (between versions)
-      dots.innerHTML = cachedChangelog.map((_, i) =>
-        `<button class="carousel-dot ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-idx="${i}"></button>`
-      ).join('');
-      
-      dots.querySelectorAll('.carousel-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          currentIndex = parseInt(dot.dataset.idx);
-          renderItem(currentIndex, true);
-          updateButtons();
-        });
-      });
-
-      updateButtons();
-      slide.style.animation = 'none';
-      slide.offsetHeight;
-      slide.style.animation = 'fadeSlideIn 0.4s ease';
-    }
-
-    function updateButtons() {
-      prevBtn.style.display = currentIndex === 0 ? 'none' : '';
-      nextBtn.style.display = currentIndex < cachedChangelog.length - 1 ? '' : 'none';
-      closeBtn.style.display = currentIndex >= cachedChangelog.length - 1 ? '' : 'none';
-    }
-
-    prevBtn.onclick = () => {
-      if (currentIndex > 0) { currentIndex--; renderItem(currentIndex, true); }
-    };
-    nextBtn.onclick = () => {
-      if (currentIndex < cachedChangelog.length - 1) { currentIndex++; renderItem(currentIndex, true); }
-    };
-    closeBtn.onclick = () => {
-      overlay.style.display = 'none';
-      updateUserLastSeenVersion(email, latestVersion);
-    };
-
-    renderItem(0, true);
-    overlay.style.display = 'flex';
   }
 
   function initButtonGroups() {
@@ -9950,12 +10165,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (dbLawatanTarikh) dbLawatanTarikh.value = '';
         if (dbLawatanSubmitSptb) dbLawatanSubmitSptb.value = '';
         if (dbLawatanSyor) dbLawatanSyor.value = '';
+        syncDatepickers(document.body);
       }
     });
   }
 
   const dbSyorSelect = document.getElementById('db_syor');
   const dbSubmitDateContainer = document.getElementById('db_submit_date_container');
+  let dbSubmitLockDate = null; // Tarikh kunci (ISO) untuk rekod TELAH DIHANTAR
   function toggleDateSubmitSpi() {
     if (dbSyorSelect && dbSubmitDateContainer) {
       const syorVal = dbSyorSelect.value;
@@ -9968,12 +10185,29 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const todayStr = `${yyyy}-${mm}-${dd}`;
         const dateInput = document.getElementById('db_submit_date');
         if (dateInput) {
-          dateInput.min = todayStr;
-          dateInput.max = todayStr;
+          const lockDate = dbSubmitLockDate || todayStr;
+          dateInput.min = lockDate;
+          dateInput.max = lockDate;
+          if (dateInput._flatpickr) {
+            if (dbSubmitLockDate) {
+              // Rekod sudah dihantar: kunci kepada tarikh penghantaran sahaja
+              dateInput._flatpickr.set('minDate', lockDate);
+              dateInput._flatpickr.set('maxDate', lockDate);
+            } else if (dateInput.value && dateInput.value.trim() !== '') {
+              // Nilai sedia ada (rekod lama dimuat) tanpa kunci: biar bebas,
+              // supaya tarikh asal tidak dipadam oleh flatpickr
+              dateInput._flatpickr.set('minDate', null);
+              dateInput._flatpickr.set('maxDate', null);
+            } else {
+              dateInput._flatpickr.set('minDate', todayStr);
+              dateInput._flatpickr.set('maxDate', todayStr);
+            }
+          }
         }
       } else {
         dbSubmitDateContainer.style.display = 'none';
         document.getElementById('db_submit_date').value = '';
+        syncDatepickers(document.body);
       }
     }
   }
@@ -10276,10 +10510,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       initAppBasedOnRole();
     }
     
-    // V6.9.3: Panggilan awal dijarakkan supaya tidak membanjiri Apps Script serentak (throttle/404)
-    startInboxAutoRefresh();
     startTabAutoRefresh();
-    setTimeout(() => fetchInbox(), 2000);
     
     resetInactivityTimer();
 
@@ -11503,6 +11734,7 @@ if(data.personnel && data.personnel.length > 0) {
       btnSyncToDb.style.display = 'none';
     }
 
+    dbSubmitLockDate = null;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -11591,6 +11823,7 @@ if(data.personnel && data.personnel.length > 0) {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    syncDatepickers(document.body);
 
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
@@ -11894,8 +12127,25 @@ if(data.personnel && data.personnel.length > 0) {
           return cachedData;
         }
 
+        // V6.11.0: Server sedang bina semula cache (stampede) - guna data
+        // sedia ada, jangan papar error, cuba semula selepas 5-8 saat.
+        if (data && data.rebuilding === true) {
+          if (data.version) dataCacheVersion = data.version;
+          updateWindowIndicator();
+          if (cachedData.length > 0) {
+            renderFilteredList(listType);
+            listStatus.innerText = `Memuat semula data... (cache: ${cachedData.length} rekod)`;
+          } else {
+            listStatus.innerText = "Memuat semula data...";
+          }
+          setTimeout(() => hideLoading(), 300);
+          scheduleDataRebuildRetry(() => fetchAndRenderList(listType, true));
+          return cachedData;
+        }
+
         // Jika server kata data tak berubah, guna cache sedia ada
         if (data && data.cached === true) {
+          resetDataRebuildRetry();
           if (data.version) dataCacheVersion = data.version;
           if (data.windowStart) {
             dataWindowStart = data.windowStart;
@@ -11916,6 +12166,7 @@ if(data.personnel && data.personnel.length > 0) {
 
         // Data baru dari server (handle old format array & new format object)
         console.log("V6.5.2 Response type:", Array.isArray(data) ? 'array' : typeof data, data && data.cached !== undefined ? 'cached:' + data.cached : '');
+        resetDataRebuildRetry();
         const newData = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
@@ -12881,6 +13132,26 @@ if(data.personnel && data.personnel.length > 0) {
     document.getElementById('db_pautan').value = item.pautan || '';
     createdFolderId = extractFolderIdFromUrl(item.pautan) || '';
     syncUrusFailBorang();
+    // Kunci Tarikh Hantar ke SPI kepada tarikh yang DIPAPARKAN (date_submit asal;
+    // fallback: tarikh sebenar penghantaran) supaya paparan tidak hilang dan tidak boleh diubah
+    dbSubmitLockDate = null;
+    let submitVal = '';
+    if (item.date_submit) {
+      try { submitVal = new Date(item.date_submit).toISOString().split('T')[0]; } catch (e) { /* abaikan */ }
+    }
+    if (item.status_hantar_spi === 'TELAH DIHANTAR') {
+      if (!submitVal && item.tarikh_hantar_spi) {
+        try {
+          const parts = String(item.tarikh_hantar_spi).split(' ')[0].split('/'); // dd/MM/yyyy
+          if (parts.length === 3) submitVal = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } catch (e) { /* abaikan format tidak sah */ }
+      }
+      if (submitVal) dbSubmitLockDate = submitVal;
+    }
+    // Tetapkan db_submit_date SEBELUM toggleDateSubmitSpi supaya tarikh lama
+    // tidak dipadam oleh kunci min/max flatpickr (flatpickr menolak tarikh luar julat)
+    const dbSubmitDateInput = document.getElementById('db_submit_date');
+    if (dbSubmitDateInput && submitVal) dbSubmitDateInput.value = submitVal;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
@@ -12926,7 +13197,7 @@ if(data.personnel && data.personnel.length > 0) {
 
     if (item.jenis_konsultansi) {
       document.querySelectorAll('.konsultansi-checkbox').forEach(cb => { cb.checked = false; });
-      document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; d.style.display = 'none'; });
+      document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; setDatepickerVisible(d, false); });
       
       const pattern = /(Emel|WhatsApp|Whatsapp|Call),?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi;
       let match;
@@ -12942,7 +13213,7 @@ if(data.personnel && data.personnel.length > 0) {
           if (dateInput) {
             const parts = date.split('/');
             dateInput.value = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            dateInput.style.display = 'block';
+            setDatepickerVisible(dateInput, true);
           }
         }
       }
@@ -13189,6 +13460,7 @@ if(data.personnel && data.personnel.length > 0) {
     
     // Jika tiada JSON, buka Input Database (lalai seperti sistem asal)
     switchTab('db');
+    syncDatepickers(document.body);
     // =====================================================================
   }
 
@@ -13999,7 +14271,9 @@ if(data.personnel && data.personnel.length > 0) {
     if (statusDisp) statusDisp.style.display = 'none';
     
     document.querySelectorAll('.konsultansi-checkbox').forEach(cb => { cb.checked = false; });
-    document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; d.style.display = 'none'; });
+    document.querySelectorAll('.konsultansi-date').forEach(d => { d.value = ''; setDatepickerVisible(d, false); });
+    
+    syncDatepickers(document.body);
     
     if (cbSelesaiLawatan) cbSelesaiLawatan.checked = false;
     if (containerLawatan) containerLawatan.style.display = 'none';
@@ -14324,6 +14598,7 @@ if(data.personnel && data.personnel.length > 0) {
       </div>
     `;
     personnelList.appendChild(div);
+    initDatepickers(div);
 
     const docTypes = ['ic', 'sb', 'epf', 'comp'];
     
@@ -14856,17 +15131,19 @@ if(data.personnel && data.personnel.length > 0) {
       const dateInput = document.getElementById(e.target.id.replace('cb_', 'date_'));
       if (dateInput) {
         if (e.target.checked) {
-          dateInput.style.display = 'block';
+          setDatepickerVisible(dateInput, true);
           if (!dateInput.value) {
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
             dateInput.value = `${year}-${month}-${day}`;
+            if (dateInput._flatpickr) dateInput._flatpickr.setDate(dateInput.value, false);
           }
         } else {
-          dateInput.style.display = 'none';
+          setDatepickerVisible(dateInput, false);
           dateInput.value = '';
+          if (dateInput._flatpickr) dateInput._flatpickr.clear(false, false);
         }
       }
       saveDatabaseFormData();
@@ -15769,51 +16046,85 @@ if(data.personnel && data.personnel.length > 0) {
         });
       } else if (chart.config.type === 'bar') {
         const horiz = chart.options.indexAxis === 'y';
-        for (let di = 0; di < chart.data.datasets.length; di++) {
-          const meta = chart.getDatasetMeta(di);
-          const els = meta.data;
-          if (!els || !els.length) continue;
-          els.forEach((b) => {
-            if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
-            if (b.width === undefined || b.height === undefined) return;
-            let left, top, bw, bh;
-            if (horiz) {
-              left = Math.min(b.base, b.x);
-              top = b.y - b.height / 2;
-              bw = Math.abs(b.x - b.base);
-              bh = b.height;
-            } else {
-              left = b.x - b.width / 2;
-              top = Math.min(b.y, b.base);
-              bw = b.width;
-              bh = Math.abs(b.base - b.y);
+        const stacked = !!(chart.options.scales?.x?.stacked === true || chart.options.scales?.y?.stacked === true);
+        const drawBand = (left, top, width, height) => {
+          if (!(width > 1) || !(height > 1)) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(left, top, width, height);
+          ctx.clip();
+          if (horiz) {
+            const bandW = Math.max(6, width * 0.35);
+            const bx = left + p * (width - bandW);
+            const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(bx, top, bandW, height);
+          } else {
+            const bandH = Math.max(6, height * 0.35);
+            const by = top + (height - bandH) * (1 - p);
+            const g = ctx.createLinearGradient(0, by, 0, by + bandH);
+            g.addColorStop(0, 'rgba(255,255,255,0)');
+            g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(left, by, width, bandH);
+          }
+          ctx.restore();
+        };
+        if (stacked) {
+          const dsCount = chart.data.datasets.length;
+          const labelCount = (chart.data.labels || []).length;
+          for (let i = 0; i < labelCount; i++) {
+            let left = null, top = null, bottom = null, width = null;
+            for (let di = 0; di < dsCount; di++) {
+              const meta = chart.getDatasetMeta(di);
+              const b = meta.data && meta.data[i];
+              if (!b || !isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) continue;
+              if (horiz) {
+                const l = Math.min(b.base, b.x);
+                const w = Math.abs(b.x - b.base);
+                const t = b.y - b.height / 2;
+                const bt = b.y + b.height / 2;
+                if (left === null) { left = l; width = w; top = t; bottom = bt; }
+                else { left = Math.min(left, l); width = Math.max(width, w); top = Math.min(top, t); bottom = Math.max(bottom, bt); }
+              } else {
+                const l = b.x - b.width / 2;
+                const w = b.width;
+                const t = Math.min(b.y, b.base);
+                const bt = Math.max(b.y, b.base);
+                if (left === null) { left = l; width = w; top = t; bottom = bt; }
+                else { left = Math.min(left, l); width = Math.max(width, w); top = Math.min(top, t); bottom = Math.max(bottom, bt); }
+              }
             }
-            if (!(bw > 1) || !(bh > 1)) return;
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(left, top, bw, bh);
-            ctx.clip();
-            if (horiz) {
-              const bandW = Math.max(6, bw * 0.35);
-              const bx = left + p * (bw - bandW);
-              const g = ctx.createLinearGradient(bx, 0, bx + bandW, 0);
-              g.addColorStop(0, 'rgba(255,255,255,0)');
-              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-              g.addColorStop(1, 'rgba(255,255,255,0)');
-              ctx.fillStyle = g;
-              ctx.fillRect(bx, top, bandW, bh);
-            } else {
-              const bandH = Math.max(6, bh * 0.35);
-              const by = top + (bh - bandH) * (1 - p);
-              const g = ctx.createLinearGradient(0, by, 0, by + bandH);
-              g.addColorStop(0, 'rgba(255,255,255,0)');
-              g.addColorStop(0.5, 'rgba(255,255,255,0.65)');
-              g.addColorStop(1, 'rgba(255,255,255,0)');
-              ctx.fillStyle = g;
-              ctx.fillRect(left, by, bw, bandH);
-            }
-            ctx.restore();
-          });
+            if (left === null) continue;
+            drawBand(left, top, width, bottom - top);
+          }
+        } else {
+          for (let di = 0; di < chart.data.datasets.length; di++) {
+            const meta = chart.getDatasetMeta(di);
+            const els = meta.data;
+            if (!els || !els.length) continue;
+            els.forEach((b) => {
+              if (!isFinite(b.x) || !isFinite(b.y) || !isFinite(b.base)) return;
+              if (b.width === undefined || b.height === undefined) return;
+              let left, top, bw, bh;
+              if (horiz) {
+                left = Math.min(b.base, b.x);
+                top = b.y - b.height / 2;
+                bw = Math.abs(b.x - b.base);
+                bh = b.height;
+              } else {
+                left = b.x - b.width / 2;
+                top = Math.min(b.y, b.base);
+                bw = b.width;
+                bh = Math.abs(b.base - b.y);
+              }
+              drawBand(left, top, bw, bh);
+            });
+          }
         }
       }
     } catch (e) { /* gagal senyap */ }
@@ -17629,500 +17940,38 @@ if(data.personnel && data.personnel.length > 0) {
       }
   }
 
-// =========================================================================
-// V6.6.0: INBOX / NOTIFICATION SYSTEM
-// =========================================================================
-
-let cachedInboxData = [];
-
-async function fetchInbox() {
-  if (!currentUser || !currentUser.email) return;
-  try {
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getInbox', email: currentUser.email, role: currentUser.role })
-    }, 3, 1000);
-    if (!response.ok) return;
-    const result = await response.json();
-    if (result.status === 'success') {
-      cachedInboxData = result.inbox || [];
-      renderInbox();
-      // V6.7.0: Bila inbox notification dapat data baru, paksa refresh data aplikasi untuk Pelulus
-      if (currentUser.role === 'PELULUS') {
-        setTimeout(() => fetchAndRenderList('inbox', true), 500);
-      }
+// V6.6.0: Force refresh data dari sheet
+const btnRefreshData = document.getElementById('btnRefreshData');
+if (btnRefreshData) {
+  btnRefreshData.addEventListener('click', async () => {
+    const confirmed = await CustomAppModal.confirm(
+      'Refresh data akan muat turun semula semua rekod dari sheet. Teruskan?',
+      'Refresh Data', 'info', 'Ya, Refresh', false
+    );
+    if (!confirmed) return;
+    
+    // Clear local cache
+    cachedData = [];
+    dataCacheVersion = '';
+    await storageWrapper.remove(['stb_data_cache', 'stb_cache_timestamp', 'stb_data_version']);
+    
+    // Force fetch with refresh action
+    try {
+      simulateLoadingWithSteps(['Menghubungi pelayan...', 'Muat turun data terkini...', 'Selesai!'], 'Refresh Data');
+      await fetchWithRetry(SCRIPT_URL + '?action=refreshData&role=' + currentUser.role + '&userName=' + encodeURIComponent(currentUser.name) + '&t=' + Date.now(), { method: 'GET' }, 3, 1000);
+      // Refetch the data
+      await fetchAndRenderList(activeListType || 'drafts');
+      hideLoading();
+      await CustomAppModal.alert('Data berjaya dikemas kini!', 'Selesai', 'success');
+    } catch (e) {
+      hideLoading();
+      await CustomAppModal.alert('Gagal refresh: ' + e.message, 'Ralat', 'error');
     }
-  } catch (e) {
-    console.error('Gagal fetch inbox:', e);
-  }
+  });
 }
 
-function updateInboxBadge() {
-  const unreadCount = cachedInboxData ? cachedInboxData.filter(m => !m.dibaca).length : 0;
-  const topBadge = document.getElementById('inboxTopBadge');
-  if (topBadge) {
-    if (unreadCount > 0) {
-      topBadge.style.display = 'inline';
-      topBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-    } else {
-      topBadge.style.display = 'none';
-    }
-  }
-}
-
-function renderInbox() {
-  const inboxList = document.getElementById('inboxList');
-  const inboxEmpty = document.getElementById('inboxEmpty');
-  const inboxCount = document.getElementById('inboxCount');
-  
-  if (!inboxList) return;
-  
-  if (!cachedInboxData || cachedInboxData.length === 0) {
-    inboxList.innerHTML = '';
-    if (inboxEmpty) inboxEmpty.style.display = 'block';
-    if (inboxCount) inboxCount.textContent = '0 mesej';
-    updateInboxBadge();
-    const toolbar = document.getElementById('inboxBatchToolbar');
-    if (toolbar) toolbar.style.display = 'none';
-    return;
-  }
-  
-  if (inboxEmpty) inboxEmpty.style.display = 'none';
-  if (inboxCount) inboxCount.textContent = `${cachedInboxData.length} mesej`;
-  
-  const unreadCount = cachedInboxData.filter(m => !m.dibaca).length;
-  updateInboxBadge();
-  
-  const toolbar = document.getElementById('inboxBatchToolbar');
-  if (toolbar) toolbar.style.display = 'flex';
-  
-  const searchVal = (document.getElementById('inboxSearchInput')?.value || '').toLowerCase().trim();
-  let html = '';
-  cachedInboxData.forEach((msg, index) => {
-    if (searchVal) {
-      const match = (msg.syarikat && msg.syarikat.toLowerCase().includes(searchVal)) ||
-        (msg.mesej && msg.mesej.toLowerCase().includes(searchVal)) ||
-        (msg.jenis && msg.jenis.toLowerCase().includes(searchVal));
-      if (!match) return;
-    }
-    const isUnread = !msg.dibaca;
-    const iconMap = { 'SUCCESS': '✅', 'ERROR': '❌', 'WARNING': '⚠️', 'INFO': 'ℹ️' };
-    let icon = iconMap[msg.jenisMsg] || 'ℹ️';
-    const badgeClass = { 'SUCCESS': 'inbox-badge-success', 'ERROR': 'inbox-badge-error', 'WARNING': 'inbox-badge-warning', 'INFO': 'inbox-badge-info' };
-    const badge = badgeClass[msg.jenisMsg] || 'inbox-badge-info';
-    
-    const kelulusan = (msg.kelulusan || '').toUpperCase();
-    if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
-      icon = '✗';
-    }
-    const isRejected = icon === '✗';
-    
-    let masaStr = '';
-    if (msg.masa) {
-      try {
-        const d = new Date(msg.masa);
-        masaStr = d.toLocaleString('ms-MY');
-      } catch (e) { masaStr = msg.masa; }
-    }
-    
-    const cleanMesej = msg.mesej
-      ? msg.mesej
-          .replace(/✅\s*https?:\/\/wa\.me\/[^\s\n]+/g, '')
-          .replace(/https?:\/\/wa\.me\/[^\s\n]+/g, '')
-          .replace(/\n\nMesej:[\s\S]*/, '')
-          .replace(/\n*📱 Klik link untuk hantar:[\s\S]*/, '')
-          .replace(/✅/g, '')
-          .trim()
-      : '';
-    
-    const hasWALink = msg.mesej && /https?:\/\/wa\.me\/\d+/g.test(msg.mesej);
-    
-    html += `
-      <div class="inbox-item ${isUnread ? 'unread' : ''}" data-index="${index}">
-        <div class="inbox-check"><input type="checkbox" class="inbox-item-cb" data-index="${index}"></div>
-        <div class="inbox-icon ${isRejected ? 'inbox-icon-rejected' : ''}">${icon}</div>
-        <div class="inbox-content">
-          <div class="inbox-message" style="white-space:pre-line;">${cleanMesej}</div>
-          <div class="inbox-meta">
-            <span class="inbox-badge ${badge}">${msg.jenisMsg}</span>
-            ${msg.syarikat ? `<span>🏢 ${msg.syarikat}</span>` : ''}
-            ${msg.jenis ? `<span>📋 ${msg.jenis}</span>` : ''}
-            <span>⏱ ${masaStr}</span>
-          </div>
-        </div>
-        <div class="inbox-actions">
-          ${(() => {
-            if (!msg.row) return '';
-            const kelulusan = (msg.kelulusan || '').toUpperCase();
-            const waScheduled = msg.whatsapp_schedule && msg.whatsapp_schedule.trim() !== '';
-            if (waScheduled) return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            if (kelulusan.includes('LULUS')) {
-              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            }
-            if (kelulusan.includes('TOLAK') || kelulusan.includes('SIASAT')) {
-              return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">👁 Lihat</button>`;
-            }
-            const btnLabel = (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') ? '👁 Lihat' : '⚙️ Proses';
-            return `<button class="inbox-btn inbox-btn-view" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">${btnLabel}</button>`;
-          })()}
-          ${hasWALink ? `<button class="inbox-btn inbox-btn-wa-pilih" data-idx="${index}">💬 Hantar WA</button>` : ''}
-          <button class="inbox-btn inbox-btn-delete" data-msgid="${msg.id}" data-row="${msg.row}" data-idx="${index}">🗑 Padam</button>
-        </div>
-      </div>
-    `;
-  });
-  
-  inboxList.innerHTML = html;
-  
-  const selectAllCb = document.getElementById('inboxSelectAll');
-  const selectedCountEl = document.getElementById('inboxSelectedCount');
-  
-  function updateSelectedCount() {
-    const checked = inboxList.querySelectorAll('.inbox-item-cb:checked').length;
-    const total = inboxList.querySelectorAll('.inbox-item-cb').length;
-    if (selectedCountEl) selectedCountEl.textContent = checked + ' dipilih';
-    if (selectAllCb) selectAllCb.checked = total > 0 && checked === total;
-  }
-  
-  if (selectAllCb) {
-    if (selectAllCb._inboxHandler) {
-      selectAllCb.removeEventListener('change', selectAllCb._inboxHandler);
-    }
-    const handler = () => {
-      inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => cb.checked = selectAllCb.checked);
-      updateSelectedCount();
-    };
-    selectAllCb._inboxHandler = handler;
-    selectAllCb.addEventListener('change', handler);
-  }
-  
-  inboxList.querySelectorAll('.inbox-item-cb').forEach(cb => {
-    cb.addEventListener('change', updateSelectedCount);
-  });
-  
-  updateSelectedCount();
-  
-  // Delete buttons
-  inboxList.querySelectorAll('.inbox-btn-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const msgId = e.target.getAttribute('data-msgid');
-      const row = e.target.getAttribute('data-row');
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      
-      closeInboxModal();
-      
-      const confirmed = await CustomAppModal.confirm('Padam mesej ini?', 'Padam Inbox', 'warning', 'Ya, Padam', true);
-      if (!confirmed) return;
-      
-      try {
-        const response = await fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'deleteInbox', msgId: msgId, row: row, email: currentUser.email })
-        }, 3, 1000);
-        const result = await response.json();
-        if (result.status === 'success') {
-          cachedInboxData.splice(idx, 1);
-          renderInbox();
-          showToast('Mesej dipadam', 'success');
-        } else {
-          await CustomAppModal.alert('Gagal padam: ' + result.message, 'Ralat', 'error');
-        }
-      } catch (err) {
-        await CustomAppModal.alert('Ralat: ' + err.message, 'Ralat', 'error');
-      }
-    });
-  });
-  
-  // View buttons
-  inboxList.querySelectorAll('.inbox-btn-view').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const msgId = e.target.getAttribute('data-msgid');
-      const row = e.target.getAttribute('data-row');
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      if (msgId && row && cachedInboxData[idx] && !cachedInboxData[idx].dibaca) {
-        try {
-          await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'markInboxRead', msgId: msgId, row: row, email: currentUser.email })
-          }, 2, 500);
-          cachedInboxData[idx].dibaca = true;
-          renderInbox();
-        } catch (e) {}
-      }
-      closeInboxModal();
-      const itemRow = parseInt(row);
-      if (!itemRow) return;
-      let item = cachedData ? cachedData.find(d => d.row === itemRow) : null;
-      if (!item) {
-        try {
-          const resp = await fetchWithRetry(SCRIPT_URL + '?action=getRow&row=' + itemRow + '&t=' + Date.now(), { method: 'GET' }, 2, 1000);
-          const result = await resp.json();
-          if (result.status === 'success' && result.data) {
-            item = result.data;
-          }
-        } catch (e) {}
-      }
-      if (item) viewRecordOnly(item);
-    });
-  });
-  
-  // WhatsApp buttons
-  inboxList.querySelectorAll('.inbox-btn-wa-pilih').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const idx = parseInt(e.target.getAttribute('data-idx'));
-      const msg = cachedInboxData[idx];
-      if (msg) openWhatsAppPicker(msg, idx);
-    });
-  });
-  
-  // Mark as read
-  inboxList.querySelectorAll('.inbox-item.unread').forEach(item => {
-    item.addEventListener('click', async (e) => {
-      if (e.target.closest('.inbox-actions')) return;
-      if (e.target.closest('button')) return;
-      if (e.target.closest('.inbox-check')) return;
-      const idx = parseInt(item.getAttribute('data-index'));
-      const msg = cachedInboxData[idx];
-      if (!msg || msg.dibaca) return;
-      
-      try {
-        await fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
-        }, 2, 500);
-      } catch (e) {}
-      
-      cachedInboxData[idx].dibaca = true;
-      renderInbox();
-      showToast('Mesej ditandakan dibaca', 'success');
-    });
-  });
-  
-  // Batch: Tandakan Dibaca
-  const btnMarkSelected = document.getElementById('btnMarkSelectedRead');
-  if (btnMarkSelected && !btnMarkSelected._inboxHandler) {
-    btnMarkSelected._inboxHandler = true;
-    btnMarkSelected.addEventListener('click', async () => {
-      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
-      if (!checked.length) {
-        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
-        return;
-      }
-      closeInboxModal();
-      const promises = [];
-      for (const cb of checked) {
-        const idx = parseInt(cb.getAttribute('data-index'));
-        const msg = cachedInboxData[idx];
-        if (msg && !msg.dibaca) {
-          promises.push(
-            fetchWithRetry(SCRIPT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ action: 'markInboxRead', msgId: msg.id, row: msg.row, email: currentUser.email })
-            }, 2, 500).then(() => { cachedInboxData[idx].dibaca = true; }).catch(() => {})
-          );
-        }
-      }
-      const results = await Promise.allSettled(promises);
-      const success = results.filter(r => r.status === 'fulfilled').length;
-      renderInbox();
-      showToast(success + ' mesej ditandakan dibaca', 'success');
-    });
-  }
-  
-  // Batch: Padam Pilihan
-  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  if (btnDeleteSelected && !btnDeleteSelected._inboxHandler) {
-    btnDeleteSelected._inboxHandler = true;
-    btnDeleteSelected.addEventListener('click', async () => {
-      const checked = inboxList.querySelectorAll('.inbox-item-cb:checked');
-      if (!checked.length) {
-        await CustomAppModal.alert('Sila pilih mesej terlebih dahulu', 'Tiada Pilihan', 'info');
-        return;
-      }
-      closeInboxModal();
-      const confirmed = await CustomAppModal.confirm('Padam ' + checked.length + ' mesej yang dipilih?', 'Padam Pilihan', 'warning', 'Ya, Padam', false);
-      if (!confirmed) return;
-      const indices = [];
-      for (const cb of checked) {
-        indices.push(parseInt(cb.getAttribute('data-index')));
-      }
-      const promises = indices.map(idx => {
-        const msg = cachedInboxData[idx];
-        if (!msg) return Promise.resolve();
-        return fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'deleteInbox', msgId: msg.id, row: msg.row, email: currentUser.email })
-        }, 2, 500).catch(() => {});
-      });
-      await Promise.allSettled(promises);
-      indices.sort((a, b) => b - a);
-      for (const idx of indices) {
-        if (cachedInboxData[idx]) cachedInboxData.splice(idx, 1);
-      }
-      renderInbox();
-      showToast(indices.length + ' mesej dipadam', 'success');
-    });
-  }
-}
-
-// =========================================================================
-// V6.6.0: WHATSAPP PICKER MODAL (Pilih nombor untuk hantar)
-// =========================================================================
-
-function openWhatsAppPicker(msg, msgIndex) {
-  // Parse wa.me links from message
-  const waLinks = [];
-  if (msg.mesej) {
-    const regex = /https:\/\/wa\.me\/[^\s\n]+/g;
-    let m;
-    while ((m = regex.exec(msg.mesej)) !== null) {
-      const url = m[0];
-      const phoneMatch = url.match(/wa\.me\/(\d+)/);
-      const phone = phoneMatch ? phoneMatch[1] : '';
-      // Check if already sent (if message contains ✓ or ✅ before this URL)
-      const beforeUrl = msg.mesej.substring(0, m.index);
-      const sent = beforeUrl.includes('✅') && !beforeUrl.endsWith('\n');
-      waLinks.push({ url, phone, sent });
-    }
-  }
-  
-  if (waLinks.length === 0) {
-    CustomAppModal.alert('Tiada nombor WhatsApp tersedia.', 'Makluman', 'info');
-    return;
-  }
-  
-  // Create modal
-  const overlay = document.getElementById('waPickerModal') || createWAPickerModal();
-  
-  const titleEl = document.getElementById('waPickerTitle');
-  const listEl = document.getElementById('waPickerList');
-  const closeBtn = document.getElementById('waPickerClose');
-  
-  if (titleEl) {
-    titleEl.textContent = `📱 Hantar WhatsApp - ${msg.syarikat || 'Syarikat'}`;
-  }
-  
-  if (listEl) {
-    let listHtml = '';
-    waLinks.forEach((link, i) => {
-      // Format phone for display: 60XXXXXXXXX -> 0XX-XXXXXXX
-      let displayPhone = link.phone;
-      if (displayPhone.startsWith('60')) displayPhone = '0' + displayPhone.substring(2);
-      
-      listHtml += `
-        <div class="wa-picker-item" data-index="${i}" style="display:flex; align-items:center; gap:12px; padding:12px; margin-bottom:8px; background:${link.sent ? '#f0fdf4' : 'white'}; border:2px solid ${link.sent ? '#22c55e' : '#e5e7eb'}; border-radius:10px;">
-          <div style="flex:1;">
-            <div style="font-weight:bold; font-size:1rem; color:${link.sent ? '#166534' : '#1e293b'};">
-              📱 ${displayPhone}
-              ${link.sent ? '<span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>' : ''}
-            </div>
-            <div style="font-size:0.8rem; color:#64748b; margin-top:3px;">
-              ${link.sent ? 'Telah dihantar' : 'Belum dihantar'}
-            </div>
-          </div>
-          <div style="display:flex; gap:6px;">
-            ${link.sent ? `
-              <button class="inbox-btn wa-picker-btn wa-picker-sent" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" style="background:#22c55e; color:white; cursor:default; opacity:0.7;">✅ Selesai</button>
-            ` : `
-              <button class="inbox-btn wa-picker-btn wa-picker-send" data-url="${link.url}" data-msgidx="${msgIndex}" data-phone="${link.phone}" data-mid="${msg.id}" data-row="${msg.row}" style="background:#25D366; color:white;">💬 Hantar</button>
-            `}
-          </div>
-        </div>
-      `;
-    });
-    listEl.innerHTML = listHtml;
-    
-    // Hantar buttons
-    listEl.querySelectorAll('.wa-picker-send').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const url = e.target.getAttribute('data-url');
-        const phone = e.target.getAttribute('data-phone');
-        const mid = e.target.getAttribute('data-mid');
-        const row = e.target.getAttribute('data-row');
-        
-        // Open WhatsApp
-        window.open(url, '_blank');
-        
-        // Mark as sent in inbox message (update the cached message)
-        const msgData = cachedInboxData[msgIndex];
-        if (msgData && msgData.mesej) {
-          // Replace the URL in the message with ✅ marker
-          msgData.mesej = msgData.mesej.replace(url, `✅ ${url}`);
-          // Re-render to reflect changes
-          renderInbox();
-        }
-        
-        // Update the button state
-        const parent = e.target.closest('.wa-picker-item');
-        if (parent) {
-          parent.style.background = '#f0fdf4';
-          parent.style.borderColor = '#22c55e';
-          e.target.textContent = '✅ Selesai';
-          e.target.className = 'inbox-btn wa-picker-btn wa-picker-sent';
-          e.target.style.background = '#22c55e';
-          e.target.style.opacity = '0.7';
-          e.target.style.cursor = 'default';
-          e.target.disabled = true;
-          
-          const label = parent.querySelector('div:first-child div:first-child');
-          if (label && !label.innerHTML.includes('Selesai')) {
-            label.innerHTML += ' <span style="margin-left:8px; font-size:0.75rem; background:#22c55e; color:white; padding:2px 8px; border-radius:10px;">✅ Selesai</span>';
-          }
-          const status = parent.querySelector('div:first-child div:last-child');
-          if (status) status.textContent = 'Telah dihantar';
-        }
-      });
-    });
-    
-    // Already sent buttons - do nothing
-    listEl.querySelectorAll('.wa-picker-sent').forEach(btn => {
-      // No action needed
-    });
-  }
-  
-  // Close handler
-  if (closeBtn) {
-    closeBtn.onclick = () => { overlay.style.display = 'none'; };
-  }
-  
-  overlay.style.display = 'flex';
-  overlay.classList.add('show');
-}
-
-function createWAPickerModal() {
-  const div = document.createElement('div');
-  div.id = 'waPickerModal';
-  div.className = 'custom-modal-overlay';
-  div.innerHTML = `
-    <div class="custom-modal-card" style="max-width:500px; text-align:left; max-height:80vh; overflow-y:auto;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #25D366; padding-bottom:10px;">
-        <h3 id="waPickerTitle" style="margin:0; color:#075e54;">📱 Pilih Nombor</h3>
-        <button id="waPickerClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;">✕</button>
-      </div>
-      <div id="waPickerList"></div>
-      <div style="margin-top:15px; padding-top:10px; border-top:1px solid #e5e7eb; text-align:center;">
-        <button id="waPickerDone" class="btn btn-green" style="padding:10px 30px;">Selesai, Tutup</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(div);
-  
-  document.getElementById('waPickerDone').onclick = () => { div.style.display = 'none'; };
-  div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
-  
-  return div;
-}
-
-// =========================================================================
-// V6.6.0: FUNGSI SEMAKAN STATUS BEKU
-// =========================================================================
+// Setup WhatsApp scheduling UI
+setupWhatsAppSchedulingUI();
 
 async function checkFrozenStatus(cidb, companyName) {
     if (!cidb || !Array.isArray(cachedData) || cachedData.length === 0) return false;
@@ -18166,7 +18015,7 @@ async function checkFrozenStatus(cidb, companyName) {
         const companyDisplay = companyName || 'Syarikat ini';
 
         await CustomAppModal.alert(
-            '⚠️ AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
+            'ΓÜá∩╕Å AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
             '📅 Mula Beku: ' + mulaStr + '<br>' +
             '📅 Tamat Beku: ' + tamatStr + '<br><br>' +
             'Permohonan baharu tidak boleh diproses sehingga tempoh beku tamat. Sila rujuk pentadbir jika perlu.',
@@ -18351,99 +18200,6 @@ Terima kasih.`;
   return whatsappUrl;
 }
 
-// =========================================================================
-// V6.6.0: INBOX REFRESH BUTTON
-// =========================================================================
-
-// Inbox modal buttons
-function closeInboxModal() {
-  const modal = document.getElementById('inboxModal');
-  if (modal) {
-    modal.classList.remove('show');
-    setTimeout(() => { modal.style.display = 'none'; }, 300);
-  }
-}
-
-const btnInboxTop = document.getElementById('btnInboxTop');
-const inboxModal = document.getElementById('inboxModal');
-const btnCloseInbox = document.getElementById('btnCloseInbox');
-const btnRefreshInbox = document.getElementById('btnRefreshInbox');
-
-if (btnInboxTop && inboxModal) {
-  btnInboxTop.addEventListener('click', () => {
-    fetchInbox();
-    inboxModal.style.display = 'flex';
-    inboxModal.classList.add('show');
-  });
-}
-
-if (btnCloseInbox && inboxModal) {
-  btnCloseInbox.addEventListener('click', closeInboxModal);
-}
-
-if (inboxModal) {
-  inboxModal.addEventListener('click', (e) => {
-    if (e.target === inboxModal) closeInboxModal();
-  });
-}
-
-if (btnRefreshInbox) {
-  btnRefreshInbox.addEventListener('click', fetchInbox);
-}
-
-const inboxSearchInput = document.getElementById('inboxSearchInput');
-if (inboxSearchInput) {
-  inboxSearchInput.addEventListener('input', () => renderInbox());
-}
-
-// V6.6.0: Butang Lihat Semua (tanda semua dibaca)
-
-// V6.6.0: Force refresh data dari sheet
-const btnRefreshData = document.getElementById('btnRefreshData');
-if (btnRefreshData) {
-  btnRefreshData.addEventListener('click', async () => {
-    const confirmed = await CustomAppModal.confirm(
-      'Refresh data akan muat turun semula semua rekod dari sheet. Teruskan?',
-      'Refresh Data', 'info', 'Ya, Refresh', false
-    );
-    if (!confirmed) return;
-    
-    // Clear local cache
-    cachedData = [];
-    dataCacheVersion = '';
-    await storageWrapper.remove(['stb_data_cache', 'stb_cache_timestamp', 'stb_data_version']);
-    
-    // Force fetch with refresh action
-    try {
-      simulateLoadingWithSteps(['Menghubungi pelayan...', 'Muat turun data terkini...', 'Selesai!'], 'Refresh Data');
-      await fetchWithRetry(SCRIPT_URL + '?action=refreshData&role=' + currentUser.role + '&userName=' + encodeURIComponent(currentUser.name) + '&t=' + Date.now(), { method: 'GET' }, 3, 1000);
-      // Refetch the data
-      await fetchAndRenderList(activeListType || 'drafts');
-      hideLoading();
-      await CustomAppModal.alert('Data berjaya dikemas kini!', 'Selesai', 'success');
-    } catch (e) {
-      hideLoading();
-      await CustomAppModal.alert('Gagal refresh: ' + e.message, 'Ralat', 'error');
-    }
-  });
-}
-
-// Setup WhatsApp scheduling UI
-setupWhatsAppSchedulingUI();
-
-// V6.9.3: Auto refresh inbox badge setiap 2 minit (dahulu 30 saat - kurangkan beban backend)
-let inboxAutoRefreshInterval = null;
-
-function startInboxAutoRefresh() {
-  if (inboxAutoRefreshInterval) clearInterval(inboxAutoRefreshInterval);
-  // Refresh inbox setiap 2 minit untuk update badge
-  inboxAutoRefreshInterval = setInterval(() => {
-    if (currentUser && currentUser.email) {
-      fetchInbox();
-    }
-  }, 120000); // 2 minit
-}
-
 // V6.9.3: Auto refresh dashboard & inbox tab
 // Inbox: refresh setiap 60 saat (dahulu 5 saat tanpa cache - elak beban)
 // Dashboard: refresh setiap 120 saat guna version check
@@ -18498,7 +18254,19 @@ function startTabAutoRefresh() {
       if (!response.ok) return;
       const data = await response.json();
 
+      // V6.11.0: Server sedang bina semula cache - senyap, cuba semula selepas jeda
+      if (data && data.rebuilding === true) {
+        if (data.version) dataCacheVersion = data.version;
+        scheduleDataRebuildRetry(() => {
+          if (tabName === 'inbox') {
+            fetchAndRenderList('inbox', true);
+          }
+        });
+        return;
+      }
+
       if (data && data.cached === true) {
+        resetDataRebuildRetry();
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {
           dataWindowStart = data.windowStart;
@@ -18509,6 +18277,7 @@ function startTabAutoRefresh() {
 
       const newData = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
       if (newData.length > 0) {
+        resetDataRebuildRetry();
         cachedData = newData;
         if (data.version) dataCacheVersion = data.version;
         if (data.windowStart) {

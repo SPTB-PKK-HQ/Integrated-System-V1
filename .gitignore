@@ -1,2 +1,4 @@
 # Next.js app - moved to separate repo
 next-app/
+stb-pkk-firestore-firebase-adminsdk-*.json
+# Firebase service account (RAHSIA - jangan commit!)

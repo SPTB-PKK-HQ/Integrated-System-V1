@@ -2,8 +2,6 @@
 const SHEET_NAME = "Sheet1";
 const USERS_SHEET_NAME = "Users";
 const LOGS_SHEET_NAME = "Logs";
-const CHANGELOG_SHEET_NAME = "Changelog";
-const USER_META_SHEET_NAME = "UserMeta"; // V6.6.0
 
 // FOLDER INDUK ID - Disimpan di Script Properties (key: MAIN_FOLDER_ID)
 const MAIN_FOLDER_NAME = "STB MAIN FOLDER";
@@ -60,6 +58,12 @@ const APP_DATA_CHUNK_PREFIX = 'STB_APP_DATA_CHUNK_';
 const APP_DATA_CHUNK_COUNT_KEY = APP_DATA_CHUNK_PREFIX + 'COUNT';
 const APP_DATA_CHUNK_LIMIT = 45000; // 45KB per chunk (selamat di bawah 100KB/key)
 const APP_DATA_CHUNK_TTL = 600; // 10 minit
+
+// V6.11.0: Rebuild lock - elak "stampede" (banyak eksekusi baca sheet serentak
+// bila chunked cache tamat). Hanya SATU eksekusi baca spreadsheet; yang lain
+// dapat rebuilding:true dan cuba semula. TTL 90 saat cukup untuk rebuild penuh.
+const APP_DATA_REBUILD_KEY = 'STB_APP_DATA_REBUILDING';
+const APP_DATA_REBUILD_TTL = 90;
 
 // V6.10.0: Window bulan semasa - hanya data N bulan terkini dimuat secara lalai.
 // Data bulan lama dimuat atas permintaan (butang "Muat Data Bulan Lama").
@@ -404,11 +408,6 @@ function doGet(e) {
       return handleCheckAuth(email);
     }
     
-    // V6.6.0: Handler untuk getChangelog (public - tiada auth diperlukan)
-    if (action === "getChangelog") {
-      return handleGetChangelog();
-    }
-    
     // V6.5.0: Handler untuk getQueueData
     if (action === "getQueueData") {
       if (!email) {
@@ -443,11 +442,6 @@ function doGet(e) {
       return sendSpiBacklogReminder();
     }
 
-    // V6.6.0: Handler untuk getInbox
-    if (action === "getInbox") {
-      return handleGetInbox(e.parameter);
-    }
-    
     // V6.8.0: Dapatkan Firebase code untuk email tertentu
     if (action === "getUserFirebaseCode") {
       const fbEmail = e.parameter ? e.parameter.email : '';
@@ -510,7 +504,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'getUserLastSeenVersion', 'updateUserLastSeenVersion', 'refreshData', 'getInbox', 'deleteInbox', 'markInboxRead', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'refreshData', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -660,37 +654,6 @@ function doPost(e) {
       }
       const result = scheduleWhatsApp(data);
       return createJSONOutput(result);
-    }
-    
-    // V6.6.0: Handler untuk getInbox
-    if (data.action === 'getInbox') {
-      return handleGetInbox(data);
-    }
-    
-    // V6.6.0: Handler untuk deleteInbox
-    if (data.action === 'deleteInbox') {
-      return handleDeleteInbox(data);
-    }
-    
-    // V6.6.0: Handler untuk markInboxRead
-    if (data.action === 'markInboxRead') {
-      return handleMarkInboxRead(data);
-    }
-    
-    // V6.6.0: Handler untuk markAllInboxRead & deleteAllInbox
-    if (data.action === 'markAllInboxRead') {
-      return handleMarkAllInboxRead(data);
-    }
-    if (data.action === 'deleteAllInbox') {
-      return handleDeleteAllInbox(data);
-    }
-    
-    // V6.6.0: Handler untuk user version tracking
-    if (data.action === 'getUserLastSeenVersion') {
-      return handleGetUserLastSeenVersion(data.email);
-    }
-    if (data.action === 'updateUserLastSeenVersion') {
-      return handleUpdateUserLastSeenVersion(data.email, data.version);
     }
     
     // Handler baharu: Cetak dan simpan PDF
@@ -1863,28 +1826,6 @@ function handleUpdateRecord(data, sheet) {
       sheet.getRange(rowNum, 30).setValue(data.whatsapp_schedule);
     }
     
-    // V6.6.0: BLOK 7 (AE: Kolum 31) - inbox
-    let inboxUpdated = false;
-    if (data.add_inbox !== undefined && data.add_inbox.message && data.add_inbox.role) {
-      const existingStr = sheet.getRange(rowNum, 31).getValue() || '[]';
-      let messages = [];
-      try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
-      messages.push({
-        id: Utilities.getUuid(),
-        masa: new Date().toISOString(),
-        mesej: data.add_inbox.message,
-        jenis: data.add_inbox.type || 'INFO',
-        role: data.add_inbox.role,
-        dibaca: false
-      });
-      if (messages.length > 50) messages = messages.slice(-50);
-      sheet.getRange(rowNum, 31).setValue(JSON.stringify(messages));
-      inboxUpdated = true;
-    }
-    if (data.inbox !== undefined && !inboxUpdated) {
-      sheet.getRange(rowNum, 31).setValue(data.inbox);
-    }
-    
     // BLOK 8 (AF: Kolum 32) - ulasan_spi
     if (data.ulasan_spi !== undefined) {
       sheet.getRange(rowNum, 32).setValue(data.ulasan_spi);
@@ -1975,25 +1916,6 @@ function handleUpdateRecord(data, sheet) {
         console.error('Gagal log QUEUE_UPDATE:', e.toString());
       }
       
-      // V6.6.0: Auto inbox notification untuk pelulus bila syor diupdate dengan pelulus
-      const syorBaruDisahkan = data.syor_status && data.syor_status.toString().trim() !== '' 
-        && data.pelulus && (!existingData[13] || existingData[13].toString().trim() === '');
-      if (syorBaruDisahkan) {
-        const inboxMsg = `📋 Permohonan *${data.syarikat || existingData[0] || ''}* (${data.jenis || existingData[3] || ''}) menunggu keputusan anda. Sila semak di tab Keputusan.`;
-        addInboxToRow(rowNum, data.pelulus, inboxMsg, 'INFO');
-      }
-      
-      // V6.6.0: Auto inbox notification untuk pengesyor bila pelulus buat keputusan
-      const keputusanBaru = data.kelulusan && data.kelulusan.toString().trim() !== '' 
-        && (!existingData[23] || existingData[23].toString().trim() === '');
-      if (keputusanBaru) {
-        const pengesyorName = existingData[12] || '';
-        const pelulusName = data.pelulus || existingData[25] || '';
-        const statusKeputusan = data.kelulusan;
-        const inboxMsg = `📬 Keputusan untuk *${data.syarikat || existingData[0] || ''}*: *${statusKeputusan}* oleh ${pelulusName}.`;
-        addInboxToRow(rowNum, pengesyorName, inboxMsg, statusKeputusan.includes('LULUS') ? 'SUCCESS' : 'INFO');
-      }
-      
       // V6.6.0: Auto-populate catatan untuk TOLAK & BEKU (elak duplicate)
       const kelulusanValue = data.kelulusan || existingData[23] || '';
       if ((kelulusanValue === 'TOLAK & BEKU 3 BULAN' || kelulusanValue === 'TOLAK & BEKU 6 BULAN') && keputusanBaru) {
@@ -2016,29 +1938,13 @@ function handleUpdateRecord(data, sheet) {
         }
       }
 
-      // V6.6.0: Inbox notification bila undo
+      // V6.6.0: Kes pengundoan syor/keputusan
       const existingSyor = existingData[13] ? existingData[13].toString().trim() : '';
       const existingKelulusan = existingData[23] ? existingData[23].toString().trim() : '';
       const newSyor = data.syor_status !== undefined ? data.syor_status.toString().trim() : undefined;
       const newKelulusan = data.kelulusan !== undefined ? data.kelulusan.toString().trim() : undefined;
       const isUndoSyor = newSyor === '' && existingSyor !== '';
       const isUndoLulus = newKelulusan === '' && existingKelulusan !== '' && (newSyor === undefined || newSyor === existingSyor);
-      if (isUndoSyor || isUndoLulus) {
-        const syarikat = data.syarikat || existingData[0] || '';
-        const pelulusName = data.pelulus || existingData[25] || '';
-        const pengesyorName = existingData[12] || '';
-        if (isUndoSyor) {
-          if (pengesyorName) {
-            addInboxToRow(rowNum, pengesyorName, '\u{1F519} Anda telah tarik balik syor untuk ' + syarikat, 'INFO');
-          }
-          if (pelulusName) {
-            addInboxToRow(rowNum, pelulusName, '\u{1F519} Permohonan ' + syarikat + ' telah ditarik balik oleh pengesyor', 'WARNING');
-          }
-        }
-        if (isUndoLulus) {
-          addInboxToRow(rowNum, pelulusName || existingData[12] || '', '\u{1F519} Anda telah undo keputusan untuk ' + syarikat, 'INFO');
-        }
-      }
 
       pascaActionType = isUndoSyor ? 'UNDO_RECOMMENDATION' : 'UPDATE_RECORD';
       const actionDesc = pascaActionType === 'UNDO_RECOMMENDATION' 
@@ -2135,9 +2041,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       // AC (Kolum 29)
       data.borang_json||"",
       // AD (Kolum 30) - WhatsApp Schedule
-      data.whatsapp_schedule||"",
-      // AE (Kolum 31) - Inbox
-      data.inbox||""
+      data.whatsapp_schedule||""
     ];
 
     const targetRange = sheet.getRange(targetRow, 1, 1, newRow.length);
@@ -2145,16 +2049,6 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
     try { cache.put("firstEmptyRow_" + SHEET_NAME, (targetRow + 1).toString(), 300); } catch (e) {}
 
     logActivity(data.pengesyor || "System", 'INSERT_RECORD', `Rekod baharu dimasukkan di baris ${targetRow} untuk ${data.syarikat || 'syarikat'}`, folderId);
-
-    // V6.6.0: Auto inbox notification untuk pelulus bila syor dihantar
-    if (data.syor_status && data.syor_status.toString().trim() !== '' && data.pelulus) {
-      try {
-        const inboxMsg = `📋 Permohonan *${data.syarikat || ''}* (${data.jenis || ''}) menunggu keputusan anda. Sila semak di tab Keputusan.`;
-        addInboxToRow(targetRow, data.pelulus, inboxMsg, 'INFO');
-      } catch (e) {
-        console.error('Gagal hantar inbox pelulus:', e.toString());
-      }
-    }
 
     const syorLawatanYA = data.syor_lawatan && data.syor_lawatan.toString().toUpperCase() === 'YA';
     const dateSubmitExists = data.date_submit && data.date_submit.toString().trim() !== '';
@@ -2941,7 +2835,6 @@ function transformSheetRows(data) {
       tarikh_lulus: row[24], pelulus: row[25], ubah_maklumat: row[26], ubah_gred: row[27],
       borang_json: row[28] || "",
       whatsapp_schedule: row[29] || "",
-      inbox: row[30] || "",
       ulasan_spi: row[31] || ""
     });
   }
@@ -3089,43 +2982,63 @@ function getApplicationsData(role, userName, clientVersion, forceRefresh, client
 
   // ======================
   // READ FROM SHEET (FALLBACK ATAU REFRESH)
+  // V6.11.0: Rebuild lock - elak stampede. Bila chunked cache tamat, hanya SATU
+  // eksekusi baca sheet (pemilik rebuild); yang lain pulang rebuilding:true dan
+  // frontend cuba semula selepas jeda. Lock DIABAIKAN untuk forceRefresh (refresh
+  // paksa mesti baca sheet selalu) dan mod sejarah (sudah pulang awal di atas).
   // ======================
   const cache = CacheService.getScriptCache();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return createJSONOutput([]);
-  
-  const lastRow = sheet.getLastRow();
-  let firstEmptyRow = 2;
 
-  if (lastRow > 1) {
-    const columnA = sheet.getRange("A2:A" + lastRow).getValues();
-    for (let i = 0; i < columnA.length; i++) {
-      if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
-        firstEmptyRow = i + 2;
-        break;
-      }
+  if (!forceRefresh) {
+    const rebuilding = cache.get(APP_DATA_REBUILD_KEY);
+    if (rebuilding) {
+      return createJSONOutput({ cached: true, version: currentVersion, windowStart: windowStart, months: windowMonths, rebuilding: true, engine: 'v610' });
     }
-    if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
+    try { cache.put(APP_DATA_REBUILD_KEY, String(Date.now()), APP_DATA_REBUILD_TTL); } catch (e) {}
   }
-  
-  try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
 
-  const allRows = readSheetRows(sheet).rows;
-
-  // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
-  const windowRows = filterRowsByWindow(allRows, windowStart);
-
-  // V6.10.0: Simpan chunked cache untuk window semasa sahaja
   try {
-    buildChunkedAppDataCache(currentVersion, windowStart, windowRows);
-  } catch (e) {
-    Logger.log('[V6.10.0] Gagal bina chunked cache: ' + e.toString());
-  }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return createJSONOutput([]);
+    
+    const lastRow = sheet.getLastRow();
+    let firstEmptyRow = 2;
 
-  // Filter dan return
-  const filtered = filterRowsByRole(windowRows, role, userName);
-  return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+    if (lastRow > 1) {
+      const columnA = sheet.getRange("A2:A" + lastRow).getValues();
+      for (let i = 0; i < columnA.length; i++) {
+        if (!columnA[i][0] || columnA[i][0].toString().trim() === "") {
+          firstEmptyRow = i + 2;
+          break;
+        }
+      }
+      if (firstEmptyRow === 2) firstEmptyRow = lastRow + 1;
+    }
+    
+    try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
+
+    const allRows = readSheetRows(sheet).rows;
+
+    // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
+    const windowRows = filterRowsByWindow(allRows, windowStart);
+
+    // V6.10.0: Simpan chunked cache untuk window semasa sahaja
+    try {
+      buildChunkedAppDataCache(currentVersion, windowStart, windowRows);
+    } catch (e) {
+      Logger.log('[V6.10.0] Gagal bina chunked cache: ' + e.toString());
+    }
+
+    // Filter dan return
+    const filtered = filterRowsByRole(windowRows, role, userName);
+    return createJSONOutput({ cached: false, data: filtered, version: currentVersion, windowStart: windowStart, months: windowMonths, engine: 'v610' });
+  } finally {
+    // V6.11.0: Buang rebuild lock supaya eksekusi seterusnya boleh baca cache baru
+    if (!forceRefresh) {
+      try { cache.remove(APP_DATA_REBUILD_KEY); } catch (e) {}
+    }
+  }
 }
 
 function getSingleRowData(rowNum) {
@@ -3151,7 +3064,7 @@ function getSingleRowData(rowNum) {
         alamat_perniagaan: row[20], jenis_konsultansi: row[21] || "", alasan: row[22],
         kelulusan: row[23], tarikh_lulus: row[24], pelulus: row[25],
         ubah_maklumat: row[26], ubah_gred: row[27], borang_json: row[28] || "",
-        whatsapp_schedule: row[29] || "", inbox: row[30] || "", ulasan_spi: row[31] || ""
+        whatsapp_schedule: row[29] || "", ulasan_spi: row[31] || ""
       }
     });
   } catch (e) {
@@ -3163,8 +3076,9 @@ function filterRowsByRole(rows, role, userName) {
   if (role === ROLE_PENGESYOR && userName) {
     return rows.filter(r => r.pengesyor && r.pengesyor.toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PELULUS && userName) {
-    return rows.filter(r => r.syor_status && r.syor_status.toString().trim() !== ""
-      && r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
+    // V6.10.2: Tanpa syarat syor_status - selaras dengan kiraan getDashboardStats
+    // (rekod pelulus==user dikira dalam kad, jadi mesti dikira dalam jadual juga).
+    return rows.filter(r => r.pelulus && r.pelulus.toString().toUpperCase() === userName.toUpperCase());
   } else if (role === ROLE_PKA) {
     return rows.filter(r => !r.syor_lawatan || r.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN');
   }
@@ -3329,7 +3243,9 @@ function getDashboardStats(role, userName) {
       pengesyorStats: pengesyorStats,
       pelulusStats: pelulusStats
     };
-    try { cache.put(cacheKey, JSON.stringify(payload), 600); } catch (e) {}
+    // V6.11.0: TTL 3600 saat (1 jam) - stats jarang berubah, key guna versi data
+    // jadi auto-invalid bila data dikemas kini. Kurangkan kekerapan baca sheet penuh.
+    try { cache.put(cacheKey, JSON.stringify(payload), 3600); } catch (e) {}
     return createJSONOutput(payload);
   } catch (e) {
     return createJSONOutput({ error: e.toString() });
@@ -3378,17 +3294,6 @@ function handlePKAUpdateLawatan(data, sheet) {
     logActivity(data.email || 'PKA', 'PKA_UPDATE_LAWATAN', `Lawatan diupdate oleh PKA untuk baris ${rowNum}`, '');
     if (data.lawatan_syor && data.lawatan_syor.toString().trim() !== '') {
       try { updateSpiCalendarEvent(rowNum, data.lawatan_syor); } catch (e) { console.error(`[SPI Calendar] Gagal update PKA: ${e.toString()}`); }
-    }
-    // Hantar notifikasi inbox kepada Pengesyor
-    try {
-      const rowData = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS).getValues()[0];
-      const pengesyorName = rowData[12] || '';
-      const syarikat = rowData[0] || '';
-      if (pengesyorName) {
-        addInboxToRow(rowNum, pengesyorName, `📋 Lawatan premis untuk *${syarikat}* telah selesai. Sila berikan syor anda.`, 'PENTING');
-      }
-    } catch (e) {
-      console.error(`[Inbox] Gagal hantar notifikasi PKA: ${e.toString()}`);
     }
     invalidateDataCache();
     return createJSONOutput({ status: "success", message: "Lawatan berjaya dikemaskini" });
@@ -3983,7 +3888,7 @@ function setupPemutihanCronJob() {
 }
 
 // =========================================================================
-// FUNGSI BERJADUAL: KUMPULAN EMEL SIASAT BIASA (SETIAP HARI BEKERJA 9 PAGI)
+// FUNGSI BERJADUAL: KUMPULAN EMEL SIASAT BIASA (SETIAP HARI BEKERJA 8 PAGI)
 // Ditambah logik sekatan cuti umum persekutuan Wilayah Persekutuan Putrajaya
 // =========================================================================
 function addToSiasatQueue(emailData) {
@@ -4112,9 +4017,9 @@ function setupSiasatCronJob() {
   ScriptApp.newTrigger('processSiasatQueue')
     .timeBased()
     .everyDays(1)
-    .atHour(9) 
+    .atHour(8) 
     .create();
-  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 9 pagi.");
+  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 8 pagi.");
 }
 
 // =========================================================================
@@ -4272,7 +4177,7 @@ function registerWhatsAppTrigger(row, tarikhStr, jam) {
 
 /**
  * Fungsi processSingleWhatsApp: Dipanggil oleh trigger untuk proses WhatsApp.
- * Jika CallMeBot API ada, hantar auto. Jika tidak, inbox notification dengan wa.me link.
+ * Jika CallMeBot API ada, hantar auto. Jika tidak, simpan wa.me link untuk hantar manual.
  */
 function processSingleWhatsApp() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -4343,23 +4248,6 @@ function processSingleWhatsApp() {
         schedule.wa_links = waLinks;
         
         sheet.getRange(r, 30).setValue(JSON.stringify(schedule));
-        
-        // Inbox notification: kalau gagal/takde API, bagi link manual
-        if (result.success) {
-          addInboxToRow(r, 'PENGESYOR', `✅ WhatsApp AUTO berjaya dihantar ke ${noTujuanList.length} nombor untuk ${syarikat}`, 'SUCCESS');
-          addInboxToRow(r, 'PELULUS', `✅ WhatsApp AUTO berjaya dihantar untuk ${syarikat}`, 'SUCCESS');
-        } else {
-          let mesejInbox = `📤 WhatsApp AUTO untuk ${syarikat} sudah tiba masa dihantar.\n\nMesej: ${schedule.ayat}\n\n`;
-          if (waLinks.length > 0) {
-            mesejInbox += `📱 Klik link untuk hantar:\n`;
-            waLinks.forEach((link, i) => {
-              mesejInbox += `${link.url}\n`;
-            });
-          } else {
-            mesejInbox += `❌ Tiada nombor WhatsApp yang sah dijumpai dalam borang.`;
-          }
-          addInboxToRow(r, 'PENGESYOR', mesejInbox, 'WARNING');
-        }
         
         logActivity('System', 'WHATSAPP_SENT', `WhatsApp AUTO ${result.success ? 'BERJAYA' : 'PERLU MANUAL'} untuk ${syarikat} (Baris ${r}) - ${waLinks.length} nombor`, '');
       }
@@ -4507,441 +4395,6 @@ function checkWhatsAppNumber(phone) {
   }
   // Untuk CallMeBot, tiada API check number. Anggap sah.
   return { valid: true };
-}
-
-// =========================================================================
-// V6.6.0: INBOX / NOTIFICATION SYSTEM (Kolum AE / 31)
-// =========================================================================
-
-/**
- * Fungsi addInboxToRow: Tambah mesej inbox ke kolum AE
- * @param {number} row - Nombor baris sheet
- * @param {string} roleOrName - Boleh jadi nama PELULUS atau nama pengguna spesifik
- * @param {string} message - Mesej notifikasi
- * @param {string} type - INFO/SUCCESS/ERROR/WARNING
- */
-function addInboxToRow(row, roleOrName, message, type = 'INFO') {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
-    let messages = [];
-    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
-    
-    messages.push({
-      id: Utilities.getUuid(),
-      masa: new Date().toISOString(),
-      mesej: message,
-      jenis: type,
-      role: roleOrName, // BOLEH jadi nama spesifik (contoh: "ALI BIN AHMAD")
-      dibaca: false
-    });
-    
-    // Simpan maksimum 50 mesej
-    if (messages.length > 50) messages = messages.slice(-50);
-    
-    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
-    
-    // Dapatkan syarikat untuk logging
-    const syarikat = sheet.getRange(row, 1).getValue() || '';
-    logActivity('System', 'INBOX_ADD', `Inbox untuk ${roleOrName}: ${message.substring(0, 80)} (${syarikat})`, '');
-    
-    return { success: true };
-  } catch (error) {
-    logActivity('System', 'ERROR_INBOX', error.toString(), '');
-    return { success: false, error: error.toString() };
-  }
-}
-
-/**
- * Fungsi getInboxForRole: Dapatkan inbox untuk role tertentu dari seluruh sheet
- */
-function handleGetInbox(data) {
-  try {
-    const role = data.role || '';
-    const email = data.email || '';
-    
-    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
-    
-    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
-    if (!accessCheck.isAuthorized) {
-      return createJSONOutput({ status: 'error', message: accessCheck.error });
-    }
-    
-    const userRole = accessCheck.userProfile.role;
-    const userName = accessCheck.userProfile.name;
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const lastRow = sheet.getLastRow();
-    
-    if (lastRow < 2) return createJSONOutput({ status: 'success', inbox: [] });
-    
-    const dataRange = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS);
-    const rows = dataRange.getDisplayValues();
-    
-    const inboxItems = [];
-    
-    rows.forEach((row, index) => {
-      if (!row[0] || row[0].toString().trim() === '') return;
-      
-      const inboxStr = row[30] || '';
-      if (!inboxStr) return;
-      
-      let messages = [];
-      try { messages = JSON.parse(inboxStr); } catch (e) { return; }
-      
-      // Filter messages for this user's role OR name
-      messages.forEach(msg => {
-        let shouldShow = false;
-        
-        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
-          shouldShow = true; // Admin/Pengarah/KetuaSeksyen boleh nampak semua
-        } else if (msg.role === userRole) {
-          shouldShow = true; // Contoh: msg.role = 'PENGESYOR' cocok dengan userRole
-        } else if (msg.role === 'ALL') {
-          shouldShow = true;
-        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
-          shouldShow = true; // V6.6.0: msg.role = nama spesifik pengguna (contoh: "ALI BIN AHMAD")
-        }
-        
-        // Pengesyor only sees messages for their own records
-        if (userRole === 'PENGESYOR') {
-          const rowPengesyor = row[12] || '';
-          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
-            shouldShow = false;
-          }
-        }
-        
-        if (shouldShow) {
-          inboxItems.push({
-            id: msg.id,
-            row: index + 2,
-            syarikat: row[0] || '',
-            cidb: row[1] || '',
-            jenis: row[3] || '',
-            kelulusan: row[23] || '',
-            whatsapp_schedule: row[29] || '',
-            masa: msg.masa,
-            mesej: msg.mesej,
-            jenisMsg: msg.jenis || 'INFO',
-            role: msg.role,
-            dibaca: msg.dibaca || false
-          });
-        }
-      });
-    });
-    
-    // Sort by date descending (newest first)
-    inboxItems.sort((a, b) => new Date(b.masa) - new Date(a.masa));
-    
-    return createJSONOutput({ status: 'success', inbox: inboxItems });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString(), inbox: [] });
-  }
-}
-
-/**
- * Fungsi handleDeleteInbox: Padam mesej inbox tertentu
- */
-function handleDeleteInbox(data) {
-  try {
-    const email = data.email || '';
-    const msgId = data.msgId || '';
-    const row = parseInt(data.row);
-    
-    if (!email || !msgId || !row) {
-      return createJSONOutput({ status: 'error', message: 'Data tidak lengkap' });
-    }
-    
-    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
-    if (!accessCheck.isAuthorized) {
-      return createJSONOutput({ status: 'error', message: accessCheck.error });
-    }
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
-    let messages = [];
-    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
-    
-    messages = messages.filter(msg => msg.id !== msgId);
-    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
-    
-    return createJSONOutput({ status: 'success', message: 'Mesej inbox berjaya dipadam' });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
-}
-
-// =========================================================================
-// V6.6.0: CHANGELOG / RELEASE NOTES
-// =========================================================================
-
-function handleGetChangelog() {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(CHANGELOG_SHEET_NAME);
-    
-    if (!sheet) {
-      // Create sheet if not exists
-      sheet = ss.insertSheet(CHANGELOG_SHEET_NAME);
-      const headers = [['Versi', 'Tarikh', 'Penerangan', 'Imej']];
-      sheet.getRange(1, 1, 1, 4).setValues(headers);
-      sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
-      sheet.setFrozenRows(1);
-      sheet.getRange(2, 1, 1, 4).setValues([['V6.6.0', '2026-06-21', '• WhatsApp Scheduling Manual/Auto\n• Inbox Notifikasi (kolum AE)\n• Pelulus Wajib Pilih + Kolum Z\n• WhatsApp Confirm Modal (ganti checkbox)\n• CallMeBot API per-user\n• Inbox Notifikasi Pelulus/Pengesyor\n• Landing Page & Changelog\n• Changelog Walkthrough', '']]);
-      sheet.getRange(3, 1, 1, 4).setValues([['V6.5.2', '2026-04-01', '• Auto Email Authentication\n• Mobile UI Polish\n• QR Code Preview', '']]);
-      sheet.getRange(4, 1, 1, 4).setValues([['V6.5.0', '2026-03-01', '• API Keys di Script Properties\n• Firebase Integration\n• 3-Tier AI Fallback', '']]);
-    }
-    
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      return createJSONOutput({ status: 'success', changelog: [] });
-    }
-    
-    const cols = sheet.getLastColumn();
-    const data = sheet.getRange(2, 1, lastRow - 1, Math.max(cols, 4)).getDisplayValues();
-    const changelog = data
-      .filter(r => r[0] && r[0].toString().trim() !== '')
-      .map(r => ({
-        versi: r[0].toString().trim(),
-        tarikh: r[1] || '',
-        penerangan: r[2] || '',
-        imej: r[3] || ''
-      }));
-    
-    return createJSONOutput({ status: 'success', changelog: changelog });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString(), changelog: [] });
-  }
-}
-
-// V6.6.0: User version tracking
-function handleGetUserLastSeenVersion(email) {
-  try {
-    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(USER_META_SHEET_NAME);
-    if (!sheet) {
-      sheet = ss.insertSheet(USER_META_SHEET_NAME);
-      const headers = [['Email', 'LastSeenVersion']];
-      sheet.getRange(1, 1, 1, 2).setValues(headers);
-      sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
-      sheet.setFrozenRows(1);
-    }
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      return createJSONOutput({ status: 'success', version: '' });
-    }
-    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-    const found = data.find(r => r[0] && r[0].toString().trim().toLowerCase() === email.toLowerCase().trim());
-    return createJSONOutput({ status: 'success', version: found ? (found[1] || '') : '' });
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
-}
-
-function handleUpdateUserLastSeenVersion(email, version) {
-  try {
-    if (!email) return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(USER_META_SHEET_NAME);
-    if (!sheet) {
-      sheet = ss.insertSheet(USER_META_SHEET_NAME);
-      const headers = [['Email', 'LastSeenVersion']];
-      sheet.getRange(1, 1, 1, 2).setValues(headers);
-      sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
-      sheet.setFrozenRows(1);
-    }
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) {
-      sheet.getRange(2, 1, 1, 2).setValues([[email, version]]);
-      return createJSONOutput({ status: 'success', message: 'Versi dikemaskini' });
-    }
-    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-    let foundRow = -1;
-    for (let i = 0; i < data.length; i++) {
-      if (data[i][0] && data[i][0].toString().trim().toLowerCase() === email.toLowerCase().trim()) {
-        foundRow = i + 2;
-        break;
-      }
-    }
-    if (foundRow > 0) {
-      sheet.getRange(foundRow, 2).setValue(version);
-    } else {
-      sheet.getRange(sheet.getLastRow() + 1, 1, 1, 2).setValues([[email, version]]);
-    }
-    return createJSONOutput({ status: 'success', message: 'Versi dikemaskini' });
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
-}
-
-/**
- * Fungsi handleMarkInboxRead: Tandakan inbox sebagai dibaca
- */
-function handleMarkInboxRead(data) {
-  try {
-    const email = data.email || '';
-    const msgId = data.msgId || '';
-    const row = parseInt(data.row);
-    
-    if (!email || !msgId || !row) {
-      return createJSONOutput({ status: 'error', message: 'Data tidak lengkap' });
-    }
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const existingStr = sheet.getRange(row, 31).getValue() || '[]';
-    let messages = [];
-    try { messages = JSON.parse(existingStr); } catch (e) { messages = []; }
-    
-    messages = messages.map(msg => {
-      if (msg.id === msgId) msg.dibaca = true;
-      return msg;
-    });
-    
-    sheet.getRange(row, 31).setValue(JSON.stringify(messages));
-    
-    return createJSONOutput({ status: 'success', message: 'Mesej ditandakan dibaca' });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
-}
-
-/**
- * Fungsi handleMarkAllInboxRead: Tandakan SEMUA inbox sebagai dibaca untuk pengguna ini
- */
-function handleMarkAllInboxRead(data) {
-  try {
-    const email = data.email || '';
-    if (!email) {
-      return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
-    }
-    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
-    if (!accessCheck.isAuthorized) {
-      return createJSONOutput({ status: 'error', message: accessCheck.error });
-    }
-    const userRole = accessCheck.userProfile.role;
-    const userName = accessCheck.userProfile.name;
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return createJSONOutput({ status: 'success' });
-    
-    for (let r = 2; r <= lastRow; r++) {
-      const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getDisplayValues()[0];
-      if (!rowData[0] || rowData[0].toString().trim() === '') continue;
-      
-      const inboxStr = sheet.getRange(r, 31).getValue() || '[]';
-      let messages = [];
-      try { messages = JSON.parse(inboxStr); } catch (e) { continue; }
-      if (!messages.length) continue;
-      
-      let changed = false;
-      messages = messages.map(function(msg) {
-        var shouldShow = false;
-        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
-          shouldShow = true;
-        } else if (msg.role === userRole) {
-          shouldShow = true;
-        } else if (msg.role === 'ALL') {
-          shouldShow = true;
-        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
-          shouldShow = true;
-        }
-        if (userRole === 'PENGESYOR') {
-          var rowPengesyor = rowData[12] || '';
-          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
-            shouldShow = false;
-          }
-        }
-        if (shouldShow && !msg.dibaca) {
-          msg.dibaca = true;
-          changed = true;
-        }
-        return msg;
-      });
-      
-      if (changed) {
-        sheet.getRange(r, 31).setValue(JSON.stringify(messages));
-      }
-    }
-    
-    return createJSONOutput({ status: 'success', message: 'Semua mesej ditandakan dibaca' });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
-}
-
-/**
- * Fungsi handleDeleteAllInbox: Padam SEMUA inbox untuk pengguna ini
- */
-function handleDeleteAllInbox(data) {
-  try {
-    const email = data.email || '';
-    if (!email) {
-      return createJSONOutput({ status: 'error', message: 'Email diperlukan' });
-    }
-    const accessCheck = verifyUserAccess(email, [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_ADMIN, ROLE_PENGARAH, ROLE_KETUA_SEKSYEN]);
-    if (!accessCheck.isAuthorized) {
-      return createJSONOutput({ status: 'error', message: accessCheck.error });
-    }
-    const userRole = accessCheck.userProfile.role;
-    const userName = accessCheck.userProfile.name;
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return createJSONOutput({ status: 'success' });
-    
-    for (let r = 2; r <= lastRow; r++) {
-      const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getDisplayValues()[0];
-      if (!rowData[0] || rowData[0].toString().trim() === '') continue;
-      
-      const inboxStr = sheet.getRange(r, 31).getValue() || '[]';
-      let messages = [];
-      try { messages = JSON.parse(inboxStr); } catch (e) { continue; }
-      if (!messages.length) continue;
-      
-      var beforeCount = messages.length;
-      messages = messages.filter(function(msg) {
-        var shouldDelete = false;
-        if (['ADMIN', 'PENGARAH', 'KETUASEKSYEN'].includes(normalizeRoleKey(userRole))) {
-          shouldDelete = true;
-        } else if (msg.role === userRole) {
-          shouldDelete = true;
-        } else if (msg.role === 'ALL') {
-          shouldDelete = true;
-        } else if (msg.role && msg.role.toUpperCase() === userName.toUpperCase()) {
-          shouldDelete = true;
-        }
-        if (userRole === 'PENGESYOR') {
-          var rowPengesyor = rowData[12] || '';
-          if (rowPengesyor.toUpperCase() !== userName.toUpperCase()) {
-            shouldDelete = false;
-          }
-        }
-        return !shouldDelete;
-      });
-      
-      if (messages.length !== beforeCount) {
-        sheet.getRange(r, 31).setValue(JSON.stringify(messages));
-      }
-    }
-    
-    return createJSONOutput({ status: 'success', message: 'Semua mesej dipadam' });
-    
-  } catch (error) {
-    return createJSONOutput({ status: 'error', message: error.toString() });
-  }
 }
 
 // =========================================================================
@@ -5345,9 +4798,6 @@ function checkOverdueSPI() {
       if (isNaN(submitDate.getTime())) continue;
       const deadline = addWorkingDays(submitDate, 14);
       if (today >= deadline) {
-        const pengesyor = r[12] || '';
-        const msg = `⚠️ SPI untuk *${r[0] || ''}* (${r[3] || ''}) melebihi 14 hari bekerja. Sila ambil tindakan.`;
-        addInboxToRow(i + 1, pengesyor, msg, 'WARNING');
         count++;
       }
     }

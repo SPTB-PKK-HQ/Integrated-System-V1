@@ -9,7 +9,7 @@
     <link rel="shortcut icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://accounts.google.com https://www.gstatic.com; object-src 'self'; media-src 'self' https:; connect-src 'self' https:;">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://accounts.google.com https://www.gstatic.com; object-src 'self'; media-src 'self' https:; connect-src 'self' https:;">
 
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -22,7 +22,9 @@
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-    <link rel="stylesheet" href="style.css?v=20260622">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
+    <link rel="stylesheet" href="style.css?v=20260623">
 </head>
 <body>
 
@@ -80,30 +82,6 @@
                 </div>
             </div>
 
-            <!-- Changelog Section -->
-            <div class="landing-changelog">
-                <div class="changelog-header">
-                    <span class="changelog-icon">✨</span>
-                    <span class="changelog-title">Apa Yang Baru?</span>
-                    <span class="changelog-badge" id="changelogCount">0</span>
-                </div>
-                <div class="changelog-carousel">
-                    <div class="changelog-slider-wrap">
-                        <div class="changelog-slider" id="changelogSlider"></div>
-                        <button class="changelog-arrow changelog-arrow-prev" id="clArrowPrev">‹</button>
-                        <button class="changelog-arrow changelog-arrow-next" id="clArrowNext">›</button>
-                    </div>
-                    <div class="changelog-dots" id="clDots"></div>
-                </div>
-                <div class="changelog-panel" id="changelogPanel" style="display:none;">
-                    <div class="changelog-panel-inner">
-                        <span class="changelog-panel-tag" id="panelVersionTag"></span>
-                        <span class="changelog-panel-date" id="panelDate"></span>
-                        <div class="changelog-panel-desc" id="panelDesc"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Feature Cards -->
             <div class="landing-features">
                 <div class="feature-card">
@@ -118,8 +96,8 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💬</div>
-                    <div class="feature-title">WhatsApp & Inbox</div>
-                    <div class="feature-desc">Jadual WhatsApp auto, notifikasi dan inbox pintar</div>
+                    <div class="feature-title">WhatsApp Auto</div>
+                    <div class="feature-desc">Jadual WhatsApp auto dan hantaran manual</div>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📁</div>
@@ -161,7 +139,6 @@
         <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar">🚪 Log Keluar</button>
         <div class="top-btn-group" style="position:absolute; top:45px; left:5px; display:flex; gap:5px; z-index:100;">
             <button id="btnQueueSPI" class="btn-top-fullview" style="position:static; color:#0ea5e9; border-color:#0ea5e9; font-size:0.85rem; padding:5px 10px;" title="Queue SPI">📋 SPI</button>
-            <button id="btnInboxTop" class="btn-top-fullview" style="position:static; color:#22c55e; border-color:#22c55e; font-size:0.85rem; padding:5px 10px;" title="Inbox Notifikasi">📥 Inbox<span id="inboxTopBadge" style="display:none; background:#ef4444; color:white; border-radius:50%; padding:1px 5px; font-size:0.6rem; margin-left:4px;">0</span></button>
             <button id="btnRefreshData" class="btn-top-fullview" style="position:static; color:#8b5cf6; border-color:#8b5cf6; font-size:0.85rem; padding:5px 10px;" title="Refresh Data">🔄 Refresh</button>
         </div>
         
@@ -198,17 +175,8 @@
 
             <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                 <h2>🚀 Auto-Ekstrak Borang</h2>
-                
-                <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
-                    <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
-                    <select id="aiModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
-                        <option value="auto">Auto (Disyorkan)</option>
-                        <option value="deepseek">Satu</option>
-                        <option value="gemini">Dua</option>
-                        <option value="openrouter">Tiga</option>
-                    </select>
-                </div>
-                <div style="margin-top:-15px; margin-bottom:15px; text-align:center; font-size:0.75rem; color:#64748b;">Lambat? Cuba pilih "Dua" (Gemini) untuk respons lebih pantas.</div>
+
+                <div style="margin-bottom: 25px; text-align:center; font-size:0.78rem; color:#64748b;">Fail diproses secara tempatan (PDF ➜ MD ➜ Regex). Tak puas hati dengan hasil? Klik <b>"Guna AI"</b>.</div>
 
                 <div id="pdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
                     <div id="status-box-main" class="morph-box morph-circle">
@@ -231,7 +199,8 @@
                     <div class="pdf-extracted-data" id="pdfExtractedData" style="border: none; background: #f8fafc;"></div>
                     <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
                         <button class="btn btn-green" id="btnApplyPdfData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Gunakan Data Ini</button>
-                        <button class="btn btn-white" id="btnReExtractPdfData" title="Paksa AI ekstrak semula (buang cache)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-white" id="btnReExtractPdfData" title="Ulang ekstrak Manual (Regex)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-blue" id="btnUseAIPdfData" title="Ekstrak guna AI (fallback)">🤖 Guna AI</button>
                         <button class="btn btn-white" id="btnClearPdfData">Batal</button>
                     </div>
                     <div style="margin-top:8px; text-align:center; font-size:0.75rem; color:#94a3b8;" id="pdfExtractMeta"></div>
@@ -407,19 +376,10 @@
         <div id="tab-profile" class="tab-content no-print">
     <div style="margin-bottom: 15px;">
         <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
-    </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <h2>🚀 Auto-Ekstrak Profil (AI)</h2>
-        
-        <div style="margin-bottom: 25px; display: flex; justify-content: center; gap: 10px; align-items: center; background: white; padding: 10px; border-radius: 12px; display: inline-flex; border: 1px solid #e2e8f0;">
-            <label style="font-weight: 800; color: #1e40af; margin: 0;">🧠 Model:</label>
-            <select id="aiProfileModelSelect" style="padding:8px 15px; border-radius:8px; border:2px solid #3b82f6; font-size:0.9rem; font-weight: bold; cursor: pointer; min-width: 150px;">
-                <option value="auto">Auto (Disyorkan)</option>
-                <option value="deepseek">Satu</option>
-                <option value="gemini">Dua</option>
-                <option value="openrouter">Tiga</option>
-            </select>
-        </div>
-        <div style="margin-top:-15px; margin-bottom:15px; text-align:center; font-size:0.75rem; color:#64748b;">Lambat? Cuba pilih "Dua" (Gemini) untuk respons lebih pantas.</div>
+     </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2>🚀 Auto-Ekstrak Profil</h2>
+
+        <div style="margin-bottom: 25px; text-align:center; font-size:0.78rem; color:#64748b;">Fail diproses secara tempatan (PDF ➜ MD ➜ Regex). Tak puas hati dengan hasil? Klik <b>"Guna AI"</b>.</div>
 
                 <div id="profilePdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
                     <div id="status-box-profile" class="morph-box morph-circle">
@@ -441,7 +401,8 @@
                     <div class="pdf-extracted-data" id="profilePdfExtractedData" style="border: none; background: #f8fafc;"></div>
                     <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
                         <button class="btn btn-green" id="btnApplyProfileData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Isi Ke Borang Profil</button>
-                        <button class="btn btn-white" id="btnReExtractProfileData" title="Paksa AI ekstrak semula (buang cache)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-white" id="btnReExtractProfileData" title="Ulang ekstrak Manual (Regex)">🔄 Ekstrak Semula</button>
+                        <button class="btn btn-blue" id="btnUseAIProfileData" title="Ekstrak guna AI (fallback)">🤖 Guna AI</button>
                         <button class="btn btn-white" id="btnClearProfileData">Batal</button>
                     </div>
                     <div style="margin-top:8px; text-align:center; font-size:0.75rem; color:#94a3b8;" id="profileExtractMeta"></div>
@@ -854,39 +815,6 @@
                 </div>
             </div>
         </div>
-        <!-- INBOX MODAL -->
-        <div class="custom-modal-overlay" id="inboxModal">
-            <div class="custom-modal-card" style="max-width:800px; width:90vw; height:85vh; max-height:85vh; overflow-y:auto; text-align:left; padding:0;">
-                <div style="position:sticky; top:0; background:white; z-index:10; border-bottom:2px solid #22c55e; padding:15px 25px; display:flex; justify-content:space-between; align-items:center; border-radius:24px 24px 0 0;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <span style="font-size:1.5rem;">📥</span>
-                        <span style="font-weight:800; color:#075e54; font-size:1.2rem;">Inbox / Notifikasi</span>
-                        <span id="inboxCount" style="font-weight:bold; color:#64748b; font-size:0.9rem; background:#f1f5f9; padding:2px 12px; border-radius:10px;">0</span>
-                    </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button id="btnRefreshInbox" class="btn btn-blue" style="padding:6px 12px; font-size:0.8rem;">🔄</button>
-                <button id="btnCloseInbox" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b; padding:0; line-height:1;">✕</button>
-            </div>
-                </div>
-                <div style="padding:15px 25px; height:calc(100% - 70px); display:flex; flex-direction:column;">
-                    <div id="inboxBatchToolbar" style="display:none; margin-bottom:10px; padding:8px 12px; background:#f1f5f9; border-radius:8px; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0;">
-                        <label style="display:flex; align-items:center; gap:5px; font-weight:600; cursor:pointer;">
-                            <input type="checkbox" id="inboxSelectAll"> Pilih Semua
-                        </label>
-                        <span id="inboxSelectedCount" style="font-size:0.85rem; color:#64748b;">0 dipilih</span>
-                        <button id="btnMarkSelectedRead" class="btn btn-green" style="padding:4px 10px; font-size:0.8rem;">✓ Tandakan Dibaca</button>
-                        <button id="btnDeleteSelected" class="btn btn-red" style="padding:4px 10px; font-size:0.8rem; background:#ef4444; border-color:#dc2626;">🗑 Padam Pilihan</button>
-                    </div>
-                    <div style="margin-bottom:8px; flex-shrink:0;"><input type="text" id="inboxSearchInput" placeholder="🔍 Cari syarikat / mesej..." style="width:100%; padding:8px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div>
-                    <div id="inboxList" style="flex:1; min-height:200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;"></div>
-                    <div id="inboxEmpty" style="display:none; text-align:center; padding:40px; color:#94a3b8;">
-                        <div style="font-size:2.5rem; margin-bottom:10px;">📭</div>
-                        <div style="font-size:1.1rem; font-weight:bold;">Tiada mesej dalam inbox</div>
-                        <div style="font-size:0.85rem; margin-top:5px;">Mesej notifikasi sistem akan dipaparkan di sini</div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <div id="tab-youtube" class="tab-content no-print" style="display: none;">
             <div class="card">
@@ -1112,42 +1040,6 @@
         </div>
     </div>
 
-    <!-- V6.6.0: CHANGELOG WALKTHROUGH CAROUSEL MODAL -->
-    <div id="changelogOverlay" class="changelog-overlay" style="display:none;">
-        <div class="changelog-modal">
-            <div class="changelog-modal-header">
-                <span class="changelog-modal-icon">✨</span>
-                <h2 class="changelog-modal-title">Apa Yang Baru?</h2>
-                <span class="changelog-modal-version" id="clVersionBadge">V6.6.0</span>
-            </div>
-            <div class="changelog-carousel">
-                <div class="carousel-slide" id="carouselSlide">
-                    <div class="carousel-image-container" id="carouselImageContainer">
-                        <div class="carousel-image-placeholder" id="carouselImagePlaceholder">
-                            <span class="carousel-image-icon">🚀</span>
-                        </div>
-                    </div>
-                    <div class="carousel-content">
-                        <div class="carousel-stepper">
-                            <span class="step-indicator active"></span>
-                        </div>
-                        <div class="carousel-body" id="carouselBody">
-                            <h3 class="carousel-version">V6.6.0</h3>
-                            <div class="carousel-date" id="carouselDate">21 Jun 2026</div>
-                            <div class="carousel-desc" id="carouselDesc"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="changelog-modal-footer">
-                <button class="carousel-btn carousel-btn-prev" id="carouselPrev">← Sebelum</button>
-                <div class="carousel-dots" id="carouselDots"></div>
-                <button class="carousel-btn carousel-btn-next" id="carouselNext">Seterusnya →</button>
-                <button class="carousel-btn carousel-btn-close" id="carouselClose" style="display:none;">✕ Tutup</button>
-            </div>
-        </div>
-    </div>
-
     <div id="toastContainer"></div>
     </div>
     <div class="pka-loading-overlay" id="pkaLoadingOverlay">
@@ -1161,7 +1053,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20260823"></script>
+    <script src="app.js?v=20260822m"></script>
 </body>
 </html>
