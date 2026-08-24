@@ -13750,6 +13750,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (progressPercent) progressPercent.textContent = '100%';
         if (progressLabel) progressLabel.textContent = 'Selesai!';
         
+        // V6.11.2: Tutup overlay serta-merta selepas berjaya - elak overlay "Menghantar data..."
+        // kekal dipapar semasa modal/callback dan masuk ke dalam hasil cetakan borang pelulus
+        hideLoading();
+        
         if(statusEl) { 
           statusEl.innerText = successMsg; 
           statusEl.style.color = "green"; 
@@ -17071,6 +17075,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               
               // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
               document.documentElement.style.setProperty('--theme-color', userColorHex);
+              hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
               window.print();
               document.documentElement.style.setProperty('--theme-color', originalThemeColor);
               
@@ -17087,6 +17092,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (!updateDrive) {
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
+                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
@@ -17102,6 +17108,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (!userConfirmed) {
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
+                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
@@ -17191,6 +17198,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
+                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   
@@ -17292,6 +17300,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           document.documentElement.style.setProperty('--theme-color', userColorHex);
           
           // --- 4. TERUS CETAK BIASA ---
+          hideLoading(); // V6.11.2: Pastikan overlay tertutup sebelum cetak
           window.print();
 
           // KOD BARU: Kembalikan warna tema asal Pelulus selepas cetak

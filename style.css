@@ -1290,7 +1290,7 @@
         @media print {
             body { background: white !important; padding: 0; margin: 0; font-size: 14pt; font-family: 'Arial Narrow', 'Arial', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: black !important; animation: none !important; }
             @page { margin: 0.5cm; size: A4; }
-            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay { display: none !important; }
+            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay, #loading-overlay, .pka-loading-overlay, .form-checker-loading-spinner, .custom-modal-overlay, #toastContainer { display: none !important; }
             .print-only-container { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; }
             #printLaporanHarian { font-size: 13pt; padding: 10px; max-width: 100%; }
             #printLaporanHarian .header h1 { font-size: 20pt; }
