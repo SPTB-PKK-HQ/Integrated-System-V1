@@ -8499,11 +8499,52 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
+  function resetCheckerForm() {
+    const checkerTab = document.getElementById('tab-checker');
+    if (checkerTab) {
+      checkerTab.querySelectorAll('input, select, textarea').forEach(el => {
+        if (!el.id || el.id.includes('print_') || el.id.includes('pelulus_') || el.id.includes('login')) return;
+        if (el.id === 'borang_transaction_code') return;
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = false;
+        } else if (el.type !== 'file') {
+          el.value = '';
+        }
+      });
+    }
+    document.querySelectorAll('input[name="jenisApp"]').forEach(r => { r.checked = false; });
+    const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
+    const ubahGredInput = document.getElementById('input_ubah_gred');
+    if (ubahMaklumatInput) ubahMaklumatInput.style.display = 'none';
+    if (ubahGredInput) ubahGredInput.style.display = 'none';
+    ['borang_tatatertib', 'borang_syor_status'].forEach(id => setButtonGroupValue(id, ''));
+    const personnelListEl = document.getElementById('personnelList');
+    if (personnelListEl) {
+      personnelListEl.innerHTML = '';
+      addPerson();
+    }
+  }
+
   function preparePrintView() {
     const val = (id) => { 
       const el = document.getElementById(id); 
       return el ? el.value.toUpperCase() : ''; 
     };
+
+    // RESET PENTING: Kosongkan span cetakan dahulu supaya tiada data rekod lama bertahan
+    ['print_companyDetails', 'print_spkkDuration', 'print_stbDuration',
+     'print_text_ubah_maklumat', 'print_text_ubah_gred', 'print_grade_display',
+     'print_tatatertib', 'print_justifikasi', 'print_no_telefon',
+     'print_ssm_date', 'print_ssm_status_display', 'print_bank_date',
+     'print_bank_sign', 'print_bank_status',
+     'print_doc_carta', 'print_doc_peta', 'print_doc_gambar', 'print_doc_sewa',
+     'print_kwsp_1', 'print_kwsp_2', 'print_kwsp_3',
+     'print_tarikh_mohon', 'print_tarikh_lengkap', 'print_tarikh_siasatan', 'print_tarikh_proses',
+     'print_tarikh_lulus', 'print_catatan_pelulus', 'print_nama_pelulus'
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerText = '';
+    });
 
     // Kemaskini Checkbox untuk PDF
     const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
@@ -10332,7 +10373,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     isRestoring = true;
 
     // KOD BARU: Jangan restore tab Keputusan Pelulus (elak data silang syarikat)
-    if (tabName === 'pelulus-action') {
+    // V6.11.1: Jangan restore nilai borang tab Borang Semakan & Database
+    // (nilai DOM kekal dalam sesi; ini elak data syarikat lama muncul semula)
+    if (tabName === 'pelulus-action' || tabName === 'stb' || tabName === 'db') {
       isRestoring = false;
       return;
     }
@@ -10514,10 +10557,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     await loadPelulusState(); 
     if (currentUser.role === 'PENGESYOR' || currentUser.role === 'ADMIN') {
       await loadPengesyorState();
-      loadFormData();
+      // V6.11.1: Buang auto-pulihkan borang lama (stb_form_persistence & stb_database_persistence)
+      // supaya tiada data syarikat lain tertinggal dalam borang semakan/database.
       setupAutoSaveListeners();
       setupDatabaseAutoSaveListeners();
-      loadDatabaseFormData();
     }
 
     const searchState = await storageWrapper.get(['stb_search_state', 'stb_search_history_state']);
@@ -11440,39 +11483,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   }
 
   async function loadPengesyorState() {
-    isRestoring = true; 
-    const stored = await storageWrapper.get(['stb_form_data']);
-    const data = stored.stb_form_data;
+    isRestoring = true;
 
+    // V6.11.1: Auto-pulihkan borang lama (stb_form_data) DIBUANG (pendekatan A)
+    // supaya tiada data syarikat lain tertinggal semasa log masuk.
     const personnelListEl = document.getElementById('personnelList');
-    if (personnelListEl) personnelListEl.innerHTML = ''; 
-
-    if(data) {
-      for(const key in data) {
-        if(key === 'personnel') continue;
-        const el = document.getElementById(key);
-        if(el) {
-          if(el.type === 'checkbox') el.checked = data[key];
-          else el.value = data[key];
-        }
-      }
-      
-      if(data.jenisApp) {
-        const radio = document.querySelector(`input[name="jenisApp"][value="${data.jenisApp}"]`);
-        if(radio) {
-          radio.checked = true;
-          radio.dispatchEvent(new Event('change'));
-        }
-      }
-
-      if(data.personnel && data.personnel.length > 0) {
-        data.personnel.forEach(p => addPerson(p));
-      } else {
-        addPerson();
-      }
-    } else {
-      addPerson(); 
-    }
+    if (personnelListEl) personnelListEl.innerHTML = '';
+    addPerson();
 
     const syorVal = document.getElementById('db_syor')?.value;
     const dbPautanDriveEl = document.getElementById('db_pautan_drive');
@@ -13331,6 +13348,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     // =====================================================================
     saveDatabaseFormData();
     updateOpenDriveButton();
+
+    // RESET PENTING: Kosongkan borang semakan dahulu supaya tiada data syarikat lain tertinggal
+    resetCheckerForm();
 
     if (item.borang_json && item.borang_json.trim() !== '') {
         try {
@@ -16370,6 +16390,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   await resetFormForEdit();
               }
 
+              // RESET PENTING: Kosongkan borang semakan supaya tiada data syarikat lain tertinggal
+              resetCheckerForm();
+
               // V6.6.0: SEMAK STATUS BEKU SEBELUM ISI BORANG
               const isFrozen = await checkFrozenStatus(cidb, company);
               if (isFrozen) {
@@ -16974,6 +16997,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           });
           const oldActiveItem = pelulusActiveItem;
 
+          // RESET PENTING: Kosongkan borang dahulu supaya tiada data syarikat lain bocor ke cetakan
+          resetCheckerForm();
+
           // --- 2. INJECT SEMENTARA DATA JSON UNTUK CETAKAN ---
           Object.keys(parsedData).forEach(key => {
               if (key === 'personnel' || key === 'jenisApp') return;
@@ -17206,6 +17232,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           });
           const oldActiveItem = pelulusActiveItem;
 
+          // RESET PENTING: Kosongkan borang dahulu supaya tiada data syarikat lain bocor ke cetakan
+          resetCheckerForm();
+
           // --- 2. INJECT SEMENTARA DATA JSON UNTUK CETAKAN ---
           Object.keys(parsedData).forEach(key => {
               if (key === 'personnel' || key === 'jenisApp') return;
@@ -17323,6 +17352,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               });
           });
           const oldActiveItem = pelulusActiveItem;
+
+          // RESET PENTING: Kosongkan borang dahulu supaya tiada data syarikat lain bocor ke preview
+          resetCheckerForm();
 
           // --- 2. INJECT SEMENTARA DATA JSON UNTUK PREVIEW ---
           Object.keys(parsedData).forEach(key => {
