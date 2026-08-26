@@ -1059,10 +1059,11 @@ async function handleCredentialResponse(response) {
           if (parsed && (!selectedDates.length || instance.formatDate(selectedDates[0], fmt) !== instance.formatDate(parsed, fmt))) {
             instance.setDate(parsed, false);
           }
-          // Lumpuhkan butang Hari Ini/Kosongkan hanya untuk rekod TELAH DIHANTAR
+          // Lumpuhkan butang Hari Ini/Kosongkan hanya untuk medan Tarikh Hantar SPI
+          // pada rekod TELAH DIHANTAR (bukan semua datepicker)
           const cal = instance.calendarContainer;
           if (cal) {
-            const locked = !!dbSubmitLockDate;
+            const locked = !!dbSubmitLockDate && !!instance.input && instance.input.id === 'db_submit_date';
             cal.querySelectorAll('.fp-quick-btn').forEach(b => { b.disabled = locked; });
           }
         },
@@ -1075,8 +1076,9 @@ async function handleCredentialResponse(response) {
           footer.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-fp-action]');
             if (!btn) return;
-            // Tarikh terkunci hanya untuk rekod TELAH DIHANTAR: jangan benarkan ubah/kosongkan
-            const locked = !!dbSubmitLockDate;
+            // Tarikh terkunci hanya untuk medan Tarikh Hantar SPI rekod TELAH DIHANTAR:
+            // jangan benarkan ubah/kosongkan (medan lain sentiasa boleh digunakan)
+            const locked = !!dbSubmitLockDate && !!instance.input && instance.input.id === 'db_submit_date';
             if (locked) return;
             if (btn.dataset.fpAction === 'today') {
               // Guna tengah malam (tanpa komponen masa) supaya tidak ditolak
@@ -11837,6 +11839,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const mapsIframe = document.getElementById('mapsIframe');
     if (mapsIframe) mapsIframe.src = '';
 
+    // V6.11.2: Bersihkan kunci tarikh basi supaya butang Hari Ini/Kosongkan
+    // tidak kekal mati selepas membuka rekod TELAH DIHANTAR
+    dbSubmitLockDate = null;
+    toggleDateSubmitSpi();
+
     cleanupStorage();
     await storageWrapper.remove([
       'stb_form_data', 
@@ -14300,6 +14307,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       btnSyncToDb.style.display = 'none';
     }
 
+    // V6.11.2: Bersihkan kunci tarikh basi supaya butang Hari Ini/Kosongkan
+    // berfungsi untuk permohonan seterusnya selepas hantar
+    dbSubmitLockDate = null;
+    toggleDateSubmitSpi();
+
     hasPrinted = false;
     driveFolderCreated = false;
     createdFolderUrl = '';
@@ -16396,6 +16408,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
               // RESET PENTING: Kosongkan borang semakan supaya tiada data syarikat lain tertinggal
               resetCheckerForm();
+              // V6.11.2: Bersihkan kunci tarikh basi (rekod TELAH DIHANTAR lama) -
+              // permohonan baru dari bakul mesti butang Hari Ini/Kosongkan berfungsi
+              dbSubmitLockDate = null;
+              toggleDateSubmitSpi();
 
               // V6.6.0: SEMAK STATUS BEKU SEBELUM ISI BORANG
               const isFrozen = await checkFrozenStatus(cidb, company);
