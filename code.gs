@@ -239,7 +239,7 @@ function findUserByEmail(email) {
     // V6.5.1: Cari indeks untuk Tandatangan dan Cop
     const signColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TANDATANGAN') || h.toString().toUpperCase().includes('SIGN')));
     const copColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('COP') || h.toString().toUpperCase().includes('STAMP')));
-    // Cari indeks untuk gambar/profile
+    // Cari indeks untuk gambar pengguna
     const imageColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('GAMBAR') || h.toString().toUpperCase().includes('IMAGE') || h.toString().toUpperCase().includes('PHOTO') || h.toString().toUpperCase().includes('PICTURE') || h.toString().toUpperCase().includes('PROFILE')));
     
     const finalNameIndex = nameColIndex !== -1 ? nameColIndex : 0;
@@ -856,13 +856,13 @@ function handleSearchYoutube(query) {
 
 /**
  * Fungsi handleProcessAI: Mengendalikan permintaan AI processing dari frontend
- * Menerima teks PDF dan jenis prompt (borang/profile), menghantar ke API AI
+ * Menerima teks PDF borang dan menghantar ke API AI
  * V6.9.0: Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
  * timeout berhad, dan hasil dicache untuk elak panggilan API berulang.
  */
 function handleProcessAI(data) {
   try {
-    const promptType = data.type || 'borang';
+    const promptType = 'borang';
     const pdfText = data.text || '';
     const selectedModel = data.model || 'auto'; // <-- TERIMA PILIHAN MODEL
     
@@ -975,9 +975,6 @@ function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
 function isAIResultIncomplete(promptType, data) {
   try {
     if (!data || typeof data !== 'object') return true;
-    if (promptType === 'profile') {
-      return !data.alamatUtama;
-    }
     return !data.alamatPerniagaan && !data.alamatSuratMenyurat;
   } catch (e) {
     return false;
@@ -991,17 +988,8 @@ function isAIResultIncomplete(promptType, data) {
  * timeout berhad untuk elak menunggu lama.
  */
 function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
-  // Bina prompt berdasarkan jenis
-  let prompt;
-  let processResponseFn;
-  
-  if (promptType === 'profile') {
-    prompt = buildProfilePrompt(cleanedText);
-    processResponseFn = processProfileResponse;
-  } else {
-    prompt = buildBorangPrompt(cleanedText);
-    processResponseFn = processBorangResponse;
-  }
+  const prompt = buildBorangPrompt(cleanedText);
+  const processResponseFn = processBorangResponse;
   
   // JIKA PENGGUNA PILIH MODEL SPESIFIK (TIADA FALLBACK)
   if (selectedModel === 'deepseek') {
@@ -1094,31 +1082,6 @@ function buildBorangPrompt(truncatedText) {
   - If only ONE of the two valid labels exists, return it in the correct field and leave the other as "".
   - The address may span multiple lines - return the FULL address text.
   NAMES RULES: Extract ALL names in every list. Do NOT omit or truncate any entry. Include any name found even if partially legible.
-  PDF Text: ${truncatedText}`;
-}
-
-function buildProfilePrompt(truncatedText) {
-  return `Return JSON ONLY matching this schema. No conversational prose or markdown wrap (except codeblock). Use empty string "" if not found.
-  {
-    "applicantName": "string",
-    "jawatan": "string",
-    "icNumber": "string (e.g. 123456-78-9012)",
-    "phoneNumber": "string (e.g. 012-3456789)",
-    "email": "string",
-    "companyName": "string",
-    "registrationNumber": "Exact CIDB number, e.g. 0120201118-KD061300",
-    "grade": "G1-G7",
-    "registrationDate": "DD/MM/YYYY format",
-    "jenisPendaftaran": "ROC or ROB",
-    "alamatUtama": "Extract primary address",
-    "labelAlamatUtama": "Exact label found for primary address (e.g. 'Alamat Berdaftar', 'Business Address', etc.)",
-    "alamatSuratMenyurat": "Extract correspondence address if any",
-    "noTelefonSyarikat": "string",
-    "noFax": "string",
-    "emailSyarikat": "string",
-    "webAddress": "string"
-  }
-  ADDRESS RULES: If any address block exists anywhere in the text, NEVER leave "alamatUtama" and "alamatSuratMenyurat" both empty - the address may span multiple lines, return the full address text. Set "labelAlamatUtama" to the exact label shown (e.g. Alamat Berdaftar, Alamat Perniagaan, Business Address).
   PDF Text: ${truncatedText}`;
 }
 
@@ -1317,35 +1280,6 @@ function processBorangResponse(aiResponse) {
   }
   
   return transformedData;
-}
-
-function processProfileResponse(aiResponse) {
-  let cleanedText = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-  let jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-  if (jsonMatch) cleanedText = jsonMatch[0];
-  
-  const aiData = JSON.parse(cleanedText);
-
-  return {
-    applicantName: aiData.applicantName || '',
-    jawatan: aiData.jawatan || '',
-    icNumber: aiData.icNumber || '',
-    phoneNumber: aiData.phoneNumber || '',
-    email: aiData.email || '',
-    companyName: aiData.companyName || '',
-    registrationNumber: aiData.registrationNumber || '',
-    grade: aiData.grade || '',
-    registrationDate: aiData.registrationDate || '',
-    jenisPendaftaran: aiData.jenisPendaftaran || '',
-    alamatUtama: aiData.alamatUtama || '',
-    labelAlamatUtama: aiData.labelAlamatUtama || '',
-    alamatSuratMenyurat: aiData.alamatSuratMenyurat || '',
-    noTelefonSyarikat: aiData.noTelefonSyarikat || '',
-    noFax: aiData.noFax || '',
-    emailSyarikat: aiData.emailSyarikat || '',
-    webAddress: aiData.webAddress || ''
-  };
 }
 
 // =========================================================================
@@ -1710,12 +1644,12 @@ function handleCetakDanSimpanPDF(data) {
     
     const pdfFile = targetFolder.createFile(blob);
     
-    const isProfile = data.custom_file_name && data.custom_file_name.includes('Profile Syarikat');
-    const logAction = isProfile ? 'CETAK_PROFILE' : 'CETAK_PDF';
-    const logDesc = isProfile
-      ? `PDF Profile Syarikat disimpan untuk ${data.company_name} (Warna: ${themeColor})`
-      : `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`;
-    logActivity(data.user_name, logAction, logDesc, targetFolder.getId());
+    logActivity(
+      data.user_name,
+      'CETAK_PDF',
+      `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`,
+      targetFolder.getId()
+    );
     
     invalidateDataCache();
     return createJSONOutput({

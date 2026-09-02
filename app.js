@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   var LARGE_KEYS = [
     'stb_data_cache', 'stb_users_cache', 'stb_cache_timestamp', 'stb_data_version',
-    'stb_extracted_pdf_data', 'stb_extracted_profile_data', 'stb_dashboard_data',
+    'stb_extracted_pdf_data', 'stb_dashboard_data',
     'stb_form_data', 'stb_form_persistence', 'stb_database_persistence'
   ];
 
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function cleanupStorage() {
     var removableKeys = [
       'stb_data_cache', 'stb_users_cache', 'stb_cache_timestamp', 'stb_data_version',
-      'stb_extracted_pdf_data', 'stb_extracted_profile_data', 'stb_dashboard_data',
+      'stb_extracted_pdf_data', 'stb_dashboard_data',
       'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume', 'stb_ai_file_cache'
     ];
     removableKeys.forEach(function(key) {
@@ -732,7 +732,7 @@ async function handleCredentialResponse(response) {
       // KOD BARU: Simpan emel dalam objek currentUser
       currentUser.email = userEmail.toLowerCase();
 
-      // Simpan gambar profile dari sheet Users, boost resolusi Google-hosted image
+      // Simpan gambar pengguna dari sheet Users, boost resolusi Google-hosted image
       let picUrl = currentUser.imageUrl || '';
       if (picUrl.includes('lh3.googleusercontent.com')) {
         picUrl = picUrl.replace(/=s\d+(-c)?/i, '=s256');
@@ -1279,6 +1279,7 @@ async function handleCredentialResponse(response) {
       types: {}
     }
   };
+  let laporanHarianPendingData = null;
 
   // V6.10.0: Agregat dashboard dari getDashboardStats (12 bulan, server-side)
   let dashboardStatsData = null;
@@ -1299,7 +1300,6 @@ async function handleCredentialResponse(response) {
 
   // PDF PROCESSING VARIABLES
   let extractedPdfData = null;
-  let extractedProfileData = null;
   
   // V6.4.8: Filter variables untuk kombinasi tapisan
   let currentDraftFilter = 'ALL';
@@ -1411,44 +1411,6 @@ async function handleCredentialResponse(response) {
   const btnClearPdfData = document.getElementById('btnClearPdfData');
   const btnReExtractPdfData = document.getElementById('btnReExtractPdfData');
   const pdfExtractMeta = document.getElementById('pdfExtractMeta');
-  
-  // PDF Upload Elements for Profile Tab
-  const profilePdfUploadArea = document.getElementById('profilePdfUploadArea');
-  const profilePdfFileName = document.getElementById('profilePdfFileName');
-  const profilePdfResult = document.getElementById('profilePdfResult');
-  const profilePdfExtractedData = document.getElementById('profilePdfExtractedData');
-  const btnUseAIProfileData = document.getElementById('btnUseAIProfileData');
-  const btnApplyProfileData = document.getElementById('btnApplyProfileData');
-  const btnClearProfileData = document.getElementById('btnClearProfileData');
-  const btnReExtractProfileData = document.getElementById('btnReExtractProfileData');
-  const profileExtractMeta = document.getElementById('profileExtractMeta');
-  const btnCetakProfile = document.getElementById('btnCetakProfile');
-  const btnResetProfile = document.getElementById('btnResetProfile');
-  
-  // Profile Tab Input Elements
-  const profileSyarikat = document.getElementById('profile_syarikat');
-  const profileCidb = document.getElementById('profile_cidb');
-  const profileGred = document.getElementById('profile_gred');
-  const profileNamaPemohon = document.getElementById('profile_nama_pemohon');
-  const profileJawatanPemohon = document.getElementById('profile_jawatan_pemohon');
-  const profileIcPemohon = document.getElementById('profile_ic_pemohon');
-  const profileTelefonPemohon = document.getElementById('profile_telefon_pemohon');
-  const profileEmailPemohon = document.getElementById('profile_email_pemohon');
-  const profileJenisPendaftaran = document.getElementById('profile_jenis_pendaftaran');
-  const profileTarikhDaftar = document.getElementById('profile_tarikh_daftar');
-  const profileAlamatBerdaftar = document.getElementById('profile_alamat_berdaftar');
-  const profileAlamatSurat = document.getElementById('profile_alamat_surat');
-  const profileNoTelefonSyarikat = document.getElementById('profile_no_telefon_syarikat');
-  const profileNoFax = document.getElementById('profile_no_fax');
-  const profileEmailSyarikat = document.getElementById('profile_email_syarikat');
-  const profileWeb = document.getElementById('profile_web');
-  const profileJenisPerubahan = document.getElementById('profile_jenis_perubahan');
-  const cbSsmBerdaftar = document.getElementById('cb_ssm_berdaftar');
-  const cbSsmSurat = document.getElementById('cb_ssm_surat');
-  const labelAlamatBerdaftar = document.getElementById('label_alamat_berdaftar');
-  
-  // Profile PDF Input
-  let profilePdfInput = document.getElementById('profilePdfInput');
   
   // PDF Processing Buttons (V7.0.0: AI fallback)
   const btnUseAIPdfData = document.getElementById('btnUseAIPdfData');
@@ -1577,15 +1539,9 @@ async function handleCredentialResponse(response) {
   // WhatsApp Notification Elements
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
 
-  // Profile Tab Button
-  const tabProfileBtn = document.getElementById('tabProfileBtn');
-  
   // Top Full View Button
   const btnTopFullView = document.getElementById('btnTopFullView');
-  
-  // NEW BUTTON: Pergi ke Cipta Profile from Database Tab
-  const btnPergiCiptaProfile = document.getElementById('btnPergiCiptaProfile');
-  
+
   // NEW BUTTON: Download Dashboard CSV
   const btnDownloadDashboardCsv = document.getElementById('btnDashboardCsv');
 
@@ -5676,7 +5632,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
   }
 
   // =========================================================================
-  // V7.0.0: ANIMASI MORPH KONGSI (Borang + Profile)
+  // V7.0.0: ANIMASI MORPH UNTUK EKSTRAK BORANG
   // =========================================================================
   function makeMorphUpdater(boxId, ringId, pctId, msgId, resultEl) {
     return (percent, message) => {
@@ -5836,13 +5792,9 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
   async function setAIFileCacheResult(type, file, data) {
     try {
-      // V6.9.1: Jangan cache hasil yang NAMPAK TIDAK LENGKAP (alamat kosong).
+      // V6.9.1: Jangan cache hasil yang nampak tidak lengkap (alamat kosong).
       // AI kadang-kadang miss rawak; fail sama tidak boleh dibekukan dengan hasil miss.
-      if (type === 'profile') {
-        if (!data || !data.alamatUtama) return;
-      } else {
-        if (!data || (!data.alamatPerniagaan && !data.alamatSuratMenyurat)) return;
-      }
+      if (!data || (!data.alamatPerniagaan && !data.alamatSuratMenyurat)) return;
 
       const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
       const cache = storage[AI_FILE_CACHE_KEY] || {};
@@ -6505,7 +6457,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
             break;
           }
         }
-        
+
         if (foundState) {
           setSelectValue('db_negeri', foundState);
         }
@@ -6516,10 +6468,10 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (personnelList) personnelList.innerHTML = '';
 
     const allNames = new Set();
-    [extractedPdfData.directors, extractedPdfData.shareholders, 
+    [extractedPdfData.directors, extractedPdfData.shareholders,
      extractedPdfData.spkkPersons, extractedPdfData.chequeSignatories]
-     .forEach(list => { 
-       if(Array.isArray(list)) list.forEach(n => allNames.add(n)); 
+     .forEach(list => {
+       if(Array.isArray(list)) list.forEach(n => allNames.add(n));
      });
 
     allNames.forEach(name => {
@@ -6530,13 +6482,13 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         if (extractedPdfData.spkkPersons.includes(name)) roles.push('P.SPKK');
         if (extractedPdfData.chequeSignatories.includes(name)) roles.push('T.T CEK');
 
-        addPerson({ 
-          name: name, 
-          isCompany: false, 
-          roles: roles, 
-          s_ic: '', 
-          s_sb: '', 
-          s_epf: '' 
+        addPerson({
+          name: name,
+          isCompany: false,
+          roles: roles,
+          s_ic: '',
+          s_sb: '',
+          s_epf: ''
         });
       }
     });
@@ -6544,8 +6496,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (allNames.size === 0) addPerson();
 
     saveFormData();
-    saveDatabaseFormData(); 
-    
+    saveDatabaseFormData();
+
     setTimeout(async () => { // <--- Tambah 'async' di sini
       const dbState = {};
       document.querySelectorAll('#tab-database input, #tab-database select, #tab-database textarea').forEach(el => {
@@ -6553,15 +6505,15 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
           dbState[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value;
         }
       });
-      
+
       formStates['db'] = dbState;
       storageWrapper.set({ 'stb_form_states': formStates });
-      
+
       console.log("V6.5.2 PDF Data applied and force-saved to storage successfully.");
-      
+
       // PENGGUNAAN MODAL BARU
       await CustomAppModal.alert("PDF Data berjaya diekstrak dan disimpan! Semua input termasuk Alamat Perniagaan & Negeri telah diisi.", "Berjaya", "success");
-      
+
     }, 200);
   } //
 
@@ -6585,941 +6537,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (pdfExtractMeta) pdfExtractMeta.innerText = '';
 
     storageWrapper.remove(['stb_extracted_pdf_data']);
-  }
-
-  // =========================================================================
-  // PROFILE PDF AI PROCESSING
-  // =========================================================================
-
-  if (profilePdfUploadArea) {
-    profilePdfUploadArea.addEventListener('click', () => {
-      profilePdfInput.click();
-    });
-
-    profilePdfUploadArea.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      profilePdfUploadArea.classList.add('dragover');
-    });
-
-    profilePdfUploadArea.addEventListener('dragleave', () => {
-      profilePdfUploadArea.classList.remove('dragover');
-    });
-
-    profilePdfUploadArea.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      profilePdfUploadArea.classList.remove('dragover');
-      
-      if (e.dataTransfer.files.length > 0) {
-        const file = e.dataTransfer.files[0];
-        if (file.type === 'application/pdf') {
-          const dataTransfer = new DataTransfer();
-          dataTransfer.items.add(file);
-          profilePdfInput.files = dataTransfer.files;
-          
-          profilePdfInput.dispatchEvent(new Event('change', { bubbles: true }));
-          updateProfileFileName(file.name);
-        } else {
-          await CustomAppModal.alert("Sila muat naik fail PDF sahaja.", "Ralat Format", "error");
-        }
-      }
-    });
-  }
-
-  if (profilePdfInput) {
-    profilePdfInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) {
-        updateProfileFileName(e.target.files[0].name);
-
-        // V7.0.0: Auto-ekstrak Manual (regex) dahulu - AI hanya fallback
-        processProfileRegex();
-
-      } else {
-        updateProfileFileName('Tiada fail dipilih');
-      }
-    });
-  }
-
-  function updateProfileFileName(fileName) {
-    if (profilePdfFileName) {
-      profilePdfFileName.textContent = fileName;
-      profilePdfFileName.style.fontWeight = 'bold';
-      profilePdfFileName.style.color = '#3b82f6';
-    }
-  }
-
-  // V7.0.0: Butang fallback "Guna AI" untuk profil
-  if (btnUseAIProfileData) {
-    btnUseAIProfileData.addEventListener('click', () => {
-      processProfileWithAI(true);
-    });
-  }
-
-  if (btnApplyProfileData) {
-    btnApplyProfileData.addEventListener('click', applyProfileDataToForm);
-  }
-
-  if (btnClearProfileData) {
-    btnClearProfileData.addEventListener('click', clearProfileData);
-  }
-
-  // V7.0.0: "Ekstrak Semula" = ulang regex segar
-  if (btnReExtractProfileData) {
-    btnReExtractProfileData.addEventListener('click', () => {
-      processProfileRegex();
-    });
-  }
-
-  if (btnResetProfile) {
-    btnResetProfile.addEventListener('click', async () => {
-      const isConfirmed = await CustomAppModal.confirm(
-          "Adakah anda pasti mahu mereset semua maklumat dalam borang Profile Syarikat?",
-          "Reset Profile",
-          "warning",
-          "Ya, Reset",
-          true
-      );
-      if (isConfirmed) {
-        resetProfileForm();
-        await CustomAppModal.alert("Borang Profile Syarikat telah direset.", "Selesai", "success");
-      }
-    });
-}
-
-  function resetProfileForm() {
-    if (profileSyarikat) profileSyarikat.value = '';
-    if (profileCidb) profileCidb.value = '';
-    if (profileGred) profileGred.value = '';
-    if (profileNamaPemohon) profileNamaPemohon.value = '';
-    if (profileJawatanPemohon) profileJawatanPemohon.value = '';
-    if (profileIcPemohon) profileIcPemohon.value = '';
-    if (profileTelefonPemohon) profileTelefonPemohon.value = '';
-    if (profileEmailPemohon) profileEmailPemohon.value = '';
-    if (profileJenisPendaftaran) profileJenisPendaftaran.value = '';
-    if (profileTarikhDaftar) profileTarikhDaftar.value = '';
-    if (profileAlamatBerdaftar) profileAlamatBerdaftar.value = '';
-    if (profileAlamatSurat) profileAlamatSurat.value = '';
-    if (profileNoTelefonSyarikat) profileNoTelefonSyarikat.value = '';
-    if (profileNoFax) profileNoFax.value = '';
-    if (profileEmailSyarikat) profileEmailSyarikat.value = '';
-    if (profileWeb) profileWeb.value = '';
-    if (profileJenisPerubahan) profileJenisPerubahan.value = '';
-    
-    if (cbSsmBerdaftar) cbSsmBerdaftar.checked = false;
-    if (cbSsmSurat) cbSsmSurat.checked = false;
-    
-    if (labelAlamatBerdaftar) labelAlamatBerdaftar.textContent = 'Alamat Berdaftar';
-    
-    if (profilePdfInput) {
-      profilePdfInput.value = ''; // Kosongkan fail tanpa buang fungsi AI
-    }
-    
-    if (profilePdfFileName) {
-      profilePdfFileName.textContent = 'Tiada fail dipilih';
-      profilePdfFileName.style.fontWeight = 'normal';
-      profilePdfFileName.style.color = '';
-    }
-    if (profilePdfResult) {
-      profilePdfResult.style.display = 'none';
-    }
-    if (profilePdfExtractedData) {
-      profilePdfExtractedData.innerHTML = '';
-    }
-    if (profileExtractMeta) profileExtractMeta.innerText = '';
-
-    extractedProfileData = null;
-    
-    storageWrapper.remove(['stb_extracted_profile_data']);
-    
-    // KOD BARU: Alert dialih keluar kerana CustomAppModal sudah dipanggil di listener event klik butang
-    console.log("V6.5.2 Profile form reset completed");
-    syncDatepickers(document.body);
-  }
-
-
-
-  let isProfileAiProcessing = false;
-
-  // V7.0.0: Fallback AI profil - force = true sentiasa (butang "Guna AI")
-  async function processProfileWithAI(force = false) {
-    if (isProfileAiProcessing || isProfileRegexProcessing) return;
-    if (!profilePdfInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
-    }
-    isProfileAiProcessing = true;
-
-    const file = profilePdfInput.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
-      isProfileAiProcessing = false;
-      return;
-    }
-
-    if (force) {
-      await removeAIFileCacheResult('profile', file);
-    }
-
-    let aiInterval = null;
-
-    // V6.9.1: Cache per-fail - papar hasil serta-merta untuk fail yang sama
-    // (skip bila force = true supaya panggilan AI segar dijalankan)
-    const cachedResult = await getAIFileCacheResult('profile', file);
-    if (cachedResult && !force) {
-      extractedProfileData = cachedResult;
-      displayProfileExtractedData(extractedProfileData);
-      if (profilePdfResult) profilePdfResult.style.display = 'block';
-      if (profileExtractMeta) profileExtractMeta.innerText = 'Kaedah: AI (cache fail ini)';
-      storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
-      await playSuccessSound();
-      isProfileAiProcessing = false;
-      return;
-    }
-
-    const updateProgress = makeMorphUpdater('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', profilePdfResult);
-
-    try {
-      updateProgress(5, "Tukar PDF ke MD...");
-
-      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
-        onProgress: (p, t) => updateProgress(5 + Math.round((p / t) * 35), `Tukar ke MD... (${p}/${t})`)
-      });
-
-      console.log("V7.0.0 Profile PDF MD Extracted. Length:", md.length);
-
-      if (profileExtractMeta) profileExtractMeta.innerText = `Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
-
-      updateProgress(45, "Menghantar ke AI...");
-
-      // V6.9.1: Progress sebenar dengan pemasa masa menunggu AI
-      const aiStartTime = Date.now();
-      aiInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - aiStartTime) / 1000);
-        const aiPercent = Math.min(50 + Math.floor(elapsed / 2), 90);
-        updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
-      }, 500);
-
-      extractedProfileData = await processProfileTextWithAI(md, force);
-
-      if (aiInterval) clearInterval(aiInterval);
-
-      updateProgress(100, "Selesai!");
-
-      await playSuccessSound();
-
-      resetMorphBox('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', `🏢<br><span>Pilih Profil</span>`, () => {
-        displayProfileExtractedData(extractedProfileData);
-        if (profilePdfResult) profilePdfResult.style.display = 'block';
-        if (profileExtractMeta) profileExtractMeta.innerText = `Kaedah: AI | Muka: ${pagesRead}/${numPages}`;
-      });
-
-      storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
-      setAIFileCacheResult('profile', file, extractedProfileData);
-
-    } catch (error) {
-      console.error("V7.0.0 Profile AI Error:", error);
-      if (aiInterval) clearInterval(aiInterval);
-
-      await playErrorSound();
-
-      document.getElementById('profilePdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
-    } finally {
-      isProfileAiProcessing = false;
-    }
-  }
-
-  // =========================================================================
-  // V7.0.0: EKSTRAK MANUAL (REGEX) - PROFILE
-  // =========================================================================
-  let isProfileRegexProcessing = false;
-
-  async function processProfileRegex() {
-    if (isProfileRegexProcessing || isProfileAiProcessing) return;
-    if (!profilePdfInput.files.length) return;
-
-    const file = profilePdfInput.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
-      return;
-    }
-
-    isProfileRegexProcessing = true;
-    const updateProgress = makeMorphUpdater('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', profilePdfResult);
-
-    try {
-      updateProgress(8, "Tukar PDF ke MD...");
-
-      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
-        onProgress: (p, t) => updateProgress(8 + Math.round((p / t) * 42), `Tukar ke MD... (${p}/${t})`)
-      });
-
-      updateProgress(60, "Regex menganalisis dokumen...");
-      extractedProfileData = extractProfileDataFromMd(md);
-
-      updateProgress(100, "Selesai!");
-      await playSuccessSound();
-
-      resetMorphBox('status-box-profile', 'progress-ring-profile', 'percentage-profile', 'profilePdfProgressMsg', `🏢<br><span>Pilih Profil</span>`, () => {
-        displayProfileExtractedData(extractedProfileData);
-        if (profilePdfResult) profilePdfResult.style.display = 'block';
-        if (profileExtractMeta) profileExtractMeta.innerText = `Kaedah: Manual (Regex) | Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
-      }, 300);
-
-      storageWrapper.set({ 'stb_extracted_profile_data': extractedProfileData });
-
-    } catch (error) {
-      console.error("V7.0.0 Profile Regex Error:", error);
-      await playErrorSound();
-      const progressMsg = document.getElementById('profilePdfProgressMsg');
-      if (progressMsg) progressMsg.innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      await CustomAppModal.alert("Gagal memproses profile PDF: " + error.message, "Ralat Sistem", "error");
-    } finally {
-      isProfileRegexProcessing = false;
-    }
-  }
-
-  // V7.0.0: Regex extractor profil - skema sama dengan prompt AI (buildProfilePrompt)
-  function extractProfileDataFromMd(md) {
-    const data = {
-      applicantName: '', jawatan: '', icNumber: '', phoneNumber: '', email: '',
-      companyName: '', registrationNumber: '', grade: '', registrationDate: '',
-      jenisPendaftaran: '', alamatUtama: '', labelAlamatUtama: '',
-      alamatSuratMenyurat: '', noTelefonSyarikat: '', noFax: '',
-      emailSyarikat: '', webAddress: ''
-    };
-
-    const rawText = md.toUpperCase().replace(/\s+/g, ' ');
-    const linesUp = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim().toUpperCase()).filter(Boolean);
-    const linesOrig = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean);
-
-    // V7.0.1: Nilai berlabel guna baris asal (elak emel/web jadi UPPERCASE)
-    const findLabeledValue = (patterns) => {
-      const inlineRe = new RegExp('(?:' + patterns.join('|') + ')\\s*:?\\s*(.+)', 'i');
-      const labelOnlyRe = new RegExp('^(?:' + patterns.join('|') + ')\\s*:?\\s*$', 'i');
-      for (let i = 0; i < linesOrig.length; i++) {
-        const m = linesOrig[i].match(inlineRe);
-        if (m && m[1] && m[1].trim().length >= 2) return m[1].trim();
-        if (labelOnlyRe.test(linesOrig[i]) && linesOrig[i + 1]) return linesOrig[i + 1].trim();
-      }
-      return '';
-    };
-
-    // Nama syarikat & no pendaftaran
-    const companyMatch = rawText.match(/(?:NAMA\s+SYARIKAT|COMPANY\s+NAME)\s*:?\s*([A-Z0-9\s\.\&\-]+?)(?:\s{2,}|NO\.?\s|TARIKH|ROC|ROB|$)/);
-    if (companyMatch) data.companyName = companyMatch[1].trim();
-    if (!data.companyName) {
-      const m2 = rawText.match(/([A-Z0-9\s\.\&\-]+?)\s*\(([A-Z]*\d{3,}[-\s]?[A-Z0-9]*)\)/);
-      if (m2) data.companyName = m2[1].trim();
-    }
-
-    const regMatch = rawText.match(/(\d{6,}-[A-Z]{2,}\d{5,})/);
-    if (regMatch) data.registrationNumber = regMatch[1];
-    else {
-      const regNo = findLabeledValue(['NO\\.?\\s+(PENDAFTARAN|SYARIKAT|DAFTAR|PERNIAGAAN)|REGISTRATION\\s+NO']);
-      if (regNo) data.registrationNumber = regNo.split(/\s{2,}/)[0].trim();
-    }
-
-    const gradeMatch = rawText.match(/\b(G[1-7])\b/);
-    if (gradeMatch) data.grade = gradeMatch[1];
-
-    // Jenis pendaftaran ROC/ROB
-    const jenisMatch = rawText.match(/\b(ROB|ROC)\b/);
-    if (jenisMatch) data.jenisPendaftaran = jenisMatch[1];
-
-    // Tarikh daftar
-    const dateLabelMatch = rawText.match(/(?:TARIKH\s+(?:DAFTAR|MULA|PERNIAGAAN)|DATE\s+OF\s+(?:REGISTRATION|INCORPORATION))\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/);
-    if (dateLabelMatch) data.registrationDate = dateLabelMatch[1].replace(/-/g, '/');
-
-    // Maklumat pemohon
-    data.applicantName = findLabeledValue(['NAMA\\s+PEMOHON|NAMA\\s+PENUH\\s+PEMOHON']);
-    data.jawatan = findLabeledValue(['JAWATAN|DESIGNATION|POSITION']);
-    // No. IC: utamakan format ber sempadan, kemudian label NO. KAD PENGENALAN
-    let icMatch = rawText.match(/\b(\d{6}-\d{2}-\d{4})\b/);
-    if (icMatch) {
-      data.icNumber = icMatch[1];
-    } else {
-      const icLabeled = findLabeledValue(['NO\\.?\\s+(KAD\\s+PENGENALAN|IC|KP)', 'IC\\s*(NO|NUM)']);
-      const digits = ((icLabeled.match(/\d/g)) || []).join('');
-      if (digits.length >= 12) data.icNumber = digits.slice(0, 6) + '-' + digits.slice(6, 8) + '-' + digits.slice(8, 12);
-    }
-
-    // Telefon / emel
-    const hpMatch = rawText.match(/(?:H\/P|HAND?PHONE(?:NO\.?)?|NO\.?\s+TELEFON\s+(?:BIMBIT|PERIBADI)|TELEFON\s+PEMOHON|HANDPHONE|MOBILE)\s*:?\s*(\+?[\d\s\-()]{8,})/);
-    if (hpMatch) data.phoneNumber = hpMatch[1].replace(/\s+/g, '').trim();
-    if (!data.phoneNumber) {
-      const telAll = rawText.match(/(?:TEL|TELEFON|PHONE)\s*\.?\s*:?\s*(\+?[\d\s\-()]{8,})/);
-      if (telAll) data.phoneNumber = telAll[1].replace(/\s+/g, '').trim();
-    }
-
-    const emailMatches = md.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || [];
-    const emailLabeled = findLabeledValue(['EMEL\\s+PEMOHON|EMAIL\\s+PEMOHON']);
-    if (emailLabeled && /@/.test(emailLabeled)) data.email = emailLabeled;
-    else if (emailMatches.length > 0) data.email = emailMatches[0];
-
-    const companyEmailLabeled = findLabeledValue(['EMEL\\s+SYARIKAT', 'EMAIL\\s+SYARIKAT']);
-    if (companyEmailLabeled && /@/.test(companyEmailLabeled)) data.emailSyarikat = companyEmailLabeled;
-    else if (emailMatches.length > 1) data.emailSyarikat = emailMatches[1];
-
-    // Telefon syarikat & fax
-    // Telefon syarikat: baris TEL/TELEFON pejabat (elak BIMBIT/H/P & baris no. CIDB/hotline)
-    for (const ln of linesUp) {
-      if (/^(TEL|TELEFON|PHONE|NO\.?\s*TELEFON)\b/.test(ln) && !/(BIMBIT|H\/P)/.test(ln)
-          && !/\d{6,12}[\s\-()]*[A-Z]{2}[\s\-()]*\d{5,6}/.test(ln)) {
-        const numMatch = ln.match(/(\+?[\d\-()]{8,})/);
-        if (numMatch) {
-          data.noTelefonSyarikat = numMatch[1].replace(/[^\d+]/g, '').trim();
-          break;
-        }
-      }
-    }
-
-    const faxMatch = rawText.match(/(?:FAX|FAKS)\s*\.?\s*:?\s*(\+?[\d\s\-()]{8,})/);
-    if (faxMatch) data.noFax = faxMatch[1].replace(/[^\d+]/g, '').trim();
-
-    // Web
-    const webMatch = rawText.match(/((?:WWW\.|HTTP[S]?:\/\/)[A-Z0-9.\-\/]+)/);
-    const webLabeled = findLabeledValue(['WEB\\s*(ADDRESS|SITE)?|LAMAN\\s+WEB']);
-    if (webLabeled && /(WWW\.|HTTP)/.test(webLabeled)) data.webAddress = webLabeled;
-    else if (webMatch) data.webAddress = webMatch[1];
-
-    // Alamat berlabel
-    const perniagaanLabels = 'ALAMAT\\s+PERNIAGAAN|BUSINESS\\s+ADDRESS';
-    const suratLabels = 'ALAMAT\\s+SURAT[-\\s]?MENYURAT|CORRESPONDENCE\\s+ADDRESS|MAILING\\s+ADDRESS';
-    const berdaftarLabels = 'ALAMAT\\s+BERDAFTAR|REGISTERED\\s+(OFFICE|ADDRESS)|REGISTERED';
-
-    data.alamatUtama = extractAddressBlockFromLines(linesUp, perniagaanLabels)
-      || extractAddressBlockFromLines(linesUp, berdaftarLabels);
-    if (extractAddressBlockFromLines(linesUp, perniagaanLabels)) {
-      data.labelAlamatUtama = 'Alamat Perniagaan';
-    } else if (data.alamatUtama) {
-      data.labelAlamatUtama = 'Alamat Berdaftar';
-    }
-    data.alamatSuratMenyurat = extractAddressBlockFromLines(linesUp, suratLabels);
-
-    console.log("V7.0.0 Final Clean Data (regex profil):", data);
-    return data;
-  }
-
-  async function processProfileTextWithAI(pdfText, bypassCache = false) {
-    // V6.9.1: Sejajar dengan had backend (15,000 aksara) - elak upload berlebihan
-    const maxTextLength = 15000;
-    const truncatedText = pdfText.length > maxTextLength
-      ? pdfText.substring(0, maxTextLength) + "... [text truncated]"
-      : pdfText;
-
-    console.log("V6.5.2 (Web) Menghantar teks profil ke backend untuk AI processing...");
-    
-    // V7.0.11: Model AI dikunci ke 'auto' (dropdown dibuang)
-    const selectedModel = 'auto';
-    
-    const payload = {
-      action: 'processAI',
-      type: 'profile',
-      text: truncatedText,
-      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '',
-      bypassCache: bypassCache // V6.9.1: Paksa panggilan AI segar
-    };
-
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 2, 500);
-
-    const result = await response.json();
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || result.error || 'Gagal mengekstrak data dari pelayan AI.');
-    }
-    
-    return result.data;
-  }
-
-  function displayProfileExtractedData(data) {
-    if (!profilePdfExtractedData) return;
-
-    let html = '';
-
-    if (data.applicantName) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nama Pemohon:</span>
-        <span class="extracted-value">${data.applicantName}</span>
-      </div>`;
-    }
-
-    if (data.jawatan) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Jawatan:</span>
-        <span class="extracted-value">${data.jawatan}</span>
-      </div>`;
-    }
-
-    if (data.icNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. IC Pemohon:</span>
-        <span class="extracted-value">${data.icNumber}</span>
-      </div>`;
-    }
-
-    if (data.phoneNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Telefon Pemohon:</span>
-        <span class="extracted-value">${data.phoneNumber}</span>
-      </div>`;
-    }
-
-    if (data.email) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Emel Pemohon:</span>
-        <span class="extracted-value">${data.email}</span>
-      </div>`;
-    }
-
-    if (data.companyName) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Nama Syarikat:</span>
-        <span class="extracted-value">${data.companyName}</span>
-      </div>`;
-    }
-
-    if (data.registrationNumber) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Pendaftaran/CIDB:</span>
-        <span class="extracted-value">${data.registrationNumber}</span>
-      </div>`;
-    }
-
-    if (data.grade) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Gred:</span>
-        <span class="extracted-value">${data.grade}</span>
-      </div>`;
-    }
-
-    if (data.registrationDate) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Tarikh Daftar:</span>
-        <span class="extracted-value">${data.registrationDate}</span>
-      </div>`;
-    }
-
-    if (data.jenisPendaftaran) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Jenis Pendaftaran:</span>
-        <span class="extracted-value">${data.jenisPendaftaran}</span>
-      </div>`;
-    }
-
-    if (data.alamatUtama) {
-      const labelText = data.labelAlamatUtama || 'Alamat';
-      html += `<div class="extracted-item">
-        <span class="extracted-label">${labelText}:</span>
-        <span class="extracted-value">${data.alamatUtama}</span>
-      </div>`;
-    }
-
-    if (data.alamatSuratMenyurat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Alamat Surat-menyurat:</span>
-        <span class="extracted-value">${data.alamatSuratMenyurat}</span>
-      </div>`;
-    }
-
-    if (!data.alamatUtama && !data.alamatSuratMenyurat) {
-      // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
-      html += `<div class="extracted-item">
-        <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Klik "Guna AI" untuk ekstrakan AI.</span>
-      </div>`;
-    }
-
-    if (data.noTelefonSyarikat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Telefon Syarikat:</span>
-        <span class="extracted-value">${data.noTelefonSyarikat}</span>
-      </div>`;
-    }
-
-    if (data.noFax) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">No. Fax:</span>
-        <span class="extracted-value">${data.noFax}</span>
-      </div>`;
-    }
-
-    if (data.emailSyarikat) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Emel Syarikat:</span>
-        <span class="extracted-value">${data.emailSyarikat}</span>
-      </div>`;
-    }
-
-    if (data.webAddress) {
-      html += `<div class="extracted-item">
-        <span class="extracted-label">Web Address:</span>
-        <span class="extracted-value">${data.webAddress}</span>
-      </div>`;
-    }
-
-    if (html === '') {
-      html = '<div class="extracted-item"><span class="extracted-label">Tiada data diekstrak</span></div>';
-    }
-
-    profilePdfExtractedData.innerHTML = html;
-  }
-
-  async function applyProfileDataToForm() {
-    if (!extractedProfileData) {
-      await CustomAppModal.alert("Tiada data profile untuk digunakan.", "Tiada Data", "warning");
-      return;
-    }
-
-    if (extractedProfileData.applicantName && profileNamaPemohon) {
-      profileNamaPemohon.value = extractedProfileData.applicantName;
-    }
-
-    if (extractedProfileData.jawatan && profileJawatanPemohon) {
-      profileJawatanPemohon.value = extractedProfileData.jawatan;
-    }
-
-    if (extractedProfileData.icNumber && profileIcPemohon) {
-      profileIcPemohon.value = extractedProfileData.icNumber;
-    }
-
-    if (extractedProfileData.phoneNumber && profileTelefonPemohon) {
-      profileTelefonPemohon.value = extractedProfileData.phoneNumber;
-    }
-
-    if (extractedProfileData.email && profileEmailPemohon) {
-      profileEmailPemohon.value = extractedProfileData.email;
-    }
-
-    if (extractedProfileData.companyName && profileSyarikat) {
-      profileSyarikat.value = extractedProfileData.companyName;
-    }
-
-    if (extractedProfileData.registrationNumber && profileCidb) {
-      profileCidb.value = extractedProfileData.registrationNumber;
-    }
-
-    if (extractedProfileData.grade && profileGred) {
-      for (let i = 0; i < profileGred.options.length; i++) {
-        if (profileGred.options[i].value.toUpperCase() === extractedProfileData.grade.toUpperCase()) {
-          profileGred.selectedIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (extractedProfileData.registrationDate && profileTarikhDaftar) {
-      let dateVal = extractedProfileData.registrationDate;
-      if (dateVal.match(/\d{2}\/\d{2}\/\d{4}/)) {
-        const parts = dateVal.split('/');
-        dateVal = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      profileTarikhDaftar.value = dateVal;
-    }
-
-    if (extractedProfileData.jenisPendaftaran && profileJenisPendaftaran) {
-      profileJenisPendaftaran.value = extractedProfileData.jenisPendaftaran;
-    }
-
-    if (extractedProfileData.labelAlamatUtama && labelAlamatBerdaftar) {
-      const labelLower = extractedProfileData.labelAlamatUtama.toLowerCase();
-      if (labelLower.includes('perniagaan') || labelLower.includes('business')) {
-        labelAlamatBerdaftar.textContent = 'Alamat Perniagaan';
-      } else if (labelLower.includes('surat-menyurat') || labelLower.includes('correspondence')) {
-        labelAlamatBerdaftar.textContent = 'Alamat Surat-menyurat';
-      } else {
-        labelAlamatBerdaftar.textContent = 'Alamat Berdaftar';
-      }
-    }
-
-    if (extractedProfileData.alamatUtama && profileAlamatBerdaftar) {
-      profileAlamatBerdaftar.value = extractedProfileData.alamatUtama;
-    }
-
-    if (extractedProfileData.alamatSuratMenyurat && profileAlamatSurat) {
-      profileAlamatSurat.value = extractedProfileData.alamatSuratMenyurat;
-    }
-
-    if (extractedProfileData.noTelefonSyarikat && profileNoTelefonSyarikat) {
-      profileNoTelefonSyarikat.value = extractedProfileData.noTelefonSyarikat;
-    }
-
-    if (extractedProfileData.noFax && profileNoFax) {
-      profileNoFax.value = extractedProfileData.noFax;
-    }
-
-    if (extractedProfileData.emailSyarikat && profileEmailSyarikat) {
-      profileEmailSyarikat.value = extractedProfileData.emailSyarikat;
-    }
-
-    if (extractedProfileData.webAddress && profileWeb) {
-      profileWeb.value = extractedProfileData.webAddress;
-    }
-
-    await CustomAppModal.alert("Data profile berjaya diisi ke borang!", "Berjaya", "success");
-    syncDatepickers(document.body);
-  }
-
-  function clearProfileData() {
-    if (profilePdfInput) {
-      profilePdfInput.value = ''; // Kosongkan fail tanpa buang fungsi AI
-    }
-
-    if (profilePdfFileName) {
-      profilePdfFileName.textContent = 'Tiada fail dipilih';
-      profilePdfFileName.style.fontWeight = 'normal';
-      profilePdfFileName.style.color = '';
-    }
-    if (profilePdfResult) {
-      profilePdfResult.style.display = 'none';
-    }
-    if (profilePdfExtractedData) {
-      profilePdfExtractedData.innerHTML = '';
-    }
-    extractedProfileData = null;
-
-    storageWrapper.remove(['stb_extracted_profile_data']);
-  }
-
-  if (btnCetakProfile) {
-    btnCetakProfile.addEventListener('click', async () => {
-      if (!profileSyarikat.value.trim()) {
-        await CustomAppModal.alert("Sila isi Nama Syarikat terlebih dahulu sebelum mencetak.", "Maklumat Tidak Lengkap", "warning");
-        return;
-      }
-
-      const printProfileSyarikat = document.getElementById('printProfile_syarikat_header');
-      const printProfileCidb = document.getElementById('printProfile_cidb_header');
-      const printProfileNamaPemohon = document.getElementById('printProfile_nama_pemohon');
-      const printProfileJawatanPemohon = document.getElementById('printProfile_jawatan_pemohon');
-      const printProfileIcPemohon = document.getElementById('printProfile_ic_pemohon');
-      const printProfileTelefonPemohon = document.getElementById('printProfile_telefon_pemohon');
-      const printProfileEmailPemohon = document.getElementById('printProfile_email_pemohon');
-      const printProfileJenisPendaftaran = document.getElementById('printProfile_jenis_pendaftaran');
-      const printProfileTarikhDaftar = document.getElementById('printProfile_tarikh_daftar');
-      const printProfileAlamatBerdaftar = document.getElementById('printProfile_alamat_berdaftar');
-      const printProfileAlamatSurat = document.getElementById('printProfile_alamat_surat');
-      const printProfileNoTelefonSyarikat = document.getElementById('printProfile_no_telefon_syarikat');
-      const printProfileNoFax = document.getElementById('printProfile_no_fax');
-      const printProfileEmailSyarikat = document.getElementById('printProfile_email_syarikat');
-      const printProfileWeb = document.getElementById('printProfile_web');
-      const printProfileGred = document.getElementById('printProfile_gred');
-      const printProfileJenisPerubahan = document.getElementById('printProfile_jenis_perubahan');
-      
-      if (printProfileSyarikat) printProfileSyarikat.innerText = profileSyarikat.value || '-';
-      if (printProfileCidb) printProfileCidb.innerText = profileCidb.value || '-';
-      if (printProfileNamaPemohon) printProfileNamaPemohon.innerText = profileNamaPemohon ? (profileNamaPemohon.value || '-') : '-';
-      if (printProfileJawatanPemohon) printProfileJawatanPemohon.innerText = profileJawatanPemohon ? (profileJawatanPemohon.value || '-') : '-';
-      if (printProfileIcPemohon) printProfileIcPemohon.innerText = profileIcPemohon ? (profileIcPemohon.value || '-') : '-';
-      if (printProfileTelefonPemohon) printProfileTelefonPemohon.innerText = profileTelefonPemohon ? (profileTelefonPemohon.value || '-') : '-';
-      if (printProfileEmailPemohon) printProfileEmailPemohon.innerText = profileEmailPemohon ? (profileEmailPemohon.value || '-') : '-';
-      if (printProfileJenisPendaftaran) printProfileJenisPendaftaran.innerText = profileJenisPendaftaran ? (profileJenisPendaftaran.value || '-') : '-';
-      if (printProfileTarikhDaftar) printProfileTarikhDaftar.innerText = profileTarikhDaftar.value ? formatDateDisplay(profileTarikhDaftar.value) : '-';
-      
-      const alamatBerdaftarText = (profileAlamatBerdaftar.value || '-') + (cbSsmBerdaftar && cbSsmBerdaftar.checked ? ' (Sepadan e-info SSM)' : '');
-      if (printProfileAlamatBerdaftar) printProfileAlamatBerdaftar.innerText = alamatBerdaftarText;
-      
-      const alamatSuratText = (profileAlamatSurat.value || '-') + (cbSsmSurat && cbSsmSurat.checked ? ' (Sepadan e-info SSM)' : '');
-      if (printProfileAlamatSurat) printProfileAlamatSurat.innerText = alamatSuratText;
-      
-      if (printProfileNoTelefonSyarikat) printProfileNoTelefonSyarikat.innerText = profileNoTelefonSyarikat ? (profileNoTelefonSyarikat.value || '-') : '-';
-      if (printProfileNoFax) printProfileNoFax.innerText = profileNoFax ? (profileNoFax.value || '-') : '-';
-      if (printProfileEmailSyarikat) printProfileEmailSyarikat.innerText = profileEmailSyarikat ? (profileEmailSyarikat.value || '-') : '-';
-      if (printProfileWeb) printProfileWeb.innerText = profileWeb ? (profileWeb.value || '-') : '-';
-      if (printProfileGred) printProfileGred.innerText = profileGred.options[profileGred.selectedIndex]?.text || '-';
-      
-      if (printProfileJenisPerubahan) printProfileJenisPerubahan.innerText = profileJenisPerubahan ? (profileJenisPerubahan.value || '-') : '-';
-      
-      const today = new Date();
-      const dateStr = today.toLocaleDateString('ms-MY', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric'
-      });
-      const printProfileDate = document.getElementById('printProfile_date');
-      if (printProfileDate) printProfileDate.innerText = dateStr;
-      
-      const userColor = getUserColorHex(currentUser.color);
-      let themeColorHex = userColor;
-      
-      const profilePrintLayout = document.getElementById('printProfileLayout');
-      if (profilePrintLayout) {
-        const themeBgElements = profilePrintLayout.querySelectorAll('.profile-theme-bg');
-        themeBgElements.forEach(el => {
-          el.style.backgroundColor = themeColorHex;
-          el.style.color = 'white';
-        });
-        
-        const themeBorderElements = profilePrintLayout.querySelectorAll('.profile-theme-border');
-        themeBorderElements.forEach(el => {
-          el.style.borderLeftColor = themeColorHex;
-        });
-        
-        const profileHeader = profilePrintLayout.querySelector('.profile-company-header');
-        if (profileHeader) {
-          profileHeader.style.backgroundColor = themeColorHex;
-          profileHeader.style.color = 'white';
-        }
-      }
-      
-      const mainPrintLayout = document.getElementById('printLayout');
-      
-      if (mainPrintLayout) mainPrintLayout.style.display = 'none';
-      if (profilePrintLayout) profilePrintLayout.style.display = 'block';
-      
-      const laporanHarianEl = document.getElementById('printLaporanHarian');
-      if (laporanHarianEl) laporanHarianEl.style.display = 'none';
-      
-      // Tanya pengguna sama ada nak simpan ke Drive dulu
-      const saveToDrive = await CustomAppModal.confirm(
-        "Adakah anda ingin menyimpan Profile Syarikat ini ke Google Drive sebelum mencetak?",
-        "Simpan ke Drive",
-        "info",
-        "Ya, Simpan"
-      );
-      
-      if (saveToDrive) {
-        const companyName = profileSyarikat.value.trim();
-        
-        // Bina nama subfolder sama seperti Borang Semakan (contoh: "PEMBAHARUAN - 21-04-2026")
-        const applicationTypeRadio = document.querySelector('input[name="jenisApp"]:checked');
-        let appType = '';
-        if (applicationTypeRadio) {
-          if (applicationTypeRadio.value === 'baru') appType = 'BARU';
-          else if (applicationTypeRadio.value === 'pembaharuan') appType = 'PEMBAHARUAN';
-          else if (applicationTypeRadio.value === 'ubah_maklumat') appType = 'UBAH MAKLUMAT';
-          else if (applicationTypeRadio.value === 'ubah_gred') appType = 'UBAH GRED';
-        }
-        const tarikhMohon = document.getElementById('borang_tarikh_mohon')?.value;
-        let formattedDate = '';
-        if (tarikhMohon) {
-          try {
-            const tarikhDate = new Date(tarikhMohon);
-            formattedDate = tarikhDate.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-          } catch (e) {
-            formattedDate = tarikhMohon;
-          }
-        }
-        const ubahMaklumatVal = document.getElementById('input_ubah_maklumat')?.value || '';
-        const ubahGredVal = document.getElementById('input_ubah_gred')?.value || '';
-        let specificType = '';
-        if (appType === 'UBAH MAKLUMAT' && ubahMaklumatVal) specificType = ` (${ubahMaklumatVal})`;
-        if (appType === 'UBAH GRED' && ubahGredVal) specificType = ` (${ubahGredVal})`;
-        const subfolderName = appType ? `${appType}${specificType} - ${formattedDate}` : '';
-        
-        const profileCss = `
-          body { padding: 0 !important; margin: 0 !important; background: #fff; }
-          .print-container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; background: #fff; }
-          .print-container > .footer { display: none !important; }
-          #printProfileLayout { font-family: 'Arial', sans-serif; padding: 20px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt !important; }
-          #printProfileLayout .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-          #printProfileLayout .info-row { margin-bottom: 6px; border-bottom: 1px dotted #ccc; padding-bottom: 4px; break-inside: avoid; }
-          #printProfileLayout .info-label { font-weight: bold; font-size: 11pt !important; min-width: 130px; display: inline-block; color: ${themeColorHex}; }
-          #printProfileLayout .info-value { font-size: 11pt !important; font-weight: 500; word-break: break-word; }
-          #printProfileLayout .section-title { font-size: 14pt !important; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid ${themeColorHex}; padding-left: 10px; background-color: #eff6ff; color: ${themeColorHex}; }
-          #printProfileLayout .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
-          #printProfileLayout .date-generated { font-size: 10pt !important; color: #555; }
-          .profile-theme-bg { background-color: ${themeColorHex} !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .profile-theme-border { border: 2px solid ${themeColorHex} !important; }
-          .profile-company-header { text-align: center; margin-bottom: 15px; background-color: ${themeColorHex} !important; color: white !important; padding: 10px; border-radius: 6px; }
-          .profile-company-name { font-size: 18pt !important; font-weight: bold; text-transform: uppercase; }
-          .profile-company-cidb { font-size: 12pt !important; font-weight: normal; }
-          .profile-company-grade { font-size: 12pt !important; font-weight: bold; margin-top: 4px; color: #facc15; }
-          .footer-info-group { display: flex; flex-direction: column; gap: 4px; }
-          .full-width { grid-column: 1 / -1; }
-          #printProfileLayout .jenis-perubahan-info { font-size: 11pt !important; font-weight: bold; margin-top: 8px; }
-        `;
-        const printHTMLForDrive = `<style>${profileCss}</style>${profilePrintLayout.outerHTML}`;
-        
-        // Papar loading progress
-        if (loadingOverlay) {
-          loadingOverlay.style.display = 'flex';
-          loadingText.textContent = 'Menyimpan Profile ke Drive';
-          if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
-          
-          const progressBar = document.getElementById('loading-progress-bar');
-          const progressPercent = document.getElementById('loading-progress-percent');
-          const progressLabel = document.getElementById('loading-progress-label');
-          
-          if (progressBar) { progressBar.style.display = 'block'; progressBar.style.width = '0%'; }
-          if (progressPercent) progressPercent.textContent = '0%';
-          if (progressLabel) progressLabel.textContent = 'Menyediakan dokumen PDF...';
-          
-          const progressSteps = document.getElementById('loading-progress-steps');
-          if (progressSteps) progressSteps.style.display = 'flex';
-          
-          let currentProgress = 0;
-          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
-          
-          loadingProgressInterval = setInterval(() => {
-            if (currentProgress < 90) {
-              currentProgress += Math.floor(Math.random() * 5) + 1;
-              if (currentProgress > 90) currentProgress = 90;
-              if (progressBar) progressBar.style.width = `${currentProgress}%`;
-              if (progressPercent) progressPercent.textContent = `${currentProgress}%`;
-              if (progressLabel) progressLabel.textContent = currentProgress < 30 ? 'Menyediakan dokumen PDF...' : currentProgress < 60 ? 'Menyimpan ke folder...' : 'Hampir selesai...';
-            }
-          }, 200);
-        }
-        
-        const payload = {
-          action: 'cetak_dan_simpan_pdf',
-          company_name: companyName,
-          custom_file_name: `Profile Syarikat-${companyName}`,
-          application_type: subfolderName,
-          user_name: currentUser.name,
-          user_color: themeColorHex,
-          main_folder_id: mainFolderId,
-          htmlContent: printHTMLForDrive,
-          email: currentUser ? currentUser.email : ''
-        };
-        
-        try {
-          const response = await fetchWithRetry(SCRIPT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
-          }, 3, 1000);
-          
-          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
-          const progressBar = document.getElementById('loading-progress-bar');
-          const progressPercent = document.getElementById('loading-progress-percent');
-          const progressLabel = document.getElementById('loading-progress-label');
-          
-          if (progressBar) progressBar.style.width = '100%';
-          if (progressPercent) progressPercent.textContent = '100%';
-          if (progressLabel) progressLabel.textContent = 'Selesai!';
-          
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          const result = await response.json();
-          
-          if (result.success) {
-            await playSuccessSound();
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-            await CustomAppModal.alert(`Profile Syarikat berjaya disimpan ke Drive.<br><br>Folder: ${result.folder_path}<br>Fail: ${result.file_name}`, "Berjaya Disimpan", "success");
-          } else {
-            throw new Error(result.message || 'Gagal menyimpan ke Drive');
-          }
-        } catch (error) {
-          console.error("Profile Drive save error:", error);
-          if (loadingProgressInterval) clearInterval(loadingProgressInterval);
-          if (loadingOverlay) loadingOverlay.style.display = 'none';
-          await playErrorSound();
-          await CustomAppModal.alert(`Gagal menyimpan ke Drive: ${error.message}<br><br>Cetakan akan diteruskan tanpa simpanan Drive.`, "Ralat Drive", "error");
-        } finally {
-          if (loadingOverlay) loadingOverlay.style.display = 'none';
-        }
-      }
-      
-      window.print();
-      
-      setTimeout(() => {
-        if (mainPrintLayout) mainPrintLayout.style.display = '';
-        if (profilePrintLayout) profilePrintLayout.style.display = 'none';
-      }, 500);
-    });
   }
 
   // =========================================================================
@@ -7575,7 +6592,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         'stb_all_approvers',
         'stb_form_data',
         'stb_extracted_pdf_data',
-        'stb_extracted_profile_data',
         'stb_dashboard_data',
         'stb_form_persistence',
         'stb_database_persistence',
@@ -7685,14 +6701,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         displayExtractedData(extractedPdfData);
         if (pdfResult) {
           pdfResult.style.display = 'block';
-        }
-      }
-      
-      if (storage.stb_extracted_profile_data) {
-        extractedProfileData = storage.stb_extracted_profile_data;
-        displayProfileExtractedData(extractedProfileData);
-        if (profilePdfResult) {
-          profilePdfResult.style.display = 'block';
         }
       }
       
@@ -8242,9 +7250,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       // Sembunyikan container cetakan lain supaya tidak bertindih semasa @media print
       const laporanHarianEl = document.getElementById('printLaporanHarian');
       if (laporanHarianEl) laporanHarianEl.style.display = 'none';
-      const profilePrintEl = document.getElementById('printProfileLayout');
-      if (profilePrintEl) profilePrintEl.style.display = 'none';
-      
+
       const dbPautanDriveValue = document.getElementById('db_pautan_drive')?.value || '';
       const isDriveAlreadyCreated = driveFolderCreated === true || (dbPautanDriveValue && dbPautanDriveValue.trim() !== '');
       
@@ -8817,7 +7823,133 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // FUNGSI LAPORAN HARIAN PENGESYOR
   // =========================================================================
 
-  function generateAndShowLaporanHarian() {
+  function normalizeLaporanCount(value) {
+    const count = Number.parseInt(value, 10);
+    return Number.isFinite(count) && count >= 0 ? count : 0;
+  }
+
+  function formatLaporanMasa(timeValue) {
+    if (!timeValue) return '';
+    const parts = String(timeValue).split(':');
+    const hour24 = Number.parseInt(parts[0], 10);
+    const minutes = parts[1] || '00';
+    if (!Number.isFinite(hour24)) return timeValue;
+    const hour12 = hour24 % 12 || 12;
+    const period = hour24 < 12 ? 'pagi' : 'petang';
+    return `${hour12}:${minutes} ${period}`;
+  }
+
+  const LAPORAN_INFO_STORAGE_KEY = 'stb_laporan_harian_info';
+
+  async function getSavedLaporanInfo() {
+    try {
+      const email = (currentUser?.email || '').toLowerCase().trim();
+      if (!email) return null;
+      const stor = await storageWrapper.get([LAPORAN_INFO_STORAGE_KEY]);
+      const map = stor[LAPORAN_INFO_STORAGE_KEY] || {};
+      return map[email] || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function saveLaporanInfo(info) {
+    try {
+      const email = (currentUser?.email || '').toLowerCase().trim();
+      if (!email) return;
+      const stor = await storageWrapper.get([LAPORAN_INFO_STORAGE_KEY]);
+      const map = stor[LAPORAN_INFO_STORAGE_KEY] || {};
+      map[email] = {
+        namaPegawai: info.namaPegawai || '',
+        jawatan: info.jawatan || '',
+        waktuMula: info.waktuMula || '',
+        waktuTamat: info.waktuTamat || '',
+        updatedAt: new Date().toISOString()
+      };
+      await storageWrapper.set({ [LAPORAN_INFO_STORAGE_KEY]: map });
+    } catch (e) {}
+  }
+
+  function updateLaporanKonsultansiPreview() {
+    const preview = document.getElementById('lh_konsultansi_preview');
+    if (!preview) return;
+    const emel = normalizeLaporanCount(document.getElementById('lh_input_emel')?.value);
+    const whatsapp = normalizeLaporanCount(document.getElementById('lh_input_whatsapp')?.value);
+    const call = normalizeLaporanCount(document.getElementById('lh_input_call')?.value);
+    preview.textContent = `Paparan cetakan: ${emel} Emel - ${whatsapp} WhatsApp - ${call} Call`;
+  }
+
+  function closeLaporanHarianForm() {
+    const modal = document.getElementById('laporanHarianModal');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    laporanHarianPendingData = null;
+  }
+
+  async function showLaporanHarianForm(data) {
+    const modal = document.getElementById('laporanHarianModal');
+    if (!modal) {
+      isiLaporanHarian(data);
+      return;
+    }
+
+    laporanHarianPendingData = data;
+    const roleLabel = currentUser?.role === 'PELULUS' ? 'Pelulus' : currentUser?.role === 'PENGESYOR' ? 'Pengesyor' : (currentUser?.role || '');
+    const setValue = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value ?? '';
+    };
+
+    const saved = await getSavedLaporanInfo();
+    setValue('lh_input_nama_pegawai', saved?.namaPegawai || currentUser?.name || data.namaPengesyor || '');
+    setValue('lh_input_jawatan', saved?.jawatan || roleLabel);
+    setValue('lh_input_tarikh', data.tarikhLaporan || '');
+    setValue('lh_input_waktu_mula', saved?.waktuMula || '');
+    setValue('lh_input_waktu_tamat', saved?.waktuTamat || '');
+    setValue('lh_input_emel', normalizeLaporanCount(data.countEmel));
+    setValue('lh_input_whatsapp', normalizeLaporanCount(data.countWA));
+    setValue('lh_input_call', normalizeLaporanCount(data.countCall));
+    updateLaporanKonsultansiPreview();
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+
+    setTimeout(() => document.getElementById('lh_input_nama_pegawai')?.focus(), 50);
+  }
+
+  async function cetakLaporanHarianDaripadaBorang() {
+    if (!laporanHarianPendingData) return;
+
+    const getValue = id => document.getElementById(id)?.value.trim() || '';
+    const namaPegawai = getValue('lh_input_nama_pegawai');
+    const jawatan = getValue('lh_input_jawatan');
+    const waktuMula = getValue('lh_input_waktu_mula');
+    const waktuTamat = getValue('lh_input_waktu_tamat');
+
+    if (!namaPegawai || !jawatan || !waktuMula || !waktuTamat) {
+      CustomAppModal.alert('Sila lengkapkan Nama Pegawai, Jawatan, Waktu Mula dan Waktu Tamat.', 'Maklumat Tidak Lengkap', 'warning');
+      return;
+    }
+
+    await saveLaporanInfo({ namaPegawai, jawatan, waktuMula, waktuTamat });
+
+    const data = {
+      ...laporanHarianPendingData,
+      namaPegawai,
+      jawatan,
+      waktuMula,
+      waktuTamat,
+      countEmel: normalizeLaporanCount(document.getElementById('lh_input_emel')?.value),
+      countWA: normalizeLaporanCount(document.getElementById('lh_input_whatsapp')?.value),
+      countCall: normalizeLaporanCount(document.getElementById('lh_input_call')?.value)
+    };
+
+    closeLaporanHarianForm();
+    isiLaporanHarian(data);
+  }
+
+  async function generateAndShowLaporanHarian() {
     const period = dashboardData.currentPeriod;
     if (period !== 'daily') {
       CustomAppModal.alert('Sila pilih tempoh "Harian" di dashboard untuk menggunakan laporan ini.', 'Makluman', 'warning');
@@ -8831,13 +7963,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     const dateObj = new Date(year, month - 1, day);
     const formattedDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
 
-    if (!cachedData || cachedData.length === 0) {
-      CustomAppModal.alert('Tiada data untuk dianalisis.', 'Makluman', 'warning');
-      return;
-    }
-
     // Tapis data untuk tarikh yang dipilih
-    const dailyRecords = cachedData.filter(item => {
+    const availableData = Array.isArray(cachedData) ? cachedData : [];
+    const dailyRecords = availableData.filter(item => {
       let dateToUse = resolveRecordDate(item);
       if (!dateToUse || isNaN(dateToUse)) return false;
       return dateToUse.getFullYear() === year &&
@@ -8880,8 +8008,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (konsultansi.includes('call') || konsultansi.includes('panggilan')) countCall++;
     });
 
-    // Isi laporan
-    isiLaporanHarian({
+    // Buka borang maklumat manual sebelum laporan dicetak
+    await showLaporanHarianForm({
       tarikhLaporan: formattedDate,
       tarikh: selectedDate,
       namaPengesyor: currentUser.name,
@@ -8900,32 +8028,28 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const el = document.getElementById(id);
       if (el) el.textContent = val ?? '';
     };
-    const setVal = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.value = val || '';
-    };
-
     // Header
     const dateObj = data.tarikh ? new Date(data.tarikh + 'T00:00:00') : new Date();
     const dayName = dateObj.toLocaleDateString('ms-MY', { weekday: 'long' });
     const dateStr = `${dayName.toUpperCase()}, ${data.tarikhLaporan}`;
     setText('lh_tarikh_laporan', dateStr);
 
-    // MAKLUMAT PEGAWAI - Kosong (seperti diminta)
-    setText('lh_nama_pegawai', '');
-    setText('lh_jawatan', '');
-    setText('lh_tarikh', '');
-    setText('lh_waktu', '');
+    // MAKLUMAT PEGAWAI - diisi melalui borang sebelum cetak
+    setText('lh_nama_pegawai', data.namaPegawai || '');
+    setText('lh_jawatan', data.jawatan || '');
+    setText('lh_tarikh', data.tarikhLaporan || '');
+    const waktuMula = formatLaporanMasa(data.waktuMula);
+    const waktuTamat = formatLaporanMasa(data.waktuTamat);
+    setText('lh_waktu', waktuMula && waktuTamat ? `${waktuMula} - ${waktuTamat}` : '');
 
     // RINGKASAN AKTIVITI UTAMA
     setText('lh_jumlah_disemak', data.jumlahDisemak);
     setText('lh_jumlah_selesai', data.jumlahSelesai);
     setText('lh_jumlah_lulus', data.jumlahLulus);
     setText('lh_jumlah_tolak', data.jumlahTolak);
-    const countEmel = data.countEmel || 0;
-    const countWA = data.countWA || 0;
-    const countCall = data.countCall || 0;
-    const totalKonsultansi = countEmel + countWA + countCall;
+    const countEmel = normalizeLaporanCount(data.countEmel);
+    const countWA = normalizeLaporanCount(data.countWA);
+    const countCall = normalizeLaporanCount(data.countCall);
     const konsultansiStr = `${countEmel} Emel - ${countWA} WhatsApp - ${countCall} Call`;
     setText('lh_jumlah_konsultansi', konsultansiStr);
 
@@ -8945,9 +8069,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
     // DISEDIAKAN OLEH - Pengesyor
     setText('lh_nama_pengesyor', namaPengesyor);
-    const today = new Date();
-    const todayFormatted = today.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
-    setText('lh_tarikh_pengesyor', todayFormatted);
+    setText('lh_tarikh_pengesyor', data.tarikhLaporan || '');
 
     // Sign dan Cop Pengesyor (guna positioning macam borang semakan)
     const signImg = document.getElementById('lh_pengesyor_sign_img');
@@ -8979,12 +8101,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     // Papar laporan dan cetak
     const laporanEl = document.getElementById('printLaporanHarian');
     const printLayoutEl = document.getElementById('printLayout');
-    const profilePrintEl = document.getElementById('printProfileLayout');
     if (laporanEl) {
       laporanEl.style.display = 'block';
       if (printLayoutEl) printLayoutEl.style.display = 'none';
-      if (profilePrintEl) profilePrintEl.style.display = 'none';
-      
+
       // Trigger cetakan
       setTimeout(() => {
         window.print();
@@ -8992,7 +8112,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         setTimeout(() => {
           laporanEl.style.display = 'none';
           if (printLayoutEl) printLayoutEl.style.display = '';
-          if (profilePrintEl) profilePrintEl.style.display = '';
           document.documentElement.style.setProperty('--theme-color', originalThemeColor);
         }, 500);
       }, 300);
@@ -10607,8 +9726,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
     }
 
-    const showProfileTab = (currentUser.role === 'PENGESYOR' || currentUser.role === 'ADMIN');
-    
     if (currentUser.role === 'PENGESYOR') {
       tabsContainer.innerHTML = `
         <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
@@ -10627,7 +9744,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
       
       // Kemas kini senarai tab yang dibenarkan
-      if(!activeTab || !['dashboard','tab-tapisan','tab-bakul','stb','db','drafts','submitted','spi-queue', 'profile', 'youtube'].includes(activeTab)) {
+      if(!activeTab || !['dashboard','tab-tapisan','tab-bakul','stb','db','drafts','submitted','spi-queue', 'youtube'].includes(activeTab)) {
         activeTab = 'dashboard';
       }
 
@@ -10675,7 +9792,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const pelulusNamaField = document.getElementById('pelulus_nama');
       if (pelulusNamaField) pelulusNamaField.value = currentUser.name;
       
-      if(!activeTab || !['admin-dashboard', 'profile'].includes(activeTab)) {
+      if(!activeTab || !['admin-dashboard'].includes(activeTab)) {
         activeTab = 'admin-dashboard';
       }
       
@@ -10910,17 +10027,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       
       setTimeout(() => {
         loadAdminDashboard();
-        restoreActiveElement();
-      }, 200);
-    }
-    else if (tabName === 'profile') {
-      const tabProfile = document.getElementById('tab-profile');
-      if (tabProfile) {
-        tabProfile.style.display = 'block';
-        tabProfile.classList.add('active');
-      }
-      
-      setTimeout(() => {
         restoreActiveElement();
       }, 200);
     }
@@ -14806,8 +13912,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     btnPrintStatsModal.addEventListener('click', () => {
       const lhEl = document.getElementById('printLaporanHarian');
       if (lhEl) lhEl.style.display = 'none';
-      const ppEl = document.getElementById('printProfileLayout');
-      if (ppEl) ppEl.style.display = 'none';
       const plEl = document.getElementById('printLayout');
       if (plEl) plEl.style.display = 'none';
       window.print();
@@ -15303,30 +14407,30 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     });
   }
 
-  if (btnPergiCiptaProfile) {
-    btnPergiCiptaProfile.addEventListener('click', () => {
-      console.log("V6.5.2 btnPergiCiptaProfile clicked - Navigating to Profile tab");
-      
-      const dbJustifikasiValue = document.getElementById('db_justifikasi')?.value || '';
-      
-      switchTab('profile');
-      
-      const profileJenisPerubahan = document.getElementById('profile_jenis_perubahan');
-      if (profileJenisPerubahan && dbJustifikasiValue.trim() !== '') {
-        profileJenisPerubahan.value = dbJustifikasiValue;
-      }
-      
-    });
-  }
-
   if (btnDownloadDashboardCsv) {
     btnDownloadDashboardCsv.addEventListener('click', downloadDashboardCSV);
   }
 
   const btnLaporanHarian = document.getElementById('btnLaporanHarian');
+  const laporanHarianModal = document.getElementById('laporanHarianModal');
+  const laporanHarianModalClose = document.getElementById('laporanHarianModalClose');
+  const btnBatalLaporanHarian = document.getElementById('btnBatalLaporanHarian');
+  const btnCetakLaporanHarian = document.getElementById('btnCetakLaporanHarian');
   if (btnLaporanHarian) {
     btnLaporanHarian.addEventListener('click', generateAndShowLaporanHarian);
   }
+  if (laporanHarianModalClose) laporanHarianModalClose.addEventListener('click', closeLaporanHarianForm);
+  if (btnBatalLaporanHarian) btnBatalLaporanHarian.addEventListener('click', closeLaporanHarianForm);
+  if (btnCetakLaporanHarian) btnCetakLaporanHarian.addEventListener('click', cetakLaporanHarianDaripadaBorang);
+  if (laporanHarianModal) {
+    laporanHarianModal.addEventListener('click', (e) => {
+      if (e.target === laporanHarianModal) closeLaporanHarianForm();
+    });
+  }
+  ['lh_input_emel', 'lh_input_whatsapp', 'lh_input_call'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener('input', updateLaporanKonsultansiPreview);
+  });
 
   setTimeout(() => {
     if (isAppReady) {
@@ -15767,7 +14871,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   // =========================================================================
   function applyDynamicFormColors() {
       // Tab utama yang mengandungi borang
-      const formContainers = ['tab-checker', 'tab-database', 'tab-profile', 'tab-pelulus-action'];
+       const formContainers = ['tab-checker', 'tab-database', 'tab-pelulus-action'];
       
       formContainers.forEach(tabId => {
           const tab = document.getElementById(tabId);
@@ -16763,16 +15867,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }).join('');
   }
   // =========================================================================
-  // KAWALAN KEMBALI KE DB DARI PROFILE
-  // =========================================================================
-  const btnKembaliDbDariProfile = document.getElementById('btnKembaliDbDariProfile');
-  if (btnKembaliDbDariProfile) {
-      btnKembaliDbDariProfile.addEventListener('click', () => {
-          switchTab('db');
-      });
-  }
-
-  // =========================================================================
   // ENJIN CUSTOM YOUTUBE PLAYER & KEMBALI
   // =========================================================================
   const btnTutupYoutube = document.getElementById('btnTutupYoutube');
@@ -17057,9 +16151,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // Sembunyikan container cetakan lain supaya tidak bertindih
           const lhEl = document.getElementById('printLaporanHarian');
           if (lhEl) lhEl.style.display = 'none';
-          const ppEl = document.getElementById('printProfileLayout');
-          if (ppEl) ppEl.style.display = 'none';
-          
+
           // --- 4. RESTORE: KEMBALIKAN BORANG KEPADA KEADAAN ASAL ---
           pelulusActiveItem = oldActiveItem;
           Object.keys(backupValues).forEach(id => {
@@ -17300,9 +16392,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           // Sembunyikan container cetakan lain supaya tidak bertindih
           const lhEl = document.getElementById('printLaporanHarian');
           if (lhEl) lhEl.style.display = 'none';
-          const ppEl = document.getElementById('printProfileLayout');
-          if (ppEl) ppEl.style.display = 'none';
-          
+
           // KOD BARU: Dapatkan warna Pengesyor dan tukar warna tema cetakan sementara
           let pengesyorColor = currentUser.color || '#2563eb';
           if (item.pengesyor && typeof usersList !== 'undefined') {

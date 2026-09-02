@@ -1021,6 +1021,26 @@
         .admin-stats-section { margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
         .admin-stats-section h3 { color: #1e40af; margin-bottom: 15px; font-size: 1.2rem; }
 
+        .laporan-harian-modal-content { width: min(700px, 92vw); max-height: 90vh; }
+        .laporan-harian-modal-title { margin: 0 35px 8px 0; color: #1e40af; }
+        .laporan-harian-modal-help { margin: 0 0 18px; color: #64748b; font-size: 0.9rem; }
+        .lh-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .lh-form-field { display: flex; flex-direction: column; gap: 5px; }
+        .lh-form-field label, .lh-section-label { font-weight: 700; color: #374151; }
+        .lh-form-field input { width: 100%; box-sizing: border-box; }
+        .lh-time-section, .lh-consult-section { margin-top: 16px; }
+        .lh-time-grid, .lh-consult-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 8px; }
+        .lh-consult-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .lh-sub-label { display: block; margin-bottom: 5px; color: #64748b; font-size: 0.85rem; font-weight: 600; }
+        .lh-konsultansi-preview { margin-top: 10px; padding: 9px 12px; border-radius: 8px; background: #eff6ff; color: #1e40af; font-size: 0.9rem; font-weight: 600; }
+        .lh-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+        @media (max-width: 600px) {
+            .lh-form-grid, .lh-time-grid, .lh-consult-grid { grid-template-columns: 1fr; }
+            .lh-modal-actions { flex-direction: column-reverse; }
+            .lh-modal-actions .btn { width: 100%; }
+        }
+
         .view-toggle { display: inline-flex; gap: 4px; margin-left: 12px; vertical-align: middle; }
         .toggle-btn { padding: 4px 14px; font-size: 0.75rem; font-weight: 600; border: 2px solid #cbd5e1; background: white; color: #64748b; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .toggle-btn.active { background: #1e40af; color: white; border-color: #1e40af; }
@@ -1333,27 +1353,6 @@
             .pelulus-date-box { font-weight: 700; font-size: 12pt; }
             .pelulus-sign-box { width: 50%; text-align: center; position: relative; min-height: 110px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
             .verification-separator { border-bottom: 2px solid #000; margin: 5px 0; }
-            #printProfileLayout { font-family: 'Arial', sans-serif; padding: 5px; margin: 0 auto; width: 100%; max-width: 100%; box-sizing: border-box; font-size: 12pt !important; }
-            #printProfileLayout .profile-header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 8px; }
-            #printProfileLayout .profile-title { font-size: 20pt !important; font-weight: bold; margin: 5px 0; color: #1e40af; }
-            #printProfileLayout .profile-subtitle { font-size: 12pt !important; color: #333; }
-            #printProfileLayout .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-            #printProfileLayout .info-row { margin-bottom: 6px; border-bottom: 1px dotted #ccc; padding-bottom: 4px; break-inside: avoid; }
-            #printProfileLayout .info-label { font-weight: bold; font-size: 11pt !important; min-width: 130px; display: inline-block; color: #1e40af; }
-            #printProfileLayout .info-value { font-size: 11pt !important; font-weight: 500; word-break: break-word; }
-            #printProfileLayout .section-title { font-size: 14pt !important; font-weight: bold; margin: 12px 0 8px 0; border-left: 6px solid #2563eb; padding-left: 10px; background-color: #eff6ff; color: #1e40af; }
-            #printProfileLayout .footer { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
-            #printProfileLayout .qr-code { text-align: right; }
-            #printProfileLayout .qr-code img { width: 80px; height: 80px; border: 1px solid #000; padding: 3px; }
-            #printProfileLayout .date-generated { font-size: 10pt !important; color: #555; }
-            .profile-theme-bg { background-color: #2563eb !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .profile-theme-border { border: 2px solid #2563eb !important; }
-            .profile-info-box { background-color: #f8fafc; border-left: 4px solid #2563eb; padding: 8px; margin-bottom: 8px; }
-            .profile-company-header { text-align: center; margin-bottom: 15px; background-color: #1e40af; color: white; padding: 10px; border-radius: 6px; }
-            .profile-company-name { font-size: 18pt !important; font-weight: bold; text-transform: uppercase; }
-            .profile-company-cidb { font-size: 12pt !important; font-weight: normal; }
-            .profile-company-grade { font-size: 12pt !important; font-weight: bold; margin-top: 4px; color: #facc15; }
-            .footer-info-group { display: flex; flex-direction: column; gap: 4px; }
         }
       /* =========================================================
            PATCH KEMASAN UI: KURANGKAN RUANG KOSONG (SPACING FIX)

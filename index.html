@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
-    <link rel="stylesheet" href="style.css?v=20260904">
+    <link rel="stylesheet" href="style.css?v=20260906">
 </head>
 <body>
 
@@ -102,7 +102,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">📁</div>
                     <div class="feature-title">Google Drive</div>
-                    <div class="feature-desc">Folder automatik, simpanan PDF berwarna dan QR profile</div>
+                    <div class="feature-desc">Folder automatik dan simpanan PDF berwarna</div>
                 </div>
             </div>
 
@@ -284,7 +284,6 @@
         <div id="tab-database" class="tab-content no-print">
             <div class="card">
                 <h2>📂 Input Database</h2>
-                <div style="margin-bottom: 20px; text-align: right;"><button id="btnPergiCiptaProfile" class="btn btn-orange" style="padding: 12px 24px; font-size: 1rem;">🏢 Cipta Profile Syarikat</button></div>
                 <div class="drive-section" id="driveSection">
                     <h3 style="margin-top: 0; display: flex; align-items: center;">📁 Google Drive (User Folder System)<span id="driveStatus" class="drive-status drive-creating" style="display: none;">Mencipta...</span></h3>
                     <div style="margin-bottom: 10px;"><label><input type="checkbox" id="cbCreateDriveFolder" checked>Cipta folder dalam User Folder untuk syarikat ini</label></div>
@@ -370,54 +369,6 @@
                 <div class="actions"><button class="btn btn-white" id="btnBackToForm">« Kembali ke Borang</button><button class="btn btn-green" id="btnSendToSheet">Simpan & Hantar ke Sheet</button></div>
                 <p id="statusMsg" style="margin-top:10px; font-weight:bold; text-align:center;"></p>
                 <input type="hidden" id="db_row_index">
-            </div>
-        </div>
-
-        <!-- TAB PROFILE -->
-        <div id="tab-profile" class="tab-content no-print">
-    <div style="margin-bottom: 15px;">
-        <button id="btnKembaliDbDariProfile" class="btn btn-white" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🔙 Kembali ke Input Database</button>
-     </div> <div class="card pdf-upload-section" style="background: #f8fafc; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-        <h2>🚀 Auto-Ekstrak Profil</h2>
-
-        <div style="margin-bottom: 25px; text-align:center; font-size:0.78rem; color:#64748b;">Fail diproses secara tempatan (PDF ➜ MD ➜ Regex). Tak puas hati dengan hasil? Klik <b>"Guna AI"</b>.</div>
-
-                <div id="profilePdfUploadArea" style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-                    <div id="status-box-profile" class="morph-box morph-circle">
-                        <svg class="morph-ring">
-                            <circle id="progress-ring-profile" class="morph-ring-circle" stroke="white" stroke-width="5" fill="transparent" r="70" cx="75" cy="75"/>
-                        </svg>
-                        <div id="percentage-profile" class="morph-percentage">🏢<br><span>Pilih Profil</span></div>
-                    </div>
-                    <label class="custom-upload-btn">
-                        <input id="profilePdfInput" type="file" accept=".pdf" hidden />
-                        Klik / Seret Dokumen
-                    </label>
-                    <span id="profilePdfFileName" style="margin-top: 15px; font-weight: bold; color: #3b82f6; font-size: 0.9rem;">Sedia untuk menerima fail...</span>
-                    <span id="profilePdfProgressMsg" style="margin-top: 5px; color: #64748b; font-size: 0.85rem; display: none;">Memproses...</span>
-                </div>
-
-                <div class="pdf-result" id="profilePdfResult" style="display:none; animation: fadeIn 0.6s ease-out; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 2px solid #10b981; margin-top: 20px;">
-                    <h3 style="margin-top:0; color:#059669; display: flex; align-items: center; gap: 8px;">✨ Profil Berjaya Diekstrak!</h3>
-                    <div class="pdf-extracted-data" id="profilePdfExtractedData" style="border: none; background: #f8fafc;"></div>
-                    <div style="margin-top:15px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap;">
-                        <button class="btn btn-green" id="btnApplyProfileData" style="font-size: 1rem; padding: 12px 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Isi Ke Borang Profil</button>
-                        <button class="btn btn-white" id="btnReExtractProfileData" title="Ulang ekstrak Manual (Regex)">🔄 Ekstrak Semula</button>
-                        <button class="btn btn-blue" id="btnUseAIProfileData" title="Ekstrak guna AI (fallback)">🤖 Guna AI</button>
-                        <button class="btn btn-white" id="btnClearProfileData">Batal</button>
-                    </div>
-                    <div style="margin-top:8px; text-align:center; font-size:0.75rem; color:#94a3b8;" id="profileExtractMeta"></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>🏢 Cipta Profile Syarikat</h2>
-                <div class="grid-equal" style="margin-bottom: 20px;"><div><label>Nama Syarikat</label><input type="text" id="profile_syarikat" placeholder="Nama Syarikat"></div><div><label>No. CIDB</label><input type="text" id="profile_cidb" placeholder="No. CIDB"></div></div>
-                <div style="margin-bottom: 20px;"><label>Gred Syarikat</label><select id="profile_gred"><option value="">Pilih Gred</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="G4">G4</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option></select></div>
-                <div style="background: #f0fdf4; padding: 15px; border-radius: 12px; margin-bottom: 20px; border-left: 6px solid #22c55e;"><h3 style="margin-top: 0; color: #166534;">👤 Maklumat Pemohon</h3><div class="grid-equal"><div><label>Nama Pemohon</label><input type="text" id="profile_nama_pemohon" placeholder="Nama Pemohon"></div><div><label>Jawatan (Designation)</label><input type="text" id="profile_jawatan_pemohon" placeholder="Jawatan"></div><div><label>No. IC / Pasport</label><input type="text" id="profile_ic_pemohon" placeholder="No. IC / Pasport"></div><div><label>No. Telefon (HP)</label><input type="text" id="profile_telefon_pemohon" placeholder="No. Telefon"></div><div><label>Emel Pemohon</label><input type="email" id="profile_email_pemohon" placeholder="Emel"></div></div></div>
-                <div style="background: #eff6ff; padding: 15px; border-radius: 12px; margin-bottom: 20px; border-left: 6px solid #3b82f6;"><h3 style="margin-top: 0; color: #1e40af;">🏢 Maklumat Syarikat</h3><div class="grid-equal"><div><label>Jenis Pendaftaran (ROC/ROB)</label><input type="text" id="profile_jenis_pendaftaran" placeholder="ROC / ROB"></div><div><label>Tarikh Daftar</label><input type="date" id="profile_tarikh_daftar"></div></div><div style="margin-bottom: 10px;"><label id="label_alamat_berdaftar">Alamat Berdaftar</label><textarea id="profile_alamat_berdaftar" rows="2" placeholder="Alamat Berdaftar"></textarea><label style="display: flex; align-items: center; gap: 8px; margin-top: 5px;"><input type="checkbox" id="cb_ssm_berdaftar">Sama dengan e-Info SSM (SSM)</label></div><div style="margin-bottom: 10px;"><label>Alamat Surat-menyurat</label><textarea id="profile_alamat_surat" rows="2" placeholder="Alamat Surat-menyurat"></textarea><label style="display: flex; align-items: center; gap: 8px; margin-top: 5px;"><input type="checkbox" id="cb_ssm_surat">Sama dengan e-Info SSM (SSM)</label></div><div class="grid-equal"><div><label>No. Telefon Syarikat</label><input type="text" id="profile_no_telefon_syarikat" placeholder="No. Telefon Syarikat"></div><div><label>No. Fax</label><input type="text" id="profile_no_fax" placeholder="No. Fax"></div><div><label>Emel Syarikat</label><input type="email" id="profile_email_syarikat" placeholder="Emel Syarikat"></div><div><label>Web Address</label><input type="text" id="profile_web" placeholder="Web Address"></div></div></div>
-                <div style="margin-bottom: 15px;"><label>Jenis Perubahan</label><input type="text" id="profile_jenis_perubahan" placeholder="Contoh: Penambahan gred, ubah alamat, dll."></div>
-                <div class="actions"><button class="btn btn-reset" id="btnResetProfile">RESET BORANG</button><button class="btn btn-print" id="btnCetakProfile">🖨️ Cetak Profile</button></div>
             </div>
         </div>
 
@@ -655,6 +606,64 @@
         <!-- MODAL TAMBAH/EDIT PENGGUNA -->
         <div class="admin-stats-modal" id="userModal" style="display: none;"><div class="admin-stats-content" style="max-width: 550px;"><span class="admin-stats-close" id="userModalClose">&times;</span><h2 style="color: #7c3aed; text-align: center;" id="userModalTitle">➕ Tambah Pengguna Baru</h2><div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;"><div><label style="font-weight:600; font-size:0.85rem; color:#374151;">Nama</label><input type="text" id="userFormName" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div><label style="font-weight:600; font-size:0.85rem; color:#374151;">Email</label><input type="email" id="userFormEmail" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div><label style="font-weight:600; font-size:0.85rem; color:#374151;">Role</label><select id="userFormRole" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"><option value="PENGESYOR">PENGESYOR</option><option value="PELULUS">PELULUS</option><option value="PENGARAH">PENGARAH</option><option value="KETUA_SEKSYEN">KETUA SEKSYEN</option><option value="ADMIN">ADMIN</option></select></div><div><label style="font-weight:600; font-size:0.85rem; color:#374151;">Warna</label><input type="text" id="userFormColor" value="#2563eb" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div><label style="font-weight:600; font-size:0.85rem; color:#374151;">Telefon</label><input type="text" id="userFormPhone" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div id="userFormFirebaseGroup"><label style="font-weight:600; font-size:0.85rem; color:#374151;">Firebase Code <span style="color:#7c3aed; font-size:0.75rem;">(PENGESYOR)</span></label><input type="text" id="userFormFirebaseCode" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div style="grid-column: span 2;"><label style="font-weight:600; font-size:0.85rem; color:#374151;">URL Tandatangan</label><input type="text" id="userFormSignUrl" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div><div style="grid-column: span 2;"><label style="font-weight:600; font-size:0.85rem; color:#374151;">URL Cop</label><input type="text" id="userFormCopUrl" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; box-sizing:border-box;"></div></div><div id="userFormFirebaseRulesGroup" style="margin-top:15px; display:none; border-top:2px dashed #e2e8f0; padding-top:15px;"><h4 style="color:#7c3aed; margin:0 0 8px 0;">🔥 Peraturan Tapisan Firebase</h4><p style="font-size:0.8rem; color:#64748b; margin-bottom:10px;">Pilih digit terakhir CIDB dan tetapkan lingkungan abjad (cth: A-M).</p><div id="firebaseRulesContainer" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div><button class="btn" id="btnSaveFirebaseRules" style="background-color:#7c3aed; color:white; margin-top:10px;">💾 Simpan Peraturan ke Firebase</button><span id="firebaseRulesStatus" style="font-size:0.8rem; color:#64748b; margin-left:10px;"></span></div><div style="text-align:center; margin-top:15px;"><button class="btn" id="btnSaveUser" style="background-color:#7c3aed; color:white;">💾 Simpan Pengguna</button></div></div></div>
 
+        <!-- MODAL MAKLUMAT LAPORAN HARIAN -->
+        <div class="admin-stats-modal" id="laporanHarianModal" aria-hidden="true">
+            <div class="admin-stats-content laporan-harian-modal-content">
+                <span class="admin-stats-close" id="laporanHarianModalClose" role="button" tabindex="0" aria-label="Tutup">&times;</span>
+                <h2 class="laporan-harian-modal-title">Maklumat Laporan Harian</h2>
+                <p class="laporan-harian-modal-help">Lengkapkan maklumat pegawai dan semak jumlah konsultansi sebelum mencetak.</p>
+                <div class="lh-form-grid">
+                    <div class="lh-form-field">
+                        <label for="lh_input_nama_pegawai">Nama Pegawai</label>
+                        <input type="text" id="lh_input_nama_pegawai" autocomplete="name" placeholder="Nama penuh pegawai">
+                    </div>
+                    <div class="lh-form-field">
+                        <label for="lh_input_jawatan">Jawatan</label>
+                        <input type="text" id="lh_input_jawatan" placeholder="Contoh: Pegawai Penilai">
+                    </div>
+                    <div class="lh-form-field">
+                        <label for="lh_input_tarikh">Tarikh Laporan</label>
+                        <input type="text" id="lh_input_tarikh" readonly aria-readonly="true">
+                    </div>
+                </div>
+                <div class="lh-form-field lh-time-section">
+                    <label>Waktu Bekerja</label>
+                    <div class="lh-time-grid">
+                        <div>
+                            <span class="lh-sub-label">Waktu Mula</span>
+                            <input type="time" id="lh_input_waktu_mula">
+                        </div>
+                        <div>
+                            <span class="lh-sub-label">Waktu Tamat</span>
+                            <input type="time" id="lh_input_waktu_tamat">
+                        </div>
+                    </div>
+                </div>
+                <div class="lh-consult-section">
+                    <div class="lh-section-label">Jumlah notifikasi / konsultansi (hari ini)</div>
+                    <div class="lh-consult-grid">
+                        <div class="lh-form-field">
+                            <label for="lh_input_emel">Emel</label>
+                            <input type="number" id="lh_input_emel" min="0" step="1" inputmode="numeric">
+                        </div>
+                        <div class="lh-form-field">
+                            <label for="lh_input_whatsapp">WhatsApp</label>
+                            <input type="number" id="lh_input_whatsapp" min="0" step="1" inputmode="numeric">
+                        </div>
+                        <div class="lh-form-field">
+                            <label for="lh_input_call">Call</label>
+                            <input type="number" id="lh_input_call" min="0" step="1" inputmode="numeric">
+                        </div>
+                    </div>
+                    <div id="lh_konsultansi_preview" class="lh-konsultansi-preview"></div>
+                </div>
+                <div class="lh-modal-actions">
+                    <button type="button" class="btn btn-white" id="btnBatalLaporanHarian">Batal</button>
+                    <button type="button" class="btn btn-print" id="btnCetakLaporanHarian">Cetak Laporan</button>
+                </div>
+            </div>
+        </div>
+
         <!-- PRINT LAPORAN HARIAN -->
         <div id="printLaporanHarian" class="print-only-container">
             <div class="lh-header-strip" style="height:6px; background:var(--theme-color);"></div>
@@ -761,15 +770,6 @@
             </div>
 
             </div>
-
-        <div id="printProfileLayout" class="print-only-container" style="display:none;">
-            <div class="profile-company-header profile-theme-bg"><div class="profile-company-name" id="printProfile_syarikat_header"></div><div class="profile-company-cidb" id="printProfile_cidb_header"></div><div class="profile-company-grade" id="printProfile_gred_header"></div></div>
-            <div class="section-title profile-theme-border">👤 MAKLUMAT PEMOHON</div>
-            <div class="info-grid"><div class="info-row"><span class="info-label">Nama Pemohon:</span><span class="info-value" id="printProfile_nama_pemohon"></span></div><div class="info-row"><span class="info-label">Jawatan:</span><span class="info-value" id="printProfile_jawatan_pemohon"></span></div><div class="info-row"><span class="info-label">No. IC / Pasport:</span><span class="info-value" id="printProfile_ic_pemohon"></span></div><div class="info-row"><span class="info-label">No. Telefon (HP):</span><span class="info-value" id="printProfile_telefon_pemohon"></span></div><div class="info-row"><span class="info-label">Emel Pemohon:</span><span class="info-value" id="printProfile_email_pemohon"></span></div></div>
-            <div class="section-title profile-theme-border">🏢 MAKLUMAT SYARIKAT</div>
-            <div class="info-grid"><div class="info-row"><span class="info-label">Jenis Pendaftaran:</span><span class="info-value" id="printProfile_jenis_pendaftaran"></span></div><div class="info-row"><span class="info-label">Tarikh Daftar:</span><span class="info-value" id="printProfile_tarikh_daftar"></span></div><div class="info-row full-width"><span class="info-label">Alamat Berdaftar:</span><span class="info-value" id="printProfile_alamat_berdaftar"></span></div><div class="info-row full-width"><span class="info-label">Alamat Surat-menyurat:</span><span class="info-value" id="printProfile_alamat_surat"></span></div><div class="info-row"><span class="info-label">No. Telefon Syarikat:</span><span class="info-value" id="printProfile_no_telefon_syarikat"></span></div><div class="info-row"><span class="info-label">No. Fax:</span><span class="info-value" id="printProfile_no_fax"></span></div><div class="info-row"><span class="info-label">Emel Syarikat:</span><span class="info-value" id="printProfile_email_syarikat"></span></div><div class="info-row"><span class="info-label">Web Address:</span><span class="info-value" id="printProfile_web"></span></div></div>
-            <div class="footer"><div class="footer-info-group"><div class="date-generated">Tarikh Jana: <span id="printProfile_date"></span></div><div class="jenis-perubahan-info" style="font-size: 11pt; font-weight: bold; margin-top: 8px;">Jenis Perubahan: <span id="printProfile_jenis_perubahan"></span></div></div></div>
-        </div>
 
         <div class="admin-stats-modal" id="quickCheckModal" style="display: none; z-index: 10002;">
             <div class="admin-stats-content" style="max-width: 650px; width: 95%; padding: 20px; border-top: 5px solid #f97316;">
@@ -1056,6 +1056,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
-    <script src="app.js?v=20260904"></script>
+    <script src="app.js?v=20260906"></script>
 </body>
 </html>
