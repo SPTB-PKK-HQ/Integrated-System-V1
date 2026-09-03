@@ -956,7 +956,7 @@ function handleProcessAI(data) {
 // V6.9.0: Bina key cache AI (SHA-256) supaya sama untuk teks/model/jenis sama
 const AI_RESULT_CACHE_TTL_SECONDS = 3600; // 1 jam
 
-const AI_PROMPT_VERSION = 'borang-v2'; // V6.9.2: Naikkan versi bila prompt AI berubah supaya cache lama tidak terpakai
+const AI_PROMPT_VERSION = 'borang-v3'; // V7.0.13: Bump v3 — fix companyName "(M)" & KUALA greedy, COMPANY RULES baharu (cache lama auto-invalidate)
 
 function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
   const digest = Utilities.computeDigest(
@@ -970,12 +970,16 @@ function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
   return 'STB_AI_' + hex;
 }
 
-// V6.9.1: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP (alamat kosong).
-// Hasil sebegini TIDAK dicache supaya AI boleh dicuba semula pada panggilan seterusnya.
+// V7.0.13: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP.
+// Alamat kosong ATAU companyName rosak ("SDN. BHD." sahaja, terlalu pendek) tidak dicache supaya AI boleh dicuba semula.
 function isAIResultIncomplete(promptType, data) {
   try {
     if (!data || typeof data !== 'object') return true;
-    return !data.alamatPerniagaan && !data.alamatSuratMenyurat;
+    const cn = (data.companyName || '').toString().trim();
+    const alamatIncomplete = !data.alamatPerniagaan && !data.alamatSuratMenyurat;
+    // companyName rosak: kosong, terlalu pendek, atau hanya suffix
+    const companyIncomplete = !cn || cn.length < 5 || /^(SDN\.?\s*BHD\.?|ENTERPRISE|TRADING)$/i.test(cn);
+    return alamatIncomplete || companyIncomplete;
   } catch (e) {
     return false;
   }
@@ -1060,7 +1064,7 @@ function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
 function buildBorangPrompt(truncatedText) {
   return `Return JSON ONLY matching this schema. No extra text, conversational prose or markdown wrap (except codeblock).
   {
-    "companyName": "Exact Company Name",
+    "companyName": "Exact Company Name including suffix and (M) if present, e.g. CITRA WARISAN (M) SDN. BHD.",
     "cidbNumber": "Exact CIDB number, e.g. 0120201118-KD061300. Do not guess.",
     "grade": "First G1-G7 found",
     "spkkDuration": "DD/MM/YYYY - DD/MM/YYYY format or ''",
@@ -1073,6 +1077,14 @@ function buildBorangPrompt(truncatedText) {
     "alamatPerniagaan": "Full BUSINESS ADDRESS only or ''",
     "alamatSuratMenyurat": "Full CORRESPONDENCE ADDRESS only or ''"
   }
+  COMPANY RULES (IMPORTANT):
+  - "companyName" is the REGISTERED COMPANY / BUSINESS NAME, usually appearing at the top of the document near the ROC number in parentheses, e.g. "CITRA WARISAN (M) SDN. BHD. (295815-T)" -> "CITRA WARISAN (M) SDN. BHD.".
+  - Keep the FULL name including suffixes: SDN BHD, SDN. BHD., ENTERPRISE, TRADING, CONSTRUCTION, RESOURCES, SERVICES, HOLDINGS, NIAGA, BINAAN, etc and "(M)" / "(P)" if present. Do NOT truncate to just "SDN. BHD.".
+  - If the name is labelled "NAMA SYARIKAT" / "COMPANY NAME" / "NAMA FIRMA" / "NAMA PERNIAGAAN", take the value after ":" or "-" on the same line or the next non-empty line.
+  - If there are two parentheses like "SYARIKAT XYZ (M) SDN BHD (1234567-U)", the LAST parentheses is the ROC number — the company name is everything BEFORE it: "SYARIKAT XYZ (M) SDN BHD".
+  - NEVER return header/government names: "LEMBAGA PEMBANGUNAN INDUSTRI PEMBINAAN MALAYSIA", "CIDB", "TEL", "ALAMAT" — those are NOT company names.
+  - Names may contain "'", "/", "&", ".", "-", "(", ")" — keep them. Example: "D' MAJU JAYA ENTERPRISE", "A/B CONSTRUCTION (M) SDN BHD".
+  - Do NOT strip city/state words that are part of the name: "KUALA LUMPUR CONSTRUCTION SDN BHD" must stay "KUALA LUMPUR CONSTRUCTION SDN BHD", not "CONSTRUCTION SDN BHD".
   ADDRESS RULES (IMPORTANT):
   - "alamatPerniagaan" = address labelled ALAMAT PERNIAGAAN / BUSINESS ADDRESS / ALAMAT UTAMA URUSAN NIAGA.
   - "alamatSuratMenyurat" = address labelled ALAMAT SURAT-MENYURAT / CORRESPONDENCE ADDRESS / MAILING ADDRESS.
@@ -1246,8 +1258,12 @@ function processBorangResponse(aiResponse) {
     if (gradeMatch) grade = gradeMatch[1].toUpperCase();
   }
   
+  // V7.0.13: Bersihkan companyName dari prefix label & normalisasi space (elak "NAMA SYARIKAT: SDN. BHD.")
+  let rawCompanyName = (aiData.companyName || '').toString().trim();
+  rawCompanyName = rawCompanyName.replace(/^(?:NAMA\s*SYARIKAT|COMPANY\s*NAME|NAMA\s*FIRMA|NAMA\s*PERNIAGAAN)\s*[:\-]\s*/i, '').trim();
+  rawCompanyName = rawCompanyName.replace(/\s+/g, ' ').trim();
   const transformedData = {
-    companyName: aiData.companyName || '',
+    companyName: rawCompanyName,
     cidbNumber: aiData.cidbNumber || '',
     grade: grade,
     spkkStartDate: '',

@@ -6002,18 +6002,125 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
     const rawText = md.toUpperCase().replace(/\s+/g, ' ');
     const mdLinesUp = md.split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim().toUpperCase()).filter(Boolean);
-    const cleanHeaderText = rawText.replace(/TEL\s*:\s*[\d-]+\s*/g, '').replace(/#+\s*HALAMAN\s*\d+/gi, '');
+    const cleanHeaderText = rawText.replace(/TEL\s*:\s*[\d\s\-]+/g, '').replace(/#+\s*HALAMAN\s*\d+/gi, '');
 
-    // V7.0.9: No. pendaftaran pelbagai format: "001176979-M", "JM0907073-P", "PPK0236"
-    const companyMatch = cleanHeaderText.match(/([A-Z0-9\s\.\&\-]+?)\s*\([A-Z]*\d{3,}[-\s]?[A-Z0-9]*\)/);
-    if (companyMatch && companyMatch[1]) {
-      let name = companyMatch[1].trim();
-      name = name.replace(/.*(?:ADDR|ALAMAT|LUMPUR|SELANGOR|JOHOR|KUALA)[:\s]*/, '').trim();
-      // V7.0.1: Buang nombor siri di hadapan nama (cth: "3300 EHSAN PANTAS...")
-      name = name.replace(/^(?:BIL|NO\.?)\s*\d+\s+/i, '').trim();
-      name = name.replace(/^\d{3,}[\s.\-]*\s*/, '').trim();
-      extractedData.companyName = name;
+    // V7.0.13: Fix companyName — handle "(M)", "'", "/", "KUALA LUMPUR" greedy bug
+    // Strategi: label-aware dulu, kemudian scan mdLinesUp ambil sebelum '(' terakhir (registration), fallback rawText dengan charset luas
+    function extractCompanyName(mdLinesUp, rawText, cleanHeaderText) {
+      // Merge split ROC lines: "BHD. (1600539-" + "A)" -> "BHD. (1600539-A)"
+      const mergedLines = [];
+      for (let i = 0; i < mdLinesUp.length; i++) {
+        let line = mdLinesUp[i];
+        if (i + 1 < mdLinesUp.length) {
+          const next = mdLinesUp[i + 1].trim();
+          const curEndsSplit = /\([A-Z0-9\-]*$/.test(line) || /\(\s*[A-Z0-9\-]*\d+[\-]*$/.test(line) || /-\s*$/.test(line) && /\(/.test(line);
+          const nextIsClose = /^\s*[A-Z0-9\-]+\s*\)$/.test(next) || /^\s*[A-Z]\)$/.test(next);
+          if (curEndsSplit && nextIsClose) {
+            line = (line + next).replace(/\s+/g, ' ').trim();
+            i++; // skip next
+          } else if (/\([A-Z0-9\s\-]*$/.test(line) && /^\s*[A-Z0-9\s\-]*\)/.test(next)) {
+            line = (line + ' ' + next).replace(/\s+/g, ' ').trim();
+            i++;
+          }
+        }
+        mergedLines.push(line);
+      }
+      // Gunakan mergedLines untuk semua carian baris
+      const lines = mergedLines;
+      // 1) Label-aware: cari baris berlabel NAMA SYARIKAT / COMPANY NAME — mesti ada ":" atau "-" untuk elak header jadual
+      for (let i = 0; i < lines.length; i++) {
+        if (/NAMA\s*SYARIKAT\s*[:\-]|COMPANY\s*NAME\s*[:\-]|NAMA\s*FIRMA\s*[:\-]|NAMA\s*PERNIAGAAN\s*[:\-]/i.test(lines[i])) {
+          let after = lines[i].replace(/.*(?:NAMA\s*SYARIKAT|COMPANY\s*NAME|NAMA\s*FIRMA|NAMA\s*PERNIAGAAN)[^:]*[:\-]\s*/i, '').trim();
+          if (after.length >= 5 && /[A-Z]/.test(after) && !/REGISTRATION|APPLICATION|% EQUITY/i.test(after)) {
+            // Jika ada "(ROC)" di baris sama, ambil sebelum kurungan terakhir registration (benarkan space dalam kurungan e.g. "(1600539- A)")
+            const regs = [...after.matchAll(/\([^)]*\d{3,}[^)]*\)/g)];
+            if (regs.length > 0) {
+              const last = regs[regs.length - 1];
+              after = after.substring(0, last.index).trim();
+            }
+            after = after.replace(/\s+/g, ' ').replace(/^[^A-Z0-9\(]+/, '').trim();
+            if (after.length >= 5) return after;
+          }
+          // cuba 2 baris selepas label jika baris label kosong
+          for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+            const nxt = lines[j].trim();
+            if (nxt.length >= 5 && /\([^)]*\d{3,}[^)]*\)/.test(nxt) && !/ALAMAT|ADDRESS|TELEPHONE|^TEL\s*:/i.test(nxt)) {
+              const regs2 = [...nxt.matchAll(/\([^)]*\d{3,}[^)]*\)/g)];
+              const last2 = regs2[regs2.length - 1];
+              let cand = nxt.substring(0, last2.index).trim();
+              cand = cand.replace(/^\d+[\.\)]\s+/, '').trim().replace(/^\d{3,}[\s\-]+/, '').trim().replace(/^(?:BIL|NO\.?)\s*\d+\s*[:\.]?\s*/i, '').trim().replace(/\s+/g, ' ').trim();
+              if (cand.length >= 5) return cand;
+            } else if (nxt.length >= 5 && /[A-Z]{3,}/.test(nxt) && !/ALAMAT|ADDRESS|GRED|GRADE|REGISTRATION|APPLICATION/i.test(nxt)) {
+              const cand = nxt.replace(/^\d+[\.\)]\s+/, '').trim().replace(/^\d{3,}[\s\-]+/, '').trim().replace(/^(?:BIL|NO\.?)\s*\d+\s*[:\.]?\s*/i, '').trim().replace(/\s+/g, ' ').trim();
+              if (cand.length >= 5) return cand;
+            }
+          }
+        }
+      }
+      // 2) Scan lines (merged): baris yang ada registration "(295815-T)" -> ambil sebelum '(' terakhir
+      for (const line of lines) {
+        const regs = [...line.matchAll(/\([^)]*\d{3,}[^)]*\)/g)];
+        if (regs.length === 0) continue;
+        // filter: header LEMBAGA/CIDB biasanya tiada digit 3+ dalam kurungan, automatik skip; tapi pastikan last reg nampak seperti ROC (ada digit+huruf+hypen)
+        const last = regs[regs.length - 1];
+        if (!/\d{3,}/.test(last[0])) continue;
+        // skip baris yang jelas bukan nama syarikat (PROJECT INFO, ALAMAT, TEL)
+        if (/^\s*(NO\.|BIL|TEL|FAX|EMAIL|WEB|ALAMAT|REGISTERED|CORRESPONDENCE)/i.test(line.substring(0, last.index))) continue;
+        let cand = line.substring(0, last.index).trim();
+        // Buang numbering prefix sahaja (bukan greedy KUALA): "1. CITRA..." -> "CITRA..." tapi jangan buang "1 STOP..." (nama mula digit tunggal tanpa titik)
+        cand = cand.replace(/^\d+[\.\)]\s+/, '').trim().replace(/^\d{3,}[\s\-]+/, '').trim();
+        cand = cand.replace(/^(?:BIL|NO\.?)\s*\d+\s*[:\.]?\s*/i, '').trim();
+        cand = cand.replace(/\s+/g, ' ').trim();
+        // Buang sisa prefix bukan huruf di depan
+        cand = cand.replace(/^[^A-Z0-9\(]+/, '').trim();
+        if (cand.length >= 5 && /[A-Z]{2,}/.test(cand)) {
+          // Elak ambil serpihan pendek seperti "SDN. BHD." sahaja — mesti ada >=2 kata atau >=10 aksara atau ada suffix enterprise
+          const wordCount = cand.split(/\s+/).length;
+          if (wordCount >= 2 || cand.length >= 10) return cand;
+        }
+      }
+      // 3) Fallback rawText dengan charset luas — ambil window 120 aksara sebelum kurungan registration (benarkan split "(1600539- A)" dengan space/hyphen)
+      const regParen = cleanHeaderText.match(/\(\s*[A-Z0-9\s\-]*\d{3,}[\sA-Z0-9\-]*\)/);
+      if (regParen) {
+        const idx = cleanHeaderText.indexOf(regParen[0]);
+        if (idx > 0) {
+          let windowStart = Math.max(0, idx - 140);
+          let windowText = cleanHeaderText.slice(windowStart, idx).trim();
+          // Buang header panjang sebelum syarikat: ambil selepas delimiter terakhir seperti "KUALA LUMPUR" + nombor tidak relevan -> potong selepas 4 digit terakhir atau "3300"
+          // Strategi: cari suffix syarikat dalam window, ambil dari awal suffix
+          // Cari semua calon yang berakhir dengan suffix syarikat dalam window, ambil yang terakhir (paling dekat dengan kurungan ROC)
+          const suffixReAll = /([A-Z][A-Z0-9\s\.\&\'\/\-]*?(?:SDN\.?\s*BHD\.?|ENTERPRISE|TRADING|CONSTRUCTION|CONSTRUCTIONS|RESOURCES|SERVICES|HOLDINGS|ENGINEERING))/gi;
+          const allMatches = [...windowText.matchAll(suffixReAll)];
+          let c = '';
+          if (allMatches.length > 0) {
+            // Ambil match terakhir yang paling dekat dengan kurungan
+            c = allMatches[allMatches.length - 1][1].trim();
+            // Jika c masih mengandungi alamat panjang, potong selepas poskod atau nombor 3-4 digit terakhir
+            // Contoh: "JALAN DUTAMAS 2 50480 KUALA LUMPUR 3300 MAHIRBINA..." -> mahu "MAHIRBINA..."
+            // Buang semua sehingga selepas nombor terakhir 3-5 digit
+            const lastNumMatch = c.match(/.*\b\d{3,5}\s+/);
+            if (lastNumMatch) {
+              const afterNum = c.slice(lastNumMatch[0].length).trim();
+              if (afterNum.length >= 5 && /[A-Z]/.test(afterNum)) c = afterNum;
+            }
+            c = c.replace(/^(?:BIL|NO\.?)\s*\d+\s*[:\.]?\s*/i, '').trim();
+            c = c.replace(/^\d+[\.\)]\s+/, '').trim().replace(/^\d{3,}[\s\-]+/, '').trim();
+            c = c.replace(/\s+/g, ' ').replace(/^[^A-Z0-9\(]+/, '').trim();
+            if (c.length >= 5 && !/REGISTRATION|APPLICATION|% EQUITY/i.test(c)) return c;
+          }
+          // Fallback lama jika suffix tidak dijumpai: ambil 2-6 perkataan terakhir sebelum kurungan
+          let fallback = windowText.trim().replace(/\s+/g, ' ').replace(/^[^A-Z0-9\(]+/, '').trim();
+          fallback = fallback.replace(/^(?:BIL|NO\.?)\s*\d+\s*[:\.]?\s*/i, '').trim();
+          // Ambil 6 perkataan terakhir
+          const words = fallback.split(/\s+/);
+          if (words.length > 6) fallback = words.slice(-6).join(' ');
+          if (fallback.length >= 5 && !/REGISTRATION|APPLICATION|% EQUITY/i.test(fallback)) return fallback;
+        }
+      }
+      return '';
     }
+    const companyNameExtracted = extractCompanyName(mdLinesUp, rawText, cleanHeaderText);
+    if (companyNameExtracted) extractedData.companyName = companyNameExtracted;
 
     const cidbMatch = rawText.match(/(\d{6,}-[A-Z]{2,}\d{5,})/);
     if (cidbMatch) extractedData.cidbNumber = cidbMatch[1];
