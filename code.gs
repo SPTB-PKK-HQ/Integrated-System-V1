@@ -239,7 +239,7 @@ function findUserByEmail(email) {
     // V6.5.1: Cari indeks untuk Tandatangan dan Cop
     const signColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('TANDATANGAN') || h.toString().toUpperCase().includes('SIGN')));
     const copColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('COP') || h.toString().toUpperCase().includes('STAMP')));
-    // Cari indeks untuk gambar/profile
+    // Cari indeks untuk gambar pengguna
     const imageColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('GAMBAR') || h.toString().toUpperCase().includes('IMAGE') || h.toString().toUpperCase().includes('PHOTO') || h.toString().toUpperCase().includes('PICTURE') || h.toString().toUpperCase().includes('PROFILE')));
     
     const finalNameIndex = nameColIndex !== -1 ? nameColIndex : 0;
@@ -856,13 +856,13 @@ function handleSearchYoutube(query) {
 
 /**
  * Fungsi handleProcessAI: Mengendalikan permintaan AI processing dari frontend
- * Menerima teks PDF dan jenis prompt (borang/profile), menghantar ke API AI
+ * Menerima teks PDF borang dan menghantar ke API AI
  * V6.9.0: Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
  * timeout berhad, dan hasil dicache untuk elak panggilan API berulang.
  */
 function handleProcessAI(data) {
   try {
-    const promptType = data.type || 'borang';
+    const promptType = 'borang';
     const pdfText = data.text || '';
     const selectedModel = data.model || 'auto'; // <-- TERIMA PILIHAN MODEL
     
@@ -956,7 +956,7 @@ function handleProcessAI(data) {
 // V6.9.0: Bina key cache AI (SHA-256) supaya sama untuk teks/model/jenis sama
 const AI_RESULT_CACHE_TTL_SECONDS = 3600; // 1 jam
 
-const AI_PROMPT_VERSION = 'borang-v2'; // V6.9.2: Naikkan versi bila prompt AI berubah supaya cache lama tidak terpakai
+const AI_PROMPT_VERSION = 'borang-v3'; // V7.0.13: Bump v3 — fix companyName "(M)" & KUALA greedy, COMPANY RULES baharu (cache lama auto-invalidate)
 
 function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
   const digest = Utilities.computeDigest(
@@ -970,15 +970,16 @@ function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
   return 'STB_AI_' + hex;
 }
 
-// V6.9.1: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP (alamat kosong).
-// Hasil sebegini TIDAK dicache supaya AI boleh dicuba semula pada panggilan seterusnya.
+// V7.0.13: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP.
+// Alamat kosong ATAU companyName rosak ("SDN. BHD." sahaja, terlalu pendek) tidak dicache supaya AI boleh dicuba semula.
 function isAIResultIncomplete(promptType, data) {
   try {
     if (!data || typeof data !== 'object') return true;
-    if (promptType === 'profile') {
-      return !data.alamatUtama;
-    }
-    return !data.alamatPerniagaan && !data.alamatSuratMenyurat;
+    const cn = (data.companyName || '').toString().trim();
+    const alamatIncomplete = !data.alamatPerniagaan && !data.alamatSuratMenyurat;
+    // companyName rosak: kosong, terlalu pendek, atau hanya suffix
+    const companyIncomplete = !cn || cn.length < 5 || /^(SDN\.?\s*BHD\.?|ENTERPRISE|TRADING)$/i.test(cn);
+    return alamatIncomplete || companyIncomplete;
   } catch (e) {
     return false;
   }
@@ -991,17 +992,8 @@ function isAIResultIncomplete(promptType, data) {
  * timeout berhad untuk elak menunggu lama.
  */
 function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
-  // Bina prompt berdasarkan jenis
-  let prompt;
-  let processResponseFn;
-  
-  if (promptType === 'profile') {
-    prompt = buildProfilePrompt(cleanedText);
-    processResponseFn = processProfileResponse;
-  } else {
-    prompt = buildBorangPrompt(cleanedText);
-    processResponseFn = processBorangResponse;
-  }
+  const prompt = buildBorangPrompt(cleanedText);
+  const processResponseFn = processBorangResponse;
   
   // JIKA PENGGUNA PILIH MODEL SPESIFIK (TIADA FALLBACK)
   if (selectedModel === 'deepseek') {
@@ -1072,7 +1064,7 @@ function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
 function buildBorangPrompt(truncatedText) {
   return `Return JSON ONLY matching this schema. No extra text, conversational prose or markdown wrap (except codeblock).
   {
-    "companyName": "Exact Company Name",
+    "companyName": "Exact Company Name including suffix and (M) if present, e.g. CITRA WARISAN (M) SDN. BHD.",
     "cidbNumber": "Exact CIDB number, e.g. 0120201118-KD061300. Do not guess.",
     "grade": "First G1-G7 found",
     "spkkDuration": "DD/MM/YYYY - DD/MM/YYYY format or ''",
@@ -1085,6 +1077,14 @@ function buildBorangPrompt(truncatedText) {
     "alamatPerniagaan": "Full BUSINESS ADDRESS only or ''",
     "alamatSuratMenyurat": "Full CORRESPONDENCE ADDRESS only or ''"
   }
+  COMPANY RULES (IMPORTANT):
+  - "companyName" is the REGISTERED COMPANY / BUSINESS NAME, usually appearing at the top of the document near the ROC number in parentheses, e.g. "CITRA WARISAN (M) SDN. BHD. (295815-T)" -> "CITRA WARISAN (M) SDN. BHD.".
+  - Keep the FULL name including suffixes: SDN BHD, SDN. BHD., ENTERPRISE, TRADING, CONSTRUCTION, RESOURCES, SERVICES, HOLDINGS, NIAGA, BINAAN, etc and "(M)" / "(P)" if present. Do NOT truncate to just "SDN. BHD.".
+  - If the name is labelled "NAMA SYARIKAT" / "COMPANY NAME" / "NAMA FIRMA" / "NAMA PERNIAGAAN", take the value after ":" or "-" on the same line or the next non-empty line.
+  - If there are two parentheses like "SYARIKAT XYZ (M) SDN BHD (1234567-U)", the LAST parentheses is the ROC number — the company name is everything BEFORE it: "SYARIKAT XYZ (M) SDN BHD".
+  - NEVER return header/government names: "LEMBAGA PEMBANGUNAN INDUSTRI PEMBINAAN MALAYSIA", "CIDB", "TEL", "ALAMAT" — those are NOT company names.
+  - Names may contain "'", "/", "&", ".", "-", "(", ")" — keep them. Example: "D' MAJU JAYA ENTERPRISE", "A/B CONSTRUCTION (M) SDN BHD".
+  - Do NOT strip city/state words that are part of the name: "KUALA LUMPUR CONSTRUCTION SDN BHD" must stay "KUALA LUMPUR CONSTRUCTION SDN BHD", not "CONSTRUCTION SDN BHD".
   ADDRESS RULES (IMPORTANT):
   - "alamatPerniagaan" = address labelled ALAMAT PERNIAGAAN / BUSINESS ADDRESS / ALAMAT UTAMA URUSAN NIAGA.
   - "alamatSuratMenyurat" = address labelled ALAMAT SURAT-MENYURAT / CORRESPONDENCE ADDRESS / MAILING ADDRESS.
@@ -1094,31 +1094,6 @@ function buildBorangPrompt(truncatedText) {
   - If only ONE of the two valid labels exists, return it in the correct field and leave the other as "".
   - The address may span multiple lines - return the FULL address text.
   NAMES RULES: Extract ALL names in every list. Do NOT omit or truncate any entry. Include any name found even if partially legible.
-  PDF Text: ${truncatedText}`;
-}
-
-function buildProfilePrompt(truncatedText) {
-  return `Return JSON ONLY matching this schema. No conversational prose or markdown wrap (except codeblock). Use empty string "" if not found.
-  {
-    "applicantName": "string",
-    "jawatan": "string",
-    "icNumber": "string (e.g. 123456-78-9012)",
-    "phoneNumber": "string (e.g. 012-3456789)",
-    "email": "string",
-    "companyName": "string",
-    "registrationNumber": "Exact CIDB number, e.g. 0120201118-KD061300",
-    "grade": "G1-G7",
-    "registrationDate": "DD/MM/YYYY format",
-    "jenisPendaftaran": "ROC or ROB",
-    "alamatUtama": "Extract primary address",
-    "labelAlamatUtama": "Exact label found for primary address (e.g. 'Alamat Berdaftar', 'Business Address', etc.)",
-    "alamatSuratMenyurat": "Extract correspondence address if any",
-    "noTelefonSyarikat": "string",
-    "noFax": "string",
-    "emailSyarikat": "string",
-    "webAddress": "string"
-  }
-  ADDRESS RULES: If any address block exists anywhere in the text, NEVER leave "alamatUtama" and "alamatSuratMenyurat" both empty - the address may span multiple lines, return the full address text. Set "labelAlamatUtama" to the exact label shown (e.g. Alamat Berdaftar, Alamat Perniagaan, Business Address).
   PDF Text: ${truncatedText}`;
 }
 
@@ -1283,8 +1258,12 @@ function processBorangResponse(aiResponse) {
     if (gradeMatch) grade = gradeMatch[1].toUpperCase();
   }
   
+  // V7.0.13: Bersihkan companyName dari prefix label & normalisasi space (elak "NAMA SYARIKAT: SDN. BHD.")
+  let rawCompanyName = (aiData.companyName || '').toString().trim();
+  rawCompanyName = rawCompanyName.replace(/^(?:NAMA\s*SYARIKAT|COMPANY\s*NAME|NAMA\s*FIRMA|NAMA\s*PERNIAGAAN)\s*[:\-]\s*/i, '').trim();
+  rawCompanyName = rawCompanyName.replace(/\s+/g, ' ').trim();
   const transformedData = {
-    companyName: aiData.companyName || '',
+    companyName: rawCompanyName,
     cidbNumber: aiData.cidbNumber || '',
     grade: grade,
     spkkStartDate: '',
@@ -1317,35 +1296,6 @@ function processBorangResponse(aiResponse) {
   }
   
   return transformedData;
-}
-
-function processProfileResponse(aiResponse) {
-  let cleanedText = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-  let jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-  if (jsonMatch) cleanedText = jsonMatch[0];
-  
-  const aiData = JSON.parse(cleanedText);
-
-  return {
-    applicantName: aiData.applicantName || '',
-    jawatan: aiData.jawatan || '',
-    icNumber: aiData.icNumber || '',
-    phoneNumber: aiData.phoneNumber || '',
-    email: aiData.email || '',
-    companyName: aiData.companyName || '',
-    registrationNumber: aiData.registrationNumber || '',
-    grade: aiData.grade || '',
-    registrationDate: aiData.registrationDate || '',
-    jenisPendaftaran: aiData.jenisPendaftaran || '',
-    alamatUtama: aiData.alamatUtama || '',
-    labelAlamatUtama: aiData.labelAlamatUtama || '',
-    alamatSuratMenyurat: aiData.alamatSuratMenyurat || '',
-    noTelefonSyarikat: aiData.noTelefonSyarikat || '',
-    noFax: aiData.noFax || '',
-    emailSyarikat: aiData.emailSyarikat || '',
-    webAddress: aiData.webAddress || ''
-  };
 }
 
 // =========================================================================
@@ -1710,12 +1660,12 @@ function handleCetakDanSimpanPDF(data) {
     
     const pdfFile = targetFolder.createFile(blob);
     
-    const isProfile = data.custom_file_name && data.custom_file_name.includes('Profile Syarikat');
-    const logAction = isProfile ? 'CETAK_PROFILE' : 'CETAK_PDF';
-    const logDesc = isProfile
-      ? `PDF Profile Syarikat disimpan untuk ${data.company_name} (Warna: ${themeColor})`
-      : `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`;
-    logActivity(data.user_name, logAction, logDesc, targetFolder.getId());
+    logActivity(
+      data.user_name,
+      'CETAK_PDF',
+      `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`,
+      targetFolder.getId()
+    );
     
     invalidateDataCache();
     return createJSONOutput({
