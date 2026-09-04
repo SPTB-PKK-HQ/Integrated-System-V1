@@ -1411,10 +1411,7 @@ async function handleCredentialResponse(response) {
   const btnClearPdfData = document.getElementById('btnClearPdfData');
   const btnReExtractPdfData = document.getElementById('btnReExtractPdfData');
   const pdfExtractMeta = document.getElementById('pdfExtractMeta');
-  
-  // PDF Processing Buttons (V7.0.0: AI fallback)
-  const btnUseAIPdfData = document.getElementById('btnUseAIPdfData');
-  
+
   // PDF File Input
   let pdfFileInput = document.getElementById('pdfFileInput');
   
@@ -1718,6 +1715,7 @@ async function handleCredentialResponse(response) {
         name: card.querySelector('.p-name')?.value || '',
         isCompany: card.querySelector('.is-company')?.checked || false,
         roles: roles,
+        baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
         s_ic: card.querySelector('.status-ic')?.value || '',
         s_sb: card.querySelector('.status-sb')?.value || '',
         s_epf: card.querySelector('.status-epf')?.value || '',
@@ -5605,13 +5603,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     });
   }
 
-  // V7.0.0: Butang fallback "Guna AI" - dipanggil bila pengesyor tak puas hati dengan regex
-  if (btnUseAIPdfData) {
-    btnUseAIPdfData.addEventListener('click', () => {
-      processPdfWithAI(true);
-    });
-  }
-
   if (btnApplyPdfData) {
     btnApplyPdfData.addEventListener('click', applyPdfDataToForm);
   }
@@ -5725,7 +5716,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
   let isPdfRegexProcessing = false;
 
   async function processPdfRegex() {
-    if (isPdfRegexProcessing || isPdfAiProcessing) return;
+    if (isPdfRegexProcessing) return;
     if (!pdfFileInput.files.length) return;
 
     const file = pdfFileInput.files[0];
@@ -5771,187 +5762,6 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
   }
 
-  // =========================================================================
-  // V6.9.1: CACHE PER-FAIL UNTUK HASIL AI (localStorage)
-  // Fail yang sama dipilih semula -> papar hasil serta-merta tanpa pdf.js/API.
-  // Key = jenis|nama|saiz|lastModified supaya fail berbeza tidak bercampur.
-  // =========================================================================
-  const AI_FILE_CACHE_KEY = 'stb_ai_file_cache';
-  const AI_FILE_CACHE_MAX = 10;
-
-  function getAIFileCacheKey(type, file) {
-    return type + '|' + file.name + '|' + file.size + '|' + (file.lastModified || 0);
-  }
-
-  async function getAIFileCacheResult(type, file) {
-    try {
-      const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
-      const cache = storage[AI_FILE_CACHE_KEY] || {};
-      const entry = cache[getAIFileCacheKey(type, file)];
-      return entry ? entry.data : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  async function setAIFileCacheResult(type, file, data) {
-    try {
-      // V6.9.1: Jangan cache hasil yang nampak tidak lengkap (alamat kosong).
-      // AI kadang-kadang miss rawak; fail sama tidak boleh dibekukan dengan hasil miss.
-      if (!data || (!data.alamatPerniagaan && !data.alamatSuratMenyurat)) return;
-
-      const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
-      const cache = storage[AI_FILE_CACHE_KEY] || {};
-      const key = getAIFileCacheKey(type, file);
-      cache[key] = { data: data, ts: Date.now() };
-
-      const entries = Object.keys(cache);
-      if (entries.length > AI_FILE_CACHE_MAX) {
-        entries.sort((a, b) => (cache[a].ts || 0) - (cache[b].ts || 0));
-        while (Object.keys(cache).length > AI_FILE_CACHE_MAX) {
-          delete cache[entries.shift()];
-        }
-      }
-
-      await storageWrapper.set({ [AI_FILE_CACHE_KEY]: cache });
-    } catch (e) {}
-  }
-
-  // V6.9.1: Buang entri cache bagi satu fail (diguna butang "Ekstrak Semula")
-  async function removeAIFileCacheResult(type, file) {
-    try {
-      const storage = await storageWrapper.get([AI_FILE_CACHE_KEY]);
-      const cache = storage[AI_FILE_CACHE_KEY] || {};
-      delete cache[getAIFileCacheKey(type, file)];
-      await storageWrapper.set({ [AI_FILE_CACHE_KEY]: cache });
-    } catch (e) {}
-  }
-
-  let isPdfAiProcessing = false;
-
-  // V7.0.0: Fallback AI - force = true sentiasa (butang "Guna AI")
-  async function processPdfWithAI(force = false) {
-    if (isPdfAiProcessing) return;
-    if (!pdfFileInput.files.length) {
-      await CustomAppModal.alert("Sila pilih fail PDF terlebih dahulu.", "Fail Diperlukan", "warning");
-      return;
-    }
-    isPdfAiProcessing = true;
-
-    const file = pdfFileInput.files[0];
-    if (file.size > 10 * 1024 * 1024) {
-      await CustomAppModal.alert("Fail terlalu besar (Maks 10MB).", "Ralat Saiz", "error");
-      isPdfAiProcessing = false;
-      return;
-    }
-
-    if (force) {
-      await removeAIFileCacheResult('borang', file);
-    }
-
-    let aiInterval = null;
-
-    // V6.9.1: Cache per-fail - papar hasil serta-merta untuk fail yang sama
-    // (skip bila force = true supaya panggilan AI segar dijalankan)
-    const cachedResult = await getAIFileCacheResult('borang', file);
-    if (cachedResult && !force) {
-      extractedPdfData = cachedResult;
-      displayExtractedData(extractedPdfData);
-      if (pdfResult) pdfResult.style.display = 'block';
-      if (pdfExtractMeta) pdfExtractMeta.innerText = 'Kaedah: AI (cache fail ini)';
-      storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
-      await playSuccessSound();
-      isPdfAiProcessing = false;
-      return;
-    }
-
-    const updateProgress = makeMorphUpdater('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', pdfResult);
-
-    try {
-      updateProgress(5, "Tukar PDF ke MD...");
-
-      const { md, numPages, pagesRead } = await convertPdfToMd(file, {
-        onProgress: (p, t) => updateProgress(5 + Math.round((p / t) * 35), `Tukar ke MD... (${p}/${t})`)
-      });
-
-      console.log("V7.0.0 PDF MD Extracted. Length:", md.length);
-
-      if (pdfExtractMeta) pdfExtractMeta.innerText = `Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
-
-      updateProgress(45, "Menghantar ke AI...");
-
-      // V6.9.1: Progress sebenar dengan pemasa masa menunggu AI
-      const aiStartTime = Date.now();
-      aiInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - aiStartTime) / 1000);
-        const aiPercent = Math.min(50 + Math.floor(elapsed / 2), 90);
-        updateProgress(aiPercent, `AI memproses... ${elapsed}s`);
-      }, 500);
-
-      extractedPdfData = await processPdfTextWithAI(md, force);
-
-      if (aiInterval) clearInterval(aiInterval);
-
-      updateProgress(100, "Selesai!");
-
-      await playSuccessSound();
-
-      resetMorphBox('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', `📄<br><span>Pilih PDF</span>`, () => {
-        displayExtractedData(extractedPdfData);
-        if (pdfResult) pdfResult.style.display = 'block';
-        if (pdfExtractMeta) pdfExtractMeta.innerText = `Kaedah: AI | Muka: ${pagesRead}/${numPages}`;
-      });
-
-      storageWrapper.set({ 'stb_extracted_pdf_data': extractedPdfData });
-      setAIFileCacheResult('borang', file, extractedPdfData);
-
-    } catch (error) {
-      console.error("V7.0.0 AI Error:", error);
-      if (aiInterval) clearInterval(aiInterval);
-      await playErrorSound();
-
-      document.getElementById('pdfProgressMsg').innerHTML = `<span style="color:#ef4444; font-weight:bold;">Ralat: ${error.message}</span>`;
-      await CustomAppModal.alert("Gagal memproses: " + error.message, "Ralat Sistem", "error");
-    } finally {
-      isPdfAiProcessing = false;
-    }
-  }
-
-  async function processPdfTextWithAI(pdfText, bypassCache = false) {
-    // V6.9.1: Sejajar dengan had backend (15,000 aksara) - elak upload berlebihan
-    const maxTextLength = 15000;
-    const truncatedText = pdfText.length > maxTextLength
-      ? pdfText.substring(0, maxTextLength) + "... [text truncated]"
-      : pdfText;
-
-    console.log("V6.5.2 (Web) Menghantar teks borang ke backend untuk AI processing...");
-    
-    // V7.0.11: Model AI dikunci ke 'auto' (dropdown dibuang)
-    const selectedModel = 'auto';
-    
-    const payload = {
-      action: 'processAI',
-      type: 'borang',
-      text: truncatedText,
-      model: selectedModel, // <-- HANTAR PILIHAN MODEL KE BACKEND
-      email: currentUser ? currentUser.email : '',
-      bypassCache: bypassCache // V6.9.1: Paksa panggilan AI segar
-    };
-
-    const response = await fetchWithRetry(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 2, 500);
-
-    const result = await response.json();
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || result.error || 'Gagal mengekstrak data dari pelayan AI.');
-    }
-    
-    return result.data;
-  }
 
   // V7.0.0: Cari blok alamat berlabel dalam baris MD (berbilang baris)
   function extractAddressBlockFromLines(lines, labelPattern) {
@@ -7767,6 +7577,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const rb = roles.includes('MAKER') && roles.includes('CHECKER') ? 'MAKER + CHECKER' : (roles.includes('MAKER') ? 'MAKER' : 'CHECKER');
         roleBadge = ` <span style="background:#ffe600; font-weight:bold; padding:0 4px; border-radius:3px;">(${rb})</span>`;
       }
+      // Badge BARU TAMBAH - hanya untuk jenis UBAH MAKLUMAT & personel yang ditandakan
+      const isUbahMaklumat = document.querySelector('input[name="jenisApp"]:checked')?.value === 'ubah_maklumat';
+      const isBaruTambah = card.querySelector('.baru-tambah-cb')?.checked || false;
+      let baruBadge = '';
+      if (isUbahMaklumat && isBaruTambah) {
+        baruBadge = ` <span style="background:#fde047; font-weight:bold; padding:0 4px; border-radius:3px;">(BARU TAMBAH)</span>`;
+      }
     
     const tick = (role) => roles.includes(role) ? '✓' : '';
     
@@ -7777,7 +7594,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         const combinedText = `Tarikh: ${displayDate} | Status: ${cStatus}`;
         
         rowsHtml += `<tr>
-          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}</div></td>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${baruBadge}</div></td>
           <td class="col-tick">${tick('PENGARAH')}</td>
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
@@ -7787,7 +7604,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         </tr>`;
     } else {
         rowsHtml += `<tr>
-          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${roleBadge}</div></td>
+          <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${roleBadge}${baruBadge}</div></td>
           <td class="col-tick">${tick('PENGARAH')}</td>
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
@@ -9409,6 +9226,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const ubahGredInput = document.getElementById('input_ubah_gred');
       if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
       if (ubahGredInput) ubahGredInput.style.display = (val === 'ubah_gred') ? 'block' : 'none';
+      syncBaruTambahVisibility();
       saveFormData();
     });
   });
@@ -10715,6 +10533,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         name: card.querySelector('.p-name')?.value.toUpperCase() || '',
         isCompany: card.querySelector('.is-company')?.checked || false,
         roles: roles,
+        baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
         s_ic: card.querySelector('.status-ic')?.value.toUpperCase() || '',
         s_sb: card.querySelector('.status-sb')?.value.toUpperCase() || '',
         s_epf: card.querySelector('.status-epf')?.value.toUpperCase() || '',
@@ -13287,6 +13106,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           name: card.querySelector('.p-name')?.value || '',
           isCompany: card.querySelector('.is-company')?.checked || false,
           roles: roles,
+          baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
           s_ic: card.querySelector('.status-ic')?.value || '',
           s_sb: card.querySelector('.status-sb')?.value || '',
           s_epf: card.querySelector('.status-epf')?.value || '',
@@ -13782,6 +13602,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
   const personnelList = document.getElementById('personnelList');
   const addPersonBtn = document.getElementById('addPersonBtn');
 
+  // Papar checkbox BARU TAMBAH pada kad personel hanya untuk UBAH MAKLUMAT
+  function syncBaruTambahVisibility(scopeEl) {
+    const isUbah = document.querySelector('input[name="jenisApp"]:checked')?.value === 'ubah_maklumat';
+    const root = scopeEl || document;
+    root.querySelectorAll('.baru-tambah-wrap').forEach(el => {
+      el.style.display = isUbah ? 'inline-flex' : 'none';
+    });
+  }
+
   function addPerson(data=null) {
     if (!personnelList) return;
 
@@ -13789,8 +13618,11 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     div.className = 'person-card';
     div.innerHTML = `
       <button class="delete-btn" type="button">✕</button>
-      <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-        <label>Nama Personel</label>
+      <div style="display:flex; justify-content:space-between; margin-bottom:5px; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label>Nama Personel</label>
+          <label class="baru-tambah-wrap" style="display:none; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; border:2px solid #f59e0b; background:#fffbeb; color:#b45309; font-weight:bold; font-size:0.75rem; cursor:pointer;"><input type="checkbox" class="baru-tambah-cb"> ➕ BARU TAMBAH</label>
+        </div>
         <label><input type="checkbox" class="is-company"> Syarikat?</label>
       </div>
       <input type="text" class="p-name" placeholder="NAMA PENUH">
@@ -13900,9 +13732,12 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       });
     }
 
-    div.querySelectorAll('.role-cb, .is-company').forEach(cb => {
+    div.querySelectorAll('.role-cb, .is-company, .baru-tambah-cb').forEach(cb => {
       cb.addEventListener('change', saveFormData);
     });
+
+    // Papar checkbox BARU TAMBAH jika jenis semasa ialah UBAH MAKLUMAT
+    syncBaruTambahVisibility(div);
     
     const isCompCb = div.querySelector('.is-company');
     if (isCompCb) {
@@ -13951,6 +13786,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           if(data.roles.includes(cb.value)) cb.checked = true;
         });
       }
+      // Restore checkbox BARU TAMBAH (rekod lama tanpa field kekal untick)
+      const baruCb = div.querySelector('.baru-tambah-cb');
+      if (baruCb && data.baruTambah) baruCb.checked = true;
+      syncBaruTambahVisibility(div);
       
       const statusIc = div.querySelector('.status-ic');
       const statusSb = div.querySelector('.status-sb');
