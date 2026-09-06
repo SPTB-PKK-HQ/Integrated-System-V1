@@ -7573,9 +7573,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
       let roleBadge = '';
-      if (!isCompany && (roles.includes('MAKER') || roles.includes('CHECKER'))) {
-        const rb = roles.includes('MAKER') && roles.includes('CHECKER') ? 'MAKER + CHECKER' : (roles.includes('MAKER') ? 'MAKER' : 'CHECKER');
-        roleBadge = ` <span style="background:#ffe600; font-weight:bold; padding:0 4px; border-radius:3px;">(${rb})</span>`;
+      const extraRoles = ['K.KEW','MAKER','CHECKER'].filter(r => roles.includes(r));
+      if (!isCompany && extraRoles.length > 0) {
+        roleBadge = ` <span style="background:#ffe600; font-weight:bold; padding:0 4px; border-radius:3px;">(${extraRoles.join(' + ')})</span>`;
       }
       // Badge BARU TAMBAH - hanya untuk jenis UBAH MAKLUMAT & personel yang ditandakan
       const isUbahMaklumat = document.querySelector('input[name="jenisApp"]:checked')?.value === 'ubah_maklumat';
@@ -7599,7 +7599,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
           <td class="col-tick">${tick('P.SPKK')}</td>
-          <td class="col-tick">${tick('K.KEW')}</td>
           <td colspan="3" style="text-align:center; font-size:9pt; font-weight:bold;">${combinedText}</td>
         </tr>`;
     } else {
@@ -7609,7 +7608,6 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           <td class="col-tick">${tick('P.EKUITI')}</td>
           <td class="col-tick">${tick('T.T CEK')}</td>
           <td class="col-tick">${tick('P.SPKK')}</td>
-          <td class="col-tick">${tick('K.KEW')}</td>
           <td class="col-tick">${s_ic}</td>
           <td class="col-tick">${s_sb}</td>
           <td class="col-tick">${s_epf}</td>
