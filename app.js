@@ -6062,10 +6062,13 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         "KEY MANAGEMENT", "PERSONEL PENGURUSAN", "TECHNICAL PERSONNEL", "PERSONEL TEKNIKAL",
         "COMPETENT PERSON", "ORANG KOMPETEN", "JOINT VENTURE", "KONSORTIUM", 
         "INTERNATIONAL REGISTERED", "REGISTRATION NO", "APPLICATION NO",
-        "EQUITY", "BUMIPUTERA", "ASING", "BUKAN BUMIPUTERA", "AGENSI BERKAITAN"
+        "EQUITY", "BUMIPUTERA", "ASING", "BUKAN BUMIPUTERA", "AGENSI BERKAITAN",
+        // V7.0.14: Perkataan lajur (bukan nama) - sepadan penanda lookahead di atas
+        "MALAYSIA", "MELAYU", "CINA", "INDIA", "LELAKI", "PEREMPUAN", "WARGANEGARA"
       ];
 
-      const regex = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z\s\.\'\@\&\-\(\)\/,]+?)(?=\s+(?:\d{6,}|\d{5,}[A-Z]|[A-Z]\d{5,}|MALAYSIA|MELAYU|CINA|INDIA|LELAKI|PEREMPUAN|DIRECTOR|PENGARAH|MANAGING|WARGANEGARA))/g;
+      // V7.0.14: Nombor baris bermula 1 (bukan 0) - elak lajur KWSP "0" sebelum MALAYSIA ditangkap sebagai baris
+      const regex = /(?:\b|^)([1-9]\d?)(?:[\.\)\s]*)\s+([A-Z\s\.\'\@\&\-\(\)\/,]+?)(?=\s+(?:\d{6,}|\d{5,}[A-Z]|[A-Z]\d{5,}|MALAYSIA|MELAYU|CINA|INDIA|LELAKI|PEREMPUAN|DIRECTOR|PENGARAH|MANAGING|WARGANEGARA))/g;
 
       let match;
       const names = [];
@@ -6096,7 +6099,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       // V7.0.3: Fallback - nama tanpa IC/marker (hanya dipisah nombor baris).
       // Hanya guna bila padanan utama kosong supaya tidak mencemar hasil yang lengkap.
       if (names.length === 0) {
-        const fallbackRe = /(?:\b|^)(\d{1,2})(?:[\.\)\s]*)\s+([A-Z][A-Z\s\.\'\@\&\-\(\)\/,]{3,60}?)(?=\s+(?:\d{1,2}[\.\)]|$))/g;
+        const fallbackRe = /(?:\b|^)([1-9]\d?)(?:[\.\)\s]*)\s+([A-Z][A-Z\s\.\'\@\&\-\(\)\/,]{3,60}?)(?=\s+(?:\d{1,2}[\.\)]|$))/g;
         let fallbackMatch;
         while ((fallbackMatch = fallbackRe.exec(cleanStream)) !== null) {
           let potentialName = fallbackMatch[2].trim();
