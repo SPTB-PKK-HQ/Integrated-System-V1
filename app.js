@@ -15813,7 +15813,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                       <tr class="${rowColorClass}" style="border-bottom: 1px solid #f1f5f9;">
                           <td style="font-weight:bold; color: #1e3a8a; font-size: 1.05rem;">${d.company}</td>
                           <td>
-                              <span style="font-weight:bold; color: #f59e0b;">${d.grade}</span>${(d.gradeRaw && d.gradeRaw !== d.grade) ? `<br><span style="font-size:0.75rem; color:#64748b;">(asal: ${d.gradeRaw})</span>` : ''} <br>
+                              <span style="font-weight:bold; color: #f59e0b;">${d.grade}</span>${(d.gradeRaw && d.gradeRaw !== d.grade) ? `<br><span style="font-size:0.75rem; color:#64748b;">${d.gradeRaw}</span>` : ''} <br>
                               <span style="font-size:0.85rem; color:#64748b; font-family: monospace;">${d.cidb}</span>
                           </td>
                           <td>${d.district}</td>
