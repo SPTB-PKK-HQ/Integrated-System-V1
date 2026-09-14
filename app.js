@@ -15355,6 +15355,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
   });
 
+  // KEMASKINI: Kira gred TERTINGGI dari string gred Excel (cth: "G2G2G2G5" -> "G5").
+  // Tangani format tanpa/pemisah: "G2G2G2G5", "G2,G5", "G2 / G5", "G 2 G 5", "g5".
+  function getHighestGrade(gradeStr) {
+      if (gradeStr === null || gradeStr === undefined) return '-';
+      const raw = String(gradeStr).trim().toUpperCase();
+      if (!raw || raw === '-') return '-';
+      const matches = raw.match(/G\s*([1-7])/g);
+      if (!matches || matches.length === 0) return raw;
+      let max = 0;
+      matches.forEach(x => {
+          const n = parseInt(x.replace(/\D/g, ''), 10);
+          if (!isNaN(n) && n > max) max = n;
+      });
+      return max > 0 ? `G${max}` : raw;
+  }
+
   async function processExcelForTapisan(rawData) {
       if (rawData.length < 2) return;
       const headers = rawData[0].map(h => String(h).toLowerCase().trim());
@@ -15381,7 +15397,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       excelRawData = rawData.slice(1).filter(row => {
           const g = String(row[keys.grade] || '').trim();
-          if (!gradeRegex.test(g)) return false; 
+          // KEMASKINI: Tapis guna gred TERTINGGI (cth: "G2G2G2G5" dikira G5)
+          if (!gradeRegex.test(getHighestGrade(g))) return false; 
           
           // LOGIK KETAT UNTUK PENGESYOR: Pastikan peraturan wujud sebelum membenarkan data dipaparkan
           if (currentUser && currentUser.role === 'PENGESYOR') {
@@ -15421,12 +15438,15 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   if(parts.length === 3) rawSortDate = new Date(parts[2], parts[1]-1, parts[0]);
               }
           }
+          const rawGrade = String(row[keys.grade] || '-').trim().toUpperCase();
           return {
               id: idx,
               company: String(row[keys.company] || '-').trim().toUpperCase(),
               cidb: String(row[keys.cidb] || '-').trim(),
               district: keys.district !== -1 ? String(row[keys.district] || '-').trim().toUpperCase() : '-',
-              grade: String(row[keys.grade] || '-').trim().toUpperCase(),
+              // KEMASKINI: Papar gred ASAL, tapi simpan gred tertinggi untuk tapisan seterusnya & borang
+              grade: rawGrade,
+              gradeHighest: getHighestGrade(rawGrade),
               dateSubmitted: dateStr,
               rawSortDate: rawSortDate,
               // Jika tiada Update Type dalam Excel (contoh: fail 56), ia akan simpan sebagai '-'
@@ -15603,7 +15623,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               <td style="font-weight:bold; color: #1e293b;">${item.company}</td>
               <td style="color: #475569;">${item.cidb}</td>
               <td>${item.district}</td>
-              <td style="font-weight:bold; color: #f59e0b;">${item.grade}</td>
+              <td style="font-weight:bold; color: #f59e0b;" title="Gred tertinggi: ${item.gradeHighest || item.grade}">${item.grade}</td>
               <td><span style="font-weight:600; color:#475569;">${item.dateSubmitted}</span></td>
               <td>
                 <span style="background: rgba(255,255,255,0.7); color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; border: 1px solid #cbd5e1;">${item.updateType}</span>
@@ -15669,7 +15689,10 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   batch.push(dbFirestore.collection("applications").add({
                       company: item.company,
                       cidb: item.cidb,
-                      grade: item.grade,
+                      // KEMASKINI: Simpan gred TERTINGGI (cth: G5) supaya view v_bakul_hq/negeri berfungsi;
+                      // gred asal dikekalkan dalam gradeRaw untuk paparan "(asal: ...)".
+                      grade: item.gradeHighest || getHighestGrade(item.grade),
+                      gradeRaw: item.grade || '-',
                       district: item.district,
                       type: typeToSave,
                       dateSubmitted: item.dateSubmitted,
@@ -15790,7 +15813,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                       <tr class="${rowColorClass}" style="border-bottom: 1px solid #f1f5f9;">
                           <td style="font-weight:bold; color: #1e3a8a; font-size: 1.05rem;">${d.company}</td>
                           <td>
-                              <span style="font-weight:bold; color: #f59e0b;">${d.grade}</span> <br>
+                              <span style="font-weight:bold; color: #f59e0b;">${d.grade}</span>${(d.gradeRaw && d.gradeRaw !== d.grade) ? `<br><span style="font-size:0.75rem; color:#64748b;">(asal: ${d.gradeRaw})</span>` : ''} <br>
                               <span style="font-size:0.85rem; color:#64748b; font-family: monospace;">${d.cidb}</span>
                           </td>
                           <td>${d.district}</td>
@@ -15857,6 +15880,8 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               const company = prosesBtn.getAttribute('data-company');
               const cidb = prosesBtn.getAttribute('data-cidb');
               const grade = prosesBtn.getAttribute('data-grade');
+              // KEMASKINI: Normalisasi ke gred tertinggi (cth: "G2G2G2G5" -> "G5") — selamat untuk rekod bakul lama
+              const gradeTertinggi = getHighestGrade(grade);
               const type = prosesBtn.getAttribute('data-type');
               const dateSubmitted = prosesBtn.getAttribute('data-date');
               const transCode = prosesBtn.getAttribute('data-trans'); // KOD BARU
@@ -15905,7 +15930,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               const gredSelect = document.getElementById('borang_gred');
               if(gredSelect) {
                   for(let i=0; i<gredSelect.options.length; i++) {
-                      if(gredSelect.options[i].value === grade.toUpperCase()) gredSelect.selectedIndex = i;
+                      if(gredSelect.options[i].value === gradeTertinggi) gredSelect.selectedIndex = i;
                   }
               }
               
@@ -15950,7 +15975,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               const dbGredSelect = document.getElementById('db_gred');
               if(dbGredSelect) {
                   for(let i=0; i<dbGredSelect.options.length; i++) {
-                      if(dbGredSelect.options[i].value === grade.toUpperCase()) dbGredSelect.selectedIndex = i;
+                      if(dbGredSelect.options[i].value === gradeTertinggi) dbGredSelect.selectedIndex = i;
                   }
               }
 
