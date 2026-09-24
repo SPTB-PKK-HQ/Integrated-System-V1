@@ -15783,14 +15783,62 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
                   }
               });
 
-              globalBakulData = validBakulData;
+              // Susun tarikh mohon paling lama di atas, paling baru di bawah;
+              // jika nama syarikat + no CIDB sama, himpun bersebelahan (atas-bawah)
+              // Helper: tukar dateSubmitted (DD/MM/YYYY atau YYYY-MM-DD) -> timestamp
+              // Tarikh mohon diutamakan; jika tiada/'-' -> letak paling bawah (MAX), bukan guna addedToBasketAt
+              const getBakulTarikhMs = (d) => {
+                  if (d.dateSubmitted && d.dateSubmitted !== '-' && String(d.dateSubmitted).includes('/')) {
+                      const p = String(d.dateSubmitted).split('/');
+                      if (p.length === 3) {
+                          const day = parseInt(p[0], 10);
+                          const month = parseInt(p[1], 10) - 1;
+                          const year = parseInt(p[2], 10);
+                          const dt = new Date(year, month, day);
+                          if (!isNaN(dt.getTime())) return dt.getTime();
+                      }
+                  }
+                  if (d.dateSubmitted && d.dateSubmitted !== '-' && String(d.dateSubmitted).includes('-')) {
+                      const dt2 = new Date(d.dateSubmitted);
+                      if (!isNaN(dt2.getTime())) return dt2.getTime();
+                  }
+                  // Tiada tarikh mohon sah -> letak di bawah
+                  return Number.MAX_SAFE_INTEGER;
+              };
 
-              // Susun terbaharu di atas
-              validBakulData.sort((a, b) => {
-                  const timeA = a.addedToBasketAt ? a.addedToBasketAt.seconds : 0;
-                  const timeB = b.addedToBasketAt ? b.addedToBasketAt.seconds : 0;
-                  return timeB - timeA;
+              // Group by syarikat (upper, trim) + CIDB (trim)
+              const bakulGroups = new Map();
+              validBakulData.forEach(item => {
+                  const key = `${(item.company || '').trim().toUpperCase()}|${(item.cidb || '').trim()}`;
+                  if (!bakulGroups.has(key)) bakulGroups.set(key, []);
+                  bakulGroups.get(key).push(item);
               });
+              // Sort dalam group: tarikh mohon paling lama dulu
+              bakulGroups.forEach(arr => {
+                  arr.sort((a, b) => {
+                      const tA = getBakulTarikhMs(a);
+                      const tB = getBakulTarikhMs(b);
+                      if (tA !== tB) return tA - tB;
+                      const atA = a.addedToBasketAt ? (a.addedToBasketAt.seconds || 0) : 0;
+                      const atB = b.addedToBasketAt ? (b.addedToBasketAt.seconds || 0) : 0;
+                      return atA - atB;
+                  });
+              });
+              // Sort group by tarikh paling awal dalam group (lama di atas)
+              const sortedGroups = [...bakulGroups.values()].sort((gA, gB) => {
+                  const minA = getBakulTarikhMs(gA[0]);
+                  const minB = getBakulTarikhMs(gB[0]);
+                  if (minA !== minB) return minA - minB;
+                  const cmp = (gA[0].company || '').localeCompare(gB[0].company || '');
+                  if (cmp !== 0) return cmp;
+                  return (gA[0].cidb || '').localeCompare(gB[0].cidb || '');
+              });
+              // Flatten semula ke validBakulData dengan susunan baru
+              const sortedBakul = sortedGroups.flat();
+              validBakulData.length = 0;
+              sortedBakul.forEach(v => validBakulData.push(v));
+
+              globalBakulData = validBakulData;
 
               const badge = document.getElementById('bakulCountBadge');
               if (badge) badge.innerText = validBakulData.length;
@@ -15799,9 +15847,9 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
               if (!tbody) return;
 
               if(validBakulData.length === 0) {
-                  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 30px; color:#94a3b8; font-style: italic;">Bakul Kosong. Sila tapis dan tambah dari Tapisan Excel.</td></tr>`;
+                  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px; color:#94a3b8; font-style: italic;">Bakul Kosong. Sila tapis dan tambah dari Tapisan Excel.</td></tr>`;
               } else {
-                  tbody.innerHTML = validBakulData.map(d => {
+                  tbody.innerHTML = validBakulData.map((d, idx) => {
                       let rowColorClass = '';
                       const tLower = (d.type || '').toLowerCase();
                       if(tLower.includes('baru')) rowColorClass = 'row-new';
@@ -15811,6 +15859,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
                       return `
                       <tr class="${rowColorClass}" style="border-bottom: 1px solid #f1f5f9;">
+                          <td style="text-align:center; font-weight:700; color:#334155; background: #f8fafc;">${idx + 1}</td>
                           <td style="font-weight:bold; color: #1e3a8a; font-size: 1.05rem;">${d.company}</td>
                           <td>
                               <span style="font-weight:bold; color: #f59e0b;">${d.grade}</span>${(d.gradeRaw && d.gradeRaw !== d.grade) ? `<br><span style="font-size:0.75rem; color:#64748b;">${d.gradeRaw}</span>` : ''} <br>
