@@ -10534,6 +10534,44 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     updateValidationCheckboxDisplay();
   }
 
+  // Reset tab Semakan (pelulus-view) & Keputusan (pelulus-action) selepas setiap pengesahan
+  function resetPelulusTabs() {
+    // 1. Buang item aktif supaya tab tidak lagi memaparkan data lama
+    pelulusActiveItem = null;
+    // 2. Buang state tersimpan (localStorage + formStates)
+    storageWrapper.remove(['stb_pelulus_state']);
+    delete formStates['pelulus-action'];
+    storageWrapper.set({ 'stb_form_states': formStates });
+    // 3. Kosongkan semua medan keputusan
+    ['pelulus_keputusan', 'pelulus_alasan', 'pelulus_catatan', 'pelulus_justifikasi_lawatan',
+     'pelulus_justifikasi_siasat', 'pelulus_siasat_tolak_alasan'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    ['pelulus_sah_lulus', 'cb_sah_siasat'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
+    setButtonGroupValue('pelulus_tukar_syor_lawatan', '');
+    setButtonGroupValue('siasat_tindakan', '');
+    // 4. Sembunyikan elemen bersyarat & butang siasat
+    ['div_alasan', 'div_ubah_syor_lawatan', 'div_pelulus_justifikasi', 'div_siasat_pelulus',
+     'div_siasat_tolak_alasan', 'label_pelulus_sah_lulus', 'label_sah_siasat'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    const btnFinalSiasat = document.getElementById('btnSiasatFinalSahkan');
+    if (btnFinalSiasat) { btnFinalSiasat.style.display = 'none'; btnFinalSiasat.disabled = true; btnFinalSiasat.style.opacity = '0.6'; }
+    // 5. Kosongkan paparan Semakan & ringkasan keputusan
+    const viewContent = document.getElementById('pelulus_view_content');
+    if (viewContent) viewContent.innerHTML = '';
+    const summary = document.getElementById('pelulus_action_summary');
+    if (summary) summary.textContent = '';
+    // 6. Set semula nama pelulus kepada pengguna semasa
+    const pelNama = document.getElementById('pelulus_nama');
+    if (pelNama) pelNama.value = currentUser ? (currentUser.name || '') : '';
+  }
+
   const pelKeputusan = document.getElementById('pelulus_keputusan');
   if(pelKeputusan) {
     pelKeputusan.addEventListener('change', (e) => {
@@ -14074,7 +14112,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             await CustomAppModal.alert("Keputusan pelulus BERJAYA direkodkan.", "Selesai", "success");
         }
         
-        // Kembali ke tab inbox
+        // Reset tab Semakan & Keputusan, kemudian kembali ke tab inbox
+        resetPelulusTabs();
         switchTab('inbox');
 
         if (loadingOverlay) {
@@ -14195,6 +14234,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             }
             await storageWrapper.remove(['stb_pelulus_state']);
             await CustomAppModal.alert("Siasat berjaya disahkan dan akan dihantar ke SPI pada jam 6 PETANG hari bekerja.", "Berjaya", "success");
+            resetPelulusTabs();
             switchTab('inbox');
             fetchAndRenderList('inbox', true);
           } else {
@@ -14276,6 +14316,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           } else {
             await CustomAppModal.alert(`Siasat ditolak. ${pengesyorPhone ? 'Gagal dapatkan telefon pengesyor untuk WhatsApp.' : 'Telefon pengesyor tiada.'} Sila hubungi manual.`, "Selesai", "warning");
           }
+          resetPelulusTabs();
           switchTab('inbox');
           fetchAndRenderList('inbox', true);
         } else {
