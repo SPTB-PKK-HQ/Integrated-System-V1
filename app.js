@@ -1675,6 +1675,45 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  // === PROGRESS BAR UNTUK AKSI PENGESAHAN SIASAT / UNDO ===
+  // Mula animasi 0% -> 90% semasa proses berjalan
+  function startLoadingProgress(message) {
+    if (!loadingOverlay) return;
+    loadingOverlay.style.display = 'flex';
+    if (loadingText) loadingText.textContent = message || 'Memproses...';
+    if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
+    const pBar = document.getElementById('loading-progress-bar');
+    const pPct = document.getElementById('loading-progress-percent');
+    const pLbl = document.getElementById('loading-progress-label');
+    if (pBar) { pBar.style.display = 'block'; pBar.style.width = '0%'; pBar.style.background = ''; }
+    if (pPct) pPct.textContent = '0%';
+    if (pLbl) pLbl.textContent = message || 'Memproses...';
+    if (loadingProgressInterval) { clearInterval(loadingProgressInterval); loadingProgressInterval = null; }
+    let prog = 0;
+    loadingProgressInterval = setInterval(() => {
+      if (prog < 90) {
+        prog += Math.floor(Math.random() * 7) + 3;
+        if (prog > 90) prog = 90;
+        if (pBar) pBar.style.width = `${prog}%`;
+        if (pPct) pPct.textContent = `${prog}%`;
+      }
+    }, 180);
+  }
+
+  // Selesaikan animasi ke 100%, kemudian tutup overlay
+  function finishLoadingProgress(success, label, delayMs) {
+    const pBar = document.getElementById('loading-progress-bar');
+    const pPct = document.getElementById('loading-progress-percent');
+    const pLbl = document.getElementById('loading-progress-label');
+    if (loadingProgressInterval) { clearInterval(loadingProgressInterval); loadingProgressInterval = null; }
+    if (pBar) { pBar.style.width = '100%'; pBar.style.background = success === false ? '#ef4444' : '#10b981'; }
+    if (pPct) pPct.textContent = '100%';
+    if (pLbl) pLbl.textContent = label || (success === false ? 'Gagal' : 'Selesai!');
+    return new Promise(function(resolve) {
+      setTimeout(function() { hideLoading(); resolve(); }, typeof delayMs === 'number' ? delayMs : 600);
+    });
+  }
+
   // =========================================================================
   // FORM PERSISTENCE FUNCTIONS - INSTANT SAVE
   // =========================================================================
@@ -14204,7 +14243,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           false
         );
         if (!isConfirm) return;
-        if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Menghantar SIASAT ke SPI...'; }
+        startLoadingProgress('Menghantar SIASAT ke SPI...');
         let borangJsonData = {};
         try { borangJsonData = pelulusActiveItem.borang_json ? JSON.parse(pelulusActiveItem.borang_json) : {}; } catch(e) {}
         if (!borangJsonData.siasat_workflow) borangJsonData.siasat_workflow = {};
@@ -14232,8 +14271,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         try {
           const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }, 3, 1000);
           const result = await resp.json();
-          hideLoading();
           if (result.status === 'success' || result.success) {
+            await finishLoadingProgress(true, 'Berjaya dihantar!');
             await playSuccessSound();
             if (cachedData) {
               const idx = cachedData.findIndex(d => d.row === pelulusActiveItem.row);
@@ -14250,10 +14289,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             switchTab('inbox');
             fetchAndRenderList('inbox', true);
           } else {
+            await finishLoadingProgress(false, 'Gagal');
             await CustomAppModal.alert("Gagal sahkan siasat: " + (result.message || 'Ralat tidak diketahui'), "Ralat", "error");
           }
         } catch (e) {
-          hideLoading();
+          await finishLoadingProgress(false, 'Ralat');
           await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
         }
       } else if (tindakan === 'TOLAK') {
@@ -14270,7 +14310,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           true
         );
         if (!isConfirm) return;
-        if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Menolak siasat...'; }
+        startLoadingProgress('Menolak siasat...');
         let borangJsonData2 = {};
         try { borangJsonData2 = pelulusActiveItem.borang_json ? JSON.parse(pelulusActiveItem.borang_json) : {}; } catch(e) {}
         if (!borangJsonData2.siasat_workflow) borangJsonData2.siasat_workflow = {};
@@ -14297,8 +14337,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         try {
           const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload2) }, 3, 1000);
           const result = await resp.json();
-          hideLoading();
           if (result.status === 'success' || result.success) {
+            await finishLoadingProgress(true, 'Berjaya ditolak!');
             let pengesyorPhone = '';
             let waUrl = null;
             if (result.pengesyorPhone) pengesyorPhone = result.pengesyorPhone;
@@ -14332,10 +14372,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           switchTab('inbox');
           fetchAndRenderList('inbox', true);
         } else {
+          await finishLoadingProgress(false, 'Gagal');
           await CustomAppModal.alert("Gagal tolak siasat: " + (result.message || 'Ralat'), "Ralat", "error");
         }
       } catch (e) {
-        hideLoading();
+        await finishLoadingProgress(false, 'Ralat');
         await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
       }
       }
@@ -14353,7 +14394,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       true
     );
     if (!isConfirm) return;
-    if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Undo pengesahan siasat...'; }
+    startLoadingProgress('Undo pengesahan siasat...');
     let borangJsonData = {};
     try { borangJsonData = item.borang_json ? JSON.parse(item.borang_json) : {}; } catch(e) {}
     if (!borangJsonData.siasat_workflow) borangJsonData.siasat_workflow = {};
@@ -14375,8 +14416,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     try {
       const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }, 3, 1000);
       const result = await resp.json();
-      hideLoading();
       if (result.status === 'success' || result.success) {
+        await finishLoadingProgress(true, 'Undo berjaya!');
         await playSuccessSound();
         if (cachedData) {
           const idx = cachedData.findIndex(d => d.row === item.row);
@@ -14391,10 +14432,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         switchTab('inbox');
         fetchAndRenderList('inbox', true);
       } else {
+        await finishLoadingProgress(false, 'Gagal');
         await CustomAppModal.alert("Gagal undo: " + (result.message || 'Ralat'), "Ralat", "error");
       }
     } catch (e) {
-      hideLoading();
+      await finishLoadingProgress(false, 'Ralat');
       await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
     }
   }
@@ -16889,9 +16931,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           queueSpiModal.classList.add('show');
           queueSpiModal.style.display = 'flex';
 
-          const loadingUI = `
+          const loadingUI = (colspan) => `
               <tr>
-                  <td colspan="4" style="text-align:center; padding: 40px 20px;">
+                  <td colspan="${colspan}" style="text-align:center; padding: 40px 20px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
                           <div class="dashboard-spinner" style="margin-bottom:0;"></div>
                           <div class="queue-loading-text" style="font-weight:bold; color:#1e40af; font-size:1rem;">Menyambung ke pelayan... 0%</div>
@@ -16903,8 +16945,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               </tr>
           `;
 
-          document.getElementById('tbodyQueueSiasat').innerHTML = loadingUI;
-          document.getElementById('tbodyQueuePemutihan').innerHTML = loadingUI;
+          document.getElementById('tbodyQueueSiasat').innerHTML = loadingUI(5);
+          document.getElementById('tbodyQueuePemutihan').innerHTML = loadingUI(4);
 
           let progress = 0;
           const textSteps = ['Menyambung ke pelayan...', 'Menyemak Queue Siasatan Biasa...', 'Menyemak Queue Pemutihan...', 'Menyediakan paparan...'];
@@ -17125,15 +17167,29 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function populateQueueTable(tbodyId, dataArray) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
-      
+      const isSiasat = tbodyId === 'tbodyQueueSiasat';
+      const colSpan = isSiasat ? 5 : 4;
+
       if (!dataArray || dataArray.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
           return;
       }
-      
+
       tbody.innerHTML = dataArray.map((item, index) => {
+          if (isSiasat) {
+              // Siasatan Biasa: Bil, Syarikat, CIDB, Pengesyor, Pelulus
+              return `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="text-align:center;">${index + 1}</td>
+                  <td style="font-weight:bold; color: #1e293b;">${item.syarikat}</td>
+                  <td style="text-align:center; color: #475569;">${item.cidb}</td>
+                  <td style="text-align:center; font-size: 0.85rem;">${item.pengesyor || '-'}</td>
+                  <td style="text-align:center; font-size: 0.85rem; color:#047857; font-weight:600;">${item.pelulus || '-'}</td>
+              </tr>
+              `;
+          }
+          // Pemutihan: Bil, Syarikat, CIDB, Pelulus
           const pegawai = item.pelulus || item.pengesyor || '-';
-          
           return `
           <tr style="border-bottom: 1px solid #f1f5f9;">
               <td style="text-align:center;">${index + 1}</td>
