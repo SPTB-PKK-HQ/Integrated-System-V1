@@ -3,6 +3,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
+  console.log("BUILD TAG: 20260926-siasat-tolak-fix");
   
   // =========================================================================
   // =========================================================================
