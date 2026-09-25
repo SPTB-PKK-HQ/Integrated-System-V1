@@ -763,6 +763,38 @@ function doPost(e) {
       }
       return handlePKAGetPengesyorContact(data);
     }
+
+    // Handler SIASAT: Pelulus sahkan ke SPI (6 petang)
+    if (data.action === 'siasatSahkan') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PELULUS, ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
+      return handleSiasatSahkan(data, sheet);
+    }
+
+    // Handler SIASAT: Pelulus tolak ke Pengesyor + WA
+    if (data.action === 'siasatTolak') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PELULUS, ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
+      return handleSiasatTolak(data, sheet);
+    }
     
     const shouldCreateFolder = data.createFolder === true;
 
@@ -3331,6 +3363,80 @@ function handlePKAGetPengesyorContact(data) {
   }
 }
 
+function handleSiasatSahkan(data, sheet) {
+  try {
+    const rowNum = parseInt(data.row);
+    if (rowNum < 2) return createJSONOutput({ status: "error", message: "Row tidak sah" });
+    const justifikasiBaru = data.justifikasi_baru || '';
+    const dateSubmit = data.date_submit || Utilities.formatDate(new Date(), "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+    // Update justifikasi L(12) dan date_submit J(10)
+    sheet.getRange(rowNum, 12).setValue(justifikasiBaru); // L justifikasi
+    sheet.getRange(rowNum, 10).setValue(dateSubmit); // J date_submit
+    // Update borang_json AC(29)
+    if (data.borang_json) {
+      sheet.getRange(rowNum, 29).setValue(data.borang_json);
+    }
+    // Set status_hantar_spi P(16) = DALAM QUEUE
+    sheet.getRange(rowNum, 16).setValue("DALAM QUEUE");
+    sheet.getRange(rowNum, 17).setValue(""); // Q tarikh_hantar_spi kosong selagi queue
+    // Queue ke SIASAT
+    const emailData = {
+      row: rowNum,
+      syarikat: data.syarikat || '',
+      cidb: data.cidb || '',
+      gred: data.gred || '',
+      jenis: data.jenis || '',
+      alamat_perniagaan: sheet.getRange(rowNum, 21).getValue() || '',
+      pengesyor: data.pengesyor || sheet.getRange(rowNum, 13).getValue() || '',
+      pelulus: data.pelulus || '',
+      justifikasi: justifikasiBaru,
+      pautan: sheet.getRange(rowNum, 11).getValue() || '',
+      date_submit: dateSubmit,
+      syor_lawatan: "YA"
+    };
+    try { addToSiasatQueue(emailData); } catch (e) { console.error("addToSiasatQueue gagal: " + e.toString()); }
+    try { createSpiCalendarEvent(rowNum, data.syarikat || '', data.cidb || '', data.jenis || '', data.pengesyor || '', dateSubmit); } catch (e) { console.error("createSpiCalendarEvent gagal: " + e.toString()); }
+    invalidateDataCache();
+    logActivity(data.email || data.pelulus || 'Pelulus', 'SIASAT_SAHKAN', `Siasat disahkan ke SPI (row ${rowNum}) - ${data.syarikat}`, '');
+    return createJSONOutput({ status: "success", success: true, message: "Siasat berjaya disahkan ke SPI (6 Petang)" });
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+function handleSiasatTolak(data, sheet) {
+  try {
+    const rowNum = parseInt(data.row);
+    if (rowNum < 2) return createJSONOutput({ status: "error", message: "Row tidak sah" });
+    const alasanTolak = data.alasan_tolak || '';
+    const justifikasiBaru = data.justifikasi_baru || '';
+    // Update justifikasi L(12) jika ada edit
+    if (justifikasiBaru) sheet.getRange(rowNum, 12).setValue(justifikasiBaru);
+    // Update borang_json AC(29) dengan workflow DITOLAK
+    if (data.borang_json) {
+      sheet.getRange(rowNum, 29).setValue(data.borang_json);
+    }
+    // Kekalkan pelulus untuk audit (col Z/26 jangan clear), tapi clear queue/status
+    sheet.getRange(rowNum, 16).setValue(""); // P kosong
+    sheet.getRange(rowNum, 17).setValue("");
+    // Buang dari SIASAT_QUEUE jika ada
+    try { removeFromQueue(data.syarikat || sheet.getRange(rowNum, 1).getValue(), 'SIASAT_QUEUE'); } catch (e) {}
+    invalidateDataCache();
+    // Cari telefon pengesyor untuk WA
+    let pengesyorPhone = "";
+    let waUrl = "";
+    try {
+      const res = handlePKAGetPengesyorContact({ pengesyor: data.pengesyor || sheet.getRange(rowNum, 13).getValue() });
+      const payload = JSON.parse(res.getContent());
+      if (payload.success && payload.waLink) { waUrl = payload.waLink; pengesyorPhone = payload.phone || ""; }
+    } catch (e) {}
+    logActivity(data.email || data.pelulus || 'Pelulus', 'SIASAT_TOLAK', `Siasat ditolak ke pengesyor (row ${rowNum}) - ${data.syarikat}: ${alasanTolak}`, '');
+    return createJSONOutput({ status: "success", success: true, message: "Siasat ditolak ke pengesyor", pengesyorPhone: pengesyorPhone, waUrl: waUrl });
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
 // === HELPER FUNCTIONS ===
 function formatJenisJustifikasi(jenis, justifikasi) {
   const j = (justifikasi || '').trim();
@@ -3967,9 +4073,9 @@ function setupSiasatCronJob() {
   ScriptApp.newTrigger('processSiasatQueue')
     .timeBased()
     .everyDays(1)
-    .atHour(8) 
+    .atHour(18) 
     .create();
-  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 8 pagi.");
+  console.log("✅ Cron job Siasat Biasa berjaya ditetapkan setiap hari jam 6 PETANG.");
 }
 
 // =========================================================================

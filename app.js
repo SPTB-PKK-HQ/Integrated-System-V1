@@ -6933,6 +6933,49 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     return whatsappUrl;
   }
 
+  function sendWhatsAppSiasatToPelulus(companyName, cidb, jenisPermohonan, justifikasi, pelulusPhone, ubahMaklumat, ubahGred, pengesyorName) {
+    if (!pelulusPhone || pelulusPhone.trim() === '') return null;
+    let cleanPhone = pelulusPhone.replace(/[\s\-\(\)]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
+    else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
+    if (!/^\d{9,15}$/.test(cleanPhone)) return null;
+    let jenisText = jenisPermohonan || 'Tiada';
+    if (jenisText === 'UBAH MAKLUMAT' && ubahMaklumat) jenisText += ` (${ubahMaklumat})`;
+    else if (jenisText === 'UBAH GRED' && ubahGred) jenisText += ` (${ubahGred})`;
+    const message = `*🔍 SEMAKAN SIASAT – STB*
+
+Syarikat: ${companyName}
+No. CIDB: ${cidb || 'Tiada'}
+Jenis: ${jenisText}
+Justifikasi Lawatan: ${justifikasi || 'Tiada'}
+Pengesyor: ${pengesyorName || '-'}
+Tarikh: ${new Date().toLocaleDateString('ms-MY')}
+
+Mohon semakan Pelulus untuk SIASAT. Sila semak di Inbox Siasat sistem STB.`;
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    console.log("WA Siasat URL:", whatsappUrl);
+    return whatsappUrl;
+  }
+  function sendWhatsAppTolakSiasatToPengesyor(companyName, cidb, alasanTolak, pengesyorPhone, pelulusName) {
+    if (!pengesyorPhone || pengesyorPhone.trim() === '') return null;
+    let cleanPhone = pengesyorPhone.replace(/[\s\-\(\)]/g, '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
+    else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
+    if (!/^\d{9,15}$/.test(cleanPhone)) return null;
+    const message = `*↩️ TOLAKAN SIASAT – STB*
+
+Syarikat: ${companyName}
+No. CIDB: ${cidb || 'Tiada'}
+Pelulus: ${pelulusName || '-'}
+Alasan Penolakan:
+${alasanTolak || 'Tiada'}
+
+Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    console.log("WA Tolak Siasat URL:", whatsappUrl);
+    return whatsappUrl;
+  }
+
   function generatePdfCssString(userColor) {
     const themeColor = userColor || '#2563eb';
     
@@ -9255,53 +9298,72 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (dbLawatanSyor) dbLawatanSyor.value = '';
         syncDatepickers(document.body);
       }
+      // Jika Telah Selesai Lawatan ditanda, SIASAT tidak dibenarkan
+      toggleSyorSiasatVisibility();
     });
   }
 
   const dbSyorSelect = document.getElementById('db_syor');
   const dbSubmitDateContainer = document.getElementById('db_submit_date_container');
   let dbSubmitLockDate = null; // Tarikh kunci (ISO) untuk rekod TELAH DIHANTAR
+  function toggleSyorSiasatVisibility() {
+    const btnSiasat = document.getElementById('btnSyorSiasat');
+    const syorVal = dbSyorSelect ? dbSyorSelect.value : '';
+    const syorStatusVal = document.getElementById('db_syor_status')?.value || '';
+    const isLawatanDone = cbSelesaiLawatan ? cbSelesaiLawatan.checked : false;
+    if (!btnSiasat) return;
+    // Jika Telah Selesai Lawatan ditanda, sembunyi SIASAT – hanya SOKONG/TIDAK DISOKONG
+    if (isLawatanDone) {
+      btnSiasat.style.display = 'none';
+      if (syorStatusVal === 'SIASAT') {
+        setButtonGroupValue('db_syor_status', '');
+        updateValidationCheckboxDisplay();
+        if (dbSahSyor) dbSahSyor.checked = false;
+        if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
+      }
+      return;
+    }
+    if (syorVal === 'YA') {
+      btnSiasat.style.display = '';
+    } else {
+      btnSiasat.style.display = 'none';
+      if (syorStatusVal === 'SIASAT') {
+        setButtonGroupValue('db_syor_status', '');
+        updateValidationCheckboxDisplay();
+        // clear pelulus selection if SIASAT cleared
+        if (dbSahSyor) dbSahSyor.checked = false;
+        if (pelulusWhatsappContainer) pelulusWhatsappContainer.style.display = 'none';
+      }
+    }
+  }
   function toggleDateSubmitSpi() {
-    if (dbSyorSelect && dbSubmitDateContainer) {
-      const syorVal = dbSyorSelect.value;
-      if (syorVal === 'YA') {
-        dbSubmitDateContainer.style.display = '';
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yyyy}-${mm}-${dd}`;
-        const dateInput = document.getElementById('db_submit_date');
-        if (dateInput) {
-          const lockDate = dbSubmitLockDate || todayStr;
-          dateInput.min = lockDate;
-          dateInput.max = lockDate;
-          if (dateInput._flatpickr) {
-            if (dbSubmitLockDate) {
-              // Rekod sudah dihantar: kunci kepada tarikh penghantaran sahaja
-              dateInput._flatpickr.set('minDate', lockDate);
-              dateInput._flatpickr.set('maxDate', lockDate);
-            } else if (dateInput.value && dateInput.value.trim() !== '') {
-              // Nilai sedia ada (rekod lama dimuat) tanpa kunci: biar bebas,
-              // supaya tarikh asal tidak dipadam oleh flatpickr
-              dateInput._flatpickr.set('minDate', null);
-              dateInput._flatpickr.set('maxDate', null);
-            } else {
-              dateInput._flatpickr.set('minDate', todayStr);
-              dateInput._flatpickr.set('maxDate', todayStr);
-            }
-          }
-        }
-      } else {
-        dbSubmitDateContainer.style.display = 'none';
-        document.getElementById('db_submit_date').value = '';
+    // Date Submit to SPI dah tidak perlu untuk Pengesyor (auto oleh Pelulus) – sentiasa sembunyi
+    if (dbSubmitDateContainer) {
+      dbSubmitDateContainer.style.display = 'none';
+    }
+    // Kosongkan input jika bukan rekod terkunci (TELAH DIHANTAR) – pelulus akan isi auto
+    if (!dbSubmitLockDate) {
+      const inpDate = document.getElementById('db_submit_date');
+      if (inpDate) {
+        inpDate.value = '';
         syncDatepickers(document.body);
       }
     }
+    toggleSyorSiasatVisibility();
   }
   if (dbSyorSelect) {
     dbSyorSelect.addEventListener('change', toggleDateSubmitSpi);
   }
+  const dbSyorStatusEl = document.getElementById('db_syor_status');
+  if (dbSyorStatusEl) {
+    dbSyorStatusEl.addEventListener('change', () => {
+      toggleSyorSiasatVisibility();
+      toggleDateSubmitSpi();
+      updateValidationCheckboxDisplay();
+    });
+  }
+  // Init visibility
+  toggleSyorSiasatVisibility();
 
   const dbPautanDriveInput = document.getElementById('db_pautan_drive');
   function toggleUrusFailButton() {
@@ -10225,6 +10287,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         if (actionSummary) actionSummary.innerText = pelulusActiveItem.syarikat; 
         
         setTimeout(() => {
+          if (typeof updatePelulusActionUIForSiasat === 'function') updatePelulusActionUIForSiasat();
           restoreFormState('pelulus-action');
           restoreActiveElement();
         }, 200);
@@ -11321,11 +11384,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let filtered = [];
 
     if (type === 'drafts') {
-      filtered = cachedData.filter(i => (!i.tarikh_syor) && (!i.pengesyor || i.pengesyor.toUpperCase() === user));
+      filtered = cachedData.filter(i => {
+        const mine = !i.pengesyor || i.pengesyor.toUpperCase() === user;
+        if (!mine) return false;
+        if (!i.tarikh_syor) return true;
+        // SIASAT: kekal di Belum Hantar (drafts) – tidak dipindah ke Telah Syor (ikut arahan terbaru)
+        if ((i.syor_status || '').toUpperCase() === 'SIASAT') return true;
+        return false;
+      });
     }
     else if (type === 'submitted') {
       if (currentUser.role === 'PENGESYOR') {
-        filtered = cachedData.filter(i => i.tarikh_syor && i.pengesyor && i.pengesyor.toUpperCase() === user);
+        filtered = cachedData.filter(i => {
+          if (!i.tarikh_syor || !i.pengesyor || i.pengesyor.toUpperCase() !== user) return false;
+          // SIASAT tidak dipindah ke Telah Syor – kekal di Belum Hantar
+          if ((i.syor_status || '').toUpperCase() === 'SIASAT') return false;
+          return true;
+        });
       } else if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
         // Telah disyor, ada pelulus assigned, tetapi belum diluluskan
         filtered = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
@@ -11340,10 +11415,20 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
         filtered = cachedData.filter(i => !i.tarikh_syor);
       } else if (currentUser.role === 'PELULUS') {
-        // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya
-        filtered = cachedData.filter(i => i.tarikh_syor && String(i.tarikh_syor).trim() !== ''
-          && i.pelulus && String(i.pelulus).trim().toUpperCase() === user
-          && (!i.tarikh_lulus || String(i.tarikh_lulus).trim() === ''));
+        // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya – kecuali SIASAT yang telah SAHKAN/DITOLAK
+        filtered = cachedData.filter(i => {
+          if (!i.tarikh_syor || String(i.tarikh_syor).trim() === '') return false;
+          if (!i.pelulus || String(i.pelulus).trim().toUpperCase() !== user) return false;
+          if (i.tarikh_lulus && String(i.tarikh_lulus).trim() !== '') return false;
+          try {
+            const pj = i.borang_json ? JSON.parse(i.borang_json) : {};
+            const stage = pj.siasat_workflow ? pj.siasat_workflow.stage : '';
+            if ((i.syor_status || '').toUpperCase() === 'SIASAT' && (stage === 'SAHKAN_KE_SPI' || stage === 'DITOLAK_PELULUS')) return false;
+            // juga jika sudah TELAH DIHANTAR via siasat sahkan, sembunyikan dari pelulus
+            if ((i.syor_status || '').toUpperCase() === 'SIASAT' && i.status_hantar_spi === 'TELAH DIHANTAR') return false;
+          } catch(e) {}
+          return true;
+        });
       } else {
         // Original logic for Pengarah: Has been syor but not yet lulus
         filtered = cachedData.filter(i => i.tarikh_syor && (!i.tarikh_lulus || i.tarikh_lulus === ''));
@@ -11841,6 +11926,189 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       listTitle.textContent = `📋 Inbox Pelulus (${filtered.length})`;
     }
 
+    // === PELULUS INBOX 2 BAHAGIAN: Biasa vs Siasat (butang kiri-kanan dengan badge) ===
+    if (type === 'inbox' && currentUser && currentUser.role === 'PELULUS') {
+      const biasaList = filtered.filter(i => (i.syor_status || '').toUpperCase() !== 'SIASAT');
+      const siasatList = filtered.filter(i => (i.syor_status || '').toUpperCase() === 'SIASAT');
+      if (typeof window._pelulusInboxSiasatFilter === 'undefined') window._pelulusInboxSiasatFilter = 'biasa';
+      const activeFilter = window._pelulusInboxSiasatFilter;
+      list.innerHTML = '';
+      // Header dengan 2 butang kiri-kanan + badge
+      const btnBar = document.createElement('div');
+      btnBar.style.display = 'flex';
+      btnBar.style.gap = '10px';
+      btnBar.style.marginBottom = '14px';
+      btnBar.style.flexWrap = 'wrap';
+      const btnBiasa = document.createElement('button');
+      btnBiasa.style.flex = '1';
+      btnBiasa.style.padding = '10px 12px';
+      btnBiasa.style.borderRadius = '10px';
+      btnBiasa.style.fontWeight = '800';
+      btnBiasa.style.fontSize = '0.95rem';
+      btnBiasa.style.cursor = 'pointer';
+      btnBiasa.style.display = 'flex';
+      btnBiasa.style.alignItems = 'center';
+      btnBiasa.style.justifyContent = 'center';
+      btnBiasa.style.gap = '8px';
+      btnBiasa.style.transition = 'all 0.2s';
+      const biasaActive = activeFilter === 'biasa';
+      btnBiasa.style.background = biasaActive ? '#2563eb' : 'white';
+      btnBiasa.style.color = biasaActive ? 'white' : '#2563eb';
+      btnBiasa.style.border = `2px solid #2563eb`;
+      btnBiasa.style.boxShadow = biasaActive ? '0 4px 10px rgba(37,99,235,0.3)' : 'none';
+      btnBiasa.innerHTML = `📋 Permohonan Biasa <span style="background:${biasaActive ? 'white' : '#2563eb'};color:${biasaActive ? '#2563eb' : 'white'};padding:2px 8px;border-radius:12px;font-size:0.8rem;min-width:20px;text-align:center;">${biasaList.length}</span>`;
+      const btnSiasat = document.createElement('button');
+      btnSiasat.style.flex = '1';
+      btnSiasat.style.padding = '10px 12px';
+      btnSiasat.style.borderRadius = '10px';
+      btnSiasat.style.fontWeight = '800';
+      btnSiasat.style.fontSize = '0.95rem';
+      btnSiasat.style.cursor = 'pointer';
+      btnSiasat.style.display = 'flex';
+      btnSiasat.style.alignItems = 'center';
+      btnSiasat.style.justifyContent = 'center';
+      btnSiasat.style.gap = '8px';
+      btnSiasat.style.transition = 'all 0.2s';
+      const siasatActive = activeFilter === 'siasat';
+      btnSiasat.style.background = siasatActive ? '#f59e0b' : 'white';
+      btnSiasat.style.color = siasatActive ? 'white' : '#b45309';
+      btnSiasat.style.border = `2px solid #f59e0b`;
+      btnSiasat.style.boxShadow = siasatActive ? '0 4px 10px rgba(245,158,11,0.3)' : 'none';
+      btnSiasat.innerHTML = `🔍 Siasat <span style="background:${siasatActive ? 'white' : '#f59e0b'};color:${siasatActive ? '#b45309' : 'white'};padding:2px 8px;border-radius:12px;font-size:0.8rem;min-width:20px;text-align:center;">${siasatList.length}</span>`;
+      btnBiasa.addEventListener('click', () => { window._pelulusInboxSiasatFilter = 'biasa'; displayFilteredItems(filtered, type); });
+      btnSiasat.addEventListener('click', () => { window._pelulusInboxSiasatFilter = 'siasat'; displayFilteredItems(filtered, type); });
+      btnBar.appendChild(btnBiasa);
+      btnBar.appendChild(btnSiasat);
+      list.appendChild(btnBar);
+      // Tentukan senarai aktif untuk dipaparkan
+      const isBiasaActive = window._pelulusInboxSiasatFilter === 'biasa';
+      const activeList = isBiasaActive ? biasaList : siasatList;
+      const activeColor = isBiasaActive ? '#2563eb' : '#f59e0b';
+      const activeIcon = isBiasaActive ? '📋' : '🔍';
+      const activeTitle = isBiasaActive ? 'Permohonan Biasa – SOKONG / TIDAK DISOKONG' : 'Siasat – Menunggu Semakan';
+      const section = document.createElement('div');
+      section.style.border = `1.5px solid ${activeColor}22`;
+      section.style.borderRadius = '10px';
+      section.style.overflow = 'hidden';
+      const header = document.createElement('div');
+      header.style.background = activeColor;
+      header.style.color = 'white';
+      header.style.padding = '8px 12px';
+      header.style.fontWeight = '800';
+      header.style.fontSize = '0.95rem';
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.innerHTML = `<span>${activeIcon} ${activeTitle}</span><span style="background:white;color:${activeColor};padding:2px 8px;border-radius:12px;font-size:0.8rem;">${activeList.length}</span>`;
+      section.appendChild(header);
+      if (activeList.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.padding = '14px';
+        empty.style.textAlign = 'center';
+        empty.style.color = '#94a3b8';
+        empty.style.fontStyle = 'italic';
+        empty.style.background = 'white';
+        empty.textContent = isBiasaActive ? 'Tiada permohonan Biasa' : 'Tiada permohonan Siasat';
+        section.appendChild(empty);
+      } else {
+        activeList.forEach((item, idx) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'app-item-wrapper inbox-pending';
+          const numberDiv = document.createElement('div');
+          numberDiv.className = 'app-item-number';
+          numberDiv.textContent = (idx + 1).toString();
+          wrapper.appendChild(numberDiv);
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'app-item-content';
+          const div = document.createElement('div');
+          div.className = 'app-item';
+          let siasatStage2 = '';
+          try { const pj2 = item.borang_json ? JSON.parse(item.borang_json) : {}; if (pj2.siasat_workflow) siasatStage2 = pj2.siasat_workflow.stage || ''; } catch(e) {}
+          const isSiasat2 = (item.syor_status || '').toUpperCase() === 'SIASAT';
+          if (item.lawatan_submit_sptb && item.lawatan_syor) {
+            div.style.backgroundColor = '#d1fae5';
+            div.style.borderLeft = '4px solid #10b981';
+          } else if (isSiasat2 && siasatStage2 === 'MENUNGGU_PELULUS') {
+            div.style.backgroundColor = '#fffbeb';
+            div.style.borderLeft = '4px solid #f59e0b';
+          } else if (isSiasat2 && siasatStage2 === 'DITOLAK_PELULUS') {
+            div.style.backgroundColor = '#fef2f2';
+            div.style.borderLeft = '4px solid #ef4444';
+          } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && currentUser && currentUser.role === 'PENGESYOR') {
+            div.classList.add('blue-bg');
+          }
+          const btnContainer = document.createElement('div');
+          btnContainer.className = 'app-actions-btn';
+          btnContainer.style.display = 'flex';
+          btnContainer.style.gap = '8px';
+          btnContainer.style.flexShrink = '0';
+          const btn = document.createElement('button');
+          btn.className = 'btn-sm btn-proses';
+          btn.innerText = '⚡ Proses';
+          btn.onclick = function() {
+            if (!isBiasaActive) {
+              if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
+              else loadRecordToPelulus(item);
+            } else {
+              loadRecordToPelulus(item);
+            }
+          };
+          btnContainer.appendChild(btn);
+          if (item.pautan) {
+            const btnDrive = document.createElement('button');
+            btnDrive.className = 'btn-sm';
+            btnDrive.style.backgroundColor = '#2563eb';
+            btnDrive.style.color = 'white';
+            btnDrive.innerText = '📂 Fail';
+            btnDrive.title = 'Urus Fail Drive';
+            btnDrive.onclick = function() { const fid = extractFolderIdFromUrl(item.pautan); if (fid) createdFolderId = fid; openFileManager(item.pautan); };
+            btnContainer.appendChild(btnDrive);
+          }
+          let jenisBadge = '';
+          let perubahanRowHtml = '';
+          const jenisUpper = item.jenis ? item.jenis.toUpperCase() : '';
+          if (jenisUpper === 'BARU') { jenisBadge = `<span class="app-type-badge type-baru">BARU</span>`; }
+          else if (jenisUpper === 'PEMBAHARUAN') { jenisBadge = `<span class="app-type-badge type-pembaharuan">PEMBAHARUAN</span>`; }
+          else if (jenisUpper === 'UBAH MAKLUMAT') { jenisBadge = `<span class="app-type-badge type-ubah-maklumat">UBAH MAKLUMAT</span>`; if (item.ubah_maklumat) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan: ${item.ubah_maklumat}</div>`; }
+          else if (jenisUpper === 'UBAH GRED') { jenisBadge = `<span class="app-type-badge type-ubah-gred">UBAH GRED</span>`; if (item.ubah_gred) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan Gred: ${item.ubah_gred}</div>`; }
+          else { jenisBadge = `<span class="app-type-badge">${item.jenis || 'LAIN-LAIN'}</span>`; }
+          let siasatStatusBadge = '';
+          try {
+            const pjStatus = item.borang_json ? JSON.parse(item.borang_json) : {};
+            const stage = pjStatus.siasat_workflow ? pjStatus.siasat_workflow.stage : '';
+            const isSiasatItem = (item.syor_status || '').toUpperCase() === 'SIASAT';
+            if (isSiasatItem) {
+              if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">⏳ Menunggu Semakan Pelulus</span>`;
+              else if (stage === 'DITOLAK_PELULUS') { const alasan = pjStatus.siasat_workflow.alasan_tolak ? ` – ${pjStatus.siasat_workflow.alasan_tolak.substring(0,60)}` : ''; siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">↩️ Ditolak Pelulus${alasan}</span>`; }
+              else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
+              else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">📤 Dalam Queue SPI (6 Petang)</span>`;
+            }
+          } catch(e) {}
+          let extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
+          let dateInfo = item.start_date ? `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;">📅 TARIKH MULA (START DATE): ${formatDateDisplay(item.start_date)}</div>` : '';
+          let spiDateInfo = item.date_submit ? `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${formatDateDisplay(item.date_submit)}</div>` : '';
+          let sptbDateInfo = item.lawatan_submit_sptb ? `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;">📋 Date Submit to SPTB: ${formatDateDisplay(item.lawatan_submit_sptb)}</div>` : '';
+          div.innerHTML = `
+            <div class="app-info" style="flex: 1; padding-right: 15px; overflow: hidden;">
+              <div class="app-title" style="font-weight:bold; font-size:1.1rem; word-break: break-word; white-space: normal;">${item.syarikat || '-'} ${siasatStatusBadge}</div>
+              <div class="app-sub">${item.cidb || '-'} | ${item.gred || '-'} | ${jenisBadge}</div>
+              ${dateInfo}
+              ${spiDateInfo}
+              ${sptbDateInfo}
+              ${extraInfo}
+              ${perubahanRowHtml}
+            </div>
+          `;
+          div.appendChild(btnContainer);
+          contentDiv.appendChild(div);
+          wrapper.appendChild(contentDiv);
+          section.appendChild(wrapper);
+        });
+      }
+      list.appendChild(section);
+      return;
+    }
+
     if(filtered.length === 0) { 
       list.innerHTML = '<div style="padding:10px; text-align:center; color:#777;">Tiada rekod.</div>'; 
       return; 
@@ -11861,10 +12129,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       const div = document.createElement('div');
       div.className = 'app-item';
       
+      // SIASAT status handling + biru hanya untuk pengesyor selepas SPI
+      let siasatStage = '';
+      try { const pj2 = item.borang_json ? JSON.parse(item.borang_json) : {}; if (pj2.siasat_workflow) siasatStage = pj2.siasat_workflow.stage || ''; } catch(e) {}
+      const isSiasat = (item.syor_status || '').toUpperCase() === 'SIASAT';
       if (item.lawatan_submit_sptb && item.lawatan_syor) {
         div.style.backgroundColor = '#d1fae5';
         div.style.borderLeft = '4px solid #10b981';
-      } else if (item.date_submit && type === 'drafts') {
+      } else if (isSiasat && siasatStage === 'MENUNGGU_PELULUS') {
+        div.style.backgroundColor = '#fffbeb';
+        div.style.borderLeft = '4px solid #f59e0b';
+      } else if (isSiasat && siasatStage === 'DITOLAK_PELULUS') {
+        div.style.backgroundColor = '#fef2f2';
+        div.style.borderLeft = '4px solid #ef4444';
+      } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && currentUser && currentUser.role === 'PENGESYOR') {
+        div.classList.add('blue-bg');
+      } else if (item.date_submit && type === 'drafts' && currentUser && currentUser.role !== 'PELULUS') {
+        // legacy biru untuk drafts dengan date, tapi bukan untuk pelulus
         div.classList.add('blue-bg');
       }
       
@@ -12079,6 +12360,25 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         jenisBadge = `<span class="app-type-badge">${item.jenis || 'LAIN-LAIN'}</span>`;
       }
 
+      // Status SIASAT badge untuk semua jenis senarai
+      let siasatStatusBadge = '';
+      try {
+        const pjStatus = item.borang_json ? JSON.parse(item.borang_json) : {};
+        const stage = pjStatus.siasat_workflow ? pjStatus.siasat_workflow.stage : '';
+        const isSiasatItem = (item.syor_status || '').toUpperCase() === 'SIASAT';
+        if (isSiasatItem) {
+          if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">⏳ Menunggu Semakan Pelulus</span>`;
+          else if (stage === 'DITOLAK_PELULUS') {
+            const alasan = pjStatus.siasat_workflow.alasan_tolak ? ` – ${pjStatus.siasat_workflow.alasan_tolak.substring(0,60)}` : '';
+            siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">↩️ Ditolak Pelulus${alasan}</span>`;
+          } else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
+          else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">📤 Dalam Queue SPI (6 Petang)</span>`;
+        } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && !item.kelulusan) {
+          // SIASAT biasa tanpa workflow tapi TELAH DIHANTAR
+          siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
+        }
+      } catch(e) {}
+
       let extraInfo = '';
       if ((currentUser.role === 'PELULUS' || currentUser.role === 'ADMIN' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') && (type === 'inbox' || type === 'history')) {
         extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
@@ -12125,7 +12425,7 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
 
       div.innerHTML = `
         <div class="app-info" style="flex: 1; padding-right: 15px; overflow: hidden;">
-          <div class="app-title" style="font-weight:bold; font-size:1.1rem; word-break: break-word; white-space: normal;">${item.syarikat || '-'}</div>
+          <div class="app-title" style="font-weight:bold; font-size:1.1rem; word-break: break-word; white-space: normal;">${item.syarikat || '-'} ${siasatStatusBadge}</div>
           <div class="app-sub">${item.cidb || '-'} | ${item.gred || '-'} | ${jenisBadge}</div>
           ${dueDateInfo} ${dateInfo}
           ${spiDateInfo}
@@ -12585,6 +12885,106 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     switchTab('pelulus-view');
   }
 
+  function updatePelulusActionUIForSiasat() {
+    const isSiasat = pelulusActiveItem && (pelulusActiveItem.syor_status || '').toUpperCase() === 'SIASAT';
+    const divSiasat = document.getElementById('div_siasat_pelulus');
+    const keputusanEl = document.getElementById('pelulus_keputusan');
+    const divAlasan = document.getElementById('div_alasan');
+    const divCatatan = document.getElementById('div_catatan_pelulus');
+    const divUbahSyor = document.getElementById('div_ubah_syor_lawatan');
+    const btnSubmit = document.getElementById('btnPelulusSubmit');
+    const labelSah = document.getElementById('label_pelulus_sah_lulus');
+    const summary = document.getElementById('pelulus_action_summary');
+    if (isSiasat) {
+      if (divSiasat) divSiasat.style.display = 'block';
+      // Sembunyi keputusan Biasa untuk SIASAT – pelulus hanya Sahkan/Tolak
+      if (keputusanEl) keputusanEl.style.display = 'none';
+      const labelKeputusan = document.querySelector('label[for="pelulus_keputusan"]') || (keputusanEl ? keputusanEl.previousElementSibling : null);
+      if (labelKeputusan && labelKeputusan.tagName === 'LABEL') labelKeputusan.style.display = 'none';
+      if (divAlasan) divAlasan.style.display = 'none';
+      if (divCatatan) divCatatan.style.display = 'none';
+      if (divUbahSyor) divUbahSyor.style.display = 'none';
+      if (btnSubmit) btnSubmit.style.display = 'none';
+      if (labelSah) labelSah.style.display = 'none';
+      if (summary && pelulusActiveItem) summary.innerText = `🔍 SIASAT: ${pelulusActiveItem.syarikat} (${pelulusActiveItem.cidb})`;
+      // Isi justifikasi jika kosong
+      const justEl = document.getElementById('pelulus_justifikasi_siasat');
+      if (justEl && !justEl.value) {
+        justEl.value = pelulusActiveItem.justifikasi || '';
+        try {
+          const pj = pelulusActiveItem.borang_json ? JSON.parse(pelulusActiveItem.borang_json) : {};
+          if (pj.siasat_workflow && pj.siasat_workflow.justifikasi) justEl.value = pj.siasat_workflow.justifikasi;
+        } catch(e) {}
+      }
+      // Refresh SIASAT action UI (tindakan -> textarea/checkbox/button)
+      if (typeof refreshSiasatActionUI === 'function') {
+        try { refreshSiasatActionUI(); } catch(e) {}
+      } else {
+        // fallback jika belum init: sembunyi checkbox & final button
+        const lbl = document.getElementById('label_sah_siasat');
+        const btnF = document.getElementById('btnSiasatFinalSahkan');
+        const dTolak = document.getElementById('div_siasat_tolak_alasan');
+        if (lbl) lbl.style.display = 'none';
+        if (btnF) btnF.style.display = 'none';
+        if (dTolak) dTolak.style.display = 'none';
+      }
+    } else {
+      if (divSiasat) divSiasat.style.display = 'none';
+      if (keputusanEl) keputusanEl.style.display = '';
+      const labelKeputusan = document.querySelector('label[for="pelulus_keputusan"]') || (keputusanEl ? keputusanEl.previousElementSibling : null);
+      if (labelKeputusan && labelKeputusan.tagName === 'LABEL') labelKeputusan.style.display = '';
+      if (btnSubmit) btnSubmit.style.display = '';
+      if (divCatatan) divCatatan.style.display = '';
+      // divUbahSyor biar logic asal handle, jangan paksa
+    }
+  }
+
+  function loadSiasatToPelulus(item) {
+    pelulusActiveItem = item;
+    // Reset keputusan biasa
+    const elKeputusan = document.getElementById('pelulus_keputusan');
+    const elAlasan = document.getElementById('pelulus_alasan');
+    const elCatatan = document.getElementById('pelulus_catatan');
+    const elSah = document.getElementById('pelulus_sah_lulus');
+    if (elKeputusan) elKeputusan.value = '';
+    if (elAlasan) elAlasan.value = '';
+    if (elCatatan) elCatatan.value = '';
+    if (elSah) elSah.checked = false;
+    const elTolakAlasan = document.getElementById('pelulus_siasat_tolak_alasan');
+    if (elTolakAlasan) elTolakAlasan.value = '';
+    const divTolak = document.getElementById('div_siasat_tolak_alasan');
+    if (divTolak) divTolak.style.display = 'none';
+    // Reset SIASAT baru UI
+    const siasatTindakanReset = document.getElementById('siasat_tindakan');
+    if (siasatTindakanReset) { siasatTindakanReset.value = ''; setButtonGroupValue('siasat_tindakan', ''); }
+    const cbSahSiasatReset = document.getElementById('cb_sah_siasat');
+    if (cbSahSiasatReset) cbSahSiasatReset.checked = false;
+    const labelSahSiasatReset = document.getElementById('label_sah_siasat');
+    if (labelSahSiasatReset) labelSahSiasatReset.style.display = 'none';
+    const btnFinalReset = document.getElementById('btnSiasatFinalSahkan');
+    if (btnFinalReset) { btnFinalReset.style.display = 'none'; btnFinalReset.disabled = true; }
+    // Isi justifikasi siasat dari item
+    const justEl = document.getElementById('pelulus_justifikasi_siasat');
+    if (justEl) {
+      justEl.value = item.justifikasi || '';
+      try {
+        const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+        if (pj.siasat_workflow && pj.siasat_workflow.justifikasi) justEl.value = pj.siasat_workflow.justifikasi;
+        else if (pj.db_justifikasi) justEl.value = pj.db_justifikasi;
+      } catch(e) {}
+    }
+    savePelulusState();
+    delete formStates['pelulus-action'];
+    storageWrapper.set({ 'stb_form_states': formStates });
+    renderPelulusView(false);
+    switchTab('pelulus-view');
+    // Auto-scroll hint: user perlu tekan Ke Keputusan untuk lihat butang Siasat
+    setTimeout(() => {
+      const hint = document.getElementById('pelulus_action_summary');
+      if (hint) hint.textContent = `🔍 SIASAT: ${item.syarikat} – sila semak Justifikasi Lawatan di tab Keputusan`;
+    }, 500);
+  }
+
   function viewRecordOnly(item) {
     pelulusActiveItem = item;
     savePelulusState();
@@ -12615,6 +13015,16 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let statusBadge = `<span class="status-badge bg-blue">${safe(i.syor_status)}</span>`;
     if(i.syor_status === 'SOKONG') statusBadge = `<span class="status-badge bg-green">SOKONG</span>`;
     else if(i.syor_status === 'TIDAK DISOKONG') statusBadge = `<span class="status-badge bg-red">TIDAK SOKONG</span>`;
+    else if(i.syor_status === 'SIASAT') {
+      try {
+        const pjView = i.borang_json ? JSON.parse(i.borang_json) : {};
+        const st = pjView.siasat_workflow ? pjView.siasat_workflow.stage : '';
+        if (st === 'MENUNGGU_PELULUS') statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">⏳ SIASAT – Menunggu Semakan</span>`;
+        else if (st === 'DITOLAK_PELULUS') statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;">↩️ SIASAT – Ditolak</span>`;
+        else if (st === 'SAHKAN_KE_SPI') statusBadge = `<span class="status-badge" style="background:#dcfce7;color:#065f46;border:1px solid #10b981;">✅ SIASAT – Dihantar ke SPI (6 Petang)</span>`;
+        else statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">🔍 SIASAT</span>`;
+      } catch(e) { statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">🔍 SIASAT</span>`; }
+    }
 
     const rowStartDate = i.start_date ? `
       <div class="view-row">
@@ -13021,8 +13431,22 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         }
       }
       let confirmHantarEmel = false;
-      
-      if (dbSyorValue === 'YA' && dbSubmitDateValue && dbSubmitDateValue.trim() !== '') {
+      const isSiasatWorkflow = (dbSyorValue === 'YA' && dbSyorStatusValue === 'SIASAT');
+      if (isSiasatWorkflow) {
+        // SIASAT: Pengesyor tidak perlu tarikh, tidak terus ke SPI – hanya ke Pelulus
+        confirmHantarEmel = false;
+        // Validasi SIASAT mesti sah + pelulus
+        if (!isConfirmed || !selectedPelulusName) {
+          await CustomAppModal.alert("Untuk SIASAT, sila tandakan checkbox pengesahan dan pilih Pelulus sebelum hantar.", "SIASAT Diperlukan", "warning");
+          return;
+        }
+        // Justifikasi lawatan wajib untuk SIASAT
+        const justifikasiVal = document.getElementById('db_justifikasi')?.value || '';
+        if (!justifikasiVal.trim()) {
+          await CustomAppModal.alert("Sila isi Justifikasi Lawatan sebelum hantar SIASAT ke Pelulus.", "Justifikasi Diperlukan", "warning");
+          return;
+        }
+      } else if (dbSyorValue === 'YA' && dbSubmitDateValue && dbSubmitDateValue.trim() !== '') {
         const hasSyorAndConfirmed = (dbSyorStatusValue.trim() !== '') && isConfirmed;
         
         // HANYA MINTA POPUP JIKA: Ia belum dihantar ke queue (tiada perubahan) DAN sudah tekan SOKONG.
@@ -13166,11 +13590,56 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
             }
          }
          // Setkan kembali tarikh asal supaya tidak berubah ke hari ini
-         borangJsonData['tarikh_masuk_sheet'] = existingDate;
-      }
-      // =====================================================================
-      
-      const payload = {
+          borangJsonData['tarikh_masuk_sheet'] = existingDate;
+       }
+       // =====================================================================
+       // SIASAT Workflow: simpan stage dalam borang_json
+       // =====================================================================
+       if (isSiasatWorkflow) {
+         let existingWorkflow = null;
+         if (targetRow && cachedData) {
+           const oldIt = cachedData.find(item => item.row == targetRow);
+           if (oldIt && oldIt.borang_json) {
+             try {
+               const oldP = JSON.parse(oldIt.borang_json);
+               if (oldP.siasat_workflow) existingWorkflow = oldP.siasat_workflow;
+             } catch(e) {}
+           }
+         }
+         const justifikasiVal = document.getElementById('db_justifikasi')?.value || '';
+         const hist = (existingWorkflow && Array.isArray(existingWorkflow.history)) ? [...existingWorkflow.history] : [];
+         // jika sebelumnya ditolak, simpan rekod tolak ke history
+         if (existingWorkflow && existingWorkflow.stage === 'DITOLAK_PELULUS') {
+           hist.push({ stage: 'DITOLAK', tarikh: existingWorkflow.tarikh_tolak || '', pelulus: existingWorkflow.pelulus_asal || '', alasan: existingWorkflow.alasan_tolak || '' });
+         }
+         borangJsonData['siasat_workflow'] = {
+           stage: 'MENUNGGU_PELULUS',
+           pelulus_asal: selectedPelulusName,
+           pelulus_phone: selectedPelulusPhone,
+           tarikh_hantar_ke_pelulus: localToday,
+           justifikasi: justifikasiVal,
+           history: hist
+         };
+       } else {
+         // Jika bukan SIASAT tapi rekod lama ada workflow DITOLAK, kekalkan history untuk audit
+         if (targetRow && cachedData) {
+           const oldIt2 = cachedData.find(item => item.row == targetRow);
+           if (oldIt2 && oldIt2.borang_json) {
+             try {
+               const oldP2 = JSON.parse(oldIt2.borang_json);
+               if (oldP2.siasat_workflow) {
+                 // kekalkan jika pernah SIASAT tapi kini tukar ke SOKONG/TIDAK (pengesyor ubah)
+                 // update stage jika bukan SIASAT lagi
+                 if (oldP2.siasat_workflow.stage === 'DITOLAK_PELULUS' && dbSyorStatusValue !== 'SIASAT') {
+                   borangJsonData['siasat_workflow'] = oldP2.siasat_workflow;
+                 }
+               }
+             } catch(e) {}
+           }
+         }
+       }
+       
+       const payload = {
         row: targetRow,
         syarikat: document.getElementById('db_syarikat')?.value || '',
         cidb: document.getElementById('db_cidb')?.value || '',
@@ -13216,9 +13685,13 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
       }
 
       submitData(payload, "Rekod berjaya disimpan!", async (result) => {
-        const message = isConfirmed ? 
-          "Data BERJAYA dihantar ke pangkalan data dan telah dipindahkan ke 'Telah Syor'." : 
-          "Data BERJAYA disimpan sebagai DRAFT (Belum Syor).";
+        let message = "";
+        if (isConfirmed) {
+          if (isSiasatWorkflow) message = "Permohonan SIASAT berjaya dihantar ke Pelulus untuk semakan. Sila tunggu pengesahan Pelulus.";
+          else message = "Data BERJAYA dihantar ke pangkalan data dan telah dipindahkan ke 'Telah Syor'.";
+        } else {
+          message = "Data BERJAYA disimpan sebagai DRAFT (Belum Syor).";
+        }
         
         await playSuccessSound();
         
@@ -13273,13 +13746,23 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           }
         }
         
-        // V6.6.0: Modal WhatsApp selepas submit (ganti checkbox)
+        // Modal WhatsApp selepas submit – SIASAT guna template semakan
         if (isConfirmed && selectedPelulusPhone) {
-          const waUrl = sendWhatsAppNotification(
-            payload.syarikat, payload.cidb, payload.jenis,
-            payload.syor_status, payload.tarikh_syor, selectedPelulusPhone,
-            payload.ubah_maklumat, payload.ubah_gred
-          );
+          let waUrl = null;
+          if (isSiasatWorkflow) {
+            waUrl = sendWhatsAppSiasatToPelulus(
+              payload.syarikat, payload.cidb, payload.jenis,
+              payload.justifikasi, selectedPelulusPhone,
+              payload.ubah_maklumat, payload.ubah_gred,
+              payload.pengesyor
+            );
+          } else {
+            waUrl = sendWhatsAppNotification(
+              payload.syarikat, payload.cidb, payload.jenis,
+              payload.syor_status, payload.tarikh_syor, selectedPelulusPhone,
+              payload.ubah_maklumat, payload.ubah_gred
+            );
+          }
           if (waUrl) {
             showWhatsAppConfirmModal(waUrl, payload.syarikat, selectedPelulusName);
           } else {
@@ -13597,6 +14080,211 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
           loadingOverlay.style.display = 'none';
         }
       });
+    });
+  }
+
+  // === HANDLER SIASAT PELULUS - BARU: sama style Sokong/Tidak + checkbox + satu butang Sahkan ===
+  const siasatTindakanEl = document.getElementById('siasat_tindakan');
+  const divSiasatTolakAlasan = document.getElementById('div_siasat_tolak_alasan');
+  const cbSahSiasat = document.getElementById('cb_sah_siasat');
+  const labelSahSiasat = document.getElementById('label_sah_siasat');
+  const btnSiasatFinalSahkan = document.getElementById('btnSiasatFinalSahkan');
+  const justifikasiSiasatEl = document.getElementById('pelulus_justifikasi_siasat');
+  const alasanTolakEl = document.getElementById('pelulus_siasat_tolak_alasan');
+
+  function refreshSiasatActionUI() {
+    const tindakan = siasatTindakanEl ? siasatTindakanEl.value : '';
+    const isHantar = tindakan === 'HANTAR';
+    const isTolak = tindakan === 'TOLAK';
+    if (divSiasatTolakAlasan) divSiasatTolakAlasan.style.display = isTolak ? 'block' : 'none';
+    if (labelSahSiasat) labelSahSiasat.style.display = (isHantar || isTolak) ? 'block' : 'none';
+    if (btnSiasatFinalSahkan) {
+      const isChecked = cbSahSiasat ? cbSahSiasat.checked : false;
+      const justifikasiOk = justifikasiSiasatEl ? justifikasiSiasatEl.value.trim() !== '' : true;
+      const alasanOk = isTolak ? (alasanTolakEl ? alasanTolakEl.value.trim() !== '' : false) : true;
+      const canShow = (isHantar || isTolak) && isChecked && justifikasiOk && alasanOk;
+      btnSiasatFinalSahkan.style.display = canShow ? 'inline-block' : 'none';
+      btnSiasatFinalSahkan.disabled = !canShow;
+      btnSiasatFinalSahkan.style.opacity = canShow ? '1' : '0.6';
+    }
+  }
+  if (siasatTindakanEl) {
+    siasatTindakanEl.addEventListener('change', refreshSiasatActionUI);
+  }
+  if (cbSahSiasat) {
+    cbSahSiasat.addEventListener('change', refreshSiasatActionUI);
+  }
+  if (justifikasiSiasatEl) {
+    justifikasiSiasatEl.addEventListener('input', refreshSiasatActionUI);
+    justifikasiSiasatEl.addEventListener('change', refreshSiasatActionUI);
+  }
+  if (alasanTolakEl) {
+    alasanTolakEl.addEventListener('input', refreshSiasatActionUI);
+    alasanTolakEl.addEventListener('change', refreshSiasatActionUI);
+  }
+  // Legacy: jika masih ada butang lama (untuk fallback), kekalkan handler lama
+  const btnSiasatSahkanLegacy = document.getElementById('btnSiasatSahkan');
+  const btnSiasatTolakLegacy = document.getElementById('btnSiasatTolak');
+  // Handler baru - satu butang Sahkan untuk kedua-dua tindakan
+  if (btnSiasatFinalSahkan) {
+    btnSiasatFinalSahkan.addEventListener('click', async () => {
+      if (!pelulusActiveItem) return;
+      const tindakan = siasatTindakanEl ? siasatTindakanEl.value : '';
+      const justifikasiBaru = justifikasiSiasatEl ? justifikasiSiasatEl.value.trim() : '';
+      if (!tindakan) {
+        await CustomAppModal.alert("Sila pilih tindakan: Hantar ke SPI atau Tolak ke Pengesyor.", "Pilih Tindakan", "warning");
+        return;
+      }
+      if (!justifikasiBaru) {
+        await CustomAppModal.alert("Sila isi Justifikasi Lawatan sebelum sahkan.", "Justifikasi Diperlukan", "warning");
+        return;
+      }
+      if (cbSahSiasat && !cbSahSiasat.checked) {
+        await CustomAppModal.alert("Sila tandakan checkbox pengesahan ‘Dengan ini saya mengesahkan...’", "Pengesahan Diperlukan", "warning");
+        return;
+      }
+      if (tindakan === 'HANTAR') {
+        const isConfirm = await CustomAppModal.confirm(
+          `Adakah anda pasti ingin <b>SAHKAN & HANTAR KE SPI</b> untuk syarikat <b>${pelulusActiveItem.syarikat}</b>?<br><br>Permohonan akan dihantar ke SPI pada jam <b>6 PETANG</b> hari bekerja berikutnya.`,
+          "Sahkan Siasat ke SPI",
+          "info",
+          "Ya, Sahkan & Hantar",
+          false
+        );
+        if (!isConfirm) return;
+        if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Menghantar SIASAT ke SPI...'; }
+        let borangJsonData = {};
+        try { borangJsonData = pelulusActiveItem.borang_json ? JSON.parse(pelulusActiveItem.borang_json) : {}; } catch(e) {}
+        if (!borangJsonData.siasat_workflow) borangJsonData.siasat_workflow = {};
+        borangJsonData.siasat_workflow.stage = 'SAHKAN_KE_SPI';
+        borangJsonData.siasat_workflow.justifikasi = justifikasiBaru;
+        borangJsonData.siasat_workflow.tarikh_sahkan = new Date().toISOString().split('T')[0];
+        borangJsonData.siasat_workflow.pelulus_sahkan = currentUser ? currentUser.name : '';
+        const nowS = new Date();
+        const tarikhLulusLocal = nowS.getFullYear() + '-' + String(nowS.getMonth()+1).padStart(2,'0') + '-' + String(nowS.getDate()).padStart(2,'0');
+        const todaySpi = tarikhLulusLocal;
+        const payload = {
+          action: 'siasatSahkan',
+          row: pelulusActiveItem.row,
+          justifikasi_baru: justifikasiBaru,
+          date_submit: todaySpi,
+          pelulus: currentUser ? currentUser.name : '',
+          email: currentUser ? currentUser.email : '',
+          borang_json: JSON.stringify(borangJsonData),
+          syarikat: pelulusActiveItem.syarikat,
+          cidb: pelulusActiveItem.cidb,
+          gred: pelulusActiveItem.gred,
+          jenis: pelulusActiveItem.jenis,
+          pengesyor: pelulusActiveItem.pengesyor
+        };
+        try {
+          const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }, 3, 1000);
+          const result = await resp.json();
+          hideLoading();
+          if (result.status === 'success' || result.success) {
+            await playSuccessSound();
+            if (cachedData) {
+              const idx = cachedData.findIndex(d => d.row === pelulusActiveItem.row);
+              if (idx !== -1) {
+                cachedData[idx].justifikasi = justifikasiBaru;
+                cachedData[idx].borang_json = payload.borang_json;
+                cachedData[idx].status_hantar_spi = 'DALAM QUEUE';
+                cachedData[idx].date_submit = todaySpi;
+              }
+            }
+            await storageWrapper.remove(['stb_pelulus_state']);
+            await CustomAppModal.alert("Siasat berjaya disahkan dan akan dihantar ke SPI pada jam 6 PETANG hari bekerja.", "Berjaya", "success");
+            switchTab('inbox');
+            fetchAndRenderList('inbox', true);
+          } else {
+            await CustomAppModal.alert("Gagal sahkan siasat: " + (result.message || 'Ralat tidak diketahui'), "Ralat", "error");
+          }
+        } catch (e) {
+          hideLoading();
+          await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
+        }
+      } else if (tindakan === 'TOLAK') {
+        const alasan = alasanTolakEl ? alasanTolakEl.value.trim() : '';
+        if (!alasan) {
+          await CustomAppModal.alert("Sila masukkan Alasan Penolakan sebelum tolak ke Pengesyor.", "Alasan Diperlukan", "warning");
+          return;
+        }
+        const isConfirm = await CustomAppModal.confirm(
+          `Adakah anda pasti ingin <b>TOLAK</b> siasat untuk <b>${pelulusActiveItem.syarikat}</b> dan kembalikan kepada Pengesyor <b>${pelulusActiveItem.pengesyor}</b>?<br><br>Alasan: <b>${alasan}</b><br><br>WhatsApp akan dihantar kepada Pengesyor.`,
+          "Tolak Siasat",
+          "warning",
+          "Ya, Tolak",
+          true
+        );
+        if (!isConfirm) return;
+        if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Menolak siasat...'; }
+        let borangJsonData2 = {};
+        try { borangJsonData2 = pelulusActiveItem.borang_json ? JSON.parse(pelulusActiveItem.borang_json) : {}; } catch(e) {}
+        if (!borangJsonData2.siasat_workflow) borangJsonData2.siasat_workflow = {};
+        const nowT = new Date();
+        const todayTolak = nowT.getFullYear() + '-' + String(nowT.getMonth()+1).padStart(2,'0') + '-' + String(nowT.getDate()).padStart(2,'0');
+        borangJsonData2.siasat_workflow.stage = 'DITOLAK_PELULUS';
+        borangJsonData2.siasat_workflow.alasan_tolak = alasan;
+        borangJsonData2.siasat_workflow.tarikh_tolak = todayTolak;
+        borangJsonData2.siasat_workflow.pelulus_tolak = currentUser ? currentUser.name : '';
+        const justBaru2 = justifikasiSiasatEl ? justifikasiSiasatEl.value.trim() : pelulusActiveItem.justifikasi || '';
+        borangJsonData2.siasat_workflow.justifikasi = justBaru2;
+        const payload2 = {
+          action: 'siasatTolak',
+          row: pelulusActiveItem.row,
+          alasan_tolak: alasan,
+          justifikasi_baru: justBaru2,
+          pelulus: currentUser ? currentUser.name : '',
+          email: currentUser ? currentUser.email : '',
+          borang_json: JSON.stringify(borangJsonData2),
+          syarikat: pelulusActiveItem.syarikat,
+          cidb: pelulusActiveItem.cidb,
+          pengesyor: pelulusActiveItem.pengesyor
+        };
+        try {
+          const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload2) }, 3, 1000);
+          const result = await resp.json();
+          hideLoading();
+          if (result.status === 'success' || result.success) {
+            let pengesyorPhone = '';
+            let waUrl = null;
+            if (result.pengesyorPhone) pengesyorPhone = result.pengesyorPhone;
+            else {
+              const pengesyorObj = usersList.find(u => u.name && u.name.toUpperCase() === (pelulusActiveItem.pengesyor || '').toUpperCase());
+              if (pengesyorObj && pengesyorObj.phone) pengesyorPhone = pengesyorObj.phone;
+              else if (pengesyorObj && pengesyorObj.telefon) pengesyorPhone = pengesyorObj.telefon;
+          }
+          if (pengesyorPhone) {
+            waUrl = sendWhatsAppTolakSiasatToPengesyor(pelulusActiveItem.syarikat, pelulusActiveItem.cidb, alasan, pengesyorPhone, currentUser ? currentUser.name : '');
+          } else if (result.waUrl) {
+            waUrl = result.waUrl;
+          }
+          // Update cachedData – pindah ke drafts pengesyor
+          if (cachedData) {
+            const idx = cachedData.findIndex(d => d.row === pelulusActiveItem.row);
+            if (idx !== -1) {
+              cachedData[idx].borang_json = payload2.borang_json;
+              // kekalkan syor_status SIASAT, pelulus kekal untuk audit
+            }
+          }
+          await storageWrapper.remove(['stb_pelulus_state']);
+          if (waUrl) {
+            const isWa = await CustomAppModal.confirm(`Siasat ditolak dan dikembalikan kepada Pengesyor.<br><br>Alasan: <b>${alasan}</b><br><br>Mahukah anda hantar WhatsApp kepada Pengesyor <b>${pelulusActiveItem.pengesyor}</b> sekarang?`, "Hantar WhatsApp", "info", "Buka WhatsApp", false, true);
+            if (isWa) window.open(waUrl, '_blank');
+            else await CustomAppModal.alert("Siasat ditolak. Pengesyor akan lihat status ↩️ di Drafts.", "Selesai", "success");
+          } else {
+            await CustomAppModal.alert(`Siasat ditolak. ${pengesyorPhone ? 'Gagal dapatkan telefon pengesyor untuk WhatsApp.' : 'Telefon pengesyor tiada.'} Sila hubungi manual.`, "Selesai", "warning");
+          }
+          switchTab('inbox');
+          fetchAndRenderList('inbox', true);
+        } else {
+          await CustomAppModal.alert("Gagal tolak siasat: " + (result.message || 'Ralat'), "Ralat", "error");
+        }
+      } catch (e) {
+        hideLoading();
+        await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
+      }
+      }
     });
   }
 
@@ -14776,6 +15464,35 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
         // Jika pilih SIASAT atau kosong, kosongkan tarikh proses
         borangTarikhProses.value = '';
       }
+      
+      // SYNC ke tab Input Database: Keputusan Syor borang → db_syor_status
+      try {
+        if (val) {
+          setButtonGroupValue('db_syor_status', val);
+          // Pastikan checkbox sah dikemaskini paparannya
+          updateValidationCheckboxDisplay();
+          // Jika borang pilih SIASAT tapi db_syor belum YA, auto pilih YA dan SIASAT
+          if (val === 'SIASAT') {
+            const dbSyorEl = document.getElementById('db_syor');
+            const curLawatan = dbSyorEl ? dbSyorEl.value : '';
+            if (curLawatan !== 'YA') {
+              setButtonGroupValue('db_syor', 'YA');
+              const hiddenYA = document.getElementById('db_syor');
+              if (hiddenYA) hiddenYA.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            // Pastikan SIASAT visible dan active
+            toggleSyorSiasatVisibility();
+            setButtonGroupValue('db_syor_status', 'SIASAT');
+          } else {
+            // Untuk SOKONG/TIDAK DISOKONG, sync biasa
+            setButtonGroupValue('db_syor_status', val);
+            toggleSyorSiasatVisibility();
+            toggleDateSubmitSpi();
+          }
+          saveDatabaseFormData();
+          console.log(`Auto-sync borang_syor_status=${val} ke db_syor_status`);
+        }
+      } catch (syncErr) { console.warn('Sync borang->db gagal', syncErr); }
       
       // Simpan perubahan ke memori (Auto-save)
       saveFormData();
