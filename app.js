@@ -11454,7 +11454,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
         filtered = cachedData.filter(i => !i.tarikh_syor);
       } else if (currentUser.role === 'PELULUS') {
-        // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya – kecuali SIASAT yang telah SAHKAN/DITOLAK
+        // V6.6.0: Pelulus hanya nampak permohonan yang diassign kepadanya
+        // SIASAT: SAHKAN_KE_SPI + DALAM QUEUE kekal untuk tab "Selesai Semakan Siasat" (boleh Undo)
         filtered = cachedData.filter(i => {
           if (!i.tarikh_syor || String(i.tarikh_syor).trim() === '') return false;
           if (!i.pelulus || String(i.pelulus).trim().toUpperCase() !== user) return false;
@@ -11462,8 +11463,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           try {
             const pj = i.borang_json ? JSON.parse(i.borang_json) : {};
             const stage = pj.siasat_workflow ? pj.siasat_workflow.stage : '';
-            if ((i.syor_status || '').toUpperCase() === 'SIASAT' && (stage === 'SAHKAN_KE_SPI' || stage === 'DITOLAK_PELULUS')) return false;
-            // juga jika sudah TELAH DIHANTAR via siasat sahkan, sembunyikan dari pelulus
+            // SIASAT yang ditolak – kembali ke pengesyor, keluar dari inbox pelulus
+            if ((i.syor_status || '').toUpperCase() === 'SIASAT' && stage === 'DITOLAK_PELULUS') return false;
+            // SIASAT yang telah dihantar ke SPI – tab akan kosong
             if ((i.syor_status || '').toUpperCase() === 'SIASAT' && i.status_hantar_spi === 'TELAH DIHANTAR') return false;
           } catch(e) {}
           return true;
@@ -11965,66 +11967,64 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       listTitle.textContent = `📋 Inbox Pelulus (${filtered.length})`;
     }
 
-    // === PELULUS INBOX 2 BAHAGIAN: Biasa vs Siasat (butang kiri-kanan dengan badge) ===
+    // === PELULUS INBOX 3 BAHAGIAN: Biasa vs Siasat vs Selesai Semakan Siasat (butang kiri-kanan dengan badge) ===
     if (type === 'inbox' && currentUser && currentUser.role === 'PELULUS') {
+      const getSiasatStage = (it) => { try { const pj = it.borang_json ? JSON.parse(it.borang_json) : {}; return pj.siasat_workflow ? (pj.siasat_workflow.stage || '') : ''; } catch(e) { return ''; } };
       const biasaList = filtered.filter(i => (i.syor_status || '').toUpperCase() !== 'SIASAT');
-      const siasatList = filtered.filter(i => (i.syor_status || '').toUpperCase() === 'SIASAT');
-      if (typeof window._pelulusInboxSiasatFilter === 'undefined') window._pelulusInboxSiasatFilter = 'biasa';
-      const activeFilter = window._pelulusInboxSiasatFilter;
+      const selesaiList = filtered.filter(i => (i.syor_status || '').toUpperCase() === 'SIASAT'
+        && getSiasatStage(i) === 'SAHKAN_KE_SPI'
+        && (i.status_hantar_spi || '').toUpperCase() === 'DALAM QUEUE');
+      const siasatList = filtered.filter(i => (i.syor_status || '').toUpperCase() === 'SIASAT'
+        && !((i.status_hantar_spi || '').toUpperCase() === 'DALAM QUEUE' && getSiasatStage(i) === 'SAHKAN_KE_SPI'));
+      if (!['biasa', 'siasat', 'selesai'].includes(window._pelulusInboxSiasatFilter)) window._pelulusInboxSiasatFilter = 'biasa';
       list.innerHTML = '';
-      // Header dengan 2 butang kiri-kanan + badge
+      // Header dengan butang kiri-kanan + badge bilangan
       const btnBar = document.createElement('div');
       btnBar.style.display = 'flex';
       btnBar.style.gap = '10px';
       btnBar.style.marginBottom = '14px';
       btnBar.style.flexWrap = 'wrap';
-      const btnBiasa = document.createElement('button');
-      btnBiasa.style.flex = '1';
-      btnBiasa.style.padding = '10px 12px';
-      btnBiasa.style.borderRadius = '10px';
-      btnBiasa.style.fontWeight = '800';
-      btnBiasa.style.fontSize = '0.95rem';
-      btnBiasa.style.cursor = 'pointer';
-      btnBiasa.style.display = 'flex';
-      btnBiasa.style.alignItems = 'center';
-      btnBiasa.style.justifyContent = 'center';
-      btnBiasa.style.gap = '8px';
-      btnBiasa.style.transition = 'all 0.2s';
-      const biasaActive = activeFilter === 'biasa';
-      btnBiasa.style.background = biasaActive ? '#2563eb' : 'white';
-      btnBiasa.style.color = biasaActive ? 'white' : '#2563eb';
-      btnBiasa.style.border = `2px solid #2563eb`;
-      btnBiasa.style.boxShadow = biasaActive ? '0 4px 10px rgba(37,99,235,0.3)' : 'none';
-      btnBiasa.innerHTML = `📋 Permohonan Biasa <span style="background:${biasaActive ? 'white' : '#2563eb'};color:${biasaActive ? '#2563eb' : 'white'};padding:2px 8px;border-radius:12px;font-size:0.8rem;min-width:20px;text-align:center;">${biasaList.length}</span>`;
-      const btnSiasat = document.createElement('button');
-      btnSiasat.style.flex = '1';
-      btnSiasat.style.padding = '10px 12px';
-      btnSiasat.style.borderRadius = '10px';
-      btnSiasat.style.fontWeight = '800';
-      btnSiasat.style.fontSize = '0.95rem';
-      btnSiasat.style.cursor = 'pointer';
-      btnSiasat.style.display = 'flex';
-      btnSiasat.style.alignItems = 'center';
-      btnSiasat.style.justifyContent = 'center';
-      btnSiasat.style.gap = '8px';
-      btnSiasat.style.transition = 'all 0.2s';
-      const siasatActive = activeFilter === 'siasat';
-      btnSiasat.style.background = siasatActive ? '#f59e0b' : 'white';
-      btnSiasat.style.color = siasatActive ? 'white' : '#b45309';
-      btnSiasat.style.border = `2px solid #f59e0b`;
-      btnSiasat.style.boxShadow = siasatActive ? '0 4px 10px rgba(245,158,11,0.3)' : 'none';
-      btnSiasat.innerHTML = `🔍 Siasat <span style="background:${siasatActive ? 'white' : '#f59e0b'};color:${siasatActive ? '#b45309' : 'white'};padding:2px 8px;border-radius:12px;font-size:0.8rem;min-width:20px;text-align:center;">${siasatList.length}</span>`;
-      btnBiasa.addEventListener('click', () => { window._pelulusInboxSiasatFilter = 'biasa'; displayFilteredItems(filtered, type); });
-      btnSiasat.addEventListener('click', () => { window._pelulusInboxSiasatFilter = 'siasat'; displayFilteredItems(filtered, type); });
-      btnBar.appendChild(btnBiasa);
-      btnBar.appendChild(btnSiasat);
+      const makeFilterBtn = (key, icon, label, count, color, colorDark) => {
+        const b = document.createElement('button');
+        b.style.flex = '1';
+        b.style.minWidth = '150px';
+        b.style.padding = '10px 12px';
+        b.style.borderRadius = '10px';
+        b.style.fontWeight = '800';
+        b.style.fontSize = '0.9rem';
+        b.style.cursor = 'pointer';
+        b.style.display = 'flex';
+        b.style.alignItems = 'center';
+        b.style.justifyContent = 'center';
+        b.style.gap = '8px';
+        b.style.transition = 'all 0.2s';
+        const act = window._pelulusInboxSiasatFilter === key;
+        b.style.background = act ? color : 'white';
+        b.style.color = act ? 'white' : colorDark;
+        b.style.border = `2px solid ${color}`;
+        b.style.boxShadow = act ? `0 4px 10px ${color}44` : 'none';
+        b.innerHTML = `${icon} ${label} <span style="background:${act ? 'white' : color};color:${act ? colorDark : 'white'};padding:2px 8px;border-radius:12px;font-size:0.8rem;min-width:20px;text-align:center;">${count}</span>`;
+        b.addEventListener('click', () => { window._pelulusInboxSiasatFilter = key; displayFilteredItems(filtered, type); });
+        return b;
+      };
+      btnBar.appendChild(makeFilterBtn('biasa', '📋', 'Permohonan Biasa', biasaList.length, '#2563eb', '#1e40af'));
+      btnBar.appendChild(makeFilterBtn('siasat', '🔍', 'Siasat', siasatList.length, '#f59e0b', '#b45309'));
+      btnBar.appendChild(makeFilterBtn('selesai', '✅', 'Selesai Semakan Siasat', selesaiList.length, '#10b981', '#047857'));
       list.appendChild(btnBar);
       // Tentukan senarai aktif untuk dipaparkan
+      const viewConfig = {
+        biasa: { list: biasaList, color: '#2563eb', icon: '📋', title: 'Permohonan Biasa – SOKONG / TIDAK DISOKONG', empty: 'Tiada permohonan Biasa' },
+        siasat: { list: siasatList, color: '#f59e0b', icon: '🔍', title: 'Siasat – Menunggu Semakan', empty: 'Tiada permohonan Siasat' },
+        selesai: { list: selesaiList, color: '#10b981', icon: '✅', title: 'Telah Selesai Semakan Siasat – Dalam Queue Email SPI (Hantar 6 Petang)', empty: 'Tiada permohonan dalam queue – semua telah dihantar ke SPI atau belum disahkan' }
+      };
+      const cfg = viewConfig[window._pelulusInboxSiasatFilter] || viewConfig.biasa;
+      const activeList = cfg.list;
+      const activeColor = cfg.color;
+      const activeIcon = cfg.icon;
+      const activeTitle = cfg.title;
+      const activeEmptyText = cfg.empty;
+      const isSelesaiView = window._pelulusInboxSiasatFilter === 'selesai';
       const isBiasaActive = window._pelulusInboxSiasatFilter === 'biasa';
-      const activeList = isBiasaActive ? biasaList : siasatList;
-      const activeColor = isBiasaActive ? '#2563eb' : '#f59e0b';
-      const activeIcon = isBiasaActive ? '📋' : '🔍';
-      const activeTitle = isBiasaActive ? 'Permohonan Biasa – SOKONG / TIDAK DISOKONG' : 'Siasat – Menunggu Semakan';
       const section = document.createElement('div');
       section.style.border = `1.5px solid ${activeColor}22`;
       section.style.borderRadius = '10px';
@@ -12047,7 +12047,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         empty.style.color = '#94a3b8';
         empty.style.fontStyle = 'italic';
         empty.style.background = 'white';
-        empty.textContent = isBiasaActive ? 'Tiada permohonan Biasa' : 'Tiada permohonan Siasat';
+        empty.textContent = activeEmptyText;
         section.appendChild(empty);
       } else {
         activeList.forEach((item, idx) => {
@@ -12073,6 +12073,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           } else if (isSiasat2 && siasatStage2 === 'DITOLAK_PELULUS') {
             div.style.backgroundColor = '#fef2f2';
             div.style.borderLeft = '4px solid #ef4444';
+          } else if (isSelesaiView && isSiasat2 && siasatStage2 === 'SAHKAN_KE_SPI') {
+            div.style.backgroundColor = '#ecfdf5';
+            div.style.borderLeft = '4px solid #10b981';
           } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && currentUser && currentUser.role === 'PENGESYOR') {
             div.classList.add('blue-bg');
           }
@@ -12082,16 +12085,25 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnContainer.style.gap = '8px';
           btnContainer.style.flexShrink = '0';
           const btn = document.createElement('button');
-          btn.className = 'btn-sm btn-proses';
-          btn.innerText = '⚡ Proses';
-          btn.onclick = function() {
-            if (!isBiasaActive) {
-              if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
-              else loadRecordToPelulus(item);
-            } else {
-              loadRecordToPelulus(item);
-            }
-          };
+          if (isSelesaiView) {
+            btn.className = 'btn-sm';
+            btn.style.background = '#f59e0b';
+            btn.style.color = 'white';
+            btn.innerText = '↩️ Undo';
+            btn.title = 'Tarik balik pengesahan – keluarkan dari queue email SPI';
+            btn.onclick = function() { siasatUndoConfirm(item); };
+          } else {
+            btn.className = 'btn-sm btn-proses';
+            btn.innerText = '⚡ Proses';
+            btn.onclick = function() {
+              if (!isBiasaActive) {
+                if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
+                else loadRecordToPelulus(item);
+              } else {
+                loadRecordToPelulus(item);
+              }
+            };
+          }
           btnContainer.appendChild(btn);
           if (item.pautan) {
             const btnDrive = document.createElement('button');
@@ -14328,6 +14340,63 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
       }
     });
+  }
+
+  // Undo pengesahan siasat oleh pelulus (selagi emel SPI belum dihantar)
+  async function siasatUndoConfirm(item) {
+    if (!item) return;
+    const isConfirm = await CustomAppModal.confirm(
+      `Adakah anda pasti ingin <b>UNDO</b> pengesahan siasat untuk <b>${item.syarikat}</b>?<br><br>Permohonan akan dikeluarkan dari queue email SPI dan kembali ke tab <b>🔍 Siasat – Menunggu Semakan</b>.`,
+      "Undo Siasat",
+      "warning",
+      "Ya, Undo",
+      true
+    );
+    if (!isConfirm) return;
+    if (loadingOverlay) { loadingOverlay.style.display = 'flex'; if (loadingText) loadingText.textContent = 'Undo pengesahan siasat...'; }
+    let borangJsonData = {};
+    try { borangJsonData = item.borang_json ? JSON.parse(item.borang_json) : {}; } catch(e) {}
+    if (!borangJsonData.siasat_workflow) borangJsonData.siasat_workflow = {};
+    const nowU = new Date();
+    const todayUndo = nowU.getFullYear() + '-' + String(nowU.getMonth()+1).padStart(2,'0') + '-' + String(nowU.getDate()).padStart(2,'0');
+    borangJsonData.siasat_workflow.stage = 'MENUNGGU_PELULUS';
+    borangJsonData.siasat_workflow.tarikh_undo = todayUndo;
+    borangJsonData.siasat_workflow.pelulus_undo = currentUser ? currentUser.name : '';
+    const payload = {
+      action: 'siasatUndo',
+      row: item.row,
+      pelulus: currentUser ? currentUser.name : '',
+      email: currentUser ? currentUser.email : '',
+      borang_json: JSON.stringify(borangJsonData),
+      syarikat: item.syarikat,
+      cidb: item.cidb,
+      pengesyor: item.pengesyor
+    };
+    try {
+      const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }, 3, 1000);
+      const result = await resp.json();
+      hideLoading();
+      if (result.status === 'success' || result.success) {
+        await playSuccessSound();
+        if (cachedData) {
+          const idx = cachedData.findIndex(d => d.row === item.row);
+          if (idx !== -1) {
+            cachedData[idx].borang_json = payload.borang_json;
+            cachedData[idx].status_hantar_spi = '';
+            cachedData[idx].date_submit = '';
+          }
+        }
+        window._pelulusInboxSiasatFilter = 'siasat';
+        await CustomAppModal.alert("Undo berjaya. Permohonan dikeluarkan dari queue email SPI dan kembali ke semakan Siasat.", "Berjaya", "success");
+        switchTab('inbox');
+        fetchAndRenderList('inbox', true);
+      } else {
+        await CustomAppModal.alert("Gagal undo: " + (result.message || 'Ralat'), "Ralat", "error");
+      }
+    } catch (e) {
+      hideLoading();
+      await CustomAppModal.alert("Ralat rangkaian: " + e.message, "Ralat", "error");
+    }
   }
 
   const personnelList = document.getElementById('personnelList');

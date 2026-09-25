@@ -795,6 +795,22 @@ function doPost(e) {
       }
       return handleSiasatTolak(data, sheet);
     }
+
+    // Handler SIASAT: Pelulus undo pengesahan selagi emel SPI belum dihantar
+    if (data.action === 'siasatUndo') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PELULUS, ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      const sheet = getMainSheet();
+      if (!sheet) {
+        return createJSONOutput({ status: "error", message: "Sheet not found" });
+      }
+      return handleSiasatUndo(data, sheet);
+    }
     
     const shouldCreateFolder = data.createFolder === true;
 
@@ -1835,6 +1851,7 @@ function handleUpdateRecord(data, sheet) {
           jenis: data.jenis !== undefined ? data.jenis : existingData[3],
           alamat_perniagaan: alamatPerniagaanValue || 'Tiada',
           pengesyor: data.pengesyor !== undefined ? data.pengesyor : existingData[12],
+          pelulus: data.pelulus !== undefined ? data.pelulus : existingData[25],
           justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
           pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
           date_submit: dateSubmitValue,
@@ -2045,6 +2062,7 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
         jenis: data.jenis || "", 
         alamat_perniagaan: data.alamat_perniagaan || "Tiada",
         pengesyor: data.pengesyor || "",
+        pelulus: data.pelulus || "",
         justifikasi: formatJenisJustifikasi(data.jenis, data.justifikasi),
         pautan: folderUrl || data.pautan || "",
         date_submit: data.date_submit || "",
@@ -3388,7 +3406,7 @@ function handleSiasatSahkan(data, sheet) {
       jenis: data.jenis || '',
       alamat_perniagaan: sheet.getRange(rowNum, 21).getValue() || '',
       pengesyor: data.pengesyor || sheet.getRange(rowNum, 13).getValue() || '',
-      pelulus: data.pelulus || '',
+      pelulus: data.pelulus || sheet.getRange(rowNum, 26).getValue() || '',
       justifikasi: justifikasiBaru,
       pautan: sheet.getRange(rowNum, 11).getValue() || '',
       date_submit: dateSubmit,
@@ -3432,6 +3450,54 @@ function handleSiasatTolak(data, sheet) {
     } catch (e) {}
     logActivity(data.email || data.pelulus || 'Pelulus', 'SIASAT_TOLAK', `Siasat ditolak ke pengesyor (row ${rowNum}) - ${data.syarikat}: ${alasanTolak}`, '');
     return createJSONOutput({ status: "success", success: true, message: "Siasat ditolak ke pengesyor", pengesyorPhone: pengesyorPhone, waUrl: waUrl });
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+function handleSiasatUndo(data, sheet) {
+  try {
+    const rowNum = parseInt(data.row);
+    if (rowNum < 2) return createJSONOutput({ status: "error", message: "Row tidak sah" });
+    const syarikat = data.syarikat || sheet.getRange(rowNum, 1).getValue() || '';
+
+    // Tolak undo jika emel ke SPI sudah dihantar
+    const statusSpi = (sheet.getRange(rowNum, 16).getValue() || '').toString().trim().toUpperCase();
+    if (statusSpi === 'TELAH DIHANTAR') {
+      return createJSONOutput({ status: "error", message: "Emel ke SPI telah dihantar. Undo tidak dibenarkan." });
+    }
+
+    // Baca JSON sedia ada dari sheet untuk kekalkan medan server (cth: spi_calendar_event_id)
+    let existing = {};
+    try { existing = JSON.parse(sheet.getRange(rowNum, 29).getValue() || '{}'); } catch (e) { existing = {}; }
+
+    // Padam event kalendar SPI jika ada
+    const eventId = existing.spi_calendar_event_id;
+    if (eventId) {
+      try {
+        const cal = CalendarApp.getCalendarById(SPI_CALENDAR_ID);
+        const ev = cal ? cal.getEventById(eventId) : null;
+        if (ev) ev.deleteEvent();
+        console.log(`[SPI Calendar] Event dipadam kerana undo row ${rowNum}`);
+      } catch (e) { console.error('Gagal padam event SPI: ' + e.toString()); }
+    }
+    existing.spi_calendar_event_id = '';
+
+    // Guna workflow terbaru dari frontend (stage kembali MENUNGGU_PELULUS)
+    let wfBaru = {};
+    try { wfBaru = JSON.parse(data.borang_json || '{}'); } catch (e) { wfBaru = {}; }
+    if (wfBaru && wfBaru.siasat_workflow) existing.siasat_workflow = wfBaru.siasat_workflow;
+    sheet.getRange(rowNum, 29).setValue(JSON.stringify(existing));
+
+    // Buang dari queue SIASAT + kosongkan status/tarikh supaya keluar dari cron 6 petang
+    try { removeFromQueue(syarikat, 'SIASAT_QUEUE'); } catch (e) {}
+    sheet.getRange(rowNum, 16).setValue(''); // P status_hantar_spi
+    sheet.getRange(rowNum, 17).setValue(''); // Q tarikh_hantar_spi
+    sheet.getRange(rowNum, 10).setValue(''); // J date_submit – keluar dari queue
+
+    invalidateDataCache();
+    logActivity(data.email || data.pelulus || 'Pelulus', 'SIASAT_UNDO', `Undo pengesahan siasat (row ${rowNum}) - ${syarikat}`, '');
+    return createJSONOutput({ status: "success", success: true, message: "Undo berjaya. Permohonan dikeluarkan dari queue email SPI." });
   } catch (error) {
     return createJSONOutput({ status: "error", message: error.toString() });
   }
@@ -3994,10 +4060,11 @@ function processSiasatQueue() {
         <td style="padding:10px; border:1px solid #ddd;">${data.alamat_perniagaan || 'Tiada'}</td>
         <td style="padding:10px; border:1px solid #ddd;">${data.justifikasi || 'Tiada'}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:center;">${data.pengesyor}</td>
+        <td style="padding:10px; border:1px solid #ddd; text-align:center;">${data.pelulus || '-'}</td>
         <td style="padding:10px; border:1px solid #ddd; text-align:center;"><a href="${data.pautan}" style="color:#1a73e8; font-weight:bold;">Buka Drive</a></td>
       </tr>
     `;
-    textList += `${index + 1}. ${data.syarikat}\n   CIDB: ${data.cidb} | Gred: ${data.gred} | Pengesyor: ${data.pengesyor}\n   Alamat Perniagaan: ${data.alamat_perniagaan || 'Tiada'}\n   Justifikasi: ${data.justifikasi || 'Tiada'}\n\n`;
+    textList += `${index + 1}. ${data.syarikat}\n   CIDB: ${data.cidb} | Gred: ${data.gred} | Pengesyor: ${data.pengesyor}\n   Pelulus (Pengesahan): ${data.pelulus || '-'}\n   Alamat Perniagaan: ${data.alamat_perniagaan || 'Tiada'}\n   Justifikasi: ${data.justifikasi || 'Tiada'}\n\n`;
   });
 
   const subject = `Makluman Harian: ${queue.length} Permohonan Lawatan Premis SPI`;
@@ -4032,6 +4099,7 @@ function processSiasatQueue() {
             <th style="padding:10px; border:1px solid #ddd;">Alamat Perniagaan</th>
             <th style="padding:10px; border:1px solid #ddd;">Justifikasi Lawatan</th>
             <th style="padding:10px; border:1px solid #ddd;">Pengesyor</th>
+            <th style="padding:10px; border:1px solid #ddd;">Pelulus (Pengesahan)</th>
             <th style="padding:10px; border:1px solid #ddd;">Pautan Drive</th>
           </tr>
         </thead>
