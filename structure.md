@@ -71,34 +71,34 @@ Penjelasan:
 
 ```mermaid
 flowchart LR
-    subgraph KLIEN[Pelanggan - Pelayar Web]
-        UI[index.html + style.css]
-        APP[app.js V6.5.2<br/>IndexedDB + localStorage<br/>fetchWithRetry + GIS]
-        PDF[pdf.js 3.11.174<br/>Ekstrak Teks PDF]
-        CHART[Chart.js 4.4.0<br/>Papan Pemuka]
+    subgraph KLIEN["Pelanggan - Pelayar Web"]
+        UI["index.html + style.css"]
+        APP["app.js V6.5.2 - IndexedDB + GIS"]
+        PDF["pdf.js 3.11.174 - Ekstrak Teks PDF"]
+        CHART["Chart.js 4.4.0 - Papan Pemuka"]
     end
-    subgraph PINTU[Backend Tanpa Pelayan]
-        GAS[code.gs<br/>doGet / doPost<br/>verifyUserAccess]
-        CACHE[CacheService<br/>Chunked 45KB + Rebuild Lock]
-        LOCK[LockService<br/>Kunci Tulis 28s]
+    subgraph PINTU["Backend Tanpa Pelayan"]
+        GAS["code.gs - doGet / doPost"]
+        CACHE["CacheService - Chunked 45KB"]
+        LOCK["LockService - Kunci Tulis 28s"]
     end
-    subgraph DATA[Storan Terurus]
-        SHEET[(Google Sheets<br/>Sheet1 / Users / Logs)]
-        FIRE[(Firestore<br/>[PROJEK_FIRESTORE_TAPISAN])]
-        DRIVE[(Google Drive<br/>STB MAIN FOLDER)]
-        AUTH[Firebase Auth<br/>Tanpa Nama + GIS]
+    subgraph DATA["Storan Terurus"]
+        SHEET[("Google Sheets - Sheet1 / Users / Logs")]
+        FIRE[("Firestore - PROJEK_FIRESTORE_TAPISAN")]
+        DRIVE[("Google Drive - STB MAIN FOLDER")]
+        AUTH["Firebase Auth - Tanpa Nama + GIS"]
     end
-    subgraph LUAR[Integrasi Luaran]
-        AI[DeepSeek / Gemini / OpenRouter]
-        YT[YouTube Data API v3]
-        WA[WhatsApp wa.me + CallMeBot]
-        MAIL[MailApp + Calendar]
-        MAPS[Google Maps Embed]
+    subgraph LUAR["Integrasi Luaran"]
+        AI["DeepSeek / Gemini / OpenRouter"]
+        YT["YouTube Data API v3"]
+        WA["WhatsApp wa.me + CallMeBot"]
+        MAIL["MailApp + Calendar"]
+        MAPS["Google Maps Embed"]
     end
     UI --> APP
-    APP -->|HTTPS JSON<br/>action=xxx| GAS
-    APP <-->|Firestore SDK 9.21.0| FIRE
-    APP -->|GIS Token| AUTH
+    APP -->|"HTTPS JSON - action"| GAS
+    APP <-->|"Firestore SDK 9.21.0"| FIRE
+    APP -->|"GIS Token"| AUTH
     GAS --> CACHE
     GAS --> LOCK
     GAS <--> SHEET
@@ -203,24 +203,24 @@ Statistik saiz: `app.js` terbesar (~852KB), diikuti `jata.svg` (~373KB), `code.g
 
 ```mermaid
 flowchart TD
-    A[PDF Borang<br/>Muat Naik] --> B[pdf.js Ekstrak Teks<br/>had 15k aksara]
-    B --> C[processAI<br/>DeepSeek -> Gemini]
-    C --> D[Borang Semakan<br/>Auto-Isi + Semak Cepat]
-    D --> E[Input Database<br/>+ Cipta Folder Drive]
-    E --> F[Sheet1 Insert<br/>Baris Baharu 32 Lajur]
-    F --> G{Syor Lawatan?}
-    G -->|YA + date_submit| H[SIASAT_QUEUE<br/>Emel 6 Petang + Kalendar]
-    G -->|PEMUTIHAN + tarikh_lulus| I[PEMUTIHAN_QUEUE]
-    G -->|TIDAK| J[Rekod Draf]
-    H --> K[PKA Lawatan<br/>pkaUpdateLawatan]
-    K --> L[Pengesyor Kemas Kini<br/>handleUpdateRecord]
-    L --> M[Pelulus Keputusan<br/>LULUS / TOLAK / BEKU]
-    M --> N{Keputusan SIASAT?}
-    N -->|Sahkan| H
-    N -->|Tolak| O[WhatsApp ke Pengesyor]
-    M --> P[Cetak PDF<br/>cetak_dan_simpan_pdf]
-    P --> Q[Drive PDF Berwarna]
-    F --> R[Dashboard Agregat<br/>getDashboardStats]
+    A["PDF Borang - Muat Naik"] --> B["pdf.js Ekstrak Teks - had 15k aksara"]
+    B --> C["processAI - DeepSeek ke Gemini"]
+    C --> D["Borang Semakan - Auto-Isi"]
+    D --> E["Input Database + Folder Drive"]
+    E --> F["Sheet1 Insert - 32 Lajur"]
+    F --> G{"Syor Lawatan?"}
+    G -->|"YA + date_submit"| H["SIASAT_QUEUE - Emel + Kalendar"]
+    G -->|"PEMUTIHAN + tarikh_lulus"| I["PEMUTIHAN_QUEUE"]
+    G -->|"TIDAK"| J["Rekod Draf"]
+    H --> K["PKA Lawatan - pkaUpdateLawatan"]
+    K --> L["Pengesyor Kemas Kini"]
+    L --> M["Pelulus Keputusan - LULUS / TOLAK / BEKU"]
+    M --> N{"Keputusan SIASAT?"}
+    N -->|"Sahkan"| H
+    N -->|"Tolak"| O["WhatsApp ke Pengesyor"]
+    M --> P["Cetak PDF"]
+    P --> Q["Drive PDF Berwarna"]
+    F --> R["Dashboard Agregat"]
 ```
 
 ### 4.2 Kitaran Cache dan Tetingkap Data
