@@ -250,6 +250,129 @@ flowchart TD
 
 A `syarikat`, B `cidb`, C `gred`, D `jenis`, E `negeri`, F `tarikh_surat_terdahulu`, G `tatatertib`, H `start_date`, I `syor_lawatan`, J `date_submit`, K `pautan`, L `justifikasi`, M `pengesyor`, N `syor_status`, O `tarikh_syor`, P `status_hantar_spi`, Q `tarikh_hantar_spi`, R `lawatan_tarikh`, S `lawatan_submit_sptb`, T `lawatan_syor`, U `alamat_perniagaan`, V `jenis_konsultansi`, W `alasan`, X `kelulusan`, Y `tarikh_lulus`, Z `pelulus`, AA `ubah_maklumat`, AB `ubah_gred`, AC `borang_json`, AD `whatsapp_schedule`, AE `inbox` (ditempah), AF `ulasan_spi`.
 
+### 4.5 Aliran Keputusan Permohonan (Pengesyor → Pelulus)
+
+Seksyen ini menghuraikan aliran permohonan dari peringkat syor Pengesyor sehingga keputusan muktamad Pelulus, termasuk perincian bagi setiap jenis keputusan: LULUS, LULUS BERSYARAT, TOLAK, TOLAK & BEKU, SIASAT, dan PEMUTIHAN. Huraian dirujuk kepada lajur hamparan dalam 4.4, fungsi backend dalam `code.gs`, dan skrin dalam `app.js` (tab `tab-database`, `tab-pelulus-action`, `tab-pka-dashboard`). Semua contoh nilai di bawah adalah fiksyen.
+
+#### 4.5.1 Peringkat Pengesyor (Syor)
+
+Pengesyor melengkapkan Borang Semakan (`tab-checker`), menolak data ke Input Database (`tab-database`), dan menyimpan rekod baharu ke baris kosong pertama helaian `Sheet1`. Medan syor yang wajib diisi ialah:
+
+| Medan (Lajur) | Nilai Dibenarkan | Contoh Nilai Sebenar |
+|---|---|---|
+| `syor_status` (N) | `SOKONG` / `SIASAT` / `TIDAK DISOKONG` | `SOKONG` |
+| `tarikh_syor` (O) | Tarikh syor `YYYY-MM-DD` | `2026-08-16` |
+| `syor_lawatan` (I) | `YA` / `TIDAK` / `PEMUTIHAN` | `YA` |
+| `date_submit` (J) | Tarikh hantar ke SPI (wajib jika `YA`) | `2026-08-15` |
+| `justifikasi` (L) | Teks justifikasi lawatan (wajib jika `PEMUTIHAN`) | `Lawatan tapak diperlukan` |
+
+Tiga cabang syor adalah seperti berikut:
+
+1. **`SOKONG`:** Permohonan dianggap lengkap dan terus tersedia kepada Pelulus dalam senarai/inbox. Tiada queue SPI dilibatkan. Contoh lajur: `N=SOKONG`, `O=2026-08-16`, `I=TIDAK`, `P=(kosong)`.
+2. **`SIASAT`:** Permohonan memerlukan siasatan tapak. Jika `I=YA` dan `J` diisi serta bendera `hantar_emel_spi=true`, backend memasukkan rekod ke `SIASAT_QUEUE` (`addToSiasatQueue`), menetapkan `P=DALAM QUEUE`, dan mencipta acara kalendar SPI. Emel dihantar secara berkelompok pada jam 6 petang hari bekerja berikutnya. Contoh lajur: `N=SIASAT`, `I=YA`, `J=2026-08-15`, `P=DALAM QUEUE`, `Q=(kosong selagi dalam queue)`.
+3. **`TIDAK DISOKONG`:** Permohonan ditamatkan di peringkat syor. Rekod kekal dalam hamparan untuk rekod dan dikira sebagai tidak sokong dalam papan pemuka (`grand.tidakSokong`). Contoh lajur: `N=TIDAK DISOKONG`, `O=2026-08-16`, `X=(kosong)`, `Y=(kosong)`.
+
+Kes khas **`syor_lawatan=PEMUTIHAN`**: Permohonan disalurkan ke `PEMUTIHAN_QUEUE` (bukan `SIASAT_QUEUE`). Medan `tarikh_lulus` (Y) mesti diisi dan justifikasi lawatan adalah wajib. Contoh lajur: `I=PEMUTIHAN`, `Y=2026-08-20`, `P=DALAM QUEUE`.
+
+#### 4.5.2 Peringkat SPI/PKA (Lawatan)
+
+Bagi rekod dalam `SIASAT_QUEUE`, peranan PKA mengemaskini hasil lawatan melalui `tab-pka-dashboard` (`pkaUpdateLawatan`):
+
+| Medan (Lajur) | Nilai Dibenarkan | Contoh Nilai Sebenar |
+|---|---|---|
+| `lawatan_tarikh` (R) | Tarikh lawatan dilaksanakan | `2026-09-20` |
+| `lawatan_submit_sptb` (S) | Tarikh laporan dihantar ke SPTB | `2026-09-22` |
+| `lawatan_syor` (T) | `SOKONG` / `TIDAK DISOKONG` | `SOKONG` |
+| `ulasan_spi` (AF) | Catatan siasatan SPI | `Premis mematuhi syarat` |
+| `laporan_spi_url` (dalam AC) | Pautan laporan SPI | `[URL_LAPORAN_SPI]` |
+
+Selepas kemas kini PKA, Pengesyor mengemaskini rekod (`handleUpdateRecord`) dan permohonan kembali ke Pelulus untuk keputusan panel SIASAT (lihat 4.5.3, kes SIASAT).
+
+#### 4.5.3 Keputusan Pelulus Mengikut Jenis
+
+Pelulus mencapai keputusan melalui `tab-pelulus-view` (ringkasan) dan `tab-pelulus-action` (keputusan). Pra-syarat UI: kotak pengesahan `Dengan ini saya mengesahkan...` mesti ditanda, diikuti dialog pengesahan `Adakah anda pasti dengan keputusan ini?`. Setiap keputusan menulis `tarikh_lulus` (Y) sebagai tarikh hari keputusan dibuat, `pelulus` (Z) sebagai nama Pelulus semasa, dan snapshot tandatangan/cop (`pelulus_signUrl`, `pelulus_copUrl`) ke dalam `borang_json` (AC).
+
+**a) LULUS — Permohonan diluluskan tanpa syarat.**
+
+* Lajur ditulis: `X=LULUS`, `Y=<tarikh_keputusan>`, `Z=<nama_pelulus>`, `AC.catatan_pelulus=<catatan>`. Contoh: `X=LULUS`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD`, `W=(kosong)`.
+* Queue/notifikasi: rekod yang sebelum ini dalam `SIASAT_QUEUE` dikeluarkan dari queue (`removeFromQueue`); tiada emel baharu dihantar.
+* Audit: `UPDATE_RECORD` dalam `Logs`.
+
+**b) LULUS BERSYARAT — Permohonan diluluskan dengan syarat dipatuhi.**
+
+* Lajur ditulis: sama seperti LULUS, dengan syarat direkodkan dalam `AC.catatan_pelulus`. Contoh: `X=LULUS BERSYARAT`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD`, `AC.catatan_pelulus=Lulus dengan syarat dokumen KWSP dikemas kini dalam 30 hari.`
+* Queue/notifikasi/audit: sama seperti LULUS.
+
+**c) TOLAK — Permohonan ditolak.**
+
+* Lajur ditulis: `X=TOLAK`, `W=<alasan_dropdown>`, `Y=<tarikh_keputusan>`, `Z=<nama_pelulus>`, `AC.catatan_pelulus=<catatan>`. Alasan dipilih daripada senarai: `Dokumen tidak lengkap`, `Tidak memenuhi PK1.5`, `Gagal lawatan premis`, `Pemalsuan Dokumen`. Contoh: `X=TOLAK`, `W=Dokumen tidak lengkap`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD`.
+* Queue/notifikasi: keluar dari sebarang queue aktif; tiada penghantaran automatik.
+* Audit: `UPDATE_RECORD` dalam `Logs`.
+
+**d) TOLAK & BEKU 3 BULAN / 6 BULAN — Permohonan ditolak dan syarikat dibekukan sementara.**
+
+* Lajur ditulis: sama seperti TOLAK, dengan `X=TOLAK & BEKU 3 BULAN` atau `X=TOLAK & BEKU 6 BULAN`. Backend (`code.gs`) mengira tempoh beku secara automatik daripada `tarikh_lulus` dan menambahkan nota ke dalam `AC.catatan_pelulus` (dengan perlindungan anti-duplikat). Contoh:
+  * Input: `X=TOLAK & BEKU 3 BULAN`, `Y=2026-09-01`.
+  * Nota auto-jana: `TARIKH MULA BEKU: 2026-09-01 HINGGA TAMAT BEKU: 2026-12-01`.
+  * Input: `X=TOLAK & BEKU 6 BULAN`, `Y=2026-09-01`.
+  * Nota auto-jana: `TARIKH MULA BEKU: 2026-09-01 HINGGA TAMAT BEKU: 2027-03-01`.
+* Queue/notifikasi/audit: sama seperti TOLAK. Semakan permohonan baharu dalam tempoh beku hendaklah merujuk nota ini.
+
+**e) SIASAT — Kes siasatan di panel Pelulus (tiga tindakan).**
+
+* **HANTAR (`siasatSahkan`):** Pelulus menyemak dan mengedit justifikasi lawatan, memilih tindakan `HANTAR`, menanda kotak pengesahan, dan mengesahkan dialog `SAHKAN & HANTAR KE SPI`. Backend menulis `L=<justifikasi_baru>`, `J=<date_submit>`, menetapkan `P=DALAM QUEUE` dan `Q=(kosong)`, merekodkan `AC.siasat_workflow.stage=SAHKAN_KE_SPI` beserta pelulus dan tarikh, memasukkan ke `SIASAT_QUEUE`, dan mencipta acara kalendar. Emel dihantar pada jam 6 petang hari bekerja berikutnya. Contoh lajur: `J=2026-09-26`, `L=Disemak. Sahkan siasatan tapak.`, `P=DALAM QUEUE`, `Q=(kosong)`. Audit: `SIASAT_SAHKAN`.
+* **TOLAK (`siasatTolak`):** Pelulus memulangkan kes kepada Pengesyor dengan alasan wajib. Backend mengemas kini `L` (jika disunting) dan `AC.siasat_workflow`, mengekalkan nama pelulus (lajur Z) untuk audit, mengosongkan `P` dan `Q`, mengeluarkan rekod dari `SIASAT_QUEUE`, dan memulangkan pautan WhatsApp (`wa.me`) bersama nombor telefon Pengesyor untuk makluman. Contoh lajur: `P=(kosong)`, `Q=(kosong)`, `Z=SITI BINTI AHMAD (dikekalkan)`. Klien membuka WhatsApp dengan alasan sebagai mesej. Audit: `SIASAT_TOLAK`.
+* **UNDO (`siasatUndo`):** Pembatalan pengesahan selagi emel ke SPI belum dihantar. Jika `P=TELAH DIHANTAR`, undo ditolak dengan mesej `Emel ke SPI telah dihantar. Undo tidak dibenarkan.` Jika dibenarkan, backend memadam acara kalendar SPI (`spi_calendar_event_id`), mengembalikan `AC.siasat_workflow.stage=MENUNGGU_PELULUS`, mengeluarkan dari `SIASAT_QUEUE`, dan mengosongkan `P`, `Q`, dan `J`. Contoh lajur selepas undo: `P=(kosong)`, `Q=(kosong)`, `J=(kosong)`. Audit: `SIASAT_UNDO`.
+
+**f) PEMUTIHAN — Kes pemutihan di peringkat Pelulus (dua tindakan).**
+
+* **Sahkan dan hantar ke SPI:** Pelulus mengesahkan dialog kedua `Adakah anda pasti ingin hantar permohonan ini ke SPI?` (`hantar_emel_spi_pemutihan=true`). Backend memasukkan ke `PEMUTIHAN_QUEUE` dan menetapkan `P=DALAM QUEUE`. Contoh lajur: `I=PEMUTIHAN`, `Y=2026-08-20`, `P=DALAM QUEUE`.
+* **Batal syor pemutihan (tukar ke `TIDAK`):** Dibenarkan dengan dua syarat UI — catatan Pelulus wajib diisi sebagai sebab pembatalan, diikuti dialog pengesahan `Batal Syor Pemutihan`. Backend menulis `I=TIDAK` (`syor_lawatan_baru`) dan `AC.catatan_pelulus=<sebab_pembatalan>`. Contoh lajur: `I=TIDAK`, `AC.catatan_pelulus=Pemutihan dibatalkan: premis tidak memenuhi kriteria lawatan.`
+
+#### 4.5.4 Gambar Rajah Aliran Keputusan
+
+```mermaid
+flowchart TD
+    P0["Pengesyor - Semakan dan Input DB"]
+    P0 --> S1{"syor_status N"}
+    S1 -->|"SOKONG"| L1["Pelulus - Keputusan Biasa"]
+    S1 -->|"SIASAT"| Q1["SIASAT_QUEUE - Emel 6 Petang dan Kalendar"]
+    S1 -->|"TIDAK DISOKONG"| E1["Tamat di Syor - Rekod Tidak Sokong"]
+    P0 -->|"syor_lawatan PEMUTIHAN"| PM1["PEMUTIHAN_QUEUE"]
+    Q1 --> PKA["PKA - Lawatan dan Ulasan SPI"]
+    PKA --> S2["Pelulus Panel SIASAT"]
+    S2 -->|"HANTAR"| Q1
+    S2 -->|"TOLAK + alasan"| W1["WhatsApp ke Pengesyor"]
+    W1 --> P0
+    S2 -->|"UNDO selagi belum dihantar"| U1["Keluar Queue - P Q J Kosong"]
+    U1 --> P0
+    L1 --> D1{"kelulusan X"}
+    D1 -->|"LULUS"| OK1["LULUS - Y tarikh hari ini + Z pelulus"]
+    D1 -->|"LULUS BERSYARAT"| OK2["LULUS BERSYARAT + catatan syarat"]
+    D1 -->|"TOLAK"| NO1["TOLAK + alasan W + catatan"]
+    D1 -->|"TOLAK dan BEKU 3 atau 6 BULAN"| BK1["BEKU - nota mula hingga tamat auto"]
+    PM1 -->|"Sahkan hantar SPI"| Q1
+    PM1 -->|"Batal + catatan wajib"| L1
+```
+
+#### 4.5.5 Jadual Kesan Sampingan Mengikut Jenis Keputusan
+
+| Jenis Keputusan | Lajur Ditulis (Contoh Nilai Sebenar) | Queue | Notifikasi | Audit (`Logs`) |
+|---|---|---|---|---|
+| Syor `SOKONG` | `N=SOKONG`, `O=2026-08-16`, `I=TIDAK`, `P=(kosong)` | Tiada | Tiada | `INSERT_RECORD` / `UPDATE_RECORD` |
+| Syor `SIASAT` (hantar) | `N=SIASAT`, `I=YA`, `J=2026-08-15`, `P=DALAM QUEUE`, `Q=(kosong)` | Masuk `SIASAT_QUEUE` | Emel berkelompok + kalendar | `QUEUE_UPDATE`, `SIASAT_SAHKAN` |
+| Syor `TIDAK DISOKONG` | `N=TIDAK DISOKONG`, `O=2026-08-16`, `X=(kosong)` | Tiada | Tiada | `UPDATE_RECORD` |
+| PKA `SOKONG` / `TIDAK DISOKONG` | `R=2026-09-20`, `S=2026-09-22`, `T=SOKONG`, `AF=<ulasan>` | Kekal dalam queue sehingga keputusan | Tiada (kemas kini kalendar) | `PKA_UPDATE_LAWATAN` |
+| `LULUS` | `X=LULUS`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD` | Keluar queue | Tiada | `UPDATE_RECORD` |
+| `LULUS BERSYARAT` | `X=LULUS BERSYARAT`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD`, `AC.catatan_pelulus=<syarat>` | Keluar queue | Tiada | `UPDATE_RECORD` |
+| `TOLAK` | `X=TOLAK`, `W=Dokumen tidak lengkap`, `Y=2026-09-01`, `Z=SITI BINTI AHMAD` | Keluar queue | Tiada | `UPDATE_RECORD` |
+| `TOLAK & BEKU 3/6 BULAN` | `X=TOLAK & BEKU 3 BULAN`, `Y=2026-09-01` + nota `TARIKH MULA BEKU: 2026-09-01 HINGGA TAMAT BEKU: 2026-12-01` dalam AC | Keluar queue | Tiada (rujukan beku untuk semakan baharu) | `UPDATE_RECORD` |
+| SIASAT `HANTAR` | `J=2026-09-26`, `L=<justifikasi>`, `P=DALAM QUEUE`, `AC.siasat_workflow.stage=SAHKAN_KE_SPI` | Masuk `SIASAT_QUEUE` | Emel 6 petang + kalendar | `SIASAT_SAHKAN` |
+| SIASAT `TOLAK` | `P=(kosong)`, `Q=(kosong)`, `Z=(dikekalkan)` | Keluar `SIASAT_QUEUE` | WhatsApp ke Pengesyor + alasan | `SIASAT_TOLAK` |
+| SIASAT `UNDO` | `P=(kosong)`, `Q=(kosong)`, `J=(kosong)`, `stage=MENUNGGU_PELULUS` | Keluar `SIASAT_QUEUE`, padam acara kalendar | Tiada | `SIASAT_UNDO` |
+| `PEMUTIHAN` sahkan | `I=PEMUTIHAN`, `Y=2026-08-20`, `P=DALAM QUEUE` | Masuk `PEMUTIHAN_QUEUE` | Emel berkelompok | `UPDATE_RECORD` |
+| `PEMUTIHAN` batal | `I=TIDAK`, `AC.catatan_pelulus=<sebab>` | Keluar queue | Tiada | `UPDATE_RECORD` |
+
 ---
 
 ## 5. Teknologi Stack (Technology Stack)
