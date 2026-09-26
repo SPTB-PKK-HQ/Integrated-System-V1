@@ -4047,15 +4047,54 @@ async function handleCredentialResponse(response) {
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
     const selesaiLawatan = all.filter(d => d.lawatan_syor && d.lawatan_syor.toString().trim() !== '');
-    
+    // V6.6.1: Maklumat berdasarkan apa yang diproses (tahap pasukan)
+    const norm = v => (v || '').toString().toUpperCase().trim();
+    const sokong = selesaiLawatan.filter(d => norm(d.lawatan_syor) === 'SOKONG');
+    const tidak = selesaiLawatan.filter(d => norm(d.lawatan_syor).includes('TIDAK'));
+    const dalamLawatan = all.filter(d =>
+      d.lawatan_tarikh && d.lawatan_tarikh.toString().trim() !== '' &&
+      (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '')
+    );
+    const lulusHiliran = selesaiLawatan.filter(d => norm(d.kelulusan).includes('LULUS'));
+    const tolakHiliran = selesaiLawatan.filter(d => norm(d.kelulusan).includes('TOLAK') || norm(d.kelulusan).includes('SIASAT'));
+    const menungguHiliran = selesaiLawatan.filter(d => !d.kelulusan || d.kelulusan.toString().trim() === '');
+    const kadarSokong = selesaiLawatan.length ? Math.round((sokong.length / selesaiLawatan.length) * 100) : 0;
+
     // V6.10.1: Kad PKA guna kiraan data window (bukan agregat 12 bulan) - supaya
     // nombor kad sepadan dengan senarai popup. PKA ialah paparan kerja SEMASA
     // (rekod belum selesai sentiasa lengkap dalam window), bukan statistik tempoh.
-    document.getElementById('pkaStatSpi').textContent = diSPI.length;
-    document.getElementById('pkaStatSelesai').textContent = selesaiLawatan.length;
+    const setNum = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setNum('pkaStatSpi', diSPI.length);
+    setNum('pkaStatSelesai', selesaiLawatan.length);
+    setNum('pkaStatSokong', sokong.length);
+    setNum('pkaStatTidak', tidak.length);
+    setNum('pkaStatDalam', dalamLawatan.length);
+    setNum('pkaStatLulus', lulusHiliran.length);
 
     // Simpan senarai rekod setiap kad untuk modal popup (Tab PKA)
-    window.__pkaCardData = { spi: diSPI, selesai: selesaiLawatan };
+    window.__pkaCardData = { spi: diSPI, selesai: selesaiLawatan, sokong, tidak, dalam: dalamLawatan, lulus: lulusHiliran };
+
+    // Pecahan ringkas: syor PKA + outcome hiliran + top pengesyor
+    try {
+      const infoEl = document.getElementById('pkaProsesInfo');
+      if (infoEl) {
+        const counts = {};
+        selesaiLawatan.forEach(d => {
+          const name = (d.pengesyor || '-').toString().trim() || '-';
+          counts[name] = (counts[name] || 0) + 1;
+        });
+        const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const topHtml = top.length
+          ? top.map(([n, c]) => `<div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:3px 0;border-bottom:1px dashed #e2e8f0;"><span>${n}</span><strong>${c}</strong></div>`).join('')
+          : '<div style="font-size:0.8rem;color:#94a3b8;">Tiada data diproses.</div>';
+        infoEl.innerHTML = ''
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">✅ Syor PKA (diproses)</div>`
+          + `<div style="font-size:0.8rem;color:#475569;">SOKONG: <strong style="color:#059669;">${sokong.length}</strong> | TIDAK: <strong style="color:#dc2626;">${tidak.length}</strong> | Kadar sokongan: <strong>${kadarSokong}%</strong></div></div>`
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">⚖️ Outcome hiliran (dari diproses)</div>`
+          + `<div style="font-size:0.8rem;color:#475569;">LULUS: <strong style="color:#059669;">${lulusHiliran.length}</strong> | TOLAK/SIASAT: <strong style="color:#dc2626;">${tolakHiliran.length}</strong> | Menunggu: <strong>${menungguHiliran.length}</strong></div></div>`
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">👤 Top pengesyor (sumber diproses)</div>${topHtml}</div>`;
+      }
+    } catch (e) {}
 
     loadSpiTimelinePKA();
   }
@@ -4075,29 +4114,44 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  // V6.6.1: Pembantu badge jenis kongsi (konsisten Belum/Telah Syor & PKA)
+  function pkaGetJenisBadge(jenis) {
+    const j = (jenis || '').toString().toUpperCase().trim();
+    if (j === 'BARU') return '<span class="app-type-badge type-baru">BARU</span>';
+    if (j === 'PEMBAHARUAN') return '<span class="app-type-badge type-pembaharuan">PEMBAHARUAN</span>';
+    if (j === 'UBAH MAKLUMAT') return '<span class="app-type-badge type-ubah-maklumat">UBAH MAKLUMAT</span>';
+    if (j === 'UBAH GRED') return '<span class="app-type-badge type-ubah-gred">UBAH GRED</span>';
+    return jenis ? `<span class="app-type-badge">${jenis}</span>` : '';
+  }
+
   function pkaRenderInboxCards(data, list) {
     if (data.length === 0) {
       list.innerHTML = '<p class="pka-empty">Tiada permohonan dalam inbox</p>';
       return;
     }
+    // V6.6.1: Guna struktur row sama seperti tab Belum Syor (app-item-wrapper) supaya konsisten
     list.innerHTML = data.map((d, i) => {
-      const jenisBadge = d.jenis ? `<span class="pka-badge" style="background:#dbeafe;color:#1e40af;">${d.jenis}</span>` : '';
+      const jenisBadge = pkaGetJenisBadge(d.jenis);
       const spiDate = d.date_submit ? formatDateDisplay(d.date_submit) : '';
       const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
-      return `<div class="pka-card-item" style="border-left:4px solid #f59e0b;">
-        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-          <span style="background:#f59e0b;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;flex-shrink:0;">${i + 1}</span>
-          <div class="pka-card-item-info">
-            <div class="pka-card-item-title">${d.syarikat}</div>
-            <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} ${jenisBadge ? '| ' + jenisBadge : ''}</div>
-            <div style="font-size:0.8rem;color:#475569;margin-top:4px;">👤 ${d.pengesyor || '-'}</div>
-            <div style="font-size:0.78rem;color:#64748b;margin-top:2px;">📤 Hantar: ${spiDate}${startDate ? ' | 📅 Mula: ' + startDate : ''}</div>
-          </div>
-        </div>
-        <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-green" data-pka-action="go-keputusan" data-pka-row="${d.row}">✅ Proses</button>
-        </div>
-      </div>`;
+      const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '';
+      const failBtn = d.pautan
+        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive">📂 Fail</button>`
+        : '';
+      return `<div class="app-item-wrapper inbox-pending">
+        <div class="app-item-number">${i + 1}</div>
+        <div class="app-item-content"><div class="app-item blue-bg">
+        <div class="app-info" style="flex:1;padding-right:15px;overflow:hidden;">
+        <div class="app-title" style="font-weight:bold;font-size:1.1rem;word-break:break-word;white-space:normal;">${d.syarikat || '-'}</div>
+        <div class="app-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${jenisBadge}</div>`
+        + (startDate ? `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;">📅 TARIKH MULA (START DATE): ${startDate}</div>` : '')
+        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>` : '')
+        + (sptbDate ? `<div style="font-size:0.75rem;color:#059669;font-weight:600;margin-top:2px;">📋 Date Submit to SPTB: ${sptbDate}</div>` : '')
+        + `<div style="font-size:0.75rem;color:#555;margin-top:2px;">Pengesyor: ${d.pengesyor || '-'}</div>`
+        + `</div>
+        <div class="app-actions-btn" style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn-sm btn-proses" data-pka-action="go-keputusan" data-pka-row="${d.row}">⚡ Proses</button>${failBtn}
+        </div></div></div></div>`;
     }).join('');
   }
 
@@ -4187,18 +4241,17 @@ async function handleCredentialResponse(response) {
     }
 
     const row = item.row;
-    const syorOptions = ['', 'SOKONG', 'TIDAK DISOKONG']
-      .map(v => `<option value="${v}"${item.lawatan_syor === v ? ' selected' : ''}>${v || '- PILIH -'}</option>`).join('');
     const spiDate = item.date_submit ? formatDateDisplay(item.date_submit) : '-';
+    const curSyor = (item.lawatan_syor || '').toString();
 
-    list.innerHTML = `<div class="pka-card-item" style="border-left:4px solid #3b82f6;">
+    list.innerHTML = `<div class="pka-card-item pka-keputusan-card">
       <div class="pka-card-item-info">
         <div class="pka-card-item-title">${item.syarikat}</div>
         <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | 👤 ${item.pengesyor || '-'} | 📤 Hantar: ${spiDate}</div>
         <div class="pka-card-field">
           <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${item.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
           <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${item.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
-          <div style="flex:1;min-width:140px;"><label>Syor SPI</label><div><select class="editable-select" id="pkaLawatanSyor_${row}" style="width:100%;">${syorOptions}</select></div></div>
+          <div style="flex:1;min-width:180px;"><label>Syor SPI</label><div><input type="hidden" id="pkaLawatanSyor_${row}" value="${curSyor}"><div class="btn-group pka-syor-seg" data-target="pkaLawatanSyor_${row}"><button type="button" class="btn-option btn-opt-green" data-value="SOKONG">✅ SOKONG</button><button type="button" class="btn-option btn-opt-red" data-value="TIDAK DISOKONG">❌ TIDAK DISOKONG</button></div></div></div>
         </div>
         <div class="pka-card-field">
           <label>Ulasan SPI</label>
@@ -4207,11 +4260,15 @@ async function handleCredentialResponse(response) {
       </div>
       <div class="pka-card-item-actions">
         <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}">📂 Urus Fail</button>
-        <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar</button>
+        <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar Syor</button>
       </div>
     </div>`;
     document.querySelectorAll('#pkaKeputusanList .editable-textarea').forEach(autoResizeTextarea);
     initDatepickers(list);
+    try {
+      if (typeof initButtonGroups === 'function') initButtonGroups();
+      if (typeof setButtonGroupValue === 'function') setButtonGroupValue(`pkaLawatanSyor_${row}`, curSyor);
+    } catch (e) {}
   }
 
   function pkaRenderSejarahCards(data, list) {
@@ -4219,25 +4276,35 @@ async function handleCredentialResponse(response) {
       list.innerHTML = '<p class="pka-empty">Tiada rekod sejarah</p>';
       return;
     }
+    // V6.6.1: Guna struktur row sama seperti tab Telah Syor (app-item-wrapper) supaya konsisten
     list.innerHTML = data.map((d, i) => {
+      const jenisBadge = pkaGetJenisBadge(d.jenis);
       const lawatanDate = d.lawatan_tarikh ? formatDateDisplay(d.lawatan_tarikh) : '-';
       const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '-';
-      return `<div class="pka-card-item" style="border-left:4px solid #10b981;">
-        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-          <span style="background:#10b981;color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;flex-shrink:0;">${i + 1}</span>
-          <div class="pka-card-item-info">
-            <div class="pka-card-item-title">${d.syarikat}</div>
-            <div class="pka-card-item-sub">${d.cidb || '-'} | ${d.gred || '-'} | 👤 ${d.pengesyor || '-'}</div>
-            <div style="font-size:0.8rem;color:#475569;margin-top:4px;">
-              📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}
-            </div>
-            ${d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:2px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : ''}
-          </div>
-        </div>
-        <div class="pka-card-item-actions">
-          <button class="pka-btn-sm pka-btn-ghost" data-pka-action="lihat" data-pka-row="${d.row}">👁 Lihat</button>
-        </div>
-      </div>`;
+      const spiDate = d.date_submit ? formatDateDisplay(d.date_submit) : '';
+      let viewCls = 'btn-sm btn-view-pending';
+      const kel = (d.kelulusan || '').toString().toUpperCase();
+      if (kel.includes('LULUS')) viewCls = 'btn-sm btn-view-approved';
+      else if (kel.includes('TOLAK') || kel.includes('SIASAT')) viewCls = 'btn-sm btn-view-rejected';
+      else if ((d.lawatan_syor || '').toString().toUpperCase().includes('TIDAK')) viewCls = 'btn-sm btn-view-rejected';
+      else if ((d.lawatan_syor || '').toString().toUpperCase() === 'SOKONG') viewCls = 'btn-sm btn-view-approved';
+      const failBtn = d.pautan
+        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive">📂 Fail</button>`
+        : '';
+      return `<div class="app-item-wrapper">
+        <div class="app-item-number">${i + 1}</div>
+        <div class="app-item-content"><div class="app-item">
+        <div class="app-info" style="flex:1;padding-right:15px;overflow:hidden;">
+        <div class="app-title" style="font-weight:bold;font-size:1.1rem;word-break:break-word;white-space:normal;">${d.syarikat || '-'}</div>
+        <div class="app-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${jenisBadge}</div>`
+        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>` : '')
+        + `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;">📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}</div>`
+        + `<div style="font-size:0.75rem;color:#555;margin-top:2px;">Pengesyor: ${d.pengesyor || '-'}${d.kelulusan ? ' | Keputusan: ' + d.kelulusan : ''}</div>`
+        + (d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:4px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : '')
+        + `</div>
+        <div class="app-actions-btn" style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="${viewCls}" data-pka-action="lihat" data-pka-row="${d.row}">Lihat</button>${failBtn}
+        </div></div></div></div>`;
     }).join('');
   }
 
@@ -8275,9 +8342,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     listEl.innerHTML = '';
     loadingEl.style.display = 'block';
 
-    const canEdit = canEditDriveFiles();
+    const canUpload = (typeof canUploadDriveFiles === 'function') ? canUploadDriveFiles() : canEditDriveFiles();
     const uploadBtn = document.getElementById('btnFileManagerUpload');
-    if (uploadBtn) uploadBtn.style.display = canEdit ? '' : 'none';
+    if (uploadBtn) uploadBtn.style.display = canUpload ? '' : 'none';
 
     await loadDriveFiles(folderId);
   }
@@ -8342,14 +8409,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (!listEl) return;
 
     if ((!folders || folders.length === 0) && (!files || files.length === 0)) {
-      const canEdit = canEditDriveFiles();
-      listEl.innerHTML = canEdit
+      const canUpload = canUploadDriveFiles();
+      listEl.innerHTML = canUpload
         ? '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>'
         : '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong.</p>';
       return;
     }
 
-    const canEdit = canEditDriveFiles();
     var html = '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:10px;">';
 
     if (folders) {
@@ -8369,15 +8435,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const displayIcon = isImage
           ? '<img src="' + thumbnailUrl + '" alt="' + escapeHtml(file.name) + '" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">'
           : '<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + thumbnailUrl + '</div>';
+        const canRename = canRenameDriveFile(file);
+        const canDelete = canDeleteDriveFile(file);
+        const ownerLabel = file.uploadedByName ? '<p style="font-size:0.62rem; color:#64748b; margin:2px 0;">👤 ' + escapeHtml(file.uploadedByName) + '</p>' : '';
 
         html += '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
           + displayIcon
           + '<p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; min-height:2.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">' + escapeHtml(file.name) + '</p>'
           + '<p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">' + formatFileSize(file.size) + '</p>'
+          + ownerLabel
           + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">'
           + '<button class="btn-file-view" data-url="' + file.webViewLink + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>'
-          + (canEdit ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>' : '')
-          + (canEdit ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>' : '')
+          + (canRename ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>' : '')
+          + (canDelete ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>' : '')
           + '</div>'
           + '</div>';
       });
@@ -8403,26 +8473,48 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
   }
 
-  function canEditDriveFiles() {
+  // V6.6.1: Kebenaran Drive dipecah — upload ikut role, padam ikut pemilik fail
+  function canUploadDriveFiles() {
     if (!currentUser) return false;
-    const role = currentUser.role;
-    
-    const item = pelulusActiveItem;
+    const role = (currentUser.role || '').toUpperCase();
+    if (role === 'ADMIN') return true;
+    if (role === 'PKA') return true;
+    const item = (typeof pelulusActiveItem !== 'undefined') ? pelulusActiveItem : null;
     if (!item) {
       if (role === 'PENGESYOR') {
         const pengesyorField = document.getElementById('db_pengesyor')?.value;
-        return pengesyorField && pengesyorField.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
+        return !!(pengesyorField && currentUser.name && pengesyorField.trim().toUpperCase() === currentUser.name.trim().toUpperCase());
       }
       return false;
     }
-    
-    if (role === 'PENGESYOR' && item.pengesyor) {
+    if (role === 'PENGESYOR' && item.pengesyor && currentUser.name) {
       return item.pengesyor.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
     }
-    if (role === 'PELULUS' && item.pelulus) {
+    if (role === 'PELULUS' && item.pelulus && currentUser.name) {
       return item.pelulus.trim().toUpperCase() === currentUser.name.trim().toUpperCase();
     }
     return false;
+  }
+
+  function canDeleteDriveFile(file) {
+    if (!currentUser) return false;
+    const role = (currentUser.role || '').toUpperCase();
+    if (role === 'ADMIN') return true;
+    if (!file || !file.uploadedBy) return canUploadDriveFiles();
+    const owner = String(file.uploadedBy || '').toLowerCase().trim();
+    const me = String(currentUser.email || '').toLowerCase().trim();
+    return owner !== '' && owner === me;
+  }
+
+  function canRenameDriveFile(file) {
+    if (!currentUser) return false;
+    const role = (currentUser.role || '').toUpperCase();
+    if (role === 'PKA') return false;
+    return canDeleteDriveFile(file);
+  }
+
+  function canEditDriveFiles() {
+    return canUploadDriveFiles();
   }
 
   function getFileIcon(mimeType, fileName) {
@@ -8506,6 +8598,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
 
     let uploaded = 0;
+    let lastError = '';
     const total = files.length;
     const progressToast = showProgressToast(`Muat naik 0/${total} fail...`);
 
@@ -8536,9 +8629,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (result.success) {
           uploaded++;
         } else {
+          lastError = result.error || '';
           console.error("V6.7.0 Upload failed for", file.name, result.error);
         }
       } catch (err) {
+        lastError = err.message || '';
         console.error("V6.7.0 Error uploading", file.name, err);
       }
 
@@ -8553,10 +8648,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       await playSuccessSound();
       progressToast.done(`${uploaded}/${total} fail berjaya dimuat naik`);
     } else {
-      progressToast.done("Muat naik gagal", true);
+      progressToast.done(lastError || "Muat naik gagal", true);
     }
     if (uploaded < total) {
-      await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik. Yang gagal mungkin saiz terlalu besar.`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
+      await CustomAppModal.alert(`${uploaded}/${total} fail berjaya dimuat naik.${lastError ? ' Ralat: ' + lastError : ' Yang gagal mungkin saiz terlalu besar.'}`, "Muat Naik Selesai", uploaded === total ? "success" : "warning");
     }
   }
 
@@ -15455,7 +15550,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   wirePkaCardClick(document.getElementById('pkaStatSpi')?.closest('.pka-stat-card'), 'spi', 'DI SPI', '#0ea5e9');
-  wirePkaCardClick(document.getElementById('pkaStatSelesai')?.closest('.pka-stat-card'), 'selesai', 'SELESAI LAWATAN', '#10b981');
+  wirePkaCardClick(document.getElementById('pkaStatSelesai')?.closest('.pka-stat-card'), 'selesai', 'JUMLAH DIPROSES', '#10b981');
+  wirePkaCardClick(document.getElementById('pkaStatSokong')?.closest('.pka-stat-card'), 'sokong', 'SOKONG (PKA)', '#22c55e');
+  wirePkaCardClick(document.getElementById('pkaStatTidak')?.closest('.pka-stat-card'), 'tidak', 'TIDAK DISOKONG (PKA)', '#ef4444');
+  wirePkaCardClick(document.getElementById('pkaStatDalam')?.closest('.pka-stat-card'), 'dalam', 'DALAM LAWATAN', '#f59e0b');
+  wirePkaCardClick(document.getElementById('pkaStatLulus')?.closest('.pka-stat-card'), 'lulus', 'LULUS HILIRAN', '#2563eb');
 
   // Carian & filter modal
   if (dashboardCardSearch) {

@@ -612,7 +612,7 @@ function doPost(e) {
       if (!data.email) {
         return createJSONOutput({ success: false, error: "Email diperlukan." });
       }
-      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS, ROLE_PKA]);
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ success: false, error: accessCheck.error });
       }
@@ -624,7 +624,7 @@ function doPost(e) {
       if (!data.email) {
         return createJSONOutput({ success: false, error: "Email diperlukan." });
       }
-      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
+      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS, ROLE_PKA]);
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ success: false, error: accessCheck.error });
       }
@@ -4525,6 +4525,20 @@ function checkWhatsAppNumber(phone) {
 // V6.7.0: FILE MANAGER — SENARAI FAIL DALAM FOLDER DRIVE
 // =========================================================================
 
+function getDriveFileOwnerInfo(file) {
+  try {
+    const desc = file.getDescription ? (file.getDescription() || '') : '';
+    if (!desc) return { uploadedBy: '', uploadedByName: '' };
+    const obj = JSON.parse(desc);
+    return {
+      uploadedBy: String(obj.uploadedBy || '').toLowerCase().trim(),
+      uploadedByName: String(obj.uploadedByName || '')
+    };
+  } catch (e) {
+    return { uploadedBy: '', uploadedByName: '' };
+  }
+}
+
 function handleListDriveFiles(data) {
   try {
     const folderId = data.folderId;
@@ -4539,6 +4553,7 @@ function handleListDriveFiles(data) {
     
     while (fileIterator.hasNext()) {
       const file = fileIterator.next();
+      const ownerInfo = getDriveFileOwnerInfo(file);
       files.push({
         id: file.getId(),
         name: file.getName(),
@@ -4549,7 +4564,9 @@ function handleListDriveFiles(data) {
         thumbnailLink: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=s200',
         iconLink: file.getMimeType().startsWith('image/') 
           ? 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=s200'
-          : ''
+          : '',
+        uploadedBy: ownerInfo.uploadedBy,
+        uploadedByName: ownerInfo.uploadedByName
       });
     }
     
@@ -4608,6 +4625,17 @@ function handleUploadDriveFile(data) {
     const bytes = Utilities.base64Decode(fileData);
     const blob = Utilities.newBlob(bytes, mimeType, fileName);
     const createdFile = folder.createFile(blob);
+
+    // V6.6.1: Simpan pemilik muat naik dalam Description (untuk kebenaran padam fail sendiri)
+    try {
+      const uploaderEmail = String(data.email || '').toLowerCase().trim();
+      let uploaderName = '';
+      try {
+        const uploaderProfile = findUserByEmailCached(data.email);
+        if (uploaderProfile && uploaderProfile.name) uploaderName = uploaderProfile.name;
+      } catch (e) {}
+      createdFile.setDescription(JSON.stringify({ uploadedBy: uploaderEmail, uploadedByName: uploaderName, at: new Date().toISOString() }));
+    } catch (e) {}
     
     logActivity(data.email || 'System', 'UPLOAD_FILE', 'Fail dimuat naik: ' + fileName + ' ke folder ' + folder.getName(), folderId);
     
@@ -4622,7 +4650,8 @@ function handleUploadDriveFile(data) {
         webViewLink: createdFile.getUrl(),
         thumbnailLink: createdFile.getMimeType().startsWith('image/') 
           ? 'https://drive.google.com/thumbnail?id=' + createdFile.getId() + '&sz=s200'
-          : ''
+          : '',
+        uploadedBy: String(data.email || '').toLowerCase().trim()
       }
     });
     
@@ -4644,6 +4673,18 @@ function handleDeleteDriveFile(data) {
     
     const file = DriveApp.getFileById(fileId);
     const fileName = file.getName();
+
+    // V6.6.1: Hanya pemuat naik asal atau ADMIN boleh padam (fail lama tanpa owner dikecualikan)
+    const requesterEmail = String(data.email || '').toLowerCase().trim();
+    let requesterRole = '';
+    try {
+      const requesterProfile = findUserByEmailCached(data.email);
+      if (requesterProfile && requesterProfile.role) requesterRole = String(requesterProfile.role).toUpperCase();
+    } catch (e) {}
+    const ownerInfo = getDriveFileOwnerInfo(file);
+    if (ownerInfo.uploadedBy && ownerInfo.uploadedBy !== requesterEmail && requesterRole !== 'ADMIN') {
+      return createJSONOutput({ success: false, error: "Hanya pemuat naik asal fail ini atau ADMIN boleh memadamnya." });
+    }
     file.setTrashed(true);
     
     logActivity(data.email || 'System', 'DELETE_FILE', 'Fail dipadam: ' + fileName, '');
