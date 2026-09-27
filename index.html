@@ -87,7 +87,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">📋</div>
                     <div class="feature-title">Borang Semakan</div>
-                    <div class="feature-desc">Auto-ekstrak PDF dengan AI, semak dokumen dan personel</div>
+                    <div class="feature-desc">Auto-ekstrak PDF, semak dokumen dan personel</div>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
@@ -96,8 +96,8 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💬</div>
-                    <div class="feature-title">WhatsApp Auto</div>
-                    <div class="feature-desc">Jadual WhatsApp auto dan hantaran manual</div>
+                    <div class="feature-title">Notifikasi WhatsApp</div>
+                    <div class="feature-desc">Hantar notifikasi segera ke Pelulus dan Pengesyor</div>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📁</div>
@@ -306,37 +306,6 @@
                     <div style="margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
                         <label style="font-weight:bold; color:#ef4444;">⏳ Tarikh Due Date (SLA)</label>
                         <input type="date" id="db_due_date" style="border-color: #ef4444; border-width: 2px;">
-                    </div>
-                    <div style="margin-top:15px;">
-                        <label style="display:flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; color:#075e54;"><input type="checkbox" id="cb_show_wa_schedule"> 📅 Paparkan Jadual WhatsApp</label>
-                    </div>
-                    <div id="wa_schedule_container" style="display:none; margin-top:8px; border-top:2px solid #25D366; padding-top:12px; background:#f0fdf4; border-radius:8px; padding:12px;">
-                        <label style="font-weight:800; color:#075e54; display:flex; align-items:center; gap:5px;">💬 WhatsApp Scheduling (Auto)</label>
-                        <div style="margin-top:8px;">
-                            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
-                                <label style="font-weight:600; white-space:nowrap;">Tarikh Hantar:</label>
-                                <input type="date" id="wa_tarikh_auto" style="flex:1;">
-                            </div>
-                            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
-                                <label style="font-weight:600; white-space:nowrap;">Masa (Jam):</label>
-                                <select id="wa_masa" style="flex:1;">
-                                    <option value="">Pilih Jam</option>
-                                    <option value="8">8:00 AM</option>
-                                    <option value="9">9:00 AM</option>
-                                    <option value="10">10:00 AM</option>
-                                    <option value="11">11:00 AM</option>
-                                    <option value="12">12:00 PM</option>
-                                    <option value="14">2:00 PM</option>
-                                    <option value="15">3:00 PM</option>
-                                    <option value="16">4:00 PM</option>
-                                    <option value="17">5:00 PM</option>
-                                </select>
-                            </div>
-                            <div style="margin-bottom:8px;">
-                                <label style="font-weight:600;">Mesej WhatsApp:</label>
-                                <textarea id="wa_ayat" rows="3" placeholder="Taip mesej WhatsApp yang ingin dihantar secara auto..." style="width:100%; border:2px solid #25D366; border-radius:8px; padding:8px; text-transform:none;"></textarea>
-                            </div>
-                        </div>
                     </div>
                 </div>
                 <div style="margin-top:15px; margin-bottom:15px;"><label>Alamat Perniagaan</label><textarea id="db_alamat_perniagaan" style="margin-top:5px; min-height:80px;" placeholder="Masukkan Alamat Perniagaan Syarikat..."></textarea><div id="mapsContainer" style="margin-top:10px; width:100%; height:300px; border-radius:8px; overflow:hidden; border:1px solid #ccc;"><iframe id="mapsIframe" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen></iframe></div></div>
@@ -1081,6 +1050,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20260927a"></script>
+    <script src="app.js?v=20260927b"></script>
 </body>
 </html>

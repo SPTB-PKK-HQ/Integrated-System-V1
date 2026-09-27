@@ -23,12 +23,7 @@ const ADDITIONAL_AUTHORIZED_DOMAINS = ["kuskop.gov.my"]; // Boleh tambah domain 
 // V6.5.0: API KEYS - DIBACA DARI SCRIPT PROPERTIES UNTUK KESELAMATAN
 // =========================================================================
 // Semua key/kata laluan disimpan di Script Properties (File > Project settings > Script Properties)
-// Nama property: DEEPSEEK_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, YOUTUBE_API_KEY
-
-const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "tencent/hy3-preview:free";
+// Nama property: YOUTUBE_API_KEY
 
 function getScriptProp(key) {
   return PropertiesService.getScriptProperties().getProperty(key) || '';
@@ -290,7 +285,7 @@ function findUserByEmail(email) {
 }
 
 // V6.9.0: Versi cache findUserByEmail untuk elak baca penuh sheet Users
-// pada setiap permintaan (mempercepatkan verifyUserAccess & processAI).
+// pada setiap permintaan (mempercepatkan verifyUserAccess).
 // TTL 10 minit; cache dibuang dalam handleAddUser/UpdateUser/DeleteUser.
 const USER_CACHE_TTL_SECONDS = 600;
 
@@ -456,10 +451,6 @@ function doGet(e) {
     let result;
     if (action === "getUsers") {
       result = getUsersData();
-    } else if (action === "getStats") {
-      result = getStatisticsData(role, userName);
-    } else if (action === "getRepeatedApplications") {
-      result = getRepeatedApplicationsData();
     } else if (action === "refreshData") {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
@@ -504,7 +495,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'processAI', 'cetak_dan_simpan_pdf', 'refreshData', 'scheduleWhatsApp', 'listDriveFiles', 'pkaGetPengesyorContact'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'cetak_dan_simpan_pdf', 'refreshData', 'listDriveFiles', 'pkaGetPengesyorContact'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -516,7 +507,7 @@ function doPost(e) {
     // Ia hanya dibuka secara 'lazy' untuk action yang benar-benar memerlukan
     // sheet (deleteRecord, restoreRecord, pkaUpdateLawatan, handleUpdateRecord,
     // handleInsertNewRecord).
-    // Action seperti processAI/checkAuth tidak lagi membazir masa buka sheet.
+    // Action seperti checkAuth tidak lagi membazir masa buka sheet.
     // =====================================================================
     // V6.4.9: HANDLER UNTUK CHECK AUTH MELALUI POST
     // Frontend boleh menghantar { action: 'checkAuth', email: '...' }
@@ -535,22 +526,6 @@ function doPost(e) {
     // =====================================================================
     // V6.5.0: PENGESAHAN UNTUK SEMUA TINDAKAN KRITIKAL
     // =====================================================================
-    
-    // =====================================================================
-    // V6.4.8: HANDLER BAHARU UNTUK AI PROCESSING (BACKEND)
-    // V6.5.0: Menambah pengesahan pengguna berdaftar
-    // =====================================================================
-    if (data.action === 'processAI') {
-      // Semak pengesahan untuk AI processing
-      if (!data.email) {
-        return createJSONOutput({ success: false, error: "Email diperlukan untuk AI processing." });
-      }
-      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
-      if (!accessCheck.isAuthorized) {
-        return createJSONOutput({ success: false, error: accessCheck.error });
-      }
-      return handleProcessAI(data);
-    }
     
     // Handler untuk dapatkan log
     if (data.action === 'getLogs') {
@@ -587,19 +562,6 @@ function doPost(e) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
       return handleCreateDriveFolderAction(data);
-    }
-    
-    // Handler khas: Log Aktiviti
-    if (data.action === 'logActivity') {
-      if (!data.email) {
-        return createJSONOutput({ status: "error", message: "Email diperlukan untuk log aktiviti." });
-      }
-      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS]);
-      if (!accessCheck.isAuthorized) {
-        return createJSONOutput({ status: "error", message: accessCheck.error });
-      }
-      logActivity(data.user, data.actionType, data.description, data.folderId);
-      return createJSONOutput({ status: "success", message: "Activity logged" });
     }
     
     // V6.7.0: Handler untuk listDriveFiles (papar fail dalam folder)
@@ -641,19 +603,6 @@ function doPost(e) {
         return createJSONOutput({ success: false, error: accessCheck.error });
       }
       return handleRenameDriveFile(data);
-    }
-    
-    // V6.6.0: Handler untuk scheduleWhatsApp
-    if (data.action === 'scheduleWhatsApp') {
-      if (!data.email) {
-        return createJSONOutput({ status: "error", message: "Email diperlukan." });
-      }
-      const accessCheck = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN]);
-      if (!accessCheck.isAuthorized) {
-        return createJSONOutput({ status: "error", message: accessCheck.error });
-      }
-      const result = scheduleWhatsApp(data);
-      return createJSONOutput(result);
     }
     
     // Handler baharu: Cetak dan simpan PDF
@@ -893,657 +842,6 @@ function handleSearchYoutube(query) {
     return createJSONOutput({ success: true, data: result.items });
   } catch (error) {
     return createJSONOutput({ success: false, message: error.toString() });
-  }
-}
-
-// =========================================================================
-// V6.4.8: FUNGSI HANDLER AI PROCESSING (BACKEND)
-// V6.5.0: Pengesahan dilakukan di doPost sebelum memanggil fungsi ini
-// V6.9.0: Cache hasil AI + pembersihan teks dipindah ke sini (key konsisten)
-// =========================================================================
-
-/**
- * Fungsi handleProcessAI: Mengendalikan permintaan AI processing dari frontend
- * Menerima teks PDF borang dan menghantar ke API AI
- * V6.9.0: Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
- * timeout berhad, dan hasil dicache untuk elak panggilan API berulang.
- */
-function handleProcessAI(data) {
-  try {
-    const promptType = 'borang';
-    const pdfText = data.text || '';
-    const selectedModel = data.model || 'auto'; // <-- TERIMA PILIHAN MODEL
-    
-    if (!pdfText || pdfText.trim() === '') {
-      return createJSONOutput({
-        success: false,
-        error: "Teks PDF kosong. Tiada data untuk diproses."
-      });
-    }
-    
-    // V6.9.0: Bersihkan & potong teks DI SINI supaya key cache konsisten
-    const cleanedText = pdfText.replace(/\s+/g, ' ').trim();
-    const maxTextLength = 15000;
-    const truncatedText = cleanedText.length > maxTextLength
-      ? cleanedText.substring(0, maxTextLength)
-      : cleanedText;
-    
-    Logger.log(`[V6.9.0] AI Processing diminta untuk jenis: ${promptType}, Model: ${selectedModel}, panjang teks: ${truncatedText.length}`);
-    
-    // V6.9.0: Semak cache hasil AI (elak panggilan API berulang untuk PDF sama)
-    // V6.9.1: Bypass cache jika diminta (butang "Ekstrak Semula" dari frontend)
-    const cacheKey = buildAIResultCacheKey(promptType, selectedModel, truncatedText);
-    const cache = CacheService.getScriptCache();
-    if (!data.bypassCache) {
-      const cachedResult = cache.get(cacheKey);
-      if (cachedResult) {
-        try {
-          const parsed = JSON.parse(cachedResult);
-          Logger.log(`[V6.9.0] AI result diambil dari cache untuk ${promptType}`);
-          return createJSONOutput({
-            success: true,
-            data: parsed,
-            provider: 'Cache',
-            message: 'Data diambil dari cache (ekstrak sebelumnya).'
-          });
-        } catch (e) {}
-      }
-    }
-    
-    // Hantar model yang dipilih ke fungsi utama
-    const result = processWithAI(truncatedText, promptType, selectedModel);
-
-    // ---> KESILAPAN DI SINI: Tertinggal statement IF <---
-    if (result.success && result.data) {
-      
-      Logger.log(`[V6.9.0] AI Processing berjaya untuk ${promptType} (${result.provider})`);
-      
-      // V6.9.1: Jangan cache hasil yang NAMPAKNYA TIDAK LENGKAP (alamat kosong).
-      // AI kadang-kadang miss rawak; hasil miss TIDAK boleh dibekukan dalam cache
-      // supaya cubaan seterusnya memanggil AI segar untuk peluang berjaya.
-      const incompleteResult = isAIResultIncomplete(promptType, result.data);
-      
-      // V6.9.0: Simpan hasil ke cache untuk elak panggilan API berulang
-      if (!incompleteResult) {
-        try {
-          cache.put(cacheKey, JSON.stringify(result.data), AI_RESULT_CACHE_TTL_SECONDS);
-        } catch (e) {
-          Logger.log(`[V6.9.0] Gagal simpan cache AI: ${e.toString()}`);
-        }
-      } else {
-        Logger.log(`[V6.9.1] Hasil AI tidak lengkap (alamat kosong) - tidak dicache`);
-      }
-      
-      return createJSONOutput({
-        success: true,
-        data: result.data,
-        provider: result.provider,
-        message: `Data berjaya diekstrak menggunakan ${result.provider}`
-      });
-
-    } else {
-      Logger.log(`[V6.9.0] AI Processing gagal: ${result.error}`);
-
-      return createJSONOutput({
-        success: false,
-        error: result.error || "Gagal mengekstrak data dari AI",
-        provider: result.provider || 'none'
-      });
-    }
-    
-  } catch (error) {
-    Logger.log(`[V6.9.0] Ralat dalam handleProcessAI: ${error.toString()}`);
-
-    return createJSONOutput({
-      success: false,
-      error: error.toString()
-    });
-  }
-}
-
-// V6.9.0: Bina key cache AI (SHA-256) supaya sama untuk teks/model/jenis sama
-const AI_RESULT_CACHE_TTL_SECONDS = 3600; // 1 jam
-
-const AI_PROMPT_VERSION = 'borang-v3'; // V7.0.13: Bump v3 — fix companyName "(M)" & KUALA greedy, COMPANY RULES baharu (cache lama auto-invalidate)
-
-function buildAIResultCacheKey(promptType, selectedModel, truncatedText) {
-  const digest = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    AI_PROMPT_VERSION + '|' + promptType + '|' + selectedModel + '|' + truncatedText
-  );
-  const hex = digest.map(function (b) {
-    var v = (b + 256) % 256;
-    return (v < 16 ? '0' : '') + v.toString(16);
-  }).join('');
-  return 'STB_AI_' + hex;
-}
-
-// V7.0.13: Semak sama ada hasil AI NAMPAK TIDAK LENGKAP.
-// Alamat kosong ATAU companyName rosak ("SDN. BHD." sahaja, terlalu pendek) tidak dicache supaya AI boleh dicuba semula.
-function isAIResultIncomplete(promptType, data) {
-  try {
-    if (!data || typeof data !== 'object') return true;
-    const cn = (data.companyName || '').toString().trim();
-    const alamatIncomplete = !data.alamatPerniagaan && !data.alamatSuratMenyurat;
-    // companyName rosak: kosong, terlalu pendek, atau hanya suffix
-    const companyIncomplete = !cn || cn.length < 5 || /^(SDN\.?\s*BHD\.?|ENTERPRISE|TRADING)$/i.test(cn);
-    return alamatIncomplete || companyIncomplete;
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Fungsi processWithAI: Memproses teks dengan AI
- * V6.9.0: Teks sudah dibersihkan/dipotong oleh handleProcessAI.
- * Fallback Auto kini 2 provider sahaja (DeepSeek -> Gemini) dengan
- * timeout berhad untuk elak menunggu lama.
- */
-function processWithAI(cleanedText, promptType, selectedModel = 'auto') {
-  const prompt = buildBorangPrompt(cleanedText);
-  const processResponseFn = processBorangResponse;
-  
-  // JIKA PENGGUNA PILIH MODEL SPESIFIK (TIADA FALLBACK)
-  if (selectedModel === 'deepseek') {
-    Logger.log(`[V6.9.0] AI Processing: Menggunakan DeepSeek SAHAJA`);
-    try {
-      const deepseekResult = callDeepSeekAPI(prompt);
-      if (deepseekResult) return { success: true, data: processResponseFn(deepseekResult), provider: 'DeepSeek', error: null };
-    } catch (error) {
-      return { success: false, data: null, provider: 'DeepSeek', error: "DeepSeek API Ralat: " + error.toString() };
-    }
-  } 
-  else if (selectedModel === 'gemini') {
-    Logger.log(`[V6.9.0] AI Processing: Menggunakan Gemini SAHAJA`);
-    try {
-      const geminiResult = callGeminiAPI(prompt);
-      if (geminiResult) return { success: true, data: processResponseFn(geminiResult), provider: 'Gemini', error: null };
-    } catch (error) {
-      return { success: false, data: null, provider: 'Gemini', error: "Gemini API Ralat: " + error.toString() };
-    }
-  }
-  else if (selectedModel === 'openrouter') {
-    Logger.log(`[V6.9.0] AI Processing: Menggunakan OpenRouter SAHAJA`);
-    try {
-      const openRouterResult = callOpenRouterAPI(prompt);
-      if (openRouterResult) return { success: true, data: processResponseFn(openRouterResult), provider: 'OpenRouter', error: null };
-    } catch (error) {
-      return { success: false, data: null, provider: 'OpenRouter', error: "OpenRouter API Ralat: " + error.toString() };
-    }
-  }
-  
-  // JIKA PENGGUNA PILIH 'AUTO' (V6.9.0: 2-Tier Fallback sahaja - DeepSeek -> Gemini)
-  Logger.log(`[V6.9.0] 2-Tier Fallback Auto: Mencuba DeepSeek...`);
-  
-  // Tier 1: DeepSeek
-  try {
-    const deepseekResult = callDeepSeekAPI(prompt);
-    if (deepseekResult) {
-      const processedData = processResponseFn(deepseekResult);
-      return { success: true, data: processedData, provider: 'DeepSeek (Auto)', error: null };
-    }
-  } catch (error) {
-    Logger.log(`[V6.9.0] DeepSeek gagal: ${error.toString()}. Mencuba Gemini...`);
-  }
-  
-  // Tier 2: Gemini (Backup)
-  try {
-    const geminiResult = callGeminiAPI(prompt);
-    if (geminiResult) {
-      const processedData = processResponseFn(geminiResult);
-      return { success: true, data: processedData, provider: 'Gemini (Auto)', error: null };
-    }
-  } catch (error) {
-    Logger.log(`[V6.9.0] Gemini gagal: ${error.toString()}. Semua API Auto gagal.`);
-  }
-  
-  // Jika semua gagal
-  return { 
-    success: false, 
-    data: null, 
-    provider: 'none', 
-    error: "Kedua-dua API AI (DeepSeek & Gemini) gagal memproses teks."
-  };
-}
-// =========================================================================
-// V6.4.8: FUNGSI PEMBINA PROMPT UNTUK AI
-// =========================================================================
-
-function buildBorangPrompt(truncatedText) {
-  return `Return JSON ONLY matching this schema. No extra text, conversational prose or markdown wrap (except codeblock).
-  {
-    "companyName": "Exact Company Name including suffix and (M) if present, e.g. CITRA WARISAN (M) SDN. BHD.",
-    "cidbNumber": "Exact CIDB number, e.g. 0120201118-KD061300. Do not guess.",
-    "grade": "First G1-G7 found",
-    "spkkDuration": "DD/MM/YYYY - DD/MM/YYYY format or ''",
-    "stbDuration": "DD/MM/YYYY - DD/MM/YYYY format or ''",
-    "directors": ["Array of names only"],
-    "shareholders": ["Array of names only"],
-    "checkSignatories": ["Array of names only"],
-    "spkkNominees": ["Array of names only"],
-    "phoneNumbers": ["Pejabat/individus numbers only. Ignore Fax"],
-    "alamatPerniagaan": "Full BUSINESS ADDRESS only or ''",
-    "alamatSuratMenyurat": "Full CORRESPONDENCE ADDRESS only or ''"
-  }
-  COMPANY RULES (IMPORTANT):
-  - "companyName" is the REGISTERED COMPANY / BUSINESS NAME, usually appearing at the top of the document near the ROC number in parentheses, e.g. "CITRA WARISAN (M) SDN. BHD. (295815-T)" -> "CITRA WARISAN (M) SDN. BHD.".
-  - Keep the FULL name including suffixes: SDN BHD, SDN. BHD., ENTERPRISE, TRADING, CONSTRUCTION, RESOURCES, SERVICES, HOLDINGS, NIAGA, BINAAN, etc and "(M)" / "(P)" if present. Do NOT truncate to just "SDN. BHD.".
-  - If the name is labelled "NAMA SYARIKAT" / "COMPANY NAME" / "NAMA FIRMA" / "NAMA PERNIAGAAN", take the value after ":" or "-" on the same line or the next non-empty line.
-  - If there are two parentheses like "SYARIKAT XYZ (M) SDN BHD (1234567-U)", the LAST parentheses is the ROC number — the company name is everything BEFORE it: "SYARIKAT XYZ (M) SDN BHD".
-  - NEVER return header/government names: "LEMBAGA PEMBANGUNAN INDUSTRI PEMBINAAN MALAYSIA", "CIDB", "TEL", "ALAMAT" — those are NOT company names.
-  - Names may contain "'", "/", "&", ".", "-", "(", ")" — keep them. Example: "D' MAJU JAYA ENTERPRISE", "A/B CONSTRUCTION (M) SDN BHD".
-  - Do NOT strip city/state words that are part of the name: "KUALA LUMPUR CONSTRUCTION SDN BHD" must stay "KUALA LUMPUR CONSTRUCTION SDN BHD", not "CONSTRUCTION SDN BHD".
-  ADDRESS RULES (IMPORTANT):
-  - "alamatPerniagaan" = address labelled ALAMAT PERNIAGAAN / BUSINESS ADDRESS / ALAMAT UTAMA URUSAN NIAGA.
-  - "alamatSuratMenyurat" = address labelled ALAMAT SURAT-MENYURAT / CORRESPONDENCE ADDRESS / MAILING ADDRESS.
-  - Match by looking at the LABEL that appears right before or after the address text.
-  - ALAMAT BERDAFTAR / REGISTERED ADDRESS / REGISTERED OFFICE must NEVER be placed into "alamatPerniagaan" or "alamatSuratMenyurat", even if it is the ONLY address in the document.
-  - If the document contains ONLY an ALAMAT BERDAFTAR / REGISTERED ADDRESS, return BOTH fields as "" (do not substitute).
-  - If only ONE of the two valid labels exists, return it in the correct field and leave the other as "".
-  - The address may span multiple lines - return the FULL address text.
-  NAMES RULES: Extract ALL names in every list. Do NOT omit or truncate any entry. Include any name found even if partially legible.
-  PDF Text: ${truncatedText}`;
-}
-
-// =========================================================================
-// V6.4.8: FUNGSI PANGGILAN API AI
-// =========================================================================
-
-function callDeepSeekAPI(prompt) {
-  const options = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + getScriptProp('DEEPSEEK_API_KEY')
-    },
-    payload: JSON.stringify({
-      model: 'deepseek-v4-flash', // DIUBAH: Dikunci terus ke versi Flash yang jimat dan murah
-      messages: [{ role: 'user', content: prompt }],
-      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
-      max_tokens: 4096,
-      temperature: 0.2,
-      // V6.9.1: Paksa output JSON tulen - elak parsing gagal & proses ulang
-      response_format: { type: 'json_object' }
-    }),
-    // V6.9.0: Timeout eksplisit 30 saat (elak menunggu lama bila API tergantung)
-    timeoutSeconds: 30,
-    muteHttpExceptions: true
-  };
-  const response = UrlFetchApp.fetch(DEEPSEEK_API_URL, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-
-  if (responseCode !== 200) {
-    throw new Error(`DeepSeek API returned ${responseCode}: ${responseText}`);
-  }
-  
-  const data = JSON.parse(responseText);
-  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    throw new Error('Invalid response from DeepSeek');
-  }
-  
-  return data.choices[0].message.content;
-}
-
-function callGeminiAPI(prompt) {
-  // 1. BUANG parameter '?key=' dari URL utama demi keselamatan & kestabilan kunci AQ.
-  const url = GEMINI_API_URL; 
-
-  const options = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // 2. MASUKKAN kunci API dalam 'headers' menggunakan standard Google yang baharu
-      'x-goog-api-key': getScriptProp('GEMINI_API_KEY')
-    },
-    payload: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
-      generationConfig: {
-        maxOutputTokens: 4096,
-        temperature: 0.2
-      }
-    }),
-    // V6.9.0: Timeout eksplisit 20 saat (Gemini pantas; elak menunggu lama)
-    timeoutSeconds: 20,
-    muteHttpExceptions: true
-  };
-
-  const response = UrlFetchApp.fetch(url, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-
-  if (responseCode !== 200) {
-    throw new Error(`Gemini API returned ${responseCode}: ${responseText}`);
-  }
-  
-  const data = JSON.parse(responseText);
-  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || 
-      !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
-    throw new Error('Invalid response from Gemini');
-  }
-  
-  return data.candidates[0].content.parts[0].text;
-}
-
-function callOpenRouterAPI(prompt) {
-  const options = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + getScriptProp('OPENROUTER_API_KEY')
-    },
-    payload: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      // V6.9.0: Hadkan panjang jawapan + suhu rendah untuk jawapan pantas & konsisten
-      max_tokens: 4096,
-      temperature: 0.2
-    }),
-    // V6.9.0: Timeout eksplisit 20 saat (OpenRouter bukan fallback Auto lagi)
-    timeoutSeconds: 20,
-    muteHttpExceptions: true
-  };
-
-  const response = UrlFetchApp.fetch(OPENROUTER_API_URL, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-
-  if (responseCode !== 200) {
-    throw new Error(`OpenRouter API returned ${responseCode}: ${responseText}`);
-  }
-  
-  const data = JSON.parse(responseText);
-  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    throw new Error('Invalid response from OpenRouter');
-  }
-  
-  return data.choices[0].message.content;
-}
-
-// =========================================================================
-// V6.4.8: FUNGSI PEMPROSESAN RESPONS AI
-// =========================================================================
-
-function processBorangResponse(aiResponse) {
-  let cleanedText = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-  let jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-  if (jsonMatch) cleanedText = jsonMatch[0];
-  
-  const aiData = JSON.parse(cleanedText);
-
-  const cleanList = (arr) => {
-    if (!Array.isArray(arr)) return [];
-
-    return arr.map(item => {
-      if (typeof item === 'string') return item.trim();
-      if (typeof item === 'object' && item !== null) {
-         return item.name || item.nama || Object.values(item)[0] || ""; 
-      }
-      return String(item);
-    }).filter(item => item !== "");
-  };
-  
-  let phoneNumbers = [];
-  if (aiData.phoneNumbers && Array.isArray(aiData.phoneNumbers)) {
-    phoneNumbers = aiData.phoneNumbers.map(p => String(p).trim()).filter(p => p !== "");
-  }
-  
-  let grade = '';
-  if (aiData.grade) {
-    let gradeStr = aiData.grade.toString();
-
-    if (gradeStr.includes(',')) {
-      grade = gradeStr.split(',')[0].trim();
-    } else if (gradeStr.includes(' ')) {
-      grade = gradeStr.split(' ')[0].trim();
-    } else {
-      grade = gradeStr.trim();
-    }
-    const gradeMatch = grade.match(/\b(G[1-7])\b/i);
-
-    if (gradeMatch) grade = gradeMatch[1].toUpperCase();
-  }
-  
-  // V7.0.13: Bersihkan companyName dari prefix label & normalisasi space (elak "NAMA SYARIKAT: SDN. BHD.")
-  let rawCompanyName = (aiData.companyName || '').toString().trim();
-  rawCompanyName = rawCompanyName.replace(/^(?:NAMA\s*SYARIKAT|COMPANY\s*NAME|NAMA\s*FIRMA|NAMA\s*PERNIAGAAN)\s*[:\-]\s*/i, '').trim();
-  rawCompanyName = rawCompanyName.replace(/\s+/g, ' ').trim();
-  const transformedData = {
-    companyName: rawCompanyName,
-    cidbNumber: aiData.cidbNumber || '',
-    grade: grade,
-    spkkStartDate: '',
-    spkkEndDate: '',
-    stbStartDate: '',
-    stbEndDate: '',
-    directors: cleanList(aiData.directors),
-    shareholders: cleanList(aiData.shareholders),
-    spkkPersons: cleanList(aiData.spkkNominees),
-    chequeSignatories: cleanList(aiData.checkSignatories),
-    phoneNumbers: phoneNumbers,
-    alamatPerniagaan: aiData.alamatPerniagaan || '',
-    alamatSuratMenyurat: aiData.alamatSuratMenyurat || ''
-  };
-  
-  if (aiData.spkkDuration && typeof aiData.spkkDuration === 'string' && aiData.spkkDuration.includes('-')) {
-    const parts = aiData.spkkDuration.split('-');
-    if (parts.length >= 2) {
-      transformedData.spkkStartDate = parts[0].trim();
-      transformedData.spkkEndDate = parts[1].trim();
-    }
-  }
-  
-  if (aiData.stbDuration && typeof aiData.stbDuration === 'string' && aiData.stbDuration.includes('-')) {
-    const parts = aiData.stbDuration.split('-');
-    if (parts.length >= 2) {
-      transformedData.stbStartDate = parts[0].trim();
-      transformedData.stbEndDate = parts[1].trim();
-    }
-  }
-  
-  return transformedData;
-}
-
-// =========================================================================
-// FUNGSI SEDIA ADA
-// =========================================================================
-
-function sendAutoEmailSPI(data) {
-  try {
-    // Validasi data yang diperlukan
-    const syarikat = data.syarikat || 'Tiada';
-    const cidb = data.cidb || 'Tiada';
-    const gred = data.gred || 'Tiada';
-    const alamatPerniagaan = data.alamat_perniagaan || 'Tiada';
-    const pengesyor = data.pengesyor || 'Tiada';
-    
-    // V6.4.1: Gantikan date_submit dengan jenis permohonan
-    const jenisPermohonan = data.jenis || 'Tiada';
-    
-    // Dapatkan justifikasi (utamakan justifikasi_baru, kemudian justifikasi) dengan prefix jenis permohonan
-    const justifikasi = formatJenisJustifikasi(data.jenis, data.justifikasi_baru || data.justifikasi) || 'Tiada justifikasi disediakan';
-    
-    // Dapatkan pautan dokumen
-    const pautan = data.pautan || 'Tiada pautan';
-    
-    // Semak jika ini adalah permohonan pemutihan
-    const isPemutihan = data.syor_lawatan && data.syor_lawatan.toString().toUpperCase() === 'PEMUTIHAN';
-    
-    // Bina subjek emel
-    const subject = isPemutihan 
-      ? `Makluman Permohonan Lawatan Premis (PEMUTIHAN) - ${syarikat}`
-      : `Makluman Permohonan Lawatan Premis - ${syarikat}`;
-      
-    // Label tambahan untuk pemutihan dalam badan emel
-    const pemutihanLabelHTML = isPemutihan ? '<span class="badge" style="background: #e74c3c; margin-left: 10px;">⚠️ PEMUTIHAN</span>' : '';
-    const pemutihanText = isPemutihan ? ' (PEMUTIHAN)' : '';
-    
-    const pemutihanNoteHTML = isPemutihan ? '<div style="background: #fdf2f2; border-left: 4px solid #e74c3c; padding: 15px; margin: 15px 0;"><strong>⚠️ NOTIS PENTING:</strong> Permohonan ini adalah <strong>PEMUTIHAN</strong>. Sila beri perhatian sewajarnya.</div>' : '';
-    const pemutihanNoteText = isPemutihan ? '\n⚠️ NOTIS PENTING: Permohonan ini adalah PEMUTIHAN. Sila beri perhatian sewajarnya.\n' : '';
-    
-    // Bina kandungan emel dalam format HTML yang kemas
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #1a73e8; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-    .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
-    .info-row { display: flex; margin-bottom: 12px; padding: 8px; border-bottom: 1px solid #eee; }
-    .info-label { width: 180px; font-weight: bold; color: #555; }
-    .info-value { flex: 1; color: #333; }
-    .justification-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
-    .link-box { background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 15px 0; }
-    .footer { margin-top: 20px; padding-top: 20px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #ddd; }
-    .badge { background: #28a745; color: white; padding: 3px 10px; border-radius: 20px; font-size: 12px; display: inline-block; }
-    .gred-badge { background: #6c757d; color: white; padding: 3px 10px; border-radius: 20px; font-size: 12px; display: inline-block; margin-left: 8px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1 style="margin: 0;">🔔 MAKLUMAN LAWATAN PREMIS${pemutihanText}</h1>
-      <p style="margin: 5px 0 0 0;">Sistem Bersepadu SPTB</p>
-    </div>
-    
-    <div class="content">
-      <p>Tuan/Puan,</p>
-      
-      <p>Dimaklumkan bahawa satu permohonan lawatan telah <strong>DISYORKAN</strong> dan tarikh serahan kepada SPI telah ditetapkan. Butiran adalah seperti berikut:</p>
-      
-      ${pemutihanNoteHTML}
-      
-      <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
-        <div class="info-row">
-          <div class="info-label">Nama Syarikat:</div>
-          <div class="info-value"><strong>${syarikat}</strong>${pemutihanLabelHTML}</div>
-        </div>
-        
-        <div class="info-row">
-           <div class="info-label">No. CIDB:</div>
-          <div class="info-value"><strong>${cidb}</strong></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Gred:</div>
-          <div class="info-value"><span class="gred-badge">🏗️ ${gred}</span></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Alamat Perniagaan Syarikat:</div>
-          <div class="info-value">📍 ${alamatPerniagaan} — <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}" target="_blank" style="font-size:12px; color:#1a73e8;">🗺️ Maps</a></div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Pengesyor:</div>
-          <div class="info-value">👤 ${pengesyor}</div>
-        </div>
-        
-        <div class="info-row">
-          <div class="info-label">Jenis Permohonan:</div>
-          <div class="info-value"><span class="badge">📋 ${jenisPermohonan}</span></div>
-        </div>
-      </div>
-      
-      <div class="justification-box">
-        <strong>📋 Justifikasi Lawatan:</strong><br>
-        ${justifikasi}
-      </div>
-      
-      <div class="link-box">
-        <strong>🔗 Pautan Google Drive:</strong><br>
-        <a href="${pautan}" style="color: #0056b3; word-break: break-all;">${pautan}</a>
-      </div>
-      
-      <p style="margin-top: 20px;">Sila ambil tindakan sewajarnya. Untuk maklumat lanjut, sila rujuk pautan Google Drive di atas.</p>
-      
-      <p>Terima kasih.</p>
-      
-      <p style="margin-top: 20px;">
-        <em>*** Emel ini dijana secara automatik oleh Sistem STB. Sila jangan balas emel ini. ***</em>
-      </p>
-    </div>
-    
-    <div class="footer">
-      <p>Sistem Bersepadu SPTB<br>
-      © ${new Date().getFullYear()} KUSKOP. Hak Cipta Terpelihara.</p>
-
-      <p>Dijana pada: ${new Date().toLocaleString('ms-MY')}</p>
-    </div>
-  </div>
-</body>
-</html>
-    `;
-    
-    // Versi plain text sebagai fallback
-    const plainBody = `
-NOTIS LAWATAN SPI - SISTEM STB${pemutihanText}
-================================
-
-Dimaklumkan bahawa satu permohonan lawatan telah DISYORKAN dan tarikh serahan kepada SPI telah ditetapkan.
-${pemutihanNoteText}
-BUTIRAN PERMOHONAN:
--------------------
-Nama Syarikat       : ${syarikat}${isPemutihan ? ' [PEMUTIHAN]' : ''}
-No. CIDB            : ${cidb}
-Gred                : ${gred}
-Alamat Perniagaan Syarikat: ${alamatPerniagaan}
-Peta: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamatPerniagaan)}
-Pengesyor           : ${pengesyor}
-Jenis Permohonan    : ${jenisPermohonan}${isPemutihan ? ' (PEMUTIHAN)' : ''}
-
-JUSTIFIKASI LAWATAN:
--------------------
-${justifikasi}
-
-PAUTAN GOOGLE DRIVE:
--------------------
-${pautan}
-
-Sila ambil tindakan sewajarnya.
-
-*** Emel ini dijana secara automatik oleh Sistem STB. Sila jangan balas emel ini. ***
-    `;
-
-    // Hantar emel dengan nama penghantar yang ditetapkan
-    MailApp.sendEmail({
-      to: getEmailToSPI(),
-      cc: getEmailCcSPTB(),
-      subject: subject,
-      htmlBody: htmlBody,
-      body: plainBody,
-      name: EMAIL_SENDER_NAME
-    });
-
-    // Log kejayaan
-    logActivity(
-      "System", 
-      'EMAIL_SENT_SPI', 
-      `Emel notifikasi SPI${isPemutihan ? ' (PEMUTIHAN)' : ''} berjaya dihantar untuk ${syarikat} (CIDB: ${cidb}, Pengesyor: ${pengesyor}) dari ${EMAIL_SENDER_NAME}`, 
-      ''
-    );
-
-    console.log(`[V6.5.0] Email SPI${isPemutihan ? ' (PEMUTIHAN)' : ''} berjaya dihantar untuk ${syarikat} dari ${EMAIL_SENDER_NAME}`);
-
-    return { success: true, message: "Emel berjaya dihantar" };
-    
-  } catch (error) {
-    // Log ralat
-    logActivity(
-      "System", 
-      'ERROR_EMAIL_SPI', 
-      `Gagal menghantar emel SPI: ${error.toString()}`, 
-      ''
-    );
-
-    console.error(`[V6.5.0] Error sending SPI email: ${error.toString()}`);
-    
-    return { success: false, message: error.toString() };
   }
 }
 
@@ -1819,11 +1117,6 @@ function handleUpdateRecord(data, sheet) {
       sheet.getRange(rowNum, 29).setValue(data.borang_json);
     }
     
-    // V6.6.0: BLOK 6 (AD: Kolum 30) - whatsapp_schedule
-    if (data.whatsapp_schedule !== undefined) {
-      sheet.getRange(rowNum, 30).setValue(data.whatsapp_schedule);
-    }
-    
     // BLOK 8 (AF: Kolum 32) - ulasan_spi
     if (data.ulasan_spi !== undefined) {
       sheet.getRange(rowNum, 32).setValue(data.ulasan_spi);
@@ -2039,8 +1332,8 @@ function handleInsertNewRecord(data, sheet, shouldCreateFolder) {
       data.ubah_gred||"",
       // AC (Kolum 29)
       data.borang_json||"",
-      // AD (Kolum 30) - WhatsApp Schedule
-      data.whatsapp_schedule||""
+      // AD (Kolum 30) - legasi (jadual WhatsApp dibuang; slot dikekalkan supaya lajur AE/AF tidak bergeser)
+      ""
     ];
 
     const targetRange = sheet.getRange(targetRow, 1, 1, newRow.length);
@@ -2612,124 +1905,6 @@ function handleArchiveYearSheet(data) {
   }
 }
 
-function getStatisticsData(role, userName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return createJSONOutput({ error: "Sheet not found" });
-  
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return createJSONOutput({ total: 0 });
-  
-  const dataRange = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS);
-  const data = dataRange.getDisplayValues();
-  
-  let filteredData = data.filter(row => row[0] && row[0].toString().trim() !== "");
-  if (role === ROLE_PENGESYOR && userName) {
-    filteredData = filteredData.filter(row => row[12] && row[12].toString().toUpperCase() === userName.toUpperCase());
-  } else if (role === ROLE_PELULUS && userName) {
-    filteredData = filteredData.filter(row => row[25] && row[25].toString().toUpperCase() === userName.toUpperCase());
-  }
-  
-  const total = filteredData.length;
-  const lulus = filteredData.filter(row => row[23] && row[23].toString().includes('LULUS')).length;
-  const tolak = filteredData.filter(row => row[23] && (row[23].toString().includes('TOLAK') || row[23].toString().includes('SIASAT'))).length;
-  const proses = total - (lulus + tolak);
-
-  const monthlyStats = {};
-  const yearStats = {};
-  
-  filteredData.forEach(row => {
-    // Cari tarikh_masuk_sheet di dalam borang_json (Kolum AC / indeks 28)
-    let tarikhMasukSheet = '';
-    if (row[28]) {
-       try {
-          const parsed = JSON.parse(row[28]);
-          if (parsed.tarikh_masuk_sheet) tarikhMasukSheet = parsed.tarikh_masuk_sheet;
-       } catch(e) {}
-    }
-
-    // Hierarki: Tarikh Lulus (Y/24) > Tarikh Syor (O/14) > Tarikh Masuk Sheet (JSON) > Start Date (H/7) > Tarikh Submit (J/9)
-    let dynamicDate = row[24] ? row[24] : (row[14] ? row[14] : (tarikhMasukSheet ? tarikhMasukSheet : (row[7] ? row[7] : row[9])));
-    
-    if (dynamicDate) {
-      const date = new Date(dynamicDate);
-      if (!isNaN(date)) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
-        const yearKey = year.toString();
-        
-        if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { total: 0, lulus: 0, tolak: 0, proses: 0 };
-        monthlyStats[monthKey].total++;
-        
-        if (row[23] && row[23].toString().includes('LULUS')) monthlyStats[monthKey].lulus++;
-        else if (row[23] && (row[23].toString().includes('TOLAK') || row[23].toString().includes('SIASAT'))) monthlyStats[monthKey].tolak++;
-        else monthlyStats[monthKey].proses++;
-        
-        if (!yearStats[yearKey]) yearStats[yearKey] = { total: 0, lulus: 0, tolak: 0, proses: 0 };
-        yearStats[yearKey].total++;
-        if (row[23] && row[23].toString().includes('LULUS')) yearStats[yearKey].lulus++;
-        else if (row[23] && (row[23].toString().includes('TOLAK') || row[23].toString().includes('SIASAT'))) yearStats[yearKey].tolak++;
-        else yearStats[yearKey].proses++;
-      }
-    }
-  });
-  
-  let pengesyorStats = {};
-  let pelulusStats = {};
-  
-  if (role === ROLE_ADMIN) {
-    filteredData.forEach(row => {
-      const pengesyor = row[12] || 'Tiada Pengesyor';
-      if (!pengesyorStats[pengesyor]) pengesyorStats[pengesyor] = { total: 0, sokong: 0, tidak_sokong: 0 };
-      pengesyorStats[pengesyor].total++;
-      if (row[13] && row[13].toString().includes('SOKONG') && !row[13].toString().includes('TIDAK')) pengesyorStats[pengesyor].sokong++;
-      else if (row[13] && row[13].toString().includes('TIDAK DISOKONG')) pengesyorStats[pengesyor].tidak_sokong++;
-      
-      const pelulus = row[25] || 'Tiada Pelulus';
-      if (!pelulusStats[pelulus]) pelulusStats[pelulus] = { total: 0, lulus: 0, tolak: 0 };
-      pelulusStats[pelulus].total++;
-      if (row[23] && row[23].toString().includes('LULUS')) pelulusStats[pelulus].lulus++;
-      else if (row[23] && (row[23].toString().includes('TOLAK') || row[23].toString().includes('SIASAT'))) pelulusStats[pelulus].tolak++;
-    });
-  }
-  
-  return createJSONOutput({ total: total, lulus: lulus, tolak: tolak, proses: proses, monthlyStats: monthlyStats, yearStats: yearStats, pengesyorStats: pengesyorStats, pelulusStats: pelulusStats });
-}
-
-function getRepeatedApplicationsData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return createJSONOutput([]);
-  
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return createJSONOutput([]);
-
-  const dataRange = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS);
-  const data = dataRange.getDisplayValues();
-  const groupedByCIDB = {};
-
-  data.forEach((row, index) => {
-    if (!row[0] || row[0].toString().trim() === "") return;
-    const cidb = row[1] ? row[1].toString().trim() : '';
-    if (!cidb) return;
-    if (!groupedByCIDB[cidb]) groupedByCIDB[cidb] = { cidb: cidb, syarikat: row[0] || '-', rekod: [] };
-    
-    groupedByCIDB[cidb].rekod.push({
-      row: index + 2, syarikat: row[0], cidb: row[1], gred: row[2], jenis: row[3], start_date: row[7], kelulusan: row[23], tarikh_lulus: row[24], pelulus: row[25], borang_json: row[28] || ""
-    });
-  });
-
-  const repeatedCompanies = [];
-  Object.keys(groupedByCIDB).forEach(cidb => {
-    const company = groupedByCIDB[cidb];
-    if (company.rekod.length > 1) repeatedCompanies.push(company);
-  });
-
-  repeatedCompanies.sort((a, b) => b.rekod.length - a.rekod.length);
-  return createJSONOutput(repeatedCompanies);
-}
-
 // =========================================================================
 // V6.10.0: WINDOW BULAN SEMASA (SERVER-SIDE)
 // Only data N bulan terkini dimuat secara lalai; bulan lama atas permintaan.
@@ -2834,7 +2009,6 @@ function transformSheetRows(data) {
       alasan: row[22], kelulusan: row[23],
       tarikh_lulus: row[24], pelulus: row[25], ubah_maklumat: row[26], ubah_gred: row[27],
       borang_json: row[28] || "",
-      whatsapp_schedule: row[29] || "",
       ulasan_spi: row[31] || ""
     });
   }
@@ -3064,7 +2238,7 @@ function getSingleRowData(rowNum) {
         alamat_perniagaan: row[20], jenis_konsultansi: row[21] || "", alasan: row[22],
         kelulusan: row[23], tarikh_lulus: row[24], pelulus: row[25],
         ubah_maklumat: row[26], ubah_gred: row[27], borang_json: row[28] || "",
-        whatsapp_schedule: row[29] || "", ulasan_spi: row[31] || ""
+        ulasan_spi: row[31] || ""
       }
     });
   } catch (e) {
@@ -3530,11 +2704,6 @@ function findFolderInParent(parentFolder, folderName) {
   } catch (error) { return null; }
 }
 
-function getMonthName(monthNumber) {
-  const monthNames = ['JANUARI', 'FEBRUARI', 'MAC', 'APRIL', 'MEI', 'JUN', 'JULAI', 'OGOS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DISEMBER'];
-  return monthNames[monthNumber - 1];
-}
-
 function formatDateForFolder(dateString) {
   try {
     const date = new Date(dateString);
@@ -3571,7 +2740,7 @@ function createJSONOutput(data) {
 
 // V6.9.0: Helper lazy-load sheet utama. Hanya dipanggil oleh action yang
 // benar-benar memerlukan sheet, elak bukaan spreadsheet yang tidak perlu
-// (mempercepatkan processAI/checkAuth dll).
+// (mempercepatkan checkAuth dll).
 function getMainSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) return null;
@@ -3730,18 +2899,6 @@ function testUserFolder() {
   return result;
 }
 
-function testGetRepeatedApplications() {
-  const result = getRepeatedApplicationsData();
-  console.log(result.getContent());
-  return result;
-}
-
-function testGetStatistics() {
-  const result = getStatisticsData(ROLE_PENGARAH, "");
-  console.log(result.getContent());
-  return result;
-}
-
 function testDeleteRecord() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAME);
@@ -3754,14 +2911,6 @@ function testDeleteRecord() {
 function testCetakDanSimpanPDF() {
   const testData = { action: 'cetak_dan_simpan_pdf', htmlContent: '<div class="print-header"><h1>Borang Semakan</h1><p>Ini adalah kandungan ujian.</p></div>', company_name: 'SYARIKAT TEST', user_name: 'Zariff Fahmi', application_type: 'BARU - 21-04-2026', user_color: '#ff6b35' };
   const result = handleCetakDanSimpanPDF(testData);
-  console.log(result.getContent());
-  return result;
-}
-
-function testProcessAI() {
-  const testText = "SYARIKAT ABC SDN BHD (0120201118-KD061300)\nGred: G7\nAlamat: No. 123, Jalan Test, Kuala Lumpur";
-  const testData = { action: 'processAI', type: 'borang', text: testText };
-  const result = handleProcessAI(testData);
   console.log(result.getContent());
   return result;
 }
@@ -3843,22 +2992,250 @@ function testEmbedAllImagesAsBase64() {
 
 // =========================================================================
 // FUNGSI HELPER: SEMAKAN HARI CUTI UMUM WILAYAH PERSEKUTUAN PUTRAJAYA
+// Sumber automatik: kalendar awam Google "Holidays in Malaysia".
+// 1) UTAMA: fail ICS awam melalui UrlFetchApp dengan cubaan semula (HTTP 429
+//    biasanya sementara; cubaan kedua biasanya berjaya).
+// 2) SANDARAN: CalendarApp - hanya berfungsi jika kalendar awam tersebut
+//    dilanggan/ditambah dalam Google Calendar akaun pelaksana.
+// 3) Terakhir: cache lama + senarai cuti tetap Persekutuan.
+// Senarai cuti di-cache dalam Script Properties mengikut tahun (~20 tarikh/tahun)
+// dan di-refresh setiap 30 hari sahaja.
 // =========================================================================
+
+const MY_HOLIDAY_CALENDAR_ID = 'en.malaysia#holiday@group.v.calendar.google.com';
+const MY_HOLIDAY_ICS_URL = 'https://calendar.google.com/calendar/ical/en.malaysia%23holiday%40group.v.calendar.google.com/public/basic.ics';
+const PUTRAJAYA_HOLIDAYS_REFRESH_DAYS = 30;
+
+// Tapisan 'Observance' (bukan cuti umum) bila description CalendarApp tiada
+const OBSERVANCE_TITLE_BLOCKLIST = /observance|valentine|easter|christmas eve|new year'?s eve|halloween|april fool|mother'?s day|father'?s day/i;
+
+// Cuti Kelepasan Am Tetap Persekutuan/Putrajaya (sandaran jika sumber automatik gagal)
+const CUTI_TETAP_PUTRAJAYA = [
+  '01-01', // Tahun Baru
+  '02-01', // Hari Wilayah Persekutuan (Putrajaya/KL/Labuan)
+  '05-01', // Hari Pekerja
+  '08-31', // Hari Kebangsaan / Merdeka
+  '09-16', // Hari Malaysia
+  '12-25'  // Hari Krismas
+];
+
+// Memo dalam-memori per eksekusi: elak baca Properties/fetch berulang dalam
+// gelung addWorkingDays/countWorkingDays.
+let putrajayaHolidayMemo = {};
+
+function getPutrajayaHolidayMap(year) {
+  const yearKey = String(year);
+  if (putrajayaHolidayMemo[yearKey]) return putrajayaHolidayMemo[yearKey];
+
+  const props = PropertiesService.getScriptProperties();
+  const cacheKey = 'PUTRAJAYA_HOLIDAYS_' + yearKey;
+  const syncedKey = cacheKey + '_SYNCED_AT';
+  let dates = [];
+
+  try {
+    const cached = props.getProperty(cacheKey);
+    const syncedAt = parseInt(props.getProperty(syncedKey) || '0', 10);
+    const stale = !syncedAt || (Date.now() - syncedAt) > (PUTRAJAYA_HOLIDAYS_REFRESH_DAYS * 24 * 60 * 60 * 1000);
+
+    if (cached) {
+      try { dates = JSON.parse(cached) || []; } catch (e) { dates = []; }
+    }
+
+    if (!cached || stale) {
+      const fresh = fetchPutrajayaHolidayDates(year);
+      if (fresh.length > 0) {
+        dates = fresh;
+        props.setProperty(cacheKey, JSON.stringify(dates));
+        props.setProperty(syncedKey, String(Date.now()));
+      }
+    }
+  } catch (e) {
+    console.error(`[Cuti Putrajaya] Ralat muat cuti ${year}: ${e.toString()}`);
+  }
+
+  const map = {};
+  dates.forEach(d => { map[d] = true; });
+
+  // Override manual (cth. cuti ganti): PUTRAJAYA_HOLIDAYS_MANUAL = "2026-02-03, 2026-11-09"
+  try {
+    const manual = (props.getProperty('PUTRAJAYA_HOLIDAYS_MANUAL') || '')
+      .split(',').map(s => s.trim())
+      .filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s) && s.substring(0, 4) === yearKey);
+    manual.forEach(d => { map[d] = true; });
+  } catch (e) {}
+
+  putrajayaHolidayMemo[yearKey] = map;
+  return map;
+}
+
+function fetchPutrajayaHolidayDates(year) {
+  // 1) ICS awam dengan cubaan semula (429 = rate limit sementara)
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const response = UrlFetchApp.fetch(MY_HOLIDAY_ICS_URL, { muteHttpExceptions: true });
+      const code = response.getResponseCode();
+      if (code === 200) {
+        const dates = parseMalaysiaHolidayIcs(response.getContentText(), year);
+        if (dates.length > 0) {
+          console.log(`[Cuti Putrajaya] ${dates.length} tarikh cuti ${year} dimuatkan dari ICS (cubaan ${attempt}).`);
+          return dates;
+        }
+      } else if (code === 429) {
+        console.log(`[Cuti Putrajaya] ICS rate-limit 429 untuk ${year} (cubaan ${attempt}/4), cuba semula...`);
+      } else {
+        console.error(`[Cuti Putrajaya] ICS pulangkan HTTP ${code} (cubaan ${attempt}/4).`);
+      }
+    } catch (e) {
+      console.error(`[Cuti Putrajaya] ICS ralat (cubaan ${attempt}/4): ${e.toString()}`);
+    }
+    if (attempt < 4) Utilities.sleep(attempt * 3000);
+  }
+
+  // 2) Sandaran CalendarApp (hanya jika kalendar awam dilanggan dalam akaun)
+  try {
+    const viaCalendar = fetchHolidaysViaCalendarApp(year);
+    if (viaCalendar.length > 0) {
+      console.log(`[Cuti Putrajaya] ${viaCalendar.length} tarikh cuti ${year} dimuatkan dari CalendarApp.`);
+      return viaCalendar;
+    }
+  } catch (e) {
+    console.error(`[Cuti Putrajaya] CalendarApp gagal: ${e.toString()}`);
+  }
+
+  console.error(`[Cuti Putrajaya] Semua sumber automatik gagal untuk ${year}. Guna cache lama/senarai tetap.`);
+  return [];
+}
+
+function fetchHolidaysViaCalendarApp(year) {
+  const cal = CalendarApp.getCalendarById(MY_HOLIDAY_CALENDAR_ID);
+  if (!cal) {
+    console.log(`[Cuti Putrajaya] Kalendar awam ${MY_HOLIDAY_CALENDAR_ID} tidak dilanggan akaun; langkau sandaran CalendarApp.`);
+    return [];
+  }
+
+  const start = new Date(year, 0, 1, 0, 0, 0);
+  const end = new Date(year, 11, 31, 23, 59, 59);
+  const events = cal.getEvents(start, end);
+  const result = [];
+  const seen = {};
+  let descKosong = 0;
+
+  events.forEach(ev => {
+    const desc = (ev.getDescription() || '').trim();
+    const title = (ev.getTitle() || '').trim();
+
+    if (desc) {
+      // Hanya cuti umum sebenar (buang 'Observance' seperti Valentine's Day)
+      if (!/^Public holiday/i.test(desc)) return;
+      // Cuti serantau: ambil hanya jika Putrajaya tersenarai; cuti kebangsaan tiada senarai negeri
+      if (/Public holiday in /i.test(desc) && !/Putrajaya/i.test(desc)) return;
+    } else {
+      // Description tiada: tapis acara bukan cuti mengikut tajuk (berhati-hati)
+      descKosong++;
+      if (OBSERVANCE_TITLE_BLOCKLIST.test(title)) return;
+    }
+
+    let d;
+    try {
+      d = ev.isAllDayEvent() ? ev.getAllDayStartDate() : ev.getStartTime();
+    } catch (e) {
+      d = ev.getStartTime();
+    }
+    if (!d || isNaN(d.getTime())) return;
+
+    const iso = Utilities.formatDate(d, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+    if (iso.substring(0, 4) !== String(year)) return;
+    if (!seen[iso]) { seen[iso] = true; result.push(iso); }
+  });
+
+  if (descKosong > 0) {
+    console.warn(`[Cuti Putrajaya] ${descKosong} acara CalendarApp tiada description; tapisan tajuk digunakan.`);
+  }
+  return result;
+}
+
+function parseMalaysiaHolidayIcs(icsText, year) {
+  const ics = String(icsText || '').replace(/\r\n[ \t]/g, '');
+  const blocks = ics.split('BEGIN:VEVENT');
+  const result = [];
+  const seen = {};
+
+  blocks.forEach(block => {
+    if (block.indexOf('END:VEVENT') === -1) return;
+    const dtMatch = block.match(/DTSTART;VALUE=DATE:(\d{8})/);
+    if (!dtMatch) return;
+    const dt = dtMatch[1];
+    if (dt.substring(0, 4) !== String(year)) return;
+
+    const desc = (block.match(/DESCRIPTION:([^\r\n]*)/) || [])[1] || '';
+    if (!/^Public holiday/i.test(desc)) return;
+    if (/Public holiday in /i.test(desc) && !/Putrajaya/i.test(desc)) return;
+
+    const iso = dt.substring(0, 4) + '-' + dt.substring(4, 6) + '-' + dt.substring(6, 8);
+    if (!seen[iso]) { seen[iso] = true; result.push(iso); }
+  });
+
+  return result;
+}
+
 function isCutiUmumPutrajaya(date) {
-  const formatTarikh = Utilities.formatDate(date, "Asia/Kuala_Lumpur", "MM-dd");
-  
-  // 1. Cuti Kelepasan Am Tetap Persekutuan / Putrajaya
-  const cutiTetap = [
-    "01-01", // Tahun Baru 
-    "02-01", // Hari Wilayah Persekutuan (Khusus Putrajaya, KL, Labuan)
-    "05-01", // Hari Pekerja
-    "08-31", // Hari Kebangsaan / Merdeka
-    "09-16", // Hari Malaysia
-    "12-25"  // Hari Krismas
+  const iso = Utilities.formatDate(date, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+  const mmdd = Utilities.formatDate(date, 'Asia/Kuala_Lumpur', 'MM-dd');
+  if (CUTI_TETAP_PUTRAJAYA.indexOf(mmdd) !== -1) return true;
+  return getPutrajayaHolidayMap(iso.substring(0, 4))[iso] === true;
+}
+
+function isHariBekerja(date) {
+  const day = date.getDay();
+  if (day === 0 || day === 6) return false;
+  return !isCutiUmumPutrajaya(date);
+}
+
+// Jalankan manual bila perlu (cth. selepas pengumuman cuti ganti) untuk paksa refresh.
+function refreshPutrajayaHolidays() {
+  const props = PropertiesService.getScriptProperties();
+  const currentYear = parseInt(Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy'), 10);
+  let total = 0;
+  for (let y = currentYear; y <= currentYear + 1; y++) {
+    const dates = fetchPutrajayaHolidayDates(y);
+    if (dates.length > 0) {
+      props.setProperty('PUTRAJAYA_HOLIDAYS_' + y, JSON.stringify(dates));
+      props.setProperty('PUTRAJAYA_HOLIDAYS_' + y + '_SYNCED_AT', String(Date.now()));
+      total += dates.length;
+    }
+  }
+  putrajayaHolidayMemo = {};
+  if (total > 0) {
+    console.log(`[Cuti Putrajaya] Refresh selesai: ${total} tarikh untuk ${currentYear}-${currentYear + 1}.`);
+  } else {
+    console.error(`[Cuti Putrajaya] Refresh GAGAL: tiada tarikh diperoleh untuk ${currentYear}-${currentYear + 1}. Sistem guna cache lama/senarai tetap.`);
+  }
+  return createJSONOutput({ success: total > 0, count: total, message: total > 0 ? 'Cuti umum berjaya dimuatkan.' : 'Gagal memuatkan cuti; guna sandaran.' });
+}
+
+function testCutiPutrajaya() {
+  // Pastikan cache cuti ada; jika belum, muatkan dahulu
+  const props = PropertiesService.getScriptProperties();
+  const tahunSemasa = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy');
+  if (!props.getProperty('PUTRAJAYA_HOLIDAYS_' + tahunSemasa)) {
+    console.log('[Cuti Putrajaya] Cache belum ada - muatkan cuti dahulu...');
+    refreshPutrajayaHolidays();
+  }
+
+  const tarikhUji = [
+    '2026-03-07', // Nuzul Al-Quran
+    '2026-02-02', // Cuti ganti Thaipusam
+    '2026-11-08', // Diwali
+    '2026-03-09'  // Hari biasa (Isnin)
   ];
-  
-  if (cutiTetap.includes(formatTarikh)) return true;
-  return false;
+  tarikhUji.forEach(t => {
+    const d = new Date(t + 'T00:00:00');
+    console.log(`${t} | cuti=${isCutiUmumPutrajaya(d)} | hariBekerja=${isHariBekerja(d)}`);
+  });
+  const mula = new Date('2026-03-05T00:00:00');
+  const tamat = addWorkingDays(mula, 14);
+  console.log(`14 hari bekerja dari 2026-03-05 = ${Utilities.formatDate(tamat, 'Asia/Kuala_Lumpur', 'yyyy-MM-dd')}`);
+  return createJSONOutput({ success: true });
 }
 
 // =========================================================================
@@ -4227,315 +3604,6 @@ function manualPadamSyarikatDariQueue() {
   removeFromQueue(namaSyarikatGhost, 'PEMUTIHAN_QUEUE'); //
   
   console.log("Pembersihan manual selesai! Sila semak log di atas.");
-}
-
-// =========================================================================
-// V6.6.0: WHATSAPP SCHEDULING SYSTEM (MANUAL/AUTO)
-// =========================================================================
-
-/**
- * Fungsi scheduleWhatsApp: Menyimpan jadual WhatsApp ke kolum AD
- * @param {Object} data - { row, mode, tarikh, masa, ayat, no_hantar }
- */
-function scheduleWhatsApp(data) {
-  try {
-    const scheduleData = {
-      mode: data.mode || 'MANUAL',
-      tarikh: data.tarikh || '',
-      masa: data.masa || 8,
-      ayat: data.ayat || '',
-      status: data.mode === 'AUTO' ? 'PENDING' : 'MANUAL',
-      no_hantar: data.no_hantar || '',
-      no_tujuan: data.no_tujuan || '',
-      created_at: new Date().toISOString(),
-      syarikat: data.syarikat || '',
-      email_pengesyor: data.email || ''
-    };
-    
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const rowNum = parseInt(data.row);
-    
-    if (rowNum && rowNum > 1) {
-      sheet.getRange(rowNum, 30).setValue(JSON.stringify(scheduleData));
-    }
-    
-    const msg = data.mode === 'AUTO' 
-      ? `WhatsAP dijadualkan AUTO pada ${data.tarikh} jam ${data.masa}:00`
-      : 'WhatsApp MANUAL direkodkan';
-    
-    logActivity(data.user || 'System', 'SCHEDULE_WHATSAPP', `${msg} untuk ${data.syarikat || ''} (Baris ${data.row})`, '');
-    
-    // Jika AUTO, daftarkan trigger satu masa
-    if (data.mode === 'AUTO' && data.tarikh && data.masa) {
-      registerWhatsAppTrigger(rowNum, data.tarikh, data.masa);
-    }
-    
-    return { success: true, message: msg };
-  } catch (error) {
-    logActivity('System', 'ERROR_SCHEDULE_WHATSAPP', `Ralat: ${error.toString()}`, '');
-    return { success: false, message: error.toString() };
-  }
-}
-
-function registerWhatsAppTrigger(row, tarikhStr, jam) {
-  try {
-    const [tahun, bulan, hari] = tarikhStr.split('-');
-    const scheduledDate = new Date(tahun, bulan - 1, hari, jam, 0, 0);
-    
-    if (scheduledDate <= new Date()) {
-      logActivity('System', 'WHATSAPP_TRIGGER', `Masa sudah lepas untuk baris ${row}, hantar segera`, '');
-      return;
-    }
-    
-    ScriptApp.newTrigger('processSingleWhatsApp')
-      .timeBased()
-      .at(scheduledDate)
-      .create();
-      
-    logActivity('System', 'WHATSAPP_TRIGGER', `Trigger didaftarkan untuk baris ${row} pada ${scheduledDate.toLocaleString('ms-MY')}`, '');
-  } catch (error) {
-    logActivity('System', 'ERROR_WHATSAPP_TRIGGER', `Ralat daftar trigger: ${error.toString()}`, '');
-  }
-}
-
-/**
- * Fungsi processSingleWhatsApp: Dipanggil oleh trigger untuk proses WhatsApp.
- * Jika CallMeBot API ada, hantar auto. Jika tidak, simpan wa.me link untuk hantar manual.
- */
-function processSingleWhatsApp() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  const lastRow = sheet.getLastRow();
-  
-  for (let r = 2; r <= lastRow; r++) {
-    const scheduleCell = sheet.getRange(r, 30).getValue();
-    if (!scheduleCell) continue;
-    
-    try {
-      const schedule = JSON.parse(scheduleCell);
-      if (schedule.mode !== 'AUTO' || schedule.status !== 'PENDING') continue;
-      
-      const tarikh = schedule.tarikh;
-      const jam = schedule.masa;
-      const now = new Date();
-      const nowDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      
-      if (tarikh === nowDate && now.getHours() >= jam) {
-        const rowData = sheet.getRange(r, 1, 1, TOTAL_COLUMNS).getValues()[0];
-        const syarikat = rowData[0] || '';
-        
-        // Dapatkan semua no telefon dari borang_json
-        const borangJson = rowData[28] || '';
-        let rawNumbers = [];
-        if (borangJson) {
-          try {
-            const parsed = JSON.parse(borangJson);
-            if (parsed.borang_no_telefon) {
-              // Format: "0388805281, 0142473308, 018140081" - asingkan dengan koma
-              rawNumbers = rawNumbers.concat(parsed.borang_no_telefon.split(',').map(s => s.trim()).filter(s => s));
-            }
-            if (parsed.phoneNumbers && Array.isArray(parsed.phoneNumbers)) {
-              rawNumbers = rawNumbers.concat(parsed.phoneNumbers);
-            }
-          } catch (e) {}
-        }
-        
-        // Tapis: hanya nombor mobile Malaysia (bermula 011, 012, 013, 014, 015, 016, 017, 018, 019)
-        const noTujuanList = [];
-        rawNumbers.forEach(no => {
-          let clean = no.replace(/[\s\-\(\)\+]/g, '');
-          if (clean.startsWith('60')) clean = clean.substring(2);
-          // Mobile Malaysia: panjang 9-11 digit, bermula dengan 01x
-          if (/^01[0-9]{7,9}$/.test(clean)) {
-            noTujuanList.push('60' + clean);
-          }
-        });
-        
-        // Generate wa.me links untuk setiap no telefon
-        let waLinks = [];
-        noTujuanList.forEach(no => {
-          let clean = no.replace(/[\s\-\(\)]/g, '');
-          if (clean.startsWith('0')) clean = '60' + clean.substring(1);
-          else if (!clean.startsWith('60')) clean = '60' + clean;
-          if (/^\d{9,15}$/.test(clean)) {
-            waLinks.push({ no: clean, url: `https://wa.me/${clean}?text=${encodeWhatsAppText(schedule.ayat)}` });
-          }
-        });
-        
-        // Cuba hantar via CallMeBot API
-        const result = hantarWhatsApp(r, schedule);
-        
-        schedule.status = result.success ? 'SENT' : 'PENDING_MANUAL';
-        schedule.hantar_masa = now.toISOString();
-        schedule.ralat = result.error || '';
-        schedule.wa_links = waLinks;
-        
-        sheet.getRange(r, 30).setValue(JSON.stringify(schedule));
-        
-        logActivity('System', 'WHATSAPP_SENT', `WhatsApp AUTO ${result.success ? 'BERJAYA' : 'PERLU MANUAL'} untuk ${syarikat} (Baris ${r}) - ${waLinks.length} nombor`, '');
-      }
-    } catch (e) {
-      logActivity('System', 'ERROR_WHATSAPP_PROCESS', `Ralat proses baris ${r}: ${e.toString()}`, '');
-    }
-  }
-}
-
-/**
- * Fungsi hantarWhatsApp: Menghantar WhatsApp menggunakan CallMeBot API atau wa.me
- */
-function hantarWhatsApp(row, schedule) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_NAME);
-    const rowData = sheet.getRange(row, 1, 1, TOTAL_COLUMNS).getValues()[0];
-    const syarikat = rowData[0] || '';
-    const borangJson = rowData[28] || '';
-    const pengesyor = rowData[12] || '';
-    
-    let noTujuan = schedule.no_tujuan || '';
-    if (!noTujuan && borangJson) {
-      try {
-        const parsed = JSON.parse(borangJson);
-        if (parsed.phoneNumbers && parsed.phoneNumbers.length > 0) {
-          noTujuan = parsed.phoneNumbers[0];
-        } else if (parsed.borang_no_telefon) {
-          noTujuan = parsed.borang_no_telefon;
-        }
-      } catch (e) {}
-    }
-    
-    if (!noTujuan) {
-      return { success: false, error: 'No telefon tujuan tidak dijumpai' };
-    }
-    
-    let cleanPhone = noTujuan.replace(/[\s\-\(\)]/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
-    else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
-    
-    if (!/^\d{9,15}$/.test(cleanPhone)) {
-      return { success: false, error: 'No telefon tidak sah: ' + cleanPhone };
-    }
-    
-    // Cari API key peribadi pengesyor dari Script Properties
-    let callmebotKey = '';
-    const emailPengesyor = schedule.email_pengesyor || '';
-    if (emailPengesyor) {
-      const propKey = 'CALLMEBOT_API_KEY_' + emailPengesyor.toLowerCase();
-      callmebotKey = getScriptProp(propKey);
-    }
-    // Fallback: guna nama pengesyor untuk cari email
-    if (!callmebotKey && pengesyor) {
-      const userProfile = findUserByPengesyorName(pengesyor);
-      if (userProfile) {
-        const propKey = 'CALLMEBOT_API_KEY_' + userProfile.email.toLowerCase();
-        callmebotKey = getScriptProp(propKey);
-      }
-    }
-    // Fallback ke key global jika tiada key peribadi
-    if (!callmebotKey) {
-      callmebotKey = getScriptProp('CALLMEBOT_API_KEY');
-    }
-    
-    if (callmebotKey) {
-      return hantarViaCallMeBot(cleanPhone, schedule.ayat, callmebotKey);
-    }
-    
-    // Fallback: Log wa.me URL dan maklumkan
-    return { 
-      success: false, 
-      error: 'API WhatsApp tidak dikonfigurasi untuk pengesyor ini. Sila guna Manual.',
-      waUrl: `https://wa.me/${cleanPhone}?text=${encodeWhatsAppText(schedule.ayat)}`
-    };
-  } catch (error) {
-    return { success: false, error: error.toString() };
-  }
-}
-
-function findUserByPengesyorName(name) {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(USERS_SHEET_NAME);
-    if (!sheet) return null;
-    const data = sheet.getDataRange().getDisplayValues();
-    if (!data || data.length < 2) return null;
-    const headers = data.shift();
-    const nameColIndex = headers.findIndex(h => h && h.toString().toUpperCase().includes('NAMA'));
-    const emailColIndex = headers.findIndex(h => h && (h.toString().toUpperCase().includes('EMEL') || h.toString().toUpperCase().includes('EMAIL')));
-    for (let i = 0; i < data.length; i++) {
-      if (data[i][nameColIndex] && data[i][nameColIndex].toString().toUpperCase().trim() === name.toUpperCase().trim()) {
-        return {
-          name: data[i][nameColIndex] || '',
-          email: data[i][emailColIndex] || ''
-        };
-      }
-    }
-    return null;
-  } catch (e) { return null; }
-}
-
-function encodeWhatsAppText(text) {
-  // Pengekod UTF-8 manual (RFC 3986). Tidak bergantung pada Utilities.newBlob
-  // yang boleh hasilkan CESU-8 untuk emoji (surrogate pair) -> dipaparkan '�'.
-  if (!text) return '';
-  var result = '';
-  for (var i = 0; i < text.length; i++) {
-    var cp = text.codePointAt(i);
-    if (cp > 0xFFFF) {
-      i++; // skip low surrogate
-    } else if (cp >= 0xD800 && cp <= 0xDFFF) {
-      cp = 0xFFFD; // lone surrogate -> replacement character
-    }
-    var bytes;
-    if (cp < 0x80) {
-      bytes = [cp];
-    } else if (cp < 0x800) {
-      bytes = [0xC0 | (cp >> 6), 0x80 | (cp & 0x3F)];
-    } else if (cp < 0x10000) {
-      bytes = [0xE0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
-    } else {
-      bytes = [0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3F), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
-    }
-    for (var j = 0; j < bytes.length; j++) {
-      var b = bytes[j];
-      // unreserved characters (RFC 3986): A-Z a-z 0-9 - _ . ~
-      if ((b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39)
-          || b === 0x2D || b === 0x5F || b === 0x2E || b === 0x7E) {
-        result += String.fromCharCode(b);
-      } else {
-        result += '%' + b.toString(16).toUpperCase().padStart(2, '0');
-      }
-    }
-  }
-  return result;
-}
-
-function hantarViaCallMeBot(phone, message, apiKey) {
-  try {
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeWhatsAppText(message)}&apikey=${apiKey}`;
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    const code = response.getResponseCode();
-    
-    if (code === 200) {
-      return { success: true, error: null };
-    } else {
-      return { success: false, error: `API Error HTTP ${code}: ${response.getContentText()}` };
-    }
-  } catch (error) {
-    return { success: false, error: error.toString() };
-  }
-}
-
-/**
- * Fungsi WhatsApp: Check nombor menggunakan API (placeholder)
- */
-function checkWhatsAppNumber(phone) {
-  const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-  if (!/^\d{9,15}$/.test(cleanPhone)) {
-    return { valid: false, reason: 'Format nombor tidak sah' };
-  }
-  // Untuk CallMeBot, tiada API check number. Anggap sah.
-  return { valid: true };
 }
 
 // =========================================================================
@@ -4995,6 +4063,13 @@ function sendSpiDeadlineReminder() {
   try {
     const props = PropertiesService.getScriptProperties();
     const todayStr = Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd');
+
+    // Hanya hantar pada hari bekerja (bukan hujung minggu/cuti umum Putrajaya)
+    if (!isHariBekerja(new Date())) {
+      console.log(`[SPI Deadline] ${todayStr} bukan hari bekerja, skip.`);
+      return createJSONOutput({ success: true, count: 0, skipped: true });
+    }
+
     const lastSent = props.getProperty('SPI_DEADLINE_REMINDER_DATE');
     if (lastSent === todayStr) {
       console.log(`[SPI Deadline] Reminder sudah dihantar hari ini (${todayStr}), skip.`);

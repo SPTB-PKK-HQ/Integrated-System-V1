@@ -47,7 +47,7 @@ Pembalut ralat am:
 }
 ```
 
-Sesetengah endpoint Drive dan AI menggunakan pasangan `success: true/false` dan medan `error` (dinyatakan secara eksplisit bagi setiap endpoint di bawah).
+Sesetengah endpoint Drive menggunakan pasangan `success: true/false` dan medan `error` (dinyatakan secara eksplisit bagi setiap endpoint di bawah).
 
 ### 1.3 Base URL Standard
 
@@ -105,7 +105,7 @@ Matriks peranan ringkas:
 | Keputusan pelulus / SIASAT | `PELULUS`, `ADMIN` |
 | PKA lawatan | `PKA` sahaja |
 | Pengurusan pengguna / arkib / pembersihan | `ADMIN` sahaja |
-| AI / cetak PDF / Drive tulis | `PENGESYOR`, `ADMIN`, `PELULUS` (butiran mengikut endpoint) |
+| Cetak PDF / Drive tulis | `PENGESYOR`, `ADMIN`, `PELULUS` (butiran mengikut endpoint) |
 
 ### 2.2 Header dan Token Rujukan
 
@@ -143,7 +143,7 @@ google.accounts.id.initialize({
 
 ### 2.3 Pengurusan Rahsia
 
-Semua rahsia disimpan dalam **Script Properties** dan tidak dikomit ke repositori: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `YOUTUBE_API_KEY`, `CALLMEBOT_API_KEY[_<emel>]`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`. Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`.
+Semua rahsia disimpan dalam **Script Properties** dan tidak dikomit ke repositori: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`. Cache cuti umum (`PUTRAJAYA_HOLIDAYS_<tahun>`) dijana automatik oleh sistem. Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`.
 
 ---
 
@@ -299,7 +299,6 @@ Content-Type: text/plain;charset=utf-8
     "kelulusan": "",
     "pelulus": "",
     "borang_json": "{\"companyName\":\"SYARIKAT CONTOH SDN. BHD.\"}",
-    "whatsapp_schedule": "",
     "ulasan_spi": ""
   }
 }
@@ -342,23 +341,7 @@ Content-Type: text/plain;charset=utf-8
 }
 ```
 
-#### B4. `getStats` — Statistik peranan (legasi)
-
-* **Kaedah & Path:** `GET /exec?action=getStats&role=<ROLE>&userName=<NAMA>`
-* **Deskripsi:** Statistik mengikut peranan untuk paparan ringkas. Dihuraikan daripada helaian utama.
-* **Response Success:** Objek kiraan mengikut peranan (bentuk mengikut `getStatisticsData`). Rujuk contoh `getDashboardStats` bagi medan yang setara.
-
-#### B5. `getRepeatedApplications` — Permohonan berulang
-
-* **Kaedah & Path:** `GET /exec?action=getRepeatedApplications`
-* **Deskripsi:** Mengesan syarikat/CIDB yang memohon lebih daripada sekali (semakan pendua).
-* **Response Success:**
-
-```json
-{ "status": "success", "data": [{ "syarikat": "SYARIKAT CONTOH SDN. BHD.", "cidb": "0120201118-KD061300", "kiraan": 2 }] }
-```
-
-#### B6. `refreshData` — Paksa segar semula
+#### B4. `refreshData` — Paksa segar semula
 
 * **Kaedah & Path:** `GET /exec?action=refreshData&role=<ROLE>&userName=<NAMA>`
 * **Deskripsi:** Membatalkan cache dan membaca semula hamparan. Bersamaaan `getData` dengan `refresh=true`.
@@ -493,7 +476,6 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
   "alamat_perniagaan": "No. 1, Jalan Contoh, Shah Alam",
   "jenis_konsultansi": "Emel",
   "borang_json": "{\"companyName\":\"SYARIKAT CONTOH SDN. BHD.\"}",
-  "whatsapp_schedule": "",
   "createFolder": true,
   "hantar_emel_spi": true
 }
@@ -527,7 +509,7 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 #### C2. Kemas Kini Rekod (Update — POST dengan `row`)
 
 * **Kaedah & Path:** `POST /exec`
-* **Deskripsi:** Mengemas kini blok lajur A–O, P–Q (SPI), R–X (lawatan/keputusan), Y–AB (pelulus), AC (`borang_json`), AD (`whatsapp_schedule`), AF (`ulasan_spi`). Menguruskan queue SIASAT/PEMUTIHAN secara keadaan (state-based) dan catatan beku automatik bagi `TOLAK & BEKU`. Peranan: `PENGESYOR`, `ADMIN`, `PELULUS`.
+* **Deskripsi:** Mengemas kini blok lajur A–O, P–Q (SPI), R–X (lawatan/keputusan), Y–AB (pelulus), AC (`borang_json`) dan AF (`ulasan_spi`). Menguruskan queue SIASAT/PEMUTIHAN secara keadaan (state-based) dan catatan beku automatik bagi `TOLAK & BEKU`. Peranan: `PENGESYOR`, `ADMIN`, `PELULUS`.
 * **Request Body (contoh keputusan pelulus):**
 
 ```json
@@ -934,68 +916,9 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 
 ---
 
-### 3.7 Kumpulan G — AI, Carian dan Utiliti
+### 3.7 Kumpulan G — Carian dan Utiliti
 
-#### G1. `processAI` — Ekstrak PDF menggunakan AI
-
-* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
-* **Deskripsi:** Menerima teks PDF (dibersihkan dan dipotong kepada 15,000 aksara), menyemak cache SHA-256 (1 jam), dan memanggil AI. Mod `auto` mencuba DeepSeek dahulu kemudian Gemini. Model khusus (`deepseek`/`gemini`/`openrouter`) tiada fallback. Hasil tidak lengkap (alamat kosong atau nama syarikat rosak) tidak dicache. Peranan: `PENGESYOR`, `ADMIN`, `PELULUS`.
-* **Request Body:**
-
-```json
-{
-  "action": "processAI",
-  "email": "ali@[DOMAIN_KERAJAAN]",
-  "text": "NAMA SYARIKAT: SYARIKAT CONTOH SDN. BHD. (1234567-U) ... [teks PDF]",
-  "model": "auto",
-  "bypassCache": false
-}
-```
-
-* **Response Success:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "companyName": "SYARIKAT CONTOH (M) SDN. BHD.",
-    "cidbNumber": "0120201118-KD061300",
-    "grade": "G4",
-    "spkkDuration": "01/01/2025 - 31/12/2027",
-    "stbDuration": "01/01/2025 - 31/12/2026",
-    "directors": ["ALI BIN ABU"],
-    "shareholders": ["ALI BIN ABU"],
-    "phoneNumbers": ["012-3456789"],
-    "alamatPerniagaan": "No. 1, Jalan Contoh, Shah Alam, Selangor",
-    "alamatSuratMenyurat": ""
-  },
-  "provider": "DeepSeek (Auto)",
-  "message": "Data berjaya diekstrak menggunakan DeepSeek (Auto)"
-}
-```
-
-* **Response Success (dari cache):**
-
-```json
-{
-  "success": true,
-  "data": {},
-  "provider": "Cache",
-  "message": "Data diambil dari cache (ekstrak sebelumnya)."
-}
-```
-
-* **Response Error:**
-
-```json
-{ "success": false, "error": "Teks PDF kosong. Tiada data untuk diproses." }
-```
-
-```json
-{ "success": false, "error": "Kedua-dua API AI (DeepSeek & Gemini) gagal memproses teks.", "provider": "none" }
-```
-
-#### G2. `searchYoutube` — Carian video rujukan
+#### G1. `searchYoutube` — Carian video rujukan
 
 * **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
 * **Deskripsi:** Mencari 12 video YouTube berdasarkan kata kunci menggunakan kunci pelayan.
@@ -1012,55 +935,6 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
   "success": true,
   "data": [{ "id": { "videoId": "[VIDEO_ID]" }, "snippet": { "title": "Panduan ...", "channelTitle": "..." } }]
 }
-```
-
-#### G3. `scheduleWhatsApp` — Jadual WhatsApp (AUTO/MANUAL)
-
-* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
-* **Deskripsi:** Menyimpan JSON jadual ke lajur AD dan mendaftarkan trigger sekali jika mod AUTO dengan tarikh/masa sah. Peranan: `PENGESYOR`, `ADMIN`.
-* **Request Body:**
-
-```json
-{
-  "action": "scheduleWhatsApp",
-  "email": "ali@[DOMAIN_KERAJAAN]",
-  "user": "ALI BIN ABU",
-  "row": 42,
-  "mode": "AUTO",
-  "tarikh": "2026-09-30",
-  "masa": 9,
-  "ayat": "Assalamualaikum, dokumen tuan/puan telah disemak. Sila lengkapkan ...",
-  "syarikat": "SYARIKAT CONTOH SDN. BHD."
-}
-```
-
-* **Response Success:**
-
-```json
-{ "success": true, "message": "WhatsAP dijadualkan AUTO pada 2026-09-30 jam 9:00" }
-```
-
-#### G4. `logActivity` — Log aktiviti manual
-
-* **Kaedah & Path:** `POST /exec`
-* **Deskripsi:** Menulis satu baris ke helaian `Logs`. Peranan: `PENGESYOR`, `ADMIN`, `PELULUS`.
-* **Request Body:**
-
-```json
-{
-  "action": "logActivity",
-  "email": "ali@[DOMAIN_KERAJAAN]",
-  "user": "ALI BIN ABU",
-  "actionType": "SEMAKAN",
-  "description": "Menyemak borang syarikat X",
-  "folderId": "[FOLDER_ID]"
-}
-```
-
-* **Response Success:**
-
-```json
-{ "status": "success", "message": "Activity logged" }
 ```
 
 ---
@@ -1186,7 +1060,7 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 | `400 Bad Request` | `status:error` | Parameter tidak sah: `Row tidak sah`, `Jenis padam tidak sah`, `folderId/fileId diperlukan`, `Teks PDF kosong`, `Snapshot JSON tidak sah`. | Betulkan input, jangan cuba semula automatik. Contoh: semak `row >= 2`. |
 | `401/403 Unauthorized/Forbidden` | `authenticated:false` atau `status:error` dengan `Akses Ditolak` | Domain tidak dibenarkan, pengguna tidak berdaftar, atau peranan tidak layak. Mesej membezakan punca (emel tiada, domain salah, bukan pengesyor asal, hanya pemuat naik/ADMIN). | Kekal di skrin log masuk atau papar mesej kebenaran. Tunjuk semula butang Google. |
 | `404 Not Found (logik)` | `success:false` | Folder/fail Drive tiada atau tiada kebenaran; helaian tiada. Mesej mesra: `Folder Drive tidak dapat diakses...`. | Minta pengguna semak pautan atau hubungi pentadbir. |
-| `500 Server Error` | `status:error`, `success:false` | Ralat dalaman: pengecualian GAS, kegagalan API AI, kegagalan Drive. Mesej mengandungi `error.toString()`. | Log ke konsol, papar modal ralat, benarkan cubaan manual. |
+| `500 Server Error` | `status:error`, `success:false` | Ralat dalaman: pengecualian GAS, kegagalan API luaran, kegagalan Drive. Mesej mengandungi `error.toString()`. | Log ke konsol, papar modal ralat, benarkan cubaan manual. |
 | `503 Service Unavailable` | `status:error`, `code:503` | Had masa kunci (`timeout/timed out`) — pelayan sibuk memproses tulis lain. | Tunggu dan cuba semula dengan backoff (baca sahaja). Jangan duplikasi tulis. |
 
 ### 4.2 Contoh Respons Ralat Standard
@@ -1235,6 +1109,7 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 2. **Hormati `rebuilding:true`:** Gunakan data cache sedia ada, tetapkan pemasa tunggal 5–8 saat, had 3 cubaan.
 3. **Paparan dwibahasa ralat:** Mesej pelayan dalam Bahasa Melayu dipaparkan terus dalam modal; ralat teknikal (`error.toString()`) direkodkan ke konsol dan helaian `Logs`.
 4. **Jejak audit:** Semua tulis yang berjaya dan gagal merekodkan `logActivity` dengan pengguna, tindakan, dan ID folder berkaitan untuk semakan forensik.
+5. **Kiraan hari bekerja:** Deadline SPI ialah 14 hari bekerja (Isnin–Jumaat) tidak termasuk cuti umum Putrajaya. Senarai cuti dimuatkan dan dicache automatik oleh backend (`PUTRAJAYA_HOLIDAYS_<tahun>`, refresh 30 hari) daripada kalendar awam Google "Holidays in Malaysia" — utama ICS dengan cubaan semula, sandaran `CalendarApp`, dan override manual `PUTRAJAYA_HOLIDAYS_MANUAL`; hujung minggu dan cuti umum tidak dikira dan penghantaran emel queue hanya berlaku pada hari bekerja.
 
 ---
 

@@ -29,8 +29,8 @@ Pemilik sistem ialah **HQ (SPTB-PKK-HQ)**. Pentadbiran teknikal dilaksanakan mel
 1. **Pemusatan Permohonan:** Menguruskan empat jenis permohonan — `BARU`, `PEMBAHARUAN`, `UBAH MAKLUMAT`, `UBAH GRED` — dalam satu pangkalan data berpusat (Google Sheets + Firestore).
 2. **Aliran Kerja Syor dan Kelulusan:** Melaksanakan aliran `PENGESYOR > PELULUS` dengan pengesahan kendiri (checkbox sah), penetapan Pelulus melalui WhatsApp, dan keputusan `LULUS / LULUS BERSYARAT / TOLAK / TOLAK & BEKU 3 BULAN / TOLAK & BEKU 6 BULAN`.
 3. **Siasatan dan Lawatan (SPI/PKA):** Menguruskan syor lawatan `YA / TIDAK / PEMUTIHAN / SIASAT`, penghantaran ke SPI melalui barisan gilir (queue) berjadual, kemas kini lawatan oleh peranan PKA, dan penjanaan acara kalendar SPI.
-4. **Ketepatan Data:** Menyediakan auto-ekstrak PDF borang menggunakan Kecerdasan Buatan (AI) dengan pembetulan peraturan syarikat dan alamat, semakan dokumen (Carta/Peta/Gambar/Sewa), KWSP 3 bulan, dan pengesahan bank.
-5. **Kebolehkesanan dan Pelaporan:** Menyediakan papan pemuka (dashboard) analisis, senarai permohonan dengan tapisan, sejarah keputusan, log audit (`Logs`), pengurusan dokumen Google Drive berstruktur, penjadualan WhatsApp, dan carian video rujukan (YouTube).
+4. **Ketepatan Data:** Menyediakan auto-ekstrak PDF borang menggunakan penghurai regex dalam pelayar dengan pembetulan peraturan syarikat dan alamat, semakan dokumen (Carta/Peta/Gambar/Sewa), KWSP 3 bulan, dan pengesahan bank.
+5. **Kebolehkesanan dan Pelaporan:** Menyediakan papan pemuka (dashboard) analisis, senarai permohonan dengan tapisan, sejarah keputusan, log audit (`Logs`), pengurusan dokumen Google Drive berstruktur, notifikasi WhatsApp manual (wa.me), dan carian video rujukan (YouTube).
 6. **Pematuhan Keselamatan ICT Sektor Awam:** Menguatkuasakan kawalan akses berasaskan peranan, pengesahan domain, pengasingan kunci API dalam Script Properties, dan jejak audit bagi setiap operasi tulis.
 
 ### 1.3 Peranan Pengguna
@@ -89,11 +89,11 @@ flowchart LR
         AUTH["Firebase Auth - Tanpa Nama + GIS"]
     end
     subgraph LUAR["Integrasi Luaran"]
-        AI["DeepSeek / Gemini / OpenRouter"]
         YT["YouTube Data API v3"]
-        WA["WhatsApp wa.me + CallMeBot"]
+        WA["WhatsApp wa.me"]
         MAIL["MailApp + Calendar"]
         MAPS["Google Maps Embed"]
+        HOL["Kalendar Cuti Umum Malaysia (ICS)"]
     end
     UI --> APP
     APP -->|"HTTPS JSON - action"| GAS
@@ -103,9 +103,9 @@ flowchart LR
     GAS --> LOCK
     GAS <--> SHEET
     GAS <--> DRIVE
-    GAS --> AI
     GAS --> YT
     GAS --> MAIL
+    GAS --> HOL
     APP --> PDF
     APP --> CHART
     APP --> MAPS
@@ -124,7 +124,7 @@ flowchart LR
 
 | Konsep Standard (Diminta dalam Arahan) | Pelaksanaan Sebenar dalam Repositori | Fail Rujukan |
 |---|---|---|
-| Controllers | Fungsi handler dalam `code.gs` (`handleInsertNewRecord`, `handleUpdateRecord`, `handleDeleteRecord`, `handleProcessAI`, dll.) | `code.gs` |
+| Controllers | Fungsi handler dalam `code.gs` (`handleInsertNewRecord`, `handleUpdateRecord`, `handleDeleteRecord`, `handleCheckAuth`, dll.) | `code.gs` |
 | Models | Skema lajur A–AF (32 lajur) dalam `Sheet1`, skema `Users`, skema `Logs`, dokumen Firestore | `code.gs: TOTAL_COLUMNS`, `SHEET_NAME` |
 | Routes | Cabang `if (action === ...)` dalam `doGet`/`doPost` | `code.gs:397`, `code.gs:498` |
 | Config | `appsscript.json` (zon masa, skop OAuth, runtime V8), `firebaseConfig` (di placeholder), Script Properties | `appsscript.json` |
@@ -170,7 +170,7 @@ Statistik saiz: `app.js` terbesar (~852KB), diikuti `jata.svg` (~373KB), `code.g
 |---|---|---|
 | `index.html` | Paparan (View) | Struktur landing + log masuk Google, 11 tab (`dashboard`, `tab-tapisan`, `tab-bakul`, `tab-checker`, `tab-database`, `tab-list`, `tab-pelulus-view`, `tab-pelulus-action`, `tab-admin-dashboard`, `tab-history`, `tab-pka-dashboard`), overlay loading, modal tersuai, kontena Drive/WhatsApp/Maps. Mengisytiharkan CSP dan CDN. |
 | `app.js` | Pengawal Klien | Semua logik klien: GIS, sesi IndexedDB, `fetchWithRetry`, pengurusan borang semakan, input DB, senarai, pelulus, admin, PKA, inbox, bakul, tapisan Excel, sejarah, Drive file manager, WhatsApp, cetak, carta, audio SFX. |
-| `code.gs` | API + Model Logik | `doGet` (baca), `doPost` (tulis), `verifyUserAccess`, `getAuthenticatedUserEmail`, `findUserByEmail`, cache chunked, queue SIASAT/PEMUTIHAN, AI fallback, Drive, PDF, emel, WhatsApp trigger, pengurusan pengguna. |
+| `code.gs` | API + Model Logik | `doGet` (baca), `doPost` (tulis), `verifyUserAccess`, `getAuthenticatedUserEmail`, `findUserByEmail`, cache chunked, queue SIASAT/PEMUTIHAN, kalendar cuti umum Putrajaya, Drive, PDF, emel, pengurusan pengguna. |
 | `appsscript.json` | Konfigurasi | `runtimeVersion: V8`, `timeZone: Asia/Singapore`, `executeAs: USER_DEPLOYING`, `access: ANYONE_ANONYMOUS`, 7 skop OAuth (spreadsheets, send_mail, drive, external_request, scriptapp, userinfo.email, calendar). |
 | `style.css` | Gaya | Tema responsif, menu mudah alih, kad ciri, carta, modal, cetakan. |
 | `banks.js` + `banks/` | Data Rujukan | Senarai 50 bank Malaysia + logo; fungsi `bankLogoDataURI()` sebagai sandaran SVG. Digunakan dalam medan Surat Pengesahan Bank. |
@@ -186,7 +186,7 @@ Statistik saiz: `app.js` terbesar (~852KB), diikuti `jata.svg` (~373KB), `code.g
 | `dashboard` | Papan pemuka statistik, trend, donat status | Semua |
 | `tab-tapisan` | Tapisan Excel (muat naik `.xlsx/.xls`, Firestore) | PENGESYOR |
 | `tab-bakul` | Bakul permohonan tersimpan | PENGESYOR |
-| `tab-checker` | Borang Semakan + auto-ekstrak PDF AI | PENGESYOR |
+| `tab-checker` | Borang Semakan + auto-ekstrak PDF (regex) | PENGESYOR |
 | `tab-database` | Input Database + Drive + konsultansi + WhatsApp | PENGESYOR |
 | `tab-list` | Senarai + tapisan + mod sejarah bulan lama | Semua (ikut peranan) |
 | `tab-pelulus-view` | Ringkasan permohonan untuk pelulus | PELULUS |
@@ -203,8 +203,8 @@ Statistik saiz: `app.js` terbesar (~852KB), diikuti `jata.svg` (~373KB), `code.g
 
 ```mermaid
 flowchart TD
-    A["PDF Borang - Muat Naik"] --> B["pdf.js Ekstrak Teks - had 15k aksara"]
-    B --> C["processAI - DeepSeek ke Gemini"]
+    A["PDF Borang - Muat Naik"] --> B["pdf.js Ekstrak Teks"]
+    B --> C["Auto-Ekstrak Regex (dalam pelayar)"]
     C --> D["Borang Semakan - Auto-Isi"]
     D --> E["Input Database + Folder Drive"]
     E --> F["Sheet1 Insert - 32 Lajur"]
@@ -235,20 +235,20 @@ flowchart TD
 
 | Integrasi | Mekanisme | Data Bertukar | Nota Operasi |
 |---|---|---|---|
-| Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, jadual WhatsApp, ulasan SPI | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti |
+| Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, slot legasi (AD), ulasan SPI | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti |
 | Firestore (`[PROJEK_FIRESTORE_TAPISAN]`) | SDK Compat 9.21.0 di klien + kod Firebase per pengguna | Peraturan tapisan G4–G7, data bakul | Akses tanpa nama selepas log masuk GIS; kod disuntik dari Script Properties |
 | Google Drive | `DriveApp` | Struktur `STB MAIN FOLDER > [Pengesyor] > [SYARIKAT] > [JENIS - TARIKH]` + PDF berwarna + fail dimuat naik (base64) | Pencarian folder mengabaikan kurungan dan huruf besar/kecil |
 | Firebase Auth + GIS | `google.accounts.id` + `auth.signInAnonymously()` | `idToken` Google dihurai di klien, emel dihantar ke backend untuk pengesahan domain dan peranan | Domain dibenarkan: `@kuskop.gov.my` |
-| AI (DeepSeek/Gemini/OpenRouter) | `UrlFetchApp` dengan masa tamat 30s/20s | Teks PDF dibersihkan > JSON skema borang (companyName, CIDB, gred, tempoh SPKK/STB, pengarah, alamat, telefon) | Auto: DeepSeek dahulu, sandaran Gemini; cache SHA-256 1 jam; hasil tidak lengkap tidak dicache |
+| Cuti Umum Putrajaya | `UrlFetchApp` (ICS kalendar awam Google "Holidays in Malaysia") | Senarai tarikh cuti umum yang terpakai untuk Putrajaya (~20 tarikh/tahun) | Di-cache dalam Script Properties (`PUTRAJAYA_HOLIDAYS_<tahun>`) dan di-refresh setiap 30 hari; sandaran senarai cuti tetap Persekutuan |
 | Emel dan Kalendar | `MailApp` + `CalendarApp` + queue berjadual | Emel SPI SIASAT/PEMUTIHAN, acara kalendar lawatan, peringatan backlog | Trigger harian; barisan disimpan dalam Script Properties |
-| WhatsApp | `wa.me` deep-link + CallMeBot API (pilihan) + `ScriptApp` trigger | Jadual `AD` (kolum 30) JSON: mod AUTO/MANUAL, tarikh, jam, ayat, status PENDING/SENT | Penapis nombor mudah alih Malaysia `01x`; pautan manual sebagai sandaran |
+| WhatsApp | `wa.me` deep-link (notifikasi manual oleh pengguna) | Mesej notifikasi kepada Pelulus/Pengesyor | Jadual WhatsApp automatik (AUTO/CallMeBot) telah dibuang; lajur AD dikekalkan sebagai legasi |
 | YouTube | YouTube Data API v3 `search` | 12 hasil video rujukan | Kunci dalam Script Properties |
 | Maps | Embed iframe | Alamat perniagaan dipapar sebagai peta | Tiada kunci pendedahan di klien |
 | Bunyi dan Media | Fail statik `audio/` | SFX UI | Tiada data peribadi |
 
 ### 4.4 Skema Lajur Hamparan (Ringkas)
 
-A `syarikat`, B `cidb`, C `gred`, D `jenis`, E `negeri`, F `tarikh_surat_terdahulu`, G `tatatertib`, H `start_date`, I `syor_lawatan`, J `date_submit`, K `pautan`, L `justifikasi`, M `pengesyor`, N `syor_status`, O `tarikh_syor`, P `status_hantar_spi`, Q `tarikh_hantar_spi`, R `lawatan_tarikh`, S `lawatan_submit_sptb`, T `lawatan_syor`, U `alamat_perniagaan`, V `jenis_konsultansi`, W `alasan`, X `kelulusan`, Y `tarikh_lulus`, Z `pelulus`, AA `ubah_maklumat`, AB `ubah_gred`, AC `borang_json`, AD `whatsapp_schedule`, AE `inbox` (ditempah), AF `ulasan_spi`.
+A `syarikat`, B `cidb`, C `gred`, D `jenis`, E `negeri`, F `tarikh_surat_terdahulu`, G `tatatertib`, H `start_date`, I `syor_lawatan`, J `date_submit`, K `pautan`, L `justifikasi`, M `pengesyor`, N `syor_status`, O `tarikh_syor`, P `status_hantar_spi`, Q `tarikh_hantar_spi`, R `lawatan_tarikh`, S `lawatan_submit_sptb`, T `lawatan_syor`, U `alamat_perniagaan`, V `jenis_konsultansi`, W `alasan`, X `kelulusan`, Y `tarikh_lulus`, Z `pelulus`, AA `ubah_maklumat`, AB `ubah_gred`, AC `borang_json`, AD `(legasi — jadual WhatsApp dibuang, slot dikekalkan untuk keserasian snapshot)`, AE `inbox` (ditempah), AF `ulasan_spi`.
 
 ### 4.5 Aliran Keputusan Permohonan (Pengesyor → Pelulus)
 
@@ -373,6 +373,13 @@ flowchart TD
 | `PEMUTIHAN` sahkan | `I=PEMUTIHAN`, `Y=2026-08-20`, `P=DALAM QUEUE` | Masuk `PEMUTIHAN_QUEUE` | Emel berkelompok | `UPDATE_RECORD` |
 | `PEMUTIHAN` batal | `I=TIDAK`, `AC.catatan_pelulus=<sebab>` | Keluar queue | Tiada | `UPDATE_RECORD` |
 
+### 4.6 Pengiraan Deadline SPI (14 Hari Bekerja)
+
+* **Takrif hari bekerja:** Isnin–Jumaat, tidak termasuk cuti umum Wilayah Persekutuan Putrajaya.
+* **Sumber cuti:** senarai cuti umum Putrajaya dimuatkan automatik daripada kalendar awam Google "Holidays in Malaysia" — sumber utama fail ICS awam dengan cubaan semula (HTTP 429 biasanya sementara), sandaran `CalendarApp` (jika kalendar dilanggan akaun), dan penapis `PUTRAJAYA_HOLIDAYS_MANUAL` untuk cuti ganti/peristiwa. Senarai di-cache dalam Script Properties mengikut tahun (`PUTRAJAYA_HOLIDAYS_<tahun>`) dan di-refresh setiap 30 hari; jika semua sumber gagal, cache lama dan senarai cuti tetap Persekutuan (01-01, 02-01, 05-01, 08-31, 09-16, 12-25) digunakan. Fungsi `refreshPutrajayaHolidays()` boleh dijalankan manual selepas pengumuman cuti ganti.
+* **Titik penggunaan:** `addWorkingDays(date_submit, 14)` dan `countWorkingDays()` dalam `code.gs` mengira deadline, baki hari, hari lewat serta tarikh tamat acara kalendar SPI. Penghantaran emel berkumpulan (`processSiasatQueue`/`processPemutihanQueue`) dan peringatan deadline hanya berjalan pada hari bekerja.
+* **Kesan operasi:** permohonan tidak akan dihantar dan deadline tidak dikira pada hujung minggu atau cuti umum Putrajaya.
+
 ---
 
 ## 5. Teknologi Stack (Technology Stack)
@@ -391,7 +398,7 @@ flowchart TD
 | PDF Klien | PDF.js | `3.11.174` (`pdf.min.js` + `pdf.worker.min.js`) | `index.html:1076-1077` |
 | Carta | Chart.js | `4.4.0` (`chart.umd.min.js`) | `index.html:1078` |
 | Pemilih Tarikh | flatpickr + monthSelect | `4.6.13` (CSS+JS, plugin monthSelect via jsdelivr) | `index.html:25-26,1080-1081` |
-| AI | DeepSeek (`deepseek-v4-flash`), Gemini (`gemini-2.5-flash`), OpenRouter (`tencent/hy3-preview:free`) | Masa tamat 30s/20s, `max_tokens` 4096, suhu 0.2, `response_format: json_object` (DeepSeek) | `code.gs: DEEPSEEK_API_URL` |
+| Kalendar Cuti Umum | ICS awam Google "Holidays in Malaysia" (utama, cubaan semula) + `CalendarApp` (sandaran) | Cache Script Properties (`PUTRAJAYA_HOLIDAYS_<tahun>`), refresh 30 hari, override `PUTRAJAYA_HOLIDAYS_MANUAL` | `code.gs: MY_HOLIDAY_ICS_URL` |
 | Emel / Kalendar / Drive | Perkhidmatan GAS terbina | Skop: spreadsheets, send_mail, drive, external_request, scriptapp, userinfo.email, calendar | `appsscript.json:oauthScopes` |
 | Hos Web | Hos fail statik HTTPS (serasi GitHub Pages) | CSP: `script-src 'self' 'unsafe-eval' ... cdnjs/jsdelivr/google/gstatic`; `connect-src 'self' https:` | `index.html:12` |
 | Utiliti Rujukan | `banks.js` (50 bank), `audio/` SFX | Tiada dependensi pakej (skrip vanilla) | `banks.js` |
@@ -401,7 +408,7 @@ flowchart TD
 * Pelayar moden dengan JavaScript, IndexedDB, dan capaian HTTPS ke `cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `accounts.google.com`, `www.gstatic.com`, dan endpoint Apps Script.
 * Akaun Google domain `@kuskop.gov.my` yang berdaftar dalam helaian `Users`.
 * Kebenaran OAuth yang diluluskan oleh pentadbir Workspace untuk 7 skop di atas.
-* Script Properties yang lengkap: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `CALLMEBOT_API_KEY[_<emel>]`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`.
+* Script Properties yang lengkap: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`, `PUTRAJAYA_HOLIDAYS_<tahun>` (cache cuti umum; dijana automatik).
 
 > **Nota keselamatan dokumen:** Nilai sebenar kunci, ID folder, alamat emel operasi, dan URL Web App tidak didedahkan dalam dokumen ini. Gantikan dengan placeholder `[URL_STAGING_KERAJAAN]`, `[URL_PRODUKSI_KERAJAAN]`, `[MAIN_FOLDER_ID]`, `[EMAIL_TO_SPI]`, `[KUNCI_API]` semasa pengendalian operasi seperti yang diperincikan dalam `apidoc.md`.
 
@@ -418,7 +425,7 @@ SPKK (Sijil Perolehan Kerja Kerajaan), STB (Sijil Taraf Bumiputera — konteks S
 ## Lampiran B — Rujukan Kod
 
 * Penghala GET: `code.gs:doGet`, Penghala POST: `code.gs:doPost`, Middleware: `verifyUserAccess`, Normalisasi peranan: `normalizeRoleKey`.
-* Cache: `APP_DATA_CHUNK_*`, `APP_DATA_REBUILD_KEY`, `STB_DASH_STATS_*`, `STB_AI_*`, `STB_USER_*`.
+* Cache: `APP_DATA_CHUNK_*`, `APP_DATA_REBUILD_KEY`, `STB_DASH_STATS_*`, `STB_USER_*`, `PUTRAJAYA_HOLIDAYS_*`.
 * URL operasi sebenar dan kunci API hendaklah diperoleh melalui saluran rasmi HQ dan tidak disalin ke dalam repositori awam.
 
 *— Tamat `structure.md` —*

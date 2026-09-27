@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     var removableKeys = [
       'stb_data_cache', 'stb_users_cache', 'stb_cache_timestamp', 'stb_data_version',
       'stb_extracted_pdf_data', 'stb_dashboard_data',
-      'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume', 'stb_ai_file_cache'
+      'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume'
     ];
     removableKeys.forEach(function(key) {
       try { window.localStorage.removeItem(key); } catch(e) {}
@@ -4017,20 +4017,6 @@ async function handleCredentialResponse(response) {
     }
   }
 
-  function countWorkingDays(startStr, endStr) {
-    if (!startStr || !endStr) return '-';
-    const s = new Date(startStr);
-    const e = new Date(endStr);
-    if (isNaN(s) || isNaN(e) || e < s) return '-';
-    let count = 0, cur = new Date(s);
-    while (cur <= e) {
-      const d = cur.getDay();
-      if (d !== 0 && d !== 6) count++;
-      cur.setDate(cur.getDate() + 1);
-    }
-    return count;
-  }
-
   function getWeekNumber(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d)) return null;
@@ -6372,7 +6358,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       // V6.9.1: Jangan biar kegagalan alamat senyap - papar amaran jelas
       html += `<div class="extracted-item">
         <span class="extracted-label" style="color: #dc2626;">Alamat:</span>
-        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Klik "Guna AI" untuk ekstrakan AI.</span>
+        <span class="extracted-value" style="color: #dc2626;">Tiada alamat dapat diekstrak. Sila isi alamat secara manual.</span>
       </div>`;
     }
 
@@ -9398,12 +9384,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         dbPerubahanInput.value = '';
       }
       
-      updateDefaultWaMessage();
-      const dbPerubahanInputEl = document.getElementById('db_perubahan_input');
-      if (dbPerubahanInputEl) {
-        dbPerubahanInputEl.removeEventListener('input', updateDefaultWaMessage);
-        dbPerubahanInputEl.addEventListener('input', updateDefaultWaMessage);
-      }
       saveDatabaseFormData();
     });
   }
@@ -12788,45 +12768,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
     
-    // V6.6.0: Load WhatsApp schedule data
-    if (item.whatsapp_schedule) {
-      try {
-        const waData = JSON.parse(item.whatsapp_schedule);
-        if (waData && waData.mode) {
-          // Show container and check checkbox
-          const cbShowWa = document.getElementById('cb_show_wa_schedule');
-          const waContainer = document.getElementById('wa_schedule_container');
-          if (cbShowWa) cbShowWa.checked = true;
-          if (waContainer) waContainer.style.display = 'block';
-          
-          const radioManual = document.querySelector('input[name="wa_mode"][value="MANUAL"]');
-          const radioAuto = document.querySelector('input[name="wa_mode"][value="AUTO"]');
-          const manualFields = document.getElementById('wa_manual_fields');
-          const autoFields = document.getElementById('wa_auto_fields');
-          
-          if (waData.mode === 'AUTO') {
-            if (radioAuto) radioAuto.checked = true;
-            if (manualFields) manualFields.style.display = 'none';
-            if (autoFields) autoFields.style.display = 'block';
-            const waTarikhAuto = document.getElementById('wa_tarikh_auto');
-            if (waTarikhAuto && waData.tarikh) waTarikhAuto.value = waData.tarikh;
-            const waMasa = document.getElementById('wa_masa');
-            if (waMasa && waData.masa) waMasa.value = waData.masa;
-            const waAyat = document.getElementById('wa_ayat');
-            if (waAyat && waData.ayat) waAyat.value = waData.ayat;
-          } else {
-            if (radioManual) radioManual.checked = true;
-            if (manualFields) manualFields.style.display = 'block';
-            if (autoFields) autoFields.style.display = 'none';
-            const waTarikhManual = document.getElementById('wa_tarikh_manual');
-            if (waTarikhManual && waData.tarikh) waTarikhManual.value = waData.tarikh;
-          }
-        }
-      } catch (e) {
-        console.warn('V6.6.0 Failed to parse whatsapp_schedule:', e);
-      }
-    }
-    
     // --- KOD BARU: Masukkan Nilai Due Date ke Borang ---
     const dbDueDate = document.getElementById('db_due_date');
     if (dbDueDate) {
@@ -13883,8 +13824,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         ubah_maklumat: ubahMaklumatVal,
         ubah_gred: ubahGredVal,
         email: currentUser ? currentUser.email : '',
-        borang_json: JSON.stringify(borangJsonData), // JSON yang telah merangkumi semua elemen
-        whatsapp_schedule: getWhatsAppScheduleData() || '' // V6.6.0: WhatsApp schedule
+        borang_json: JSON.stringify(borangJsonData) // JSON yang telah merangkumi semua elemen
       };
       
       if (isConfirmed) {
@@ -13911,57 +13851,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
         
         await playSuccessSound();
-        
-        // V6.6.0: Handle WhatsApp AUTO scheduling
-        const waScheduleData = getWhatsAppScheduleData();
-        let waSchedulePayload = null;
-        if (waScheduleData) {
-          const parsedSchedule = JSON.parse(waScheduleData);
-          if (parsedSchedule.mode === 'AUTO' && result && result.row) {
-            const recommenderPhone = currentUser.phone || '';
-            let allPhones = [];
-            if (borangJsonData.borang_no_telefon) {
-              allPhones = borangJsonData.borang_no_telefon.split(',').map(s => s.trim()).filter(s => s);
-            }
-            if (borangJsonData.phoneNumbers && Array.isArray(borangJsonData.phoneNumbers)) {
-              allPhones = allPhones.concat(borangJsonData.phoneNumbers);
-            }
-            const mobilePhones = allPhones.filter(no => {
-              let c = no.replace(/[\s\-\(\)\+]/g, '');
-              if (c.startsWith('60')) c = c.substring(2);
-              return /^01[0-9]{7,9}$/.test(c);
-            });
-            
-            parsedSchedule.no_hantar = recommenderPhone;
-            parsedSchedule.no_tujuan = mobilePhones.join(',');
-            parsedSchedule.syarikat = payload.syarikat;
-            
-            waSchedulePayload = {
-              action: 'scheduleWhatsApp',
-              row: result.row,
-              mode: 'AUTO',
-              tarikh: parsedSchedule.tarikh,
-              masa: parsedSchedule.masa,
-              ayat: parsedSchedule.ayat,
-              no_hantar: recommenderPhone,
-              no_tujuan: mobilePhones.join(','),
-              syarikat: payload.syarikat,
-              user: currentUser.name,
-              email: currentUser.email
-            };
-            
-            try {
-              await fetchWithRetry(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(waSchedulePayload)
-              }, 2, 1000);
-              console.log('V6.6.0 WhatsApp AUTO schedule registered');
-            } catch (e) {
-              console.error('V6.6.0 Failed to schedule WhatsApp:', e);
-            }
-          }
-        }
         
         // Modal WhatsApp selepas submit – SIASAT guna template semakan
         if (isConfirmed && selectedPelulusPhone) {
@@ -14054,18 +13943,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       });
     }
     
-    // V6.6.0: Reset WhatsApp scheduling fields
-    const cbShowWa = document.getElementById('cb_show_wa_schedule');
-    if (cbShowWa) { cbShowWa.checked = false; }
-    const waContainer = document.getElementById('wa_schedule_container');
-    if (waContainer) { waContainer.style.display = 'none'; }
-    const waTarikhAuto = document.getElementById('wa_tarikh_auto');
-    const waMasa = document.getElementById('wa_masa');
-    const waAyat = document.getElementById('wa_ayat');
-    if (waTarikhAuto) waTarikhAuto.value = '';
-    if (waMasa) waMasa.value = '';
-    if (waAyat) waAyat.value = '';
-
     const alamatTextarea = document.getElementById('db_alamat_perniagaan');
     if (alamatTextarea) alamatTextarea.value = '';
     const mapsIframe = document.getElementById('mapsIframe');
@@ -18148,9 +18025,6 @@ if (btnRefreshData) {
   });
 }
 
-// Setup WhatsApp scheduling UI
-setupWhatsAppSchedulingUI();
-
 async function checkFrozenStatus(cidb, companyName) {
     if (!cidb || !Array.isArray(cachedData) || cachedData.length === 0) return false;
 
@@ -18263,119 +18137,6 @@ function createWAConfirmModal() {
   document.body.appendChild(div);
   div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
   return div;
-}
-
-// =========================================================================
-// V6.6.0: WHATSAPP SCHEDULING UI (Manual/Auto)
-// =========================================================================
-
-function getJenisPerubahanText() {
-  const jenis = document.getElementById('db_jenis')?.value || '';
-  if (jenis === 'UBAH MAKLUMAT') {
-    const ubah = document.getElementById('db_perubahan_input')?.value || document.getElementById('input_ubah_maklumat')?.value || '';
-    return ubah ? `ubah maklumat (${ubah})` : 'ubah maklumat';
-  }
-  if (jenis === 'UBAH GRED') {
-    const ubah = document.getElementById('db_perubahan_input')?.value || document.getElementById('input_ubah_gred')?.value || '';
-    return ubah ? `ubah gred (${ubah})` : 'ubah gred';
-  }
-  return '';
-}
-
-function updateDefaultWaMessage() {
-  const waAyat = document.getElementById('wa_ayat');
-  const cbShow = document.getElementById('cb_show_wa_schedule');
-  if (waAyat && cbShow && cbShow.checked) {
-    const defaultMsg = generateDefaultWaMessage();
-    const currentMsg = waAyat.value.trim();
-    if (currentMsg === '' || currentMsg.startsWith('Tuan/Puan,\n\nPermohonan')) {
-      waAyat.value = defaultMsg;
-    }
-  }
-}
-
-function generateDefaultWaMessage() {
-  const syarikat = document.getElementById('db_syarikat')?.value || document.getElementById('borang_syarikat')?.value || '';
-  const jenis = document.getElementById('db_jenis')?.value || '';
-  const perubahan = getJenisPerubahanText();
-  let msg = `Tuan/Puan,\n\nPermohonan ${jenis}`;
-  if (perubahan) msg += ` (${perubahan})`;
-  msg += ` untuk ${syarikat} telah dikemaskini. Sila semak dan berikan keputusan.\n\nTerima kasih.`;
-  return msg;
-}
-
-function setupWhatsAppSchedulingUI() {
-  const cbShow = document.getElementById('cb_show_wa_schedule');
-  const container = document.getElementById('wa_schedule_container');
-  if (cbShow && container) {
-    cbShow.addEventListener('change', (e) => {
-      container.style.display = e.target.checked ? 'block' : 'none';
-      if (e.target.checked) {
-        const waAyat = document.getElementById('wa_ayat');
-        if (waAyat && !waAyat.value.trim()) {
-          waAyat.value = generateDefaultWaMessage();
-        }
-      }
-    });
-  }
-}
-
-function getWhatsAppScheduleData() {
-  const cbShow = document.getElementById('cb_show_wa_schedule');
-  if (!cbShow || !cbShow.checked) return null;
-  
-  const waTarikhAuto = document.getElementById('wa_tarikh_auto')?.value || '';
-  const waMasa = document.getElementById('wa_masa')?.value || '';
-  const waAyat = document.getElementById('wa_ayat')?.value || '';
-  
-  if (waTarikhAuto && waMasa && waAyat) {
-    return JSON.stringify({
-      mode: 'AUTO',
-      tarikh: waTarikhAuto,
-      masa: parseInt(waMasa),
-      ayat: waAyat,
-      status: 'PENDING',
-      no_hantar: '',
-      no_tujuan: ''
-    });
-  }
-  
-  return null;
-}
-
-// =========================================================================
-// V6.6.0: WHATSAPP NOTIFICATION (send from recommender to applicant)
-// =========================================================================
-
-function sendWhatsAppAutoNotification(companyName, cidb, jenis, tarikh, masa, message, phoneTujuan) {
-  if (!phoneTujuan || phoneTujuan.trim() === '') {
-    console.log("V6.6.0 No target phone number for WhatsApp");
-    return null;
-  }
-  
-  let cleanPhone = phoneTujuan.replace(/[\s\-\(\)]/g, '');
-  if (cleanPhone.startsWith('0')) {
-    cleanPhone = '60' + cleanPhone.substring(1);
-  } else if (!cleanPhone.startsWith('60')) {
-    cleanPhone = '60' + cleanPhone;
-  }
-  
-  if (!/^\d{9,15}$/.test(cleanPhone)) {
-    console.log("V6.6.0 Invalid phone number:", cleanPhone);
-    return null;
-  }
-  
-  const finalMessage = message || `*NOTIFIKASI PERMOHONAN STB*
-
-*Syarikat:* ${companyName}
-*No. CIDB:* ${cidb || 'Tiada'}
-*Jenis:* ${jenis || 'Tiada'}
-*Tarikh:* ${tarikh || 'Tiada'}
-
-Terima kasih.`;
-  
-  const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(finalMessage)}`;
-  return whatsappUrl;
 }
 
 // V6.9.3: Auto refresh dashboard & inbox tab
