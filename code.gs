@@ -4475,19 +4475,36 @@ function findUserByPengesyorName(name) {
 }
 
 function encodeWhatsAppText(text) {
-  // Guna Utilities.newBlob().getBytes() untuk pastikan UTF-8 yang betul
-  // (GAS encodeURIComponent boleh hasilkan CESU-8 untuk emoji)
+  // Pengekod UTF-8 manual (RFC 3986). Tidak bergantung pada Utilities.newBlob
+  // yang boleh hasilkan CESU-8 untuk emoji (surrogate pair) -> dipaparkan '�'.
   if (!text) return '';
-  var bytes = Utilities.newBlob(text).getBytes();
   var result = '';
-  for (var i = 0; i < bytes.length; i++) {
-    var b = bytes[i];
-    // unreserved characters (RFC 3986): A-Z a-z 0-9 - _ . ~
-    if ((b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39)
-        || b === 0x2D || b === 0x5F || b === 0x2E || b === 0x7E) {
-      result += String.fromCharCode(b);
+  for (var i = 0; i < text.length; i++) {
+    var cp = text.codePointAt(i);
+    if (cp > 0xFFFF) {
+      i++; // skip low surrogate
+    } else if (cp >= 0xD800 && cp <= 0xDFFF) {
+      cp = 0xFFFD; // lone surrogate -> replacement character
+    }
+    var bytes;
+    if (cp < 0x80) {
+      bytes = [cp];
+    } else if (cp < 0x800) {
+      bytes = [0xC0 | (cp >> 6), 0x80 | (cp & 0x3F)];
+    } else if (cp < 0x10000) {
+      bytes = [0xE0 | (cp >> 12), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
     } else {
-      result += '%' + b.toString(16).toUpperCase().padStart(2, '0');
+      bytes = [0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3F), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F)];
+    }
+    for (var j = 0; j < bytes.length; j++) {
+      var b = bytes[j];
+      // unreserved characters (RFC 3986): A-Z a-z 0-9 - _ . ~
+      if ((b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39)
+          || b === 0x2D || b === 0x5F || b === 0x2E || b === 0x7E) {
+        result += String.fromCharCode(b);
+      } else {
+        result += '%' + b.toString(16).toUpperCase().padStart(2, '0');
+      }
     }
   }
   return result;

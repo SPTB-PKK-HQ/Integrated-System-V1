@@ -1346,6 +1346,7 @@ async function handleCredentialResponse(response) {
   const filterBtnUbahMaklumat = document.getElementById('filterBtnUbahMaklumat');
   const filterBtnUbahGred = document.getElementById('filterBtnUbahGred');
   const filterBtnSpi = document.getElementById('filterBtnSpi');
+  const filterBtnSemakanPelulus = document.getElementById('filterBtnSemakanPelulus');
   
   // Badge elements untuk kiraan
   const badgeAll = document.getElementById('badgeAll');
@@ -1354,6 +1355,7 @@ async function handleCredentialResponse(response) {
   const badgeUbahMaklumat = document.getElementById('badgeUbahMaklumat');
   const badgeUbahGred = document.getElementById('badgeUbahGred');
   const badgeSpi = document.getElementById('badgeSpi');
+  const badgeSemakanPelulus = document.getElementById('badgeSemakanPelulus');
   
   // Submitted Tab Filter Elements
   const submittedFiltersContainer = document.getElementById('submittedFiltersContainer');
@@ -4470,12 +4472,12 @@ async function handleCredentialResponse(response) {
             if (contactRes.success && contactRes.waLink && contactRes.phone) {
               const waUrl = `${contactRes.waLink}?text=${encodeURIComponent(
 `*NOTIFIKASI PERMOHONAN LAWATAN PREMIS*
-    
-Syarikat: ${item.syarikat}
-No. CIDB: ${item.cidb || '-'}
-Jenis: ${item.jenis || '-'}
-Tarikh Lawatan: ${lawatanTarikh || '-'}
-Syor SPI: ${lawatanSyor || '-'}
+
+*Syarikat:* ${item.syarikat}
+*No. CIDB:* ${item.cidb || '-'}
+*Jenis:* ${item.jenis || '-'}
+*Tarikh Lawatan:* ${lawatanTarikh || '-'}
+*Syor SPI:* ${lawatanSyor || '-'}
 
 Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
               const confirmed = await showWhatsAppConfirmModal(waUrl, item.syarikat, item.pengesyor);
@@ -7024,12 +7026,12 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
     
     const message = `*NOTIFIKASI PERMOHONAN STB*
-    
-Syarikat: ${companyName}
-No. CIDB: ${cidb || 'Tiada'}
-Jenis: ${jenisText}
-Syor: ${syorStatus || 'Tiada'}
-Tarikh: ${tarikhSyor || 'Tiada'}
+
+*Syarikat:* ${companyName}
+*No. CIDB:* ${cidb || 'Tiada'}
+*Jenis:* ${jenisText}
+*Syor:* ${syorStatus || 'Tiada'}
+*Tarikh:* ${tarikhSyor || 'Tiada'}
 
 Sila semak sistem STB untuk tindakan selanjutnya.`;
 
@@ -7049,14 +7051,14 @@ Sila semak sistem STB untuk tindakan selanjutnya.`;
     let jenisText = jenisPermohonan || 'Tiada';
     if (jenisText === 'UBAH MAKLUMAT' && ubahMaklumat) jenisText += ` (${ubahMaklumat})`;
     else if (jenisText === 'UBAH GRED' && ubahGred) jenisText += ` (${ubahGred})`;
-    const message = `*🔍 SEMAKAN SIASAT – STB*
+    const message = `*SEMAKAN SIASAT - STB*
 
-Syarikat: ${companyName}
-No. CIDB: ${cidb || 'Tiada'}
-Jenis: ${jenisText}
-Justifikasi Lawatan: ${justifikasi || 'Tiada'}
-Pengesyor: ${pengesyorName || '-'}
-Tarikh: ${new Date().toLocaleDateString('ms-MY')}
+*Syarikat:* ${companyName}
+*No. CIDB:* ${cidb || 'Tiada'}
+*Jenis:* ${jenisText}
+*Justifikasi Lawatan:* ${justifikasi || 'Tiada'}
+*Pengesyor:* ${pengesyorName || '-'}
+*Tarikh:* ${new Date().toLocaleDateString('ms-MY')}
 
 Mohon semakan Pelulus untuk SIASAT. Sila semak di Inbox Siasat sistem STB.`;
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -7069,12 +7071,12 @@ Mohon semakan Pelulus untuk SIASAT. Sila semak di Inbox Siasat sistem STB.`;
     if (cleanPhone.startsWith('0')) cleanPhone = '60' + cleanPhone.substring(1);
     else if (!cleanPhone.startsWith('60')) cleanPhone = '60' + cleanPhone;
     if (!/^\d{9,15}$/.test(cleanPhone)) return null;
-    const message = `*↩️ TOLAKAN SIASAT – STB*
+    const message = `*TOLAKAN SIASAT - STB*
 
-Syarikat: ${companyName}
-No. CIDB: ${cidb || 'Tiada'}
-Pelulus: ${pelulusName || '-'}
-Alasan Penolakan:
+*Syarikat:* ${companyName}
+*No. CIDB:* ${cidb || 'Tiada'}
+*Pelulus:* ${pelulusName || '-'}
+*Alasan Penolakan:*
 ${alasanTolak || 'Tiada'}
 
 Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
@@ -9101,6 +9103,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           else if (btn.id === 'filterBtnUbahMaklumat') filterVal = 'UBAH MAKLUMAT';
           else if (btn.id === 'filterBtnUbahGred') filterVal = 'UBAH GRED';
           else if (btn.id === 'filterBtnSpi') filterVal = 'SPI';
+          else if (btn.id === 'filterBtnSemakanPelulus') filterVal = 'SEMAKAN_PELULUS';
           else if (btn.id === 'filterBtnAll') filterVal = 'ALL';
           
           if (filterVal) {
@@ -9295,6 +9298,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function updateDraftFilterButtons() {
     if (!draftFiltersContainer) return;
     
+    // V6.6.1: Butang SEMAKAN PELULUS hanya relevan untuk Pengesyor (tab Belum Hantar)
+    const isPengesyorRole = !!(currentUser && currentUser.role === 'PENGESYOR');
+    if (filterBtnSemakanPelulus) {
+        filterBtnSemakanPelulus.style.display = isPengesyorRole ? 'inline-flex' : 'none';
+        if (!isPengesyorRole && currentDraftFilter === 'SEMAKAN_PELULUS') currentDraftFilter = 'ALL';
+    }
+    
     draftFiltersContainer.querySelectorAll('button').forEach(b => {
         b.style.opacity = '0.4';
         b.style.border = '2px solid transparent';
@@ -9307,6 +9317,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         else if (currentDraftFilter === 'UBAH MAKLUMAT') activeBtnId = 'filterBtnUbahMaklumat';
         else if (currentDraftFilter === 'UBAH GRED') activeBtnId = 'filterBtnUbahGred';
         else if (currentDraftFilter === 'SPI') activeBtnId = 'filterBtnSpi';
+        else if (currentDraftFilter === 'SEMAKAN_PELULUS') activeBtnId = 'filterBtnSemakanPelulus';
     }
     
     const activeBtn = document.getElementById(activeBtnId);
@@ -11630,6 +11641,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const countUbahMaklumat = filtered.filter(item => item.jenis === 'UBAH MAKLUMAT').length;
       const countUbahGred = filtered.filter(item => item.jenis === 'UBAH GRED').length;
       const countSpi = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '').length;
+      const countSemakanPelulus = filtered.filter(item => {
+        if ((item.syor_status || '').toUpperCase() !== 'SIASAT') return false;
+        try {
+          const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+          const stage = pj.siasat_workflow ? pj.siasat_workflow.stage : '';
+          return stage === 'MENUNGGU_PELULUS' || stage === 'DITOLAK_PELULUS';
+        } catch (e) { return false; }
+      }).length;
       
       if (badgeAll) badgeAll.textContent = countAll;
       if (badgeBaru) badgeBaru.textContent = countBaru;
@@ -11637,6 +11656,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (badgeUbahMaklumat) badgeUbahMaklumat.textContent = countUbahMaklumat;
       if (badgeUbahGred) badgeUbahGred.textContent = countUbahGred;
       if (badgeSpi) badgeSpi.textContent = countSpi;
+      if (badgeSemakanPelulus) badgeSemakanPelulus.textContent = countSemakanPelulus;
     }
     
     if (type === 'history') {
@@ -11722,6 +11742,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (type === 'drafts' && currentDraftFilter !== 'ALL') {
       if (currentDraftFilter === 'SPI') {
         filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
+      } else if (currentDraftFilter === 'SEMAKAN_PELULUS') {
+        filtered = filtered.filter(item => {
+          if ((item.syor_status || '').toUpperCase() !== 'SIASAT') return false;
+          try {
+            const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+            const stage = pj.siasat_workflow ? pj.siasat_workflow.stage : '';
+            return stage === 'MENUNGGU_PELULUS' || stage === 'DITOLAK_PELULUS';
+          } catch (e) { return false; }
+        });
       } else {
         filtered = filtered.filter(item => item.jenis === currentDraftFilter);
       }
@@ -11743,7 +11772,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
     
     if ((type === 'inbox') && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
-      if (currentDraftFilter !== 'ALL') {
+      if (currentDraftFilter !== 'ALL' && currentDraftFilter !== 'SEMAKAN_PELULUS') {
         if (currentDraftFilter === 'SPI') {
           filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
         } else {
@@ -12327,6 +12356,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       } else if (isSiasat && siasatStage === 'DITOLAK_PELULUS') {
         div.style.backgroundColor = '#fef2f2';
         div.style.borderLeft = '4px solid #ef4444';
+      } else if (isSiasat && (siasatStage === 'SAHKAN_KE_SPI' || (item.status_hantar_spi || '').toUpperCase() === 'DALAM QUEUE')) {
+        // V6.6.1: SIASAT disahkan Pelulus - biru, masuk tapisan HANTAR KE SPI
+        div.classList.add('blue-bg');
       } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && currentUser && currentUser.role === 'PENGESYOR') {
         div.classList.add('blue-bg');
       } else if (item.date_submit && type === 'drafts' && currentUser && currentUser.role !== 'PELULUS') {
@@ -18335,10 +18367,10 @@ function sendWhatsAppAutoNotification(companyName, cidb, jenis, tarikh, masa, me
   
   const finalMessage = message || `*NOTIFIKASI PERMOHONAN STB*
 
-Syarikat: ${companyName}
-No. CIDB: ${cidb || 'Tiada'}
-Jenis: ${jenis || 'Tiada'}
-Tarikh: ${tarikh || 'Tiada'}
+*Syarikat:* ${companyName}
+*No. CIDB:* ${cidb || 'Tiada'}
+*Jenis:* ${jenis || 'Tiada'}
+*Tarikh:* ${tarikh || 'Tiada'}
 
 Terima kasih.`;
   
