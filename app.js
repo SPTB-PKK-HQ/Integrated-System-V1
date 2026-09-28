@@ -11630,6 +11630,25 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
 
     filtered = filtered.filter(item => item.syarikat && item.syarikat.trim() !== "");
+
+    // Mod carian: bila ruangan carian ada teks, abaikan semua penapis
+    // dan papar terus permohonan yang padan dengan nama syarikat / No. CIDB
+    let searchVal = '';
+    if (type === 'history') {
+      const searchHistoryInput = document.getElementById('searchHistoryInput');
+      searchVal = searchHistoryInput ? searchHistoryInput.value.trim().toUpperCase() : '';
+    } else {
+      const searchListInput = document.getElementById('searchListInput');
+      searchVal = searchListInput ? searchListInput.value.trim().toUpperCase() : '';
+    }
+    const isSearching = searchVal !== '';
+    if (isSearching) {
+      filtered = filtered.filter(item => {
+        const syarikat = item.syarikat ? item.syarikat.toUpperCase() : '';
+        const cidb = item.cidb ? String(item.cidb).toUpperCase() : '';
+        return syarikat.includes(searchVal) || cidb.includes(searchVal);
+      });
+    }
     
     if (type === 'submitted') {
       updateSubmittedBadges(filtered);
@@ -11664,7 +11683,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       updateHistoryBadges(filtered);
     }
 
-    if (type === 'history') {
+    if (type === 'history' && !isSearching) {
       const historyPelulusEl = document.getElementById('historyPelulusFilter');
       if (historyPelulusEl && historyPelulusEl.value) {
         filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === historyPelulusEl.value.toUpperCase());
@@ -11695,7 +11714,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           });
         }
       }
-    } else if (listFilterMonth && listFilterYear) {
+    } else if (!isSearching && listFilterMonth && listFilterYear) {
       const selectedMonth = parseInt(listFilterMonth.value);
       const selectedYear = parseInt(listFilterYear.value);
       
@@ -11722,25 +11741,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
 
-    // Separate search logic for history and other tabs
-    let searchVal = '';
-    if (type === 'history') {
-      const searchHistoryInput = document.getElementById('searchHistoryInput');
-      searchVal = searchHistoryInput ? searchHistoryInput.value.trim().toUpperCase() : '';
-    } else {
-      const searchListInput = document.getElementById('searchListInput');
-      searchVal = searchListInput ? searchListInput.value.trim().toUpperCase() : '';
-    }
-    
-    if(searchVal) {
-      filtered = filtered.filter(item => {
-        const syarikat = item.syarikat ? item.syarikat.toUpperCase() : '';
-        const cidb = item.cidb ? String(item.cidb).toUpperCase() : '';
-        return syarikat.includes(searchVal) || cidb.includes(searchVal);
-      });
-    }
-    
-    if (type === 'drafts' && currentDraftFilter !== 'ALL') {
+    if (!isSearching && type === 'drafts' && currentDraftFilter !== 'ALL') {
       if (currentDraftFilter === 'SPI') {
         filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
       } else if (currentDraftFilter === 'SEMAKAN_PELULUS') {
@@ -11757,7 +11758,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
     
-    if (type === 'submitted') {
+    if (!isSearching && type === 'submitted') {
       if (currentSubmittedStatusFilter !== 'ALL') {
         if (currentSubmittedStatusFilter === 'LULUS') {
           filtered = filtered.filter(item => item.kelulusan && item.kelulusan.includes('LULUS'));
@@ -11772,7 +11773,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
     
-    if ((type === 'inbox') && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
+    if (!isSearching && (type === 'inbox') && (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
       if (currentDraftFilter !== 'ALL' && currentDraftFilter !== 'SEMAKAN_PELULUS') {
         if (currentDraftFilter === 'SPI') {
           filtered = filtered.filter(item => item.date_submit && item.date_submit.trim() !== '');
@@ -11782,7 +11783,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
     
-    if (type === 'history') {
+    if (!isSearching && type === 'history') {
       if (currentHistoryStatusFilter !== 'ALL') {
         if (currentHistoryStatusFilter === 'LULUS') {
           filtered = filtered.filter(item => item.kelulusan && item.kelulusan.includes('LULUS'));
@@ -11799,23 +11800,25 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     if ((type === 'inbox' || type === 'submitted' || type === 'history') && (currentUser.role === 'PELULUS' || currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH')) {
       storageWrapper.get(['stb_filter_pengesyor', 'stb_filter_pelulus']).then(result => {
-        if (type === 'inbox' && result.stb_filter_pengesyor) {
-          filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
-        }
-        if (type === 'submitted') {
-          if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
-            if (result.stb_filter_pelulus) {
-              filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
-            }
-          } else if (result.stb_filter_pengesyor) {
+        if (!isSearching) {
+          if (type === 'inbox' && result.stb_filter_pengesyor) {
             filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
           }
-        }
-        if (type === 'history' && result.stb_filter_pelulus) {
-          filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
-        }
-        if (type === 'history' && result.stb_filter_pengesyor) {
-          filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+          if (type === 'submitted') {
+            if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
+              if (result.stb_filter_pelulus) {
+                filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
+              }
+            } else if (result.stb_filter_pengesyor) {
+              filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+            }
+          }
+          if (type === 'history' && result.stb_filter_pelulus) {
+            filtered = filtered.filter(item => item.pelulus && item.pelulus.toUpperCase() === result.stb_filter_pelulus.toUpperCase());
+          }
+          if (type === 'history' && result.stb_filter_pengesyor) {
+            filtered = filtered.filter(item => item.pengesyor && item.pengesyor.toUpperCase() === result.stb_filter_pengesyor.toUpperCase());
+          }
         }
         filtered = sortFilteredList(filtered, type);
         displayFilteredItems(filtered, type);
@@ -12141,7 +12144,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const siasatList = filtered.filter(i => (i.syor_status || '').toUpperCase() === 'SIASAT'
         && !((i.status_hantar_spi || '').toUpperCase() === 'DALAM QUEUE' && getSiasatStage(i) === 'SAHKAN_KE_SPI'));
       if (!['biasa', 'siasat', 'selesai'].includes(window._pelulusInboxSiasatFilter)) window._pelulusInboxSiasatFilter = 'biasa';
+      // Mod carian: papar semua padanan terus tanpa perlu pilih bahagian Biasa/Siasat/Selesai
+      const searchListInputEl = document.getElementById('searchListInput');
+      const isSearchMode = !!(searchListInputEl && searchListInputEl.value.trim());
       list.innerHTML = '';
+      if (!isSearchMode) {
       // Header dengan butang kiri-kanan + badge bilangan
       const btnBar = document.createElement('div');
       btnBar.style.display = 'flex';
@@ -12175,20 +12182,33 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       btnBar.appendChild(makeFilterBtn('siasat', '🔍', 'Siasat', siasatList.length, '#f59e0b', '#b45309'));
       btnBar.appendChild(makeFilterBtn('selesai', '✅', 'Selesai Semakan Siasat', selesaiList.length, '#10b981', '#047857'));
       list.appendChild(btnBar);
+      }
       // Tentukan senarai aktif untuk dipaparkan
+      let activeList, activeColor, activeIcon, activeTitle, activeEmptyText, isSelesaiView, isBiasaActive;
+      if (isSearchMode) {
+        // Mod carian: gabungkan semua bahagian (Biasa + Siasat + Selesai Semakan Siasat)
+        activeList = filtered;
+        activeColor = '#0ea5e9';
+        activeIcon = '🔎';
+        activeTitle = 'Hasil Carian';
+        activeEmptyText = 'Tiada permohonan sepadan dengan carian';
+        isSelesaiView = false;
+        isBiasaActive = false;
+      } else {
       const viewConfig = {
         biasa: { list: biasaList, color: '#2563eb', icon: '📋', title: 'Permohonan Biasa – SOKONG / TIDAK DISOKONG', empty: 'Tiada permohonan Biasa' },
         siasat: { list: siasatList, color: '#f59e0b', icon: '🔍', title: 'Siasat – Menunggu Semakan', empty: 'Tiada permohonan Siasat' },
         selesai: { list: selesaiList, color: '#10b981', icon: '✅', title: 'Telah Selesai Semakan Siasat – Dalam Queue Email SPI (Hantar 6 Petang)', empty: 'Tiada permohonan dalam queue – semua telah dihantar ke SPI atau belum disahkan' }
       };
       const cfg = viewConfig[window._pelulusInboxSiasatFilter] || viewConfig.biasa;
-      const activeList = cfg.list;
-      const activeColor = cfg.color;
-      const activeIcon = cfg.icon;
-      const activeTitle = cfg.title;
-      const activeEmptyText = cfg.empty;
-      const isSelesaiView = window._pelulusInboxSiasatFilter === 'selesai';
-      const isBiasaActive = window._pelulusInboxSiasatFilter === 'biasa';
+      activeList = cfg.list;
+      activeColor = cfg.color;
+      activeIcon = cfg.icon;
+      activeTitle = cfg.title;
+      activeEmptyText = cfg.empty;
+      isSelesaiView = window._pelulusInboxSiasatFilter === 'selesai';
+      isBiasaActive = window._pelulusInboxSiasatFilter === 'biasa';
+      }
       const section = document.createElement('div');
       section.style.border = `1.5px solid ${activeColor}22`;
       section.style.borderRadius = '10px';
@@ -12228,6 +12248,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           let siasatStage2 = '';
           try { const pj2 = item.borang_json ? JSON.parse(item.borang_json) : {}; if (pj2.siasat_workflow) siasatStage2 = pj2.siasat_workflow.stage || ''; } catch(e) {}
           const isSiasat2 = (item.syor_status || '').toUpperCase() === 'SIASAT';
+          const itemIsSelesai = isSiasat2 && siasatStage2 === 'SAHKAN_KE_SPI' && (item.status_hantar_spi || '').toUpperCase() === 'DALAM QUEUE';
           if (item.lawatan_submit_sptb && item.lawatan_syor) {
             div.style.backgroundColor = '#d1fae5';
             div.style.borderLeft = '4px solid #10b981';
@@ -12237,7 +12258,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           } else if (isSiasat2 && siasatStage2 === 'DITOLAK_PELULUS') {
             div.style.backgroundColor = '#fef2f2';
             div.style.borderLeft = '4px solid #ef4444';
-          } else if (isSelesaiView && isSiasat2 && siasatStage2 === 'SAHKAN_KE_SPI') {
+          } else if (itemIsSelesai) {
             div.style.backgroundColor = '#ecfdf5';
             div.style.borderLeft = '4px solid #10b981';
           } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && currentUser && currentUser.role === 'PENGESYOR') {
@@ -12249,7 +12270,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnContainer.style.gap = '8px';
           btnContainer.style.flexShrink = '0';
           const btn = document.createElement('button');
-          if (isSelesaiView) {
+          if (isSelesaiView || (isSearchMode && itemIsSelesai)) {
             btn.className = 'btn-sm';
             btn.style.background = '#f59e0b';
             btn.style.color = 'white';
@@ -12260,7 +12281,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             btn.className = 'btn-sm btn-proses';
             btn.innerText = '⚡ Proses';
             btn.onclick = function() {
-              if (!isBiasaActive) {
+              const isSiasatFlow = isSearchMode ? isSiasat2 : !isBiasaActive;
+              if (isSiasatFlow) {
                 if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
                 else loadRecordToPelulus(item);
               } else {
