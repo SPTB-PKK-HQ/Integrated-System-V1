@@ -6891,6 +6891,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         btn.style.boxShadow = `0 2px 8px ${c.shadow}`;
         if (hiddenPhone) hiddenPhone.value = phone;
         if (hiddenName) hiddenName.value = name;
+        updateSendToSheetState();
       };
       buttonGroup.appendChild(btn);
     });
@@ -6981,6 +6982,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       } else {
         setAutoSelectStatus(`Auto-pilih: pelulus '${targetName}' tidak dijumpai dalam senarai — pilih manual`, true);
       }
+      updateSendToSheetState();
     } catch (e) {
       console.error("Auto-select pelulus gagal:", e);
     }
@@ -9486,6 +9488,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       toggleSyorSiasatVisibility();
       toggleDateSubmitSpi();
       updateValidationCheckboxDisplay();
+      updateSendToSheetState();
     });
   }
   // Init visibility
@@ -9570,6 +9573,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           });
         }
       }
+      updateSendToSheetState();
     });
   }
 
@@ -10280,6 +10284,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         
         setTimeout(() => {
           restoreFormState('db');
+          updateSendToSheetState();
           initializeTickButtons();
           restoreActiveElement();
         }, 200);
@@ -10821,6 +10826,21 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (pelulusSahLulus) pelulusSahLulus.checked = false;
       }
     }
+
+    updateSendToSheetState();
+  }
+
+  // Kelabu + disable butang "Simpan & Hantar ke Sheet" selagi syor dipilih
+  // tetapi checkbox pengesahan belum ditanda atau Pelulus belum dipilih
+  function updateSendToSheetState() {
+    const btn = document.getElementById('btnSendToSheet');
+    if (!btn) return;
+    const syorStatusVal = document.getElementById('db_syor_status')?.value || '';
+    const isConfirmed = document.getElementById('db_sah_syor')?.checked || false;
+    const pelulusName = (document.getElementById('db_pelulus_name')?.value || '').trim();
+    const isReady = syorStatusVal === '' || (isConfirmed && pelulusName !== '');
+    btn.disabled = !isReady;
+    btn.title = btn.disabled ? 'Tandakan checkbox pengesahan dan pilih Pelulus dahulu' : '';
   }
 
   if(btnSyncToDb) {
@@ -11151,6 +11171,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     ]);
 
     console.log("V6.5.2 Borang telah direset untuk edit.");
+    updateSendToSheetState();
   }
 
   // === PENAMBAHBAIKAN: DEBOUNCING UNTUK CARIAN LEBIH LANCAR ===
@@ -14457,6 +14478,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     });
   }
 
+  // Kad personel jadi kuning apabila checkbox BARU TAMBAH ditanda (paparan frontend sahaja)
+  function syncBaruTambahHighlight(cardEl) {
+    if (!cardEl) return;
+    const cb = cardEl.querySelector('.baru-tambah-cb');
+    if (!cb) return;
+    cardEl.classList.toggle('baru-tambah-card', cb.checked);
+  }
+
   function addPerson(data=null) {
     if (!personnelList) return;
 
@@ -14582,6 +14611,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       cb.addEventListener('change', saveFormData);
     });
 
+    const baruTambahCb = div.querySelector('.baru-tambah-cb');
+    if (baruTambahCb) {
+      baruTambahCb.addEventListener('change', () => syncBaruTambahHighlight(div));
+    }
+
     // Papar checkbox BARU TAMBAH jika jenis semasa ialah UBAH MAKLUMAT
     syncBaruTambahVisibility(div);
     
@@ -14636,6 +14670,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const baruCb = div.querySelector('.baru-tambah-cb');
       if (baruCb && data.baruTambah) baruCb.checked = true;
       syncBaruTambahVisibility(div);
+      syncBaruTambahHighlight(div);
       
       const statusIc = div.querySelector('.status-ic');
       const statusSb = div.querySelector('.status-sb');
@@ -16156,8 +16191,31 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   }
               }
           });
+
+          // Warna row status (✓ hijau / X merah / kosong kelabu) - paparan frontend sahaja
+          tab.querySelectorAll('.status-input').forEach(input => syncStatusRowColor(input));
       });
   }
+
+  // Tentukan warna kotak status input: ✓ (termasuk teks selepasnya) = hijau,
+  // X/✗ (termasuk teks selepasnya) = merah, selainnya = kelabu
+  function syncStatusRowColor(inputEl) {
+      if (!inputEl) return;
+      const val = (inputEl.value || '').trim().toUpperCase();
+      inputEl.classList.remove('status-row-ok', 'status-row-x', 'status-row-empty');
+      if (val.startsWith('✓')) inputEl.classList.add('status-row-ok');
+      else if (val.startsWith('X') || val.startsWith('✗')) inputEl.classList.add('status-row-x');
+      else inputEl.classList.add('status-row-empty');
+  }
+
+  // Klik butang tick (✓/✗) - kemas kini warna row serta-merta
+  document.addEventListener('click', (e) => {
+      const tick = e.target.closest('.tick-btn');
+      if (!tick) return;
+      const container = tick.closest('.status-input-container');
+      const input = container ? container.querySelector('.status-input') : null;
+      if (input) syncStatusRowColor(input);
+  });
 
   // 1. Pantau setiap kali pengguna menaip / pilih sesuatu (Real-time)
   document.addEventListener('input', (e) => {
@@ -16425,6 +16483,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           
           let isProcessed = false;
           let inDrafts = false;
+          let matchedRecord = null;
 
           if (Array.isArray(cachedData)) {
               for (let c of cachedData) {
@@ -16457,6 +16516,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                       }
 
                       if (isMatch) {
+                          matchedRecord = c;
                           if (c.tarikh_syor && c.tarikh_syor.trim() !== '') {
                               isProcessed = true;
                           } else {
@@ -16479,7 +16539,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           let disableCheckbox = false;
 
           if (isProcessed) {
-              statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✅ Telah Disyor</span>`;
+              let isSemakanPelulus = false;
+              if (matchedRecord && (matchedRecord.syor_status || '').toUpperCase() === 'SIASAT') {
+                  try {
+                      const pjStatus = matchedRecord.borang_json ? JSON.parse(matchedRecord.borang_json) : {};
+                      const stageStatus = pjStatus.siasat_workflow ? pjStatus.siasat_workflow.stage : '';
+                      if (stageStatus === 'MENUNGGU_PELULUS') isSemakanPelulus = true;
+                  } catch(e) {}
+              }
+              if (isSemakanPelulus) {
+                  statusBadge = `<span style="background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">⏳ Semakan Pelulus</span>`;
+              } else {
+                  statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✅ Telah Disyor</span>`;
+              }
               disableCheckbox = true;
           } else if (inDrafts) {
               statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">📝 Belum Hantar</span>`;

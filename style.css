@@ -856,6 +856,9 @@
         }
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
+        .btn:disabled { background: #94a3b8 !important; cursor: not-allowed; opacity: 0.7; }
+        .btn:disabled:hover { opacity: 0.7; }
+        .btn:disabled:active { transform: none; }
         .btn-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .btn-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
         .btn-print { background: linear-gradient(135deg, #6366f1, #4f46e5); }
@@ -887,7 +890,13 @@
         .tick-right { background: linear-gradient(135deg, var(--success-color), #0ca678); color: white; }
         .tick-wrong { background: linear-gradient(135deg, var(--danger-color), #dc2626); color: white; }
 
+        /* Warna kotak status input: ✓ hijau / X merah / kosong kelabu (paparan frontend sahaja) */
+        .status-input.status-row-ok { background-color: #bbf7d0 !important; border-color: #16a34a !important; color: #14532d !important; }
+        .status-input.status-row-x { background-color: #fecaca !important; border-color: #dc2626 !important; color: #7f1d1d !important; }
+        .status-input.status-row-empty { background-color: #e2e8f0 !important; border-color: #94a3b8 !important; color: #475569 !important; }
+
         .person-card { border: 1px solid #e5e7eb; padding: 15px; border-radius: 12px; background: #f9fafb; margin-bottom: 10px; position: relative; }
+        .person-card.baru-tambah-card { background-color: #fef9c3; border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b; }
         .person-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
         .person-row label { margin-bottom: 0; font-size: 0.75rem; color: #374151; }
         .person-row input, .person-row select { width: 100%; padding: 6px 8px; font-size: 0.85rem; border-radius: 4px; border: 1px solid #d1d5db; text-transform: uppercase; }
@@ -1311,6 +1320,9 @@
             body { background: white !important; padding: 0; margin: 0; font-size: 14pt; font-family: 'Arial Narrow', 'Arial', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: black !important; animation: none !important; }
             @page { margin: 0.5cm; size: A4; }
             .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay, #loading-overlay, .pka-loading-overlay, .form-checker-loading-spinner, .custom-modal-overlay, #toastContainer { display: none !important; }
+            /* Warna frontend (kad BARU TAMBAH & kotak status) tidak dibawa ke cetakan/PDF */
+            .person-card.baru-tambah-card { background: transparent !important; border-color: #e5e7eb !important; box-shadow: none !important; }
+            .status-input.status-row-ok, .status-input.status-row-x, .status-input.status-row-empty { background-color: transparent !important; border-color: #d1d5db !important; color: #000 !important; }
             .print-only-container { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; }
             #printLaporanHarian { font-size: 13pt; padding: 10px; max-width: 100%; }
             #printLaporanHarian .header h1 { font-size: 20pt; }
