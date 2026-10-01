@@ -13560,9 +13560,39 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       );
       if(!isConfirmedAct) return;
 
+      let targetRow = document.getElementById('db_row_index')?.value || '';
+      let isGapFill = false;
+
+      if (!targetRow && cachedData && cachedData.length > 0) {
+        const gapItem = cachedData.find(item => (!item.syarikat || item.syarikat.toString().trim() === ""));
+        if (gapItem && gapItem.row) {
+          targetRow = gapItem.row;
+          isGapFill = true;
+        }
+      }
+
+      // BYPASS SIASAT: jika rekod asal sudah SYOR YA + ada date_submit (J) + TELAH DIHANTAR ke SPI,
+      // Hantar ke Sheet hanya simpan ke sheet — tidak hantar semula ke Pelulus, tak perlu checkbox/pelulus.
+      // Hanya TELAH DIHANTAR (bukan DALAM QUEUE).
+      let isSiasatSudahTelahHantar = false;
+      let origSiasatItem = null;
+      if (targetRow && cachedData) {
+        const _o = cachedData.find(d => d.row == targetRow);
+        if (_o) {
+          origSiasatItem = _o;
+          const _syorYA = (_o.syor_lawatan || '').toString().toUpperCase() === 'YA';
+          const _jAda = (_o.date_submit || '').toString().trim() !== '';
+          const _telahHantar = (_o.status_hantar_spi || '').toString().trim().toUpperCase() === 'TELAH DIHANTAR';
+          if (_syorYA && _jAda && _telahHantar) isSiasatSudahTelahHantar = true;
+        }
+      }
+
       // V6.6.0: Pre-check - Jika syor_status dipilih tapi checkbox pengesahan tidak ditanda
+      // (langkau hanya untuk SIASAT yang sudah TELAH DIHANTAR — butang boleh terus tekan)
       const preSyorVal = document.getElementById('db_syor_status')?.value || '';
-      if (preSyorVal.trim() !== '' && (dbSahSyor ? !dbSahSyor.checked : true)) {
+      const _preIsSiasatBypass = isSiasatSudahTelahHantar &&
+        (document.getElementById('db_syor')?.value === 'YA' && preSyorVal === 'SIASAT');
+      if (!_preIsSiasatBypass && preSyorVal.trim() !== '' && (dbSahSyor ? !dbSahSyor.checked : true)) {
           await CustomAppModal.alert(
               'Anda telah memilih keputusan syor (<b>' + preSyorVal + '</b>) tetapi belum menandakan pengesahan.<br><br>' +
               'Sila:<br>' +
@@ -13575,23 +13605,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           return;
       }
 
-      let targetRow = document.getElementById('db_row_index')?.value || '';
-      let isGapFill = false;
-
-      if (!targetRow && cachedData && cachedData.length > 0) {
-        const gapItem = cachedData.find(item => (!item.syarikat || item.syarikat.toString().trim() === ""));
-        if (gapItem && gapItem.row) {
-          targetRow = gapItem.row;
-          isGapFill = true;
-        }
-      }
-
       const isConfirmed = dbSahSyor ? dbSahSyor.checked : false;
-      
+       
       // V6.6.0: Jika sah syor, pastikan pelulus dipilih
+      // (langkau jika bypass TELAH DIHANTAR — tak perlu pilih pelulus)
       let selectedPelulusName = '';
       let selectedPelulusPhone = '';
-      if (isConfirmed) {
+      const _bypassPelulusCheck = isSiasatSudahTelahHantar &&
+        (document.getElementById('db_syor')?.value === 'YA' &&
+         document.getElementById('db_syor_status')?.value === 'SIASAT');
+      if (isConfirmed && !_bypassPelulusCheck) {
         selectedPelulusPhone = document.getElementById('db_pelulus_whatsapp')?.value || '';
         selectedPelulusName = document.getElementById('db_pelulus_name')?.value || '';
         if (!selectedPelulusName) {
@@ -13632,8 +13655,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
       }
       let confirmHantarEmel = false;
-      const isSiasatWorkflow = (dbSyorValue === 'YA' && dbSyorStatusValue === 'SIASAT');
-      if (isSiasatWorkflow) {
+      const isSiasatDipilih = (dbSyorValue === 'YA' && dbSyorStatusValue === 'SIASAT');
+      // Jika sudah TELAH DIHANTAR: Hantar ke Sheet hanya simpan — tidak hantar semula ke Pelulus
+      const isSiasatBypassKePelulus = isSiasatDipilih && isSiasatSudahTelahHantar;
+      const isSiasatWorkflow = isSiasatDipilih && !isSiasatBypassKePelulus;
+      if (isSiasatBypassKePelulus) {
+        // Bypass: tak perlu checkbox/pelulus/justifikasi, tiada WhatsApp ke Pelulus
+        confirmHantarEmel = false;
+      } else if (isSiasatWorkflow) {
         // SIASAT: Pengesyor tidak perlu tarikh, tidak terus ke SPI – hanya ke Pelulus
         confirmHantarEmel = false;
         // Validasi SIASAT mesti sah + pelulus
@@ -13813,16 +13842,25 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
          if (existingWorkflow && existingWorkflow.stage === 'DITOLAK_PELULUS') {
            hist.push({ stage: 'DITOLAK', tarikh: existingWorkflow.tarikh_tolak || '', pelulus: existingWorkflow.pelulus_asal || '', alasan: existingWorkflow.alasan_tolak || '' });
          }
-         borangJsonData['siasat_workflow'] = {
-           stage: 'MENUNGGU_PELULUS',
-           pelulus_asal: selectedPelulusName,
-           pelulus_phone: selectedPelulusPhone,
-           tarikh_hantar_ke_pelulus: localToday,
-           justifikasi: justifikasiVal,
-           history: hist
-         };
-       } else {
-         // Jika bukan SIASAT tapi rekod lama ada workflow DITOLAK, kekalkan history untuk audit
+          borangJsonData['siasat_workflow'] = {
+            stage: 'MENUNGGU_PELULUS',
+            pelulus_asal: selectedPelulusName,
+            pelulus_phone: selectedPelulusPhone,
+            tarikh_hantar_ke_pelulus: localToday,
+            justifikasi: justifikasiVal,
+            history: hist
+          };
+        } else if (isSiasatBypassKePelulus) {
+          // BYPASS TELAH DIHANTAR: kekalkan workflow SAHKAN_KE_SPI asal — jangan tulis MENUNGGU_PELULUS semula
+          const _srcBy = origSiasatItem || (targetRow && cachedData ? cachedData.find(item => item.row == targetRow) : null);
+          if (_srcBy && _srcBy.borang_json) {
+            try {
+              const oldPBy = JSON.parse(_srcBy.borang_json);
+              if (oldPBy.siasat_workflow) borangJsonData['siasat_workflow'] = oldPBy.siasat_workflow;
+            } catch(e) {}
+          }
+        } else {
+          // Jika bukan SIASAT tapi rekod lama ada workflow DITOLAK, kekalkan history untuk audit
          if (targetRow && cachedData) {
            const oldIt2 = cachedData.find(item => item.row == targetRow);
            if (oldIt2 && oldIt2.borang_json) {
@@ -13870,7 +13908,22 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         borang_json: JSON.stringify(borangJsonData) // JSON yang telah merangkumi semua elemen
       };
       
-      if (isConfirmed) {
+      if (isSiasatBypassKePelulus) {
+        // BYPASS TELAH DIHANTAR: kekalkan syor/pelulus asal supaya N kekal SIASAT dan tidak hantar ke Pelulus semula.
+        // date_submit juga dikekalkan dari asal jika input terkunci/kosong.
+        if (origSiasatItem) {
+          payload.syor_status = origSiasatItem.syor_status || dbSyorStatusValue || 'SIASAT';
+          payload.tarikh_syor = origSiasatItem.tarikh_syor || localToday;
+          payload.pelulus = origSiasatItem.pelulus || '';
+          if ((!payload.date_submit || payload.date_submit.toString().trim() === '') && origSiasatItem.date_submit) {
+            payload.date_submit = origSiasatItem.date_submit;
+          }
+        } else {
+          payload.syor_status = dbSyorStatusValue || 'SIASAT';
+          payload.tarikh_syor = localToday;
+          payload.pelulus = '';
+        }
+      } else if (isConfirmed) {
         payload.syor_status = document.getElementById('db_syor_status')?.value || 'SOKONG';
         payload.tarikh_syor = localToday;
         payload.pelulus = selectedPelulusName; // V6.6.0: Nama pelulus untuk kolum Z
@@ -13886,7 +13939,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       submitData(payload, "Rekod berjaya disimpan!", async (result) => {
         let message = "";
-        if (isConfirmed) {
+        if (isSiasatBypassKePelulus) {
+          message = "Rekod berjaya dikemaskini. (Telah dihantar ke SPI — tidak dihantar semula ke Pelulus)";
+        } else if (isConfirmed) {
           if (isSiasatWorkflow) message = "Permohonan SIASAT berjaya dihantar ke Pelulus untuk semakan. Sila tunggu pengesahan Pelulus.";
           else message = "Data BERJAYA dihantar ke pangkalan data dan telah dipindahkan ke 'Telah Syor'.";
         } else {
@@ -13895,8 +13950,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         
         await playSuccessSound();
         
-        // Modal WhatsApp selepas submit – SIASAT guna template semakan
-        if (isConfirmed && selectedPelulusPhone) {
+        // Modal WhatsApp selepas submit – SIASAT guna template semakan (langkau jika bypass TELAH DIHANTAR)
+        if (!isSiasatBypassKePelulus && isConfirmed && selectedPelulusPhone) {
           let waUrl = null;
           if (isSiasatWorkflow) {
             waUrl = sendWhatsAppSiasatToPelulus(
