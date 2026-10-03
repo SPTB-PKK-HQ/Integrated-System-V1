@@ -734,10 +734,20 @@ async function handleCredentialResponse(response) {
       currentUser.email = userEmail.toLowerCase();
 
       // Simpan gambar pengguna dari sheet Users, boost resolusi Google-hosted image
-      let picUrl = currentUser.imageUrl || '';
+      // FIX kabur: s256 (202x256, ~54KB) terlalu kecil -> guna s512-c (512x512 square-crop, tajam untuk avatar 40px & popup 80px termasuk retina)
+      let picUrl = (currentUser.imageUrl || '').trim();
       if (picUrl.includes('lh3.googleusercontent.com')) {
-        picUrl = picUrl.replace(/=s\d+(-c)?/i, '=s256');
-        if (!picUrl.includes('=s')) picUrl += '=s256';
+        if (/=s\d+(-c)?/i.test(picUrl)) {
+          picUrl = picUrl.replace(/=s\d+(-c)?/i, '=s512-c');
+        } else if (/=w\d+/i.test(picUrl)) {
+          picUrl = picUrl.replace(/=w\d+(-c)?/i, '=s512-c');
+        } else {
+          picUrl += '=s512-c';
+        }
+      } else if (picUrl.includes('drive.google.com/thumbnail')) {
+        // Contoh: https://drive.google.com/thumbnail?id=XXX&sz=s200 -> upgrade ke s512
+        picUrl = picUrl.replace(/([?&])sz=s?\d+/i, '$1sz=s512').replace(/([?&])sz=w\d+/i, '$1sz=s512');
+        if (!/[?&]sz=/i.test(picUrl)) picUrl += (picUrl.includes('?') ? '&' : '?') + 'sz=s512';
       }
       currentUser.picture = picUrl;
 
@@ -9761,6 +9771,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
   function setupUserUI() {
     if (!currentUser || !appContainer || !userBadge) return;
+
+    // MIGRASI: upgrade cache lama s256 -> s512-c supaya sesi sedia ada terus jadi tajam tanpa perlu login semula
+    try {
+      let _p = (currentUser.picture || currentUser.imageUrl || '').trim();
+      if (_p.includes('lh3.googleusercontent.com') && _p.includes('=s256')) {
+        _p = _p.replace(/=s256(-c)?/i, '=s512-c');
+        currentUser.picture = _p;
+        if (typeof storageWrapper !== 'undefined') storageWrapper.set({ 'stb_session': currentUser });
+      }
+    } catch (e) {}
 
     // Pastikan skrin login tertutup
     if (loginScreen) loginScreen.style.display = 'none';
