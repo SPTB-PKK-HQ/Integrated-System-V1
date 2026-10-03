@@ -580,6 +580,20 @@ function doPost(e) {
       }
       return handleUploadDriveFile(data);
     }
+
+    // V6.12.0: Handler muat naik berchunk (progress sebenar tanpa preflight CORS).
+    // Setiap chunk dihantar sebagai simple POST (fetch text/plain); backend cantumkan semula.
+    if (data.action === 'uploadDriveFileChunk' || data.action === 'finalizeDriveUpload') {
+      if (!data.email) {
+        return createJSONOutput({ success: false, error: "Email diperlukan." });
+      }
+      const accessCheckChunk = verifyUserAccess(data.email, [ROLE_PENGESYOR, ROLE_ADMIN, ROLE_PELULUS, ROLE_PKA]);
+      if (!accessCheckChunk.isAuthorized) {
+        return createJSONOutput({ success: false, error: accessCheckChunk.error });
+      }
+      if (data.action === 'uploadDriveFileChunk') return handleUploadDriveFileChunk(data);
+      return handleFinalizeDriveUpload(data);
+    }
     
     // V6.7.0: Handler untuk deleteDriveFile
     if (data.action === 'deleteDriveFile') {
@@ -1003,16 +1017,44 @@ function handleCetakDanSimpanPDF(data) {
     const blob = Utilities.newBlob(validHtmlContent, MimeType.HTML).getAs(MimeType.PDF);
     const fileName = data.custom_file_name ? data.custom_file_name + '.pdf' : 'Borang_Semakan_' + data.company_name + '.pdf';
     blob.setName(fileName);
-    
+
+    // V6.12.0: Padam Borang Semakan lama — hanya yang terkini dikekalkan dalam Drive (ke Trash, boleh restore 30 hari).
+    // Skop ketat: hanya fail nama mula 'Borang Semakan' / 'Borang_Semakan_' (tampung varian biasa, SOKONG, TIDAK DISOKONG, SIASAT, LULUS, TOLAK).
+    // Fail lain (surat, KWSP, laporan SPI, upload manual) TIDAK disentuh.
+    const deletedFiles = [];
+    try {
+      const existingFiles = targetFolder.getFiles();
+      while (existingFiles.hasNext()) {
+        const oldFile = existingFiles.next();
+        const oldName = (oldFile.getName() || '').toString().trim();
+        const oldUpper = oldName.toUpperCase();
+        if (oldUpper.indexOf('BORANG SEMAKAN') === 0 || oldUpper.indexOf('BORANG_SEMAKAN') === 0) {
+          try {
+            deletedFiles.push(oldName);
+            oldFile.setTrashed(true);
+          } catch (eDel) {
+            Logger.log('[CetakPDF] Gagal padam fail lama ' + oldName + ': ' + eDel.toString());
+          }
+        }
+      }
+    } catch (eScan) {
+      Logger.log('[CetakPDF] Gagal imbas fail lama: ' + eScan.toString());
+    }
+
     const pdfFile = targetFolder.createFile(blob);
-    
+
     logActivity(
       data.user_name,
       'CETAK_PDF',
-      `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})`,
+      `PDF Borang Semakan disimpan untuk ${data.company_name} (Warna: ${themeColor})` + (deletedFiles.length > 0 ? ` — ${deletedFiles.length} borang lama dipadam: ${deletedFiles.join(', ')}` : ''),
       targetFolder.getId()
     );
-    
+    if (deletedFiles.length > 0) {
+      try {
+        logActivity(data.user_name, 'CETAK_PDF_GANTI', `Borang lama dipadam untuk ${data.company_name}: ${deletedFiles.join(', ')} — hanya terkini dikekalkan (${fileName})`, targetFolder.getId());
+      } catch (eLog) {}
+    }
+
     invalidateDataCache();
     return createJSONOutput({
       success: true,
@@ -1022,7 +1064,9 @@ function handleCetakDanSimpanPDF(data) {
       file_id: pdfFile.getId(),
       file_name: fileName,
       folder_path: folderPath,
-      message: "PDF berjaya disimpan dengan imej tertanam dan folder disiapkan"
+      deleted_count: deletedFiles.length,
+      deleted_files: deletedFiles,
+      message: deletedFiles.length > 0 ? `PDF berjaya dikemaskini. ${deletedFiles.length} borang lama dipadam, hanya yang terkini dikekalkan.` : "PDF berjaya disimpan dengan imej tertanam dan folder disiapkan"
     });
 
   } catch (error) {
@@ -3740,6 +3784,100 @@ function handleUploadDriveFile(data) {
       }
     });
     
+  } catch (error) {
+    var msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1) {
+      msg = "Fail tidak dapat diakses. Mungkin fail ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
+  }
+}
+
+// V6.12.0: MUAT NAIK BERCHUNK — terima satu chunk base64, simpan dalam ScriptCache (TTL 10 minit).
+// Chunk dihantar sebagai simple POST (fetch text/plain) supaya tiada preflight CORS.
+// Frontend bahagikan base64 kepada ~64KB setiap chunk, hantar selari, kemudian finalize.
+function handleUploadDriveFileChunk(data) {
+  try {
+    const sessionId = (data.sessionId || '').toString().trim();
+    const index = parseInt(data.chunkIndex, 10);
+    const total = parseInt(data.totalChunks, 10);
+    const chunk = data.chunkData || '';
+    if (!sessionId || isNaN(index) || isNaN(total) || index < 0 || index >= total || !chunk) {
+      return createJSONOutput({ success: false, error: 'Data chunk tidak lengkap.' });
+    }
+    if (chunk.length > 100000) {
+      return createJSONOutput({ success: false, error: 'Saiz chunk melebihi had.' });
+    }
+    const cache = CacheService.getScriptCache();
+    cache.put('UPL_' + sessionId + '_' + index, chunk, 600);
+    cache.put('UPL_' + sessionId + '_meta', String(total), 600);
+    return createJSONOutput({ success: true, received: index });
+  } catch (error) {
+    return createJSONOutput({ success: false, error: error.toString() });
+  }
+}
+
+// V6.12.0: Cantum semua chunk dari cache → decode → cipta fail dalam folder Drive.
+function handleFinalizeDriveUpload(data) {
+  try {
+    const sessionId = (data.sessionId || '').toString().trim();
+    const folderId = data.folderId;
+    const fileName = data.fileName;
+    const mimeType = data.mimeType || 'application/octet-stream';
+    if (!sessionId || !folderId || !fileName) {
+      return createJSONOutput({ success: false, error: 'sessionId, folderId dan fileName diperlukan.' });
+    }
+    const cache = CacheService.getScriptCache();
+    const metaVal = cache.get('UPL_' + sessionId + '_meta');
+    if (!metaVal) {
+      return createJSONOutput({ success: false, error: 'Sesi muat naik tamat. Sila cuba semula.' });
+    }
+    const total = parseInt(metaVal, 10);
+    const parts = [];
+    for (let i = 0; i < total; i++) {
+      const part = cache.get('UPL_' + sessionId + '_' + i);
+      if (part === null || part === undefined) {
+        return createJSONOutput({ success: false, error: 'Bahagian ' + (i + 1) + '/' + total + ' hilang. Sila cuba semula.' });
+      }
+      parts.push(part);
+    }
+    const folder = DriveApp.getFolderById(folderId);
+    const bytes = Utilities.base64Decode(parts.join(''));
+    const blob = Utilities.newBlob(bytes, mimeType, fileName);
+    const createdFile = folder.createFile(blob);
+
+    try {
+      const uploaderEmail = String(data.email || '').toLowerCase().trim();
+      let uploaderName = '';
+      try {
+        const uploaderProfile = findUserByEmailCached(data.email);
+        if (uploaderProfile && uploaderProfile.name) uploaderName = uploaderProfile.name;
+      } catch (e) {}
+      createdFile.setDescription(JSON.stringify({ uploadedBy: uploaderEmail, uploadedByName: uploaderName, at: new Date().toISOString(), chunked: true }));
+    } catch (e) {}
+
+    try {
+      cache.remove('UPL_' + sessionId + '_meta');
+      for (let i = 0; i < total; i++) { try { cache.remove('UPL_' + sessionId + '_' + i); } catch (e) {} }
+    } catch (e) {}
+
+    logActivity(data.email || 'System', 'UPLOAD_FILE', 'Fail dimuat naik (berchunk): ' + fileName + ' ke folder ' + folder.getName(), folderId);
+
+    return createJSONOutput({
+      success: true,
+      file: {
+        id: createdFile.getId(),
+        name: createdFile.getName(),
+        mimeType: createdFile.getMimeType(),
+        size: createdFile.getSize(),
+        lastUpdated: createdFile.getLastUpdated().toISOString(),
+        webViewLink: createdFile.getUrl(),
+        thumbnailLink: createdFile.getMimeType().startsWith('image/')
+          ? 'https://drive.google.com/thumbnail?id=' + createdFile.getId() + '&sz=s200'
+          : '',
+        uploadedBy: String(data.email || '').toLowerCase().trim()
+      }
+    });
   } catch (error) {
     var msg = error.toString();
     if (msg.indexOf('No item with the given ID') > -1) {

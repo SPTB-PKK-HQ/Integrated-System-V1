@@ -7548,8 +7548,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               if (btnSyncToDb) btnSyncToDb.style.display = 'inline-block';
               if (driveResult && folderUrl) showDriveFolderLink(folderUrl, userFolderUrl);
               
-              // Mesej berjaya dikemaskini
-              await CustomAppModal.alert("Borang telah dicetak dan fail PDF berjaya dikemaskini di Drive!<br><br>Pautan folder telah dimasukkan secara automatik ke Input Database.", "Berjaya Disimpan", "success");
+              // Mesej berjaya dikemaskini (V6.12.0: maklum borang lama dipadam, hanya terkini dikekalkan)
+              const kemaskiniInfo = (result.deleted_count > 0) ? `<br><br>Borang lama (${result.deleted_count}) telah dipadam. Hanya borang terkini dipaparkan dalam Drive.` : `<br><br>Hanya borang terkini dipaparkan dalam Drive.`;
+              await CustomAppModal.alert("Borang telah dicetak dan fail PDF berjaya dikemaskini di Drive!" + kemaskiniInfo + "<br><br>Pautan folder telah dimasukkan secara automatik ke Input Database.", "Berjaya Disimpan", "success");
             }, 500);
             
           } else {
@@ -8592,42 +8593,62 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const total = files.length;
     const progressToast = showProgressToast(`Muat naik 0/${total} fail...`);
 
-    for (let i = 0; i < total; i++) {
-      const file = files[i];
-      const pct = (i / total) * 100;
-      if (progressText) progressText.textContent = `Memuat naik ${i + 1}/${total}: ${file.name}`;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-      progressToast.update(pct, `Memuat naik ${i + 1}/${total}: ${file.name}`);
+    // V6.12.0: Batal automatik jika pengguna tutup modal ketika muat naik berjalan
+    let uploadCancelled = false;
+    const cancelUpload = (e) => {
+      if (!e || !e.target) return;
+      if (e.target.id === 'fileManagerClose' || e.target === fileManagerModal) uploadCancelled = true;
+    };
+    if (fileManagerModal) fileManagerModal.addEventListener('click', cancelUpload);
 
-      try {
-        const base64 = await fileToBase64(file);
-        const response = await fetchWithRetry(SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'uploadDriveFile',
-            folderId: folderId,
-            fileName: file.name,
-            mimeType: file.type || 'application/octet-stream',
-            fileData: base64.split(',')[1] || base64,
-            email: currentUser ? currentUser.email : ''
-          })
-        }, 3, 2000);
+    const renderProgress = (fileIndex, frac, fileName, phase) => {
+      const overall = ((fileIndex + frac) / total) * 100;
+      const pctLabel = Math.floor(overall) + '%';
+      if (progressBar) progressBar.style.width = overall + '%';
+      const msg = `Memuat naik ${fileIndex + 1}/${total}: ${fileName} — ${pctLabel} (${phase})`;
+      if (progressText) progressText.textContent = msg;
+      if (progressToast) progressToast.update(overall, msg);
+    };
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const result = await response.json();
-        if (result.success) {
-          uploaded++;
-        } else {
-          lastError = result.error || '';
-          console.error("V6.7.0 Upload failed for", file.name, result.error);
+    try {
+      for (let i = 0; i < total; i++) {
+        if (uploadCancelled) { lastError = 'Muat naik dibatalkan.'; break; }
+        const file = files[i];
+        renderProgress(i, 0, file.name, 'Membaca fail');
+
+        try {
+          // V6.12.0: Baca (0-10%) + hantar berchunk (10-90%) + gabung (90-100%) — semua via fetch (simple request, tiada preflight)
+          const result = await uploadSingleFileWithProgress(file, folderId, currentUser ? currentUser.email : '', (frac) => {
+            if (uploadCancelled) throw new Error('__CANCELLED__');
+            renderProgress(i, frac, file.name, frac < 0.1 ? 'Membaca fail' : (frac < 0.95 ? 'Menghantar ke Drive' : 'Melengkapkan'));
+          });
+
+          if (result && result.success) {
+            uploaded++;
+          } else {
+            lastError = (result && result.error) || '';
+            console.error("V6.7.0 Upload failed for", file.name, lastError);
+          }
+        } catch (err) {
+          if (err && err.message === '__CANCELLED__') {
+            lastError = 'Muat naik dibatalkan.';
+            break;
+          }
+          lastError = (err && err.message) || '';
+          console.error("V6.7.0 Error uploading", file.name, err);
         }
-      } catch (err) {
-        lastError = err.message || '';
-        console.error("V6.7.0 Error uploading", file.name, err);
-      }
 
-      if (progressBar) progressBar.style.width = `${((i + 1) / total) * 100}%`;
+        renderProgress(i, 1, file.name, 'Selesai');
+      }
+    } finally {
+      if (fileManagerModal) fileManagerModal.removeEventListener('click', cancelUpload);
+    }
+
+    if (uploadCancelled) {
+      if (progressEl) progressEl.style.display = 'none';
+      if (fileManagerUploadInput) fileManagerUploadInput.value = '';
+      if (progressToast) progressToast.done('Muat naik dibatalkan', true);
+      return;
     }
 
     if (progressEl) progressEl.style.display = 'none';
@@ -8694,13 +8715,127 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     });
   }
 
-  function fileToBase64(file) {
+  // V6.12.0: Baca fail dengan progress sebenar (FileReader.onprogress)
+  function fileToBase64(file, onProgress) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
+      reader.onprogress = (e) => {
+        if (typeof onProgress === 'function' && e && e.lengthComputable && e.total > 0) {
+          try { onProgress(Math.min(1, e.loaded / e.total)); } catch (err) {}
+        }
+      };
+      reader.onload = () => {
+        if (typeof onProgress === 'function') { try { onProgress(1); } catch (err) {} }
+        resolve(reader.result);
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+
+  // V6.12.0: MUAT NAIK BERCHUNK melalui fetch (simple request text/plain — tiada preflight CORS).
+  // Nota: XHR + xhr.upload.onprogress TIDAK boleh digunakan ke Apps Script — Chrome menghantar
+  // preflight OPTIONS sebaik sahaja upload listener dipasang, dan endpoint /exec tidak menyokongnya
+  // (disahkan melalui ujian tempatan: fetch OK, XHR+upload-listener kena preflight).
+  // Penyelesaian: bahagikan base64 kepada chunk kecil, hantar selari via fetch, gabung di backend.
+  // Retry chunk adalah selamat (idempoten — tulis semula chunk yang sama).
+  const UPLOAD_CHUNK_SIZE = 64 * 1024; // aksara base64 setiap chunk (selamat di bawah had 100KB cache)
+  const UPLOAD_CONCURRENCY = 4; // bilangan chunk dihantar serentak
+
+  function makeUploadSessionId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+
+  async function postChunk(sessionId, index, total, chunkStr, email) {
+    const response = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'uploadDriveFileChunk',
+        sessionId: sessionId,
+        chunkIndex: index,
+        totalChunks: total,
+        chunkData: chunkStr,
+        email: email || ''
+      })
+    }, 2, 2000);
+    if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Chunk gagal dihantar');
+    return result;
+  }
+
+  async function finalizeChunkedUpload(sessionId, folderId, fileName, mimeType, email) {
+    // 1 cubaan sahaja: finalize yang berjaya memadam cache — retry buta boleh mengelirukan.
+    // Jika gagal (cth. chunk luput), pengguna hantar semula; chunk dihantar semula automatik.
+    const response = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'finalizeDriveUpload',
+        sessionId: sessionId,
+        folderId: folderId,
+        fileName: fileName,
+        mimeType: mimeType,
+        email: email || ''
+      })
+    }, 1, 2000);
+    if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Gagal menggabungkan fail');
+    return result;
+  }
+
+  // Muat naik satu fail dengan progress sebenar: baca (0-10%) + chunk (10-90%) + gabung (90-100%).
+  // Fail kecil (muat 1 chunk) guna laluan single-shot sedia ada — pantas, tiada perubahan backend.
+  async function uploadSingleFileWithProgress(file, folderId, email, onFrac) {
+    const fire = (f) => {
+      if (typeof onFrac === 'function') {
+        try { onFrac(Math.min(1, Math.max(0, f))); } catch (e) { throw e; }
+      }
+    };
+    const base64Full = await fileToBase64(file, (readFrac) => fire(readFrac * 0.1));
+    const base64 = base64Full.split(',')[1] || base64Full;
+    const mimeType = file.type || 'application/octet-stream';
+
+    if (base64.length <= UPLOAD_CHUNK_SIZE) {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'uploadDriveFile',
+          folderId: folderId,
+          fileName: file.name,
+          mimeType: mimeType,
+          fileData: base64,
+          email: email || ''
+        })
+      }, 3, 2000);
+      if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Muat naik gagal');
+      fire(1);
+      return result;
+    }
+
+    const sessionId = makeUploadSessionId();
+    const total = Math.ceil(base64.length / UPLOAD_CHUNK_SIZE);
+    let done = 0;
+    for (let start = 0; start < total; start += UPLOAD_CONCURRENCY) {
+      const batch = [];
+      for (let idx = start; idx < Math.min(start + UPLOAD_CONCURRENCY, total); idx++) {
+        const chunkStr = base64.slice(idx * UPLOAD_CHUNK_SIZE, (idx + 1) * UPLOAD_CHUNK_SIZE);
+        batch.push(postChunk(sessionId, idx, total, chunkStr, email).then(() => {
+          done++;
+          fire(0.1 + (done / total) * 0.8);
+        }));
+      }
+      await Promise.all(batch);
+    }
+    fire(0.92);
+    const result = await finalizeChunkedUpload(sessionId, folderId, file.name, mimeType, email);
+    fire(1);
+    return result;
   }
 
   if (btnFileManagerRefresh) {
@@ -13676,6 +13811,26 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           await CustomAppModal.alert("Sila isi Justifikasi Lawatan sebelum hantar SIASAT ke Pelulus.", "Justifikasi Diperlukan", "warning");
           return;
         }
+        // V6.12.0: Semak alamat perniagaan sebelum hantar SIASAT ke Pelulus (Pengesyor sahaja)
+        const siasatSyarikat = document.getElementById('db_syarikat')?.value || '';
+        const siasatAlamat = document.getElementById('db_alamat_perniagaan')?.value || '';
+        const alamatSah = await CustomAppModal.confirm(
+            "Sila semak alamat perniagaan syarikat sebelum dihantar ke Pelulus untuk semakan.<br><br>" +
+            "🏢 <b>" + siasatSyarikat + "</b><br>" +
+            "<b>Alamat Perniagaan:</b><br>" +
+            (siasatAlamat || 'Tiada alamat') +
+            "<br><br>" +
+            "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(siasatAlamat || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
+            "<br><br>Adakah alamat perniagaan syarikat ini tepat?",
+            "Semakan Alamat SIASAT",
+            "info",
+            "Ya, Tepat — Teruskan",
+            false
+        );
+        if (!alamatSah) {
+            await CustomAppModal.alert("Sila kemaskini alamat perniagaan terlebih dahulu sebelum hantar SIASAT ke Pelulus.", "Alamat Diperlukan", "warning");
+            return;
+        }
       } else if (dbSyorValue === 'YA' && dbSubmitDateValue && dbSubmitDateValue.trim() !== '') {
         const hasSyorAndConfirmed = (dbSyorStatusValue.trim() !== '') && isConfirmed;
         
@@ -17797,7 +17952,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
                   hideLoading();
                   await playSuccessSound();
-                  await CustomAppModal.alert("Fail PDF berjaya dikemaskini di Drive! Pilihan untuk mengemaskini ke Drive bagi rekod ini telah ditutup.", "Berjaya Disimpan", "success");
+                  const pelulusInfo = (result.deleted_count > 0) ? ` Borang lama (${result.deleted_count}) telah dipadam — hanya borang terkini dipaparkan dalam Drive.` : ` Hanya borang terkini dipaparkan dalam Drive.`;
+                  await CustomAppModal.alert("Fail PDF berjaya dikemaskini di Drive!" + pelulusInfo + " Pilihan untuk mengemaskini ke Drive bagi rekod ini telah ditutup.", "Berjaya Disimpan", "success");
                   
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
