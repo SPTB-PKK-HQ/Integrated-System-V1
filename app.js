@@ -268,12 +268,12 @@ document.addEventListener('DOMContentLoaded', () => {
               // Set Ikon & Warna
               iconBox.className = 'custom-modal-icon-container';
               const type = options.type || 'info';
-              if (type === 'success') { iconBox.classList.add('icon-success'); iconEl.innerHTML = '✨'; }
-              else if (type === 'error') { iconBox.classList.add('icon-error'); iconEl.innerHTML = '❌'; }
-              else if (type === 'warning') { iconBox.classList.add('icon-warning'); iconEl.innerHTML = '⚠️'; }
-              else { iconBox.classList.add('icon-info'); iconEl.innerHTML = 'ℹ️'; }
+              if (type === 'success') { iconBox.classList.add('icon-success'); iconEl.innerHTML = '<i class="fa-solid fa-circle-check"></i>'; }
+              else if (type === 'error') { iconBox.classList.add('icon-error'); iconEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>'; }
+              else if (type === 'warning') { iconBox.classList.add('icon-warning'); iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>'; }
+              else { iconBox.classList.add('icon-info'); iconEl.innerHTML = '<i class="fa-solid fa-circle-info"></i>'; }
 
-              titleEl.innerText = options.title || 'Makluman';
+              titleEl.innerHTML = options.title || 'Makluman';
               messageEl.innerHTML = options.message || '';
               actionsEl.innerHTML = ''; // Clear butang lama
 
@@ -481,10 +481,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function showToast(message, type = 'success', duration = 2800) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
-    const icons = { success: '✓', error: '✗', info: 'ℹ', warning: '⚠' };
+    const icons = { success: '<i class="fa-solid fa-check"></i>', error: '<i class="fa-solid fa-xmark"></i>', info: '<i class="fa-solid fa-circle-info"></i>', warning: '<i class="fa-solid fa-triangle-exclamation"></i>' };
     const el = document.createElement('div');
     el.className = `toast toast-${type}`;
-    el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><div class="toast-body"><div class="toast-msg">${message}</div></div>`;
+    el.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><div class="toast-body"><div class="toast-msg">${message}</div></div>`;
     container.appendChild(el);
     setTimeout(() => { if (el.parentNode) el.remove(); }, duration + 400);
   }
@@ -494,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) return;
     const el = document.createElement('div');
     el.className = 'toast toast-info toast-progress';
-    el.innerHTML = `<span class="toast-icon">⬆</span><div class="toast-body"><div class="toast-msg">${message}</div><div class="toast-progress-track"><div class="toast-progress-bar"></div></div></div>`;
+    el.innerHTML = `<span class="toast-icon"><i class="fa-solid fa-circle-up"></i></span><div class="toast-body"><div class="toast-msg">${message}</div><div class="toast-progress-track"><div class="toast-progress-bar"></div></div></div>`;
     container.appendChild(el);
     return {
       update(pct, msg) {
@@ -509,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const msgEl = el.querySelector('.toast-msg');
         if (msgEl) msgEl.textContent = successMsg;
         const icon = el.querySelector('.toast-icon');
-        if (icon) icon.textContent = isError ? '✗' : '✓';
+        if (icon) icon.innerHTML = isError ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-check"></i>';
         el.style.borderLeftColor = isError ? '#ef4444' : '#10b981';
         setTimeout(() => { if (el.parentNode) el.remove(); }, 2200);
       }
@@ -788,7 +788,7 @@ async function handleCredentialResponse(response) {
     const jataImg = `<img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.innerHTML = pic
       ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) ${jataImg}`
-      : `👤 ${currentUser.name} (${currentUser.role}) ${jataImg}`;
+      : `<i class="fa-solid fa-user fa-ico"></i>${currentUser.name} (${currentUser.role}) ${jataImg}`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {
@@ -1988,8 +1988,8 @@ async function handleCredentialResponse(response) {
             const container = document.createElement('div');
             container.className = 'tick-buttons';
             container.innerHTML = `
-              <button type="button" class="tick-btn tick-right" title="Set OK">✓</button>
-              <button type="button" class="tick-btn tick-wrong" title="Set X">✗</button>
+              <button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button>
+              <button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button>
             `;
             input.parentElement.style.position = 'relative';
             input.parentElement.appendChild(container);
@@ -3851,7 +3851,7 @@ async function handleCredentialResponse(response) {
     if (dashboardUserInfo) {
       dashboardUserInfo.innerHTML = `
         <p style="margin: 0; font-weight: 600; color: #64748b;">
-          📊 Tiada data untuk dipaparkan
+          <i class="fa-solid fa-chart-column fa-ico"></i>Tiada data untuk dipaparkan
         </p>
         <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #94a3b8;">
           Sila muat turun data atau hantar permohonan terlebih dahulu
@@ -4087,11 +4087,11 @@ async function handleCredentialResponse(response) {
           ? top.map(([n, c]) => `<div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:3px 0;border-bottom:1px dashed #e2e8f0;"><span>${n}</span><strong>${c}</strong></div>`).join('')
           : '<div style="font-size:0.8rem;color:#94a3b8;">Tiada data diproses.</div>';
         infoEl.innerHTML = ''
-          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">✅ Syor PKA (diproses)</div>`
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;"><i class="fa-solid fa-check fa-ico"></i>Syor PKA (diproses)</div>`
           + `<div style="font-size:0.8rem;color:#475569;">SOKONG: <strong style="color:#059669;">${sokong.length}</strong> | TIDAK: <strong style="color:#dc2626;">${tidak.length}</strong> | Kadar sokongan: <strong>${kadarSokong}%</strong></div></div>`
-          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">⚖️ Outcome hiliran (dari diproses)</div>`
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;"><i class="fa-solid fa-scale-balanced fa-ico"></i>Outcome hiliran (dari diproses)</div>`
           + `<div style="font-size:0.8rem;color:#475569;">LULUS: <strong style="color:#059669;">${lulusHiliran.length}</strong> | TOLAK/SIASAT: <strong style="color:#dc2626;">${tolakHiliran.length}</strong> | Menunggu: <strong>${menungguHiliran.length}</strong></div></div>`
-          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;">👤 Top pengesyor (sumber diproses)</div>${topHtml}</div>`;
+          + `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;"><div style="font-weight:800;font-size:0.85rem;color:#0f172a;margin-bottom:6px;"><i class="fa-solid fa-user fa-ico"></i>Top pengesyor (sumber diproses)</div>${topHtml}</div>`;
       }
     } catch (e) {}
 
@@ -4135,7 +4135,7 @@ async function handleCredentialResponse(response) {
       const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
       const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '';
       const failBtn = d.pautan
-        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive">📂 Fail</button>`
+        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive"><i class="fa-solid fa-folder-open fa-ico"></i>Fail</button>`
         : '';
       return `<div class="app-item-wrapper inbox-pending">
         <div class="app-item-number">${i + 1}</div>
@@ -4143,13 +4143,13 @@ async function handleCredentialResponse(response) {
         <div class="app-info" style="flex:1;padding-right:15px;overflow:hidden;">
         <div class="app-title" style="font-weight:bold;font-size:1.1rem;word-break:break-word;white-space:normal;">${d.syarikat || '-'}</div>
         <div class="app-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${jenisBadge}</div>`
-        + (startDate ? `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;">📅 TARIKH MULA (START DATE): ${startDate}</div>` : '')
-        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>` : '')
-        + (sptbDate ? `<div style="font-size:0.75rem;color:#059669;font-weight:600;margin-top:2px;">📋 Date Submit to SPTB: ${sptbDate}</div>` : '')
+        + (startDate ? `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> TARIKH MULA (START DATE): ${startDate}</div>` : '')
+        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${spiDate}</div>` : '')
+        + (sptbDate ? `<div style="font-size:0.75rem;color:#059669;font-weight:600;margin-top:2px;"><i class="fa-solid fa-clipboard-list"></i> Date Submit to SPTB: ${sptbDate}</div>` : '')
         + `<div style="font-size:0.75rem;color:#555;margin-top:2px;">Pengesyor: ${d.pengesyor || '-'}</div>`
         + `</div>
         <div class="app-actions-btn" style="display:flex;gap:8px;flex-shrink:0;">
-        <button class="btn-sm btn-proses" data-pka-action="go-keputusan" data-pka-row="${d.row}">⚡ Proses</button>${failBtn}
+        <button class="btn-sm btn-proses" data-pka-action="go-keputusan" data-pka-row="${d.row}"><i class="fa-solid fa-bolt fa-ico"></i>Proses</button>${failBtn}
         </div></div></div></div>`;
     }).join('');
   }
@@ -4246,11 +4246,11 @@ async function handleCredentialResponse(response) {
     list.innerHTML = `<div class="pka-card-item pka-keputusan-card">
       <div class="pka-card-item-info">
         <div class="pka-card-item-title">${item.syarikat}</div>
-        <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | 👤 ${item.pengesyor || '-'} | 📤 Hantar: ${spiDate}</div>
+        <div class="pka-card-item-sub">${item.cidb || '-'} | ${item.gred || '-'} | <i class="fa-solid fa-user"></i> ${item.pengesyor || '-'} | <i class="fa-solid fa-paper-plane"></i> Hantar: ${spiDate}</div>
         <div class="pka-card-field">
           <div style="flex:1;min-width:140px;"><label>Tarikh Lawatan</label><div><input type="date" class="editable-input" id="pkaLawatanTarikh_${row}" value="${item.lawatan_tarikh || ''}" style="width:100%;box-sizing:border-box;"></div></div>
           <div style="flex:1;min-width:140px;"><label>Tarikh Hantar SPTB</label><div><input type="date" class="editable-input" id="pkaLawatanSptb_${row}" value="${item.lawatan_submit_sptb || ''}" style="width:100%;box-sizing:border-box;"></div></div>
-          <div style="flex:1;min-width:180px;"><label>Syor SPI</label><div><input type="hidden" id="pkaLawatanSyor_${row}" value="${curSyor}"><div class="btn-group pka-syor-seg" data-target="pkaLawatanSyor_${row}"><button type="button" class="btn-option btn-opt-green" data-value="SOKONG">✅ SOKONG</button><button type="button" class="btn-option btn-opt-red" data-value="TIDAK DISOKONG">❌ TIDAK DISOKONG</button></div></div></div>
+          <div style="flex:1;min-width:180px;"><label>Syor SPI</label><div><input type="hidden" id="pkaLawatanSyor_${row}" value="${curSyor}"><div class="btn-group pka-syor-seg" data-target="pkaLawatanSyor_${row}"><button type="button" class="btn-option btn-opt-green" data-value="SOKONG"><i class="fa-solid fa-check fa-ico"></i>SOKONG</button><button type="button" class="btn-option btn-opt-red" data-value="TIDAK DISOKONG"><i class="fa-solid fa-xmark fa-ico"></i>TIDAK DISOKONG</button></div></div></div>
         </div>
         <div class="pka-card-field">
           <label>Ulasan SPI</label>
@@ -4258,8 +4258,8 @@ async function handleCredentialResponse(response) {
         </div>
       </div>
       <div class="pka-card-item-actions">
-        <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}">📂 Urus Fail</button>
-        <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}">📤 Hantar Syor</button>
+        <button class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}"><i class="fa-solid fa-folder-open fa-ico"></i>Urus Fail</button>
+        <button class="pka-btn-sm pka-btn-green" data-pka-action="hantar" data-pka-row="${row}"><i class="fa-solid fa-paper-plane fa-ico"></i>Hantar Syor</button>
       </div>
     </div>`;
     document.querySelectorAll('#pkaKeputusanList .editable-textarea').forEach(autoResizeTextarea);
@@ -4288,7 +4288,7 @@ async function handleCredentialResponse(response) {
       else if ((d.lawatan_syor || '').toString().toUpperCase().includes('TIDAK')) viewCls = 'btn-sm btn-view-rejected';
       else if ((d.lawatan_syor || '').toString().toUpperCase() === 'SOKONG') viewCls = 'btn-sm btn-view-approved';
       const failBtn = d.pautan
-        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive">📂 Fail</button>`
+        ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive"><i class="fa-solid fa-folder-open fa-ico"></i>Fail</button>`
         : '';
       return `<div class="app-item-wrapper">
         <div class="app-item-number">${i + 1}</div>
@@ -4296,10 +4296,10 @@ async function handleCredentialResponse(response) {
         <div class="app-info" style="flex:1;padding-right:15px;overflow:hidden;">
         <div class="app-title" style="font-weight:bold;font-size:1.1rem;word-break:break-word;white-space:normal;">${d.syarikat || '-'}</div>
         <div class="app-sub">${d.cidb || '-'} | ${d.gred || '-'} | ${jenisBadge}</div>`
-        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>` : '')
-        + `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;">📅 Lawatan: ${lawatanDate} | 📋 SPTB: ${sptbDate} | ✅ Syor: ${d.lawatan_syor || '-'}</div>`
+        + (spiDate ? `<div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${spiDate}</div>` : '')
+        + `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Lawatan: ${lawatanDate} | <i class="fa-solid fa-clipboard-list"></i> SPTB: ${sptbDate} | <i class="fa-solid fa-check"></i> Syor: ${d.lawatan_syor || '-'}</div>`
         + `<div style="font-size:0.75rem;color:#555;margin-top:2px;">Pengesyor: ${d.pengesyor || '-'}${d.kelulusan ? ' | Keputusan: ' + d.kelulusan : ''}</div>`
-        + (d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:4px;background:#f8fafc;padding:4px 8px;border-radius:4px;">💬 ${d.ulasan_spi}</div>` : '')
+        + (d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:4px;background:#f8fafc;padding:4px 8px;border-radius:4px;"><i class="fa-solid fa-message"></i> ${d.ulasan_spi}</div>` : '')
         + `</div>
         <div class="app-actions-btn" style="display:flex;gap:8px;flex-shrink:0;">
         <button class="${viewCls}" data-pka-action="lihat" data-pka-row="${d.row}">Lihat</button>${failBtn}
@@ -5850,7 +5850,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       updateProgress(100, "Selesai!");
       await playSuccessSound();
 
-      resetMorphBox('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', `📄<br><span>Pilih PDF</span>`, () => {
+      resetMorphBox('status-box-main', 'progress-ring-main', 'percentage-main', 'pdfProgressMsg', `<i class="fa-solid fa-file-lines"></i><br><span>Pilih PDF</span>`, () => {
         displayExtractedData(extractedPdfData);
         if (pdfResult) pdfResult.style.display = 'block';
         if (pdfExtractMeta) pdfExtractMeta.innerText = `Kaedah: Manual (Regex) | Muka: ${pagesRead}/${numPages} | MD: ${md.length} aksara`;
@@ -6928,7 +6928,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     }
     if (el) {
       el.style.color = isError ? '#dc2626' : '#059669';
-      el.textContent = msg;
+      el.innerHTML = msg;
     }
   }
 
@@ -6984,13 +6984,13 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       console.log('Auto-select pelulus -> target:', targetName, '| butang dijumpai:', !!btn, '| pelulus dijumpai:', !!pelulus, '| CIDB:', cidb, '| Syarikat:', syarikatEl ? syarikatEl.value : '');
       if (btn) {
         btn.click();
-        setAutoSelectStatus(`✓ Auto-pilih pelulus: ${targetName}`);
+        setAutoSelectStatus(`<i class="fa-solid fa-check fa-ico"></i>Auto-pilih pelulus: ${targetName}`);
       } else if (pelulus) {
         const hiddenPhone = document.getElementById('db_pelulus_whatsapp');
         const hiddenName = document.getElementById('db_pelulus_name');
         if (hiddenPhone) hiddenPhone.value = pelulus.phone || '';
         if (hiddenName) hiddenName.value = pelulus.name || '';
-        setAutoSelectStatus(`✓ Auto-pilih pelulus: ${targetName}`);
+        setAutoSelectStatus(`<i class="fa-solid fa-check fa-ico"></i>Auto-pilih pelulus: ${targetName}`);
       } else {
         setAutoSelectStatus(`Auto-pilih: pelulus '${targetName}' tidak dijumpai dalam senarai — pilih manual`, true);
       }
@@ -8462,7 +8462,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     modal.style.display = 'flex';
     modal.classList.add('show');
-    folderInfo.innerHTML = '📁 Memuatkan...';
+    folderInfo.innerHTML = '<i class="fa-solid fa-folder fa-ico"></i>Memuatkan...';
     listEl.innerHTML = '';
     loadingEl.style.display = 'block';
 
@@ -8500,9 +8500,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
         var navBtns = '';
         if (fmFolderStack.length > 0) {
-          navBtns = '<span id="fmBackBtn" style="cursor:pointer; color:#64748b; font-weight:600; margin-right:8px; font-size:1.2rem;" title="Kembali satu folder">⬅</span> ';
+          navBtns = '<span id="fmBackBtn" style="cursor:pointer; color:#64748b; font-weight:600; margin-right:8px; font-size:1.2rem;" title="Kembali satu folder"><i class="fa-solid fa-arrow-left"></i></span> ';
           if (folderId !== fmRootFolderId) {
-            navBtns += '<span id="fmRootBtn" style="cursor:pointer; color:#2563eb; font-weight:600; margin-right:8px; font-size:0.85rem;" title="Kembali ke folder asal">⬅ Kembali ke folder asal</span> ';
+            navBtns += '<span id="fmRootBtn" style="cursor:pointer; color:#2563eb; font-weight:600; margin-right:8px; font-size:0.85rem;" title="Kembali ke folder asal"><i class="fa-solid fa-arrow-left fa-ico"></i>Kembali ke folder asal</span> ';
           }
         }
 
@@ -8512,18 +8512,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
         folderLabel += (result.folderName || 'Folder');
 
-        folderInfo.innerHTML = navBtns + '📁 ' + folderLabel
-          + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive ↗</span>';
+        folderInfo.innerHTML = navBtns + '<i class="fa-solid fa-folder fa-ico"></i>' + folderLabel
+          + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></span>';
 
         renderDriveFiles(result.files || [], result.folders || [], folderId);
       } else {
-        folderInfo.innerHTML = '📁 Folder';
-        listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;">❌ ' + (result.error || 'Gagal memuatkan fail') + '</p>';
+        folderInfo.innerHTML = '<i class="fa-solid fa-folder fa-ico"></i>Folder';
+        listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;"><i class="fa-solid fa-circle-xmark fa-ico"></i>' + (result.error || 'Gagal memuatkan fail') + '</p>';
       }
     } catch (error) {
       loadingEl.style.display = 'none';
-      folderInfo.innerHTML = '📁 Folder';
-      listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;">❌ Ralat: ' + error.message + '</p>';
+      folderInfo.innerHTML = '<i class="fa-solid fa-folder fa-ico"></i>Folder';
+      listEl.innerHTML = '<p style="text-align:center; color:#ef4444; padding:40px;"><i class="fa-solid fa-circle-xmark fa-ico"></i>Ralat: ' + error.message + '</p>';
       console.error("V6.7.0 Error loading drive files:", error);
     }
   }
@@ -8535,8 +8535,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if ((!folders || folders.length === 0) && (!files || files.length === 0)) {
       const canUpload = canUploadDriveFiles();
       listEl.innerHTML = canUpload
-        ? '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>'
-        : '<p style="text-align:center; color:#94a3b8; padding:40px;">📂 Folder ini masih kosong.</p>';
+        ? '<p style="text-align:center; color:#94a3b8; padding:40px;"><i class="fa-solid fa-folder-open fa-ico"></i>Folder ini masih kosong. Klik "Muat Naik" untuk tambah fail.</p>'
+        : '<p style="text-align:center; color:#94a3b8; padding:40px;"><i class="fa-solid fa-folder-open fa-ico"></i>Folder ini masih kosong.</p>';
       return;
     }
 
@@ -8545,7 +8545,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (folders) {
       folders.forEach(function(folder) {
         html += '<div class="fm-folder-card" data-folderid="' + folder.id + '" data-name="' + escapeHtml(folder.name) + '" style="background:#fefce8; border:1px solid #fde68a; border-radius:10px; padding:12px; text-align:center; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:transform 0.1s;">'
-          + '<div style="width:100%; height:80px; display:flex; align-items:center; justify-content:center; font-size:3rem;">📁</div>'
+          + '<div style="width:100%; height:80px; display:flex; align-items:center; justify-content:center; font-size:3rem;"><i class="fa-solid fa-folder"></i></div>'
           + '<p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; font-weight:600; color:#92400e;">' + escapeHtml(folder.name) + '</p>'
           + '</div>';
       });
@@ -8561,7 +8561,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           : '<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + thumbnailUrl + '</div>';
         const canRename = canRenameDriveFile(file);
         const canDelete = canDeleteDriveFile(file);
-        const ownerLabel = file.uploadedByName ? '<p style="font-size:0.62rem; color:#64748b; margin:2px 0;">👤 ' + escapeHtml(file.uploadedByName) + '</p>' : '';
+          const ownerLabel = file.uploadedByName ? '<p style="font-size:0.62rem; color:#64748b; margin:2px 0;"><i class="fa-solid fa-user"></i> ' + escapeHtml(file.uploadedByName) + '</p>' : '';
 
         html += '<div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
           + displayIcon
@@ -8569,9 +8569,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           + '<p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">' + formatFileSize(file.size) + '</p>'
           + ownerLabel
           + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">'
-          + '<button class="btn-file-view" data-url="' + file.webViewLink + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;">👁️ Buka</button>'
-          + (canRename ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;">✏️</button>' : '')
-          + (canDelete ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;">🗑️</button>' : '')
+          + '<button class="btn-file-view" data-url="' + file.webViewLink + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;"><i class="fa-solid fa-eye fa-ico"></i>Buka</button>'
+          + (canRename ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;"><i class="fa-solid fa-pen"></i></button>' : '')
+          + (canDelete ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;"><i class="fa-solid fa-trash-can"></i></button>' : '')
           + '</div>'
           + '</div>';
       });
@@ -8644,21 +8644,21 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function getFileIcon(mimeType, fileName) {
     if (!mimeType && fileName) {
       const ext = fileName.split('.').pop().toLowerCase();
-      if (['jpg','jpeg','png','gif','bmp','webp','svg'].includes(ext)) return '🖼️';
-      if (ext === 'pdf') return '📄';
-      if (['doc','docx'].includes(ext)) return '📝';
-      if (['xls','xlsx','csv'].includes(ext)) return '📊';
-      if (['ppt','pptx'].includes(ext)) return '📑';
-      if (['zip','rar','7z'].includes(ext)) return '🗜️';
-      return '📎';
+      if (['jpg','jpeg','png','gif','bmp','webp','svg'].includes(ext)) return '<i class="fa-solid fa-image" style="color:#94a3b8;"></i>';
+      if (ext === 'pdf') return '<i class="fa-solid fa-file-pdf" style="color:#94a3b8;"></i>';
+      if (['doc','docx'].includes(ext)) return '<i class="fa-solid fa-file-word" style="color:#94a3b8;"></i>';
+      if (['xls','xlsx','csv'].includes(ext)) return '<i class="fa-solid fa-file-excel" style="color:#94a3b8;"></i>';
+      if (['ppt','pptx'].includes(ext)) return '<i class="fa-solid fa-file-powerpoint" style="color:#94a3b8;"></i>';
+      if (['zip','rar','7z'].includes(ext)) return '<i class="fa-solid fa-file-zipper" style="color:#94a3b8;"></i>';
+      return '<i class="fa-solid fa-paperclip" style="color:#94a3b8;"></i>';
     }
-    if (mimeType.startsWith('image/')) return '🖼️';
-    if (mimeType === 'application/pdf') return '📄';
-    if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
-    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) return '📊';
-    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return '📑';
-    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z')) return '🗜️';
-    return '📎';
+    if (mimeType.startsWith('image/')) return '<i class="fa-solid fa-image" style="color:#94a3b8;"></i>';
+    if (mimeType === 'application/pdf') return '<i class="fa-solid fa-file-pdf" style="color:#94a3b8;"></i>';
+    if (mimeType.includes('word') || mimeType.includes('document')) return '<i class="fa-solid fa-file-word" style="color:#94a3b8;"></i>';
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) return '<i class="fa-solid fa-file-excel" style="color:#94a3b8;"></i>';
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return '<i class="fa-solid fa-file-powerpoint" style="color:#94a3b8;"></i>';
+    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z')) return '<i class="fa-solid fa-file-zipper" style="color:#94a3b8;"></i>';
+    return '<i class="fa-solid fa-paperclip" style="color:#94a3b8;"></i>';
   }
 
   function formatFileSize(bytes) {
@@ -10050,7 +10050,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const pic = currentUser.picture;
     userBadge.innerHTML = pic
       ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`
-      : `👤 ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
+      : `<i class="fa-solid fa-user fa-ico"></i>${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {
@@ -10153,13 +10153,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     if (currentUser.role === 'PENGESYOR') {
       tabsContainer.innerHTML = `
-        <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
-        <button class="tab-btn" data-target="tab-tapisan"><span class="tab-icon">📄</span><span class="tab-text">Tapisan Excel</span></button>
-        <button class="tab-btn" data-target="tab-bakul"><span class="tab-icon">🛒</span><span class="tab-text">Bakul Permohonan</span></button>
-        <button class="tab-btn" data-target="stb"><span class="tab-icon">✓</span><span class="tab-text">Borang Semakan</span></button>
-        <button class="tab-btn" data-target="db"><span class="tab-icon">📂</span><span class="tab-text">Input Database</span></button>
-        <button class="tab-btn" data-target="drafts"><span class="tab-icon">📋</span><span class="tab-text">Belum Hantar</span></button>
-        <button class="tab-btn" data-target="submitted"><span class="tab-icon">✅</span><span class="tab-text">Telah Disyor</span></button>
+        <button class="tab-btn" data-target="dashboard"><span class="tab-icon"><i class="fa-solid fa-chart-column"></i></span><span class="tab-text">Dashboard</span></button>
+        <button class="tab-btn" data-target="tab-tapisan"><span class="tab-icon"><i class="fa-solid fa-file-lines"></i></span><span class="tab-text">Tapisan Excel</span></button>
+        <button class="tab-btn" data-target="tab-bakul"><span class="tab-icon"><i class="fa-solid fa-basket-shopping"></i></span><span class="tab-text">Bakul Permohonan</span></button>
+        <button class="tab-btn" data-target="stb"><span class="tab-icon"><i class="fa-solid fa-check"></i></span><span class="tab-text">Borang Semakan</span></button>
+        <button class="tab-btn" data-target="db"><span class="tab-icon"><i class="fa-solid fa-folder-open"></i></span><span class="tab-text">Input Database</span></button>
+        <button class="tab-btn" data-target="drafts"><span class="tab-icon"><i class="fa-solid fa-clipboard-list"></i></span><span class="tab-text">Belum Hantar</span></button>
+        <button class="tab-btn" data-target="submitted"><span class="tab-icon"><i class="fa-solid fa-circle-check"></i></span><span class="tab-text">Telah Disyor</span></button>
       `;
       
       const nameField = document.getElementById('db_pengesyor');
@@ -10177,11 +10177,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     } else if (currentUser.role === 'PELULUS') {
       tabsContainer.innerHTML = `
-        <button class="tab-btn" data-target="dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
-        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">1. Inbox</span></button>
-        <button class="tab-btn" data-target="pelulus-view"><span class="tab-icon">🔍</span><span class="tab-text">2. Semakan</span></button>
-        <button class="tab-btn" data-target="pelulus-action"><span class="tab-icon">⚖️</span><span class="tab-text">3. Keputusan</span></button>
-        <button class="tab-btn" data-target="history"><span class="tab-icon">📜</span><span class="tab-text">4. Sejarah</span></button>
+        <button class="tab-btn" data-target="dashboard"><span class="tab-icon"><i class="fa-solid fa-chart-column"></i></span><span class="tab-text">Dashboard</span></button>
+        <button class="tab-btn" data-target="inbox"><span class="tab-icon"><i class="fa-solid fa-inbox"></i></span><span class="tab-text">1. Inbox</span></button>
+        <button class="tab-btn" data-target="pelulus-view"><span class="tab-icon"><i class="fa-solid fa-magnifying-glass"></i></span><span class="tab-text">2. Semakan</span></button>
+        <button class="tab-btn" data-target="pelulus-action"><span class="tab-icon"><i class="fa-solid fa-scale-balanced"></i></span><span class="tab-text">3. Keputusan</span></button>
+        <button class="tab-btn" data-target="history"><span class="tab-icon"><i class="fa-solid fa-scroll"></i></span><span class="tab-text">4. Sejarah</span></button>
       `;
       
       const pelulusNamaField = document.getElementById('pelulus_nama');
@@ -10205,7 +10205,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       
     } else if (currentUser.role === 'ADMIN') {
       tabsContainer.innerHTML = `
-        <button class="tab-btn" data-target="admin-dashboard"><span class="tab-icon">👑</span><span class="tab-text">Admin Dashboard</span></button>
+        <button class="tab-btn" data-target="admin-dashboard"><span class="tab-icon"><i class="fa-solid fa-crown"></i></span><span class="tab-text">Admin Dashboard</span></button>
       `;
       
       const nameField = document.getElementById('db_pengesyor');
@@ -10225,11 +10225,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       
     } else if (currentUser.role === 'PENGARAH' || currentUser.role === 'KETUA SEKSYEN') {
       tabsContainer.innerHTML = `
-        <button class="tab-btn" data-target="admin-dashboard"><span class="tab-icon">👑</span><span class="tab-text">Admin Dashboard</span></button>
-        <button class="tab-btn" data-target="inbox"><span class="tab-icon">📥</span><span class="tab-text">Belum Syor</span></button>
-        <button class="tab-btn" data-target="submitted"><span class="tab-icon">✅</span><span class="tab-text">Telah Syor</span></button>
-        <button class="tab-btn" data-target="history"><span class="tab-icon">📜</span><span class="tab-text">Sejarah</span></button>
-        <button class="tab-btn" data-target="spi-queue"><span class="tab-icon">📅</span><span class="tab-text">Timeline SPI</span></button>
+        <button class="tab-btn" data-target="admin-dashboard"><span class="tab-icon"><i class="fa-solid fa-crown"></i></span><span class="tab-text">Admin Dashboard</span></button>
+        <button class="tab-btn" data-target="inbox"><span class="tab-icon"><i class="fa-solid fa-inbox"></i></span><span class="tab-text">Belum Syor</span></button>
+        <button class="tab-btn" data-target="submitted"><span class="tab-icon"><i class="fa-solid fa-circle-check"></i></span><span class="tab-text">Telah Syor</span></button>
+        <button class="tab-btn" data-target="history"><span class="tab-icon"><i class="fa-solid fa-scroll"></i></span><span class="tab-text">Sejarah</span></button>
+        <button class="tab-btn" data-target="spi-queue"><span class="tab-icon"><i class="fa-solid fa-calendar-days"></i></span><span class="tab-text">Timeline SPI</span></button>
       `;
       
       const nameField = document.getElementById('db_pengesyor');
@@ -10249,10 +10249,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       
     } else if (currentUser.role === 'PKA') {
       tabsContainer.innerHTML = `
-        <button class="tab-btn" data-target="pka-dashboard"><span class="tab-icon">📊</span><span class="tab-text">Dashboard</span></button>
-        <button class="tab-btn" data-target="pka-inbox"><span class="tab-icon">📥</span><span class="tab-text">Inbox SPI</span></button>
-        <button class="tab-btn" data-target="pka-keputusan-spi"><span class="tab-icon">✅</span><span class="tab-text">Keputusan SPI</span></button>
-        <button class="tab-btn" data-target="pka-sejarah-spi"><span class="tab-icon">📜</span><span class="tab-text">Sejarah SPI</span></button>
+        <button class="tab-btn" data-target="pka-dashboard"><span class="tab-icon"><i class="fa-solid fa-chart-column"></i></span><span class="tab-text">Dashboard</span></button>
+        <button class="tab-btn" data-target="pka-inbox"><span class="tab-icon"><i class="fa-solid fa-inbox"></i></span><span class="tab-text">Inbox SPI</span></button>
+        <button class="tab-btn" data-target="pka-keputusan-spi"><span class="tab-icon"><i class="fa-solid fa-check"></i></span><span class="tab-text">Keputusan SPI</span></button>
+        <button class="tab-btn" data-target="pka-sejarah-spi"><span class="tab-icon"><i class="fa-solid fa-scroll"></i></span><span class="tab-text">Sejarah SPI</span></button>
       `;
       
       if(!activeTab || !['pka-dashboard','pka-inbox','pka-keputusan-spi','pka-sejarah-spi','spi-queue'].includes(activeTab)) {
@@ -10880,15 +10880,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     driveResult.innerHTML = `
       <div style="margin-top: 10px; padding: 10px; background: #dcfce7; border-radius: 8px; border: 1px solid #22c55e;">
-        <div style="font-weight: bold; color: #166534; margin-bottom: 5px;">✓ Folder berjaya dicipta dalam User Folder System!</div>
+        <div style="font-weight: bold; color: #166534; margin-bottom: 5px;"><i class="fa-solid fa-check fa-ico"></i>Folder berjaya dicipta dalam User Folder System!</div>
         <div style="margin-bottom: 8px;">
           <a href="${folderUrl}" target="_blank" class="drive-link">
-            📂 Klik untuk buka folder syarikat
+            <i class="fa-solid fa-folder-open fa-ico"></i>Klik untuk buka folder syarikat
           </a>
         </div>
         <div style="margin-bottom: 5px;">
           <a href="${userFolderUrl}" target="_blank" class="drive-link" style="background: #dbeafe;">
-            👤 Klik untuk buka folder user: ${userName}
+            <i class="fa-solid fa-user fa-ico"></i>Klik untuk buka folder user: ${userName}
           </a>
         </div>
         <div style="font-size: 0.8rem; color: #4b5563; margin-top: 5px;">
@@ -12122,7 +12122,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const btnSemua = document.getElementById('undoChoiceSemua');
       const btnBatal = document.getElementById('undoChoiceBatal');
       
-      if (titleEl) titleEl.innerHTML = '⚠️ Pilihan Undo';
+      if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Pilihan Undo';
       if (msgEl) {
         msgEl.innerHTML = `Permohonan <b>${item.syarikat}</b> sudah ada keputusan pelulus (<b>${item.kelulusan}</b>).<br><br>Sila pilih tindakan:`;
       }
@@ -12151,8 +12151,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         <div id="undoChoiceTitle" style="font-size:1.4rem; font-weight:800; color:#1e293b; margin-bottom:12px;"></div>
         <div id="undoChoiceMsg" style="font-size:0.95rem; color:#64748b; margin-bottom:20px; line-height:1.6;"></div>
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);">📝 Padam Pengesyor Sahaja</button>
-          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);">🗑 Padam Termasuk Pelulus</button>
+          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);"><i class="fa-solid fa-pen fa-ico"></i>Padam Pengesyor Sahaja</button>
+          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);"><i class="fa-solid fa-trash-can fa-ico"></i>Padam Termasuk Pelulus</button>
           <button id="undoChoiceBatal" class="custom-modal-btn custom-modal-btn-cancel">Batal</button>
         </div>
       </div>
@@ -12175,9 +12175,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     let modalType = 'warning';
     
     if (actionType === 'padam_semua') {
-      message = `⚠️ <b>AMARAN!</b><br><br>Permohonan <b>${item.syarikat}</b> akan <b>HILANG/DIPADAM</b> dari Sheet (Row ${item.row}).<br><br>Data penuh akan disimpan dalam Log sebelum dipadam.<br><br>Adakah anda mahu teruskan?`;
+      message = `<i class="fa-solid fa-triangle-exclamation"></i> <b>AMARAN!</b><br><br>Permohonan <b>${item.syarikat}</b> akan <b>HILANG/DIPADAM</b> dari Sheet (Row ${item.row}).<br><br>Data penuh akan disimpan dalam Log sebelum dipadam.<br><br>Adakah anda mahu teruskan?`;
       action = 'padam_semua';
-      modalTitle = "⚠️ Pengesahan Padam";
+      modalTitle = '<i class="fa-solid fa-triangle-exclamation"></i> Pengesahan Padam';
       btnText = "Ya, Padam";
       isDanger = true;
       modalType = "error"; 
@@ -12425,7 +12425,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (!list) return;
 
     if (type === 'inbox' && currentUser.role === 'PELULUS' && listTitle) {
-      listTitle.textContent = `📋 Inbox Pelulus (${filtered.length})`;
+      listTitle.innerHTML = `<i class="fa-solid fa-inbox fa-ico"></i>Inbox Pelulus (${filtered.length})`;
     }
 
     // === PELULUS INBOX 3 BAHAGIAN: Biasa vs Siasat vs Selesai Semakan Siasat (butang kiri-kanan dengan badge) ===
@@ -12472,9 +12472,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         b.addEventListener('click', () => { window._pelulusInboxSiasatFilter = key; displayFilteredItems(filtered, type); });
         return b;
       };
-      btnBar.appendChild(makeFilterBtn('biasa', '📋', 'Permohonan Biasa', biasaList.length, '#2563eb', '#1e40af'));
-      btnBar.appendChild(makeFilterBtn('siasat', '🔍', 'Siasat', siasatList.length, '#f59e0b', '#b45309'));
-      btnBar.appendChild(makeFilterBtn('selesai', '✅', 'Selesai Semakan Siasat', selesaiList.length, '#10b981', '#047857'));
+      btnBar.appendChild(makeFilterBtn('biasa', '<i class="fa-solid fa-clipboard-list"></i>', 'Permohonan Biasa', biasaList.length, '#2563eb', '#1e40af'));
+      btnBar.appendChild(makeFilterBtn('siasat', '<i class="fa-solid fa-magnifying-glass"></i>', 'Siasat', siasatList.length, '#f59e0b', '#b45309'));
+      btnBar.appendChild(makeFilterBtn('selesai', '<i class="fa-solid fa-check"></i>', 'Selesai Semakan Siasat', selesaiList.length, '#10b981', '#047857'));
       list.appendChild(btnBar);
       }
       // Tentukan senarai aktif untuk dipaparkan
@@ -12483,16 +12483,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         // Mod carian: gabungkan semua bahagian (Biasa + Siasat + Selesai Semakan Siasat)
         activeList = filtered;
         activeColor = '#0ea5e9';
-        activeIcon = '🔎';
+        activeIcon = '<i class="fa-solid fa-magnifying-glass"></i>';
         activeTitle = 'Hasil Carian';
         activeEmptyText = 'Tiada permohonan sepadan dengan carian';
         isSelesaiView = false;
         isBiasaActive = false;
       } else {
       const viewConfig = {
-        biasa: { list: biasaList, color: '#2563eb', icon: '📋', title: 'Permohonan Biasa – SOKONG / TIDAK DISOKONG', empty: 'Tiada permohonan Biasa' },
-        siasat: { list: siasatList, color: '#f59e0b', icon: '🔍', title: 'Siasat – Menunggu Semakan', empty: 'Tiada permohonan Siasat' },
-        selesai: { list: selesaiList, color: '#10b981', icon: '✅', title: 'Telah Selesai Semakan Siasat – Dalam Queue Email SPI (Hantar 6 Petang)', empty: 'Tiada permohonan dalam queue – semua telah dihantar ke SPI atau belum disahkan' }
+        biasa: { list: biasaList, color: '#2563eb', icon: '<i class="fa-solid fa-clipboard-list"></i>', title: 'Permohonan Biasa – SOKONG / TIDAK DISOKONG', empty: 'Tiada permohonan Biasa' },
+        siasat: { list: siasatList, color: '#f59e0b', icon: '<i class="fa-solid fa-magnifying-glass"></i>', title: 'Siasat – Menunggu Semakan', empty: 'Tiada permohonan Siasat' },
+        selesai: { list: selesaiList, color: '#10b981', icon: '<i class="fa-solid fa-check"></i>', title: 'Telah Selesai Semakan Siasat – Dalam Queue Email SPI (Hantar 6 Petang)', empty: 'Tiada permohonan dalam queue – semua telah dihantar ke SPI atau belum disahkan' }
       };
       const cfg = viewConfig[window._pelulusInboxSiasatFilter] || viewConfig.biasa;
       activeList = cfg.list;
@@ -12568,12 +12568,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             btn.className = 'btn-sm';
             btn.style.background = '#f59e0b';
             btn.style.color = 'white';
-            btn.innerText = '↩️ Undo';
+            btn.innerHTML = '<i class="fa-solid fa-rotate-left fa-ico"></i>Undo';
             btn.title = 'Tarik balik pengesahan – keluarkan dari queue email SPI';
             btn.onclick = function() { siasatUndoConfirm(item); };
           } else {
             btn.className = 'btn-sm btn-proses';
-            btn.innerText = '⚡ Proses';
+            btn.innerHTML = '<i class="fa-solid fa-bolt fa-ico"></i>Proses';
             btn.onclick = function() {
               const isSiasatFlow = isSearchMode ? isSiasat2 : !isBiasaActive;
               if (isSiasatFlow) {
@@ -12590,7 +12590,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             btnDrive.className = 'btn-sm';
             btnDrive.style.backgroundColor = '#2563eb';
             btnDrive.style.color = 'white';
-            btnDrive.innerText = '📂 Fail';
+            btnDrive.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Fail';
             btnDrive.title = 'Urus Fail Drive';
             btnDrive.onclick = function() { const fid = extractFolderIdFromUrl(item.pautan); if (fid) createdFolderId = fid; openFileManager(item.pautan); };
             btnContainer.appendChild(btnDrive);
@@ -12600,8 +12600,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           const jenisUpper = item.jenis ? item.jenis.toUpperCase() : '';
           if (jenisUpper === 'BARU') { jenisBadge = `<span class="app-type-badge type-baru">BARU</span>`; }
           else if (jenisUpper === 'PEMBAHARUAN') { jenisBadge = `<span class="app-type-badge type-pembaharuan">PEMBAHARUAN</span>`; }
-          else if (jenisUpper === 'UBAH MAKLUMAT') { jenisBadge = `<span class="app-type-badge type-ubah-maklumat">UBAH MAKLUMAT</span>`; if (item.ubah_maklumat) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan: ${item.ubah_maklumat}</div>`; }
-          else if (jenisUpper === 'UBAH GRED') { jenisBadge = `<span class="app-type-badge type-ubah-gred">UBAH GRED</span>`; if (item.ubah_gred) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan Gred: ${item.ubah_gred}</div>`; }
+          else if (jenisUpper === 'UBAH MAKLUMAT') { jenisBadge = `<span class="app-type-badge type-ubah-maklumat">UBAH MAKLUMAT</span>`; if (item.ubah_maklumat) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;"><i class="fa-solid fa-pen fa-ico"></i>Perubahan: ${item.ubah_maklumat}</div>`; }
+          else if (jenisUpper === 'UBAH GRED') { jenisBadge = `<span class="app-type-badge type-ubah-gred">UBAH GRED</span>`; if (item.ubah_gred) perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;"><i class="fa-solid fa-pen fa-ico"></i>Perubahan Gred: ${item.ubah_gred}</div>`; }
           else { jenisBadge = `<span class="app-type-badge">${item.jenis || 'LAIN-LAIN'}</span>`; }
           let siasatStatusBadge = '';
           try {
@@ -12609,16 +12609,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const stage = pjStatus.siasat_workflow ? pjStatus.siasat_workflow.stage : '';
             const isSiasatItem = (item.syor_status || '').toUpperCase() === 'SIASAT';
             if (isSiasatItem) {
-              if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">⏳ Menunggu Semakan Pelulus</span>`;
-              else if (stage === 'DITOLAK_PELULUS') { const alasan = pjStatus.siasat_workflow.alasan_tolak ? ` – ${pjStatus.siasat_workflow.alasan_tolak.substring(0,60)}` : ''; siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">↩️ Ditolak Pelulus${alasan}</span>`; }
-              else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
-              else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">📤 Dalam Queue SPI (6 Petang)</span>`;
+              if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-hourglass-half"></i> Menunggu Semakan Pelulus</span>`;
+              else if (stage === 'DITOLAK_PELULUS') { const alasan = pjStatus.siasat_workflow.alasan_tolak ? ` – ${pjStatus.siasat_workflow.alasan_tolak.substring(0,60)}` : ''; siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-rotate-left"></i> Ditolak Pelulus${alasan}</span>`; }
+              else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-check"></i> Dihantar ke SPI</span>`;
+              else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-paper-plane"></i> Dalam Queue SPI (6 Petang)</span>`;
             }
           } catch(e) {}
           let extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
-          let dateInfo = item.start_date ? `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;">📅 TARIKH MULA (START DATE): ${formatDateDisplay(item.start_date)}</div>` : '';
-          let spiDateInfo = item.date_submit ? `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${formatDateDisplay(item.date_submit)}</div>` : '';
-          let sptbDateInfo = item.lawatan_submit_sptb ? `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;">📋 Date Submit to SPTB: ${formatDateDisplay(item.lawatan_submit_sptb)}</div>` : '';
+          let dateInfo = item.start_date ? `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> TARIKH MULA (START DATE): ${formatDateDisplay(item.start_date)}</div>` : '';
+          let spiDateInfo = item.date_submit ? `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${formatDateDisplay(item.date_submit)}</div>` : '';
+          let sptbDateInfo = item.lawatan_submit_sptb ? `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;"><i class="fa-solid fa-clipboard-list"></i> Date Submit to SPTB: ${formatDateDisplay(item.lawatan_submit_sptb)}</div>` : '';
           div.innerHTML = `
             <div class="app-info" style="flex: 1; padding-right: 15px; overflow: hidden;">
               <div class="app-title" style="font-weight:bold; font-size:1.1rem; word-break: break-word; white-space: normal;">${item.syarikat || '-'} ${siasatStatusBadge}</div>
@@ -12705,7 +12705,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnDrive.className = 'btn-sm';
           btnDrive.style.backgroundColor = '#2563eb';
           btnDrive.style.color = 'white';
-          btnDrive.innerText = '📂 Fail';
+          btnDrive.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Fail';
           btnDrive.title = 'Urus Fail Drive';
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
@@ -12736,7 +12736,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnWA.className = 'btn-sm';
           btnWA.style.backgroundColor = '#25D366';
           btnWA.style.color = 'white';
-          btnWA.innerText = '💬 WhatsApp';
+                btnWA.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp';
           btnWA.title = 'Hantar semula WhatsApp ke Pelulus (sekali sahaja)';
           btnWA.onclick = async function() {
             const waUrl = buildPelulusWaUrlForItem(item);
@@ -12748,14 +12748,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const waYa = await showWhatsAppConfirmModal(waUrl, item.syarikat, assigned.name);
             if (waYa) {
               btnWA.disabled = true;
-              btnWA.innerText = '⏳...';
+              btnWA.innerHTML = '<i class="fa-solid fa-hourglass-half fa-ico"></i>...';
               const ok = await markWhatsappPelulusSent(item, (item.syor_status || '').toUpperCase() === 'SIASAT' ? 'SIASAT' : 'BIASA');
               if (ok) {
-                await CustomAppModal.alert("✅ WhatsApp ke Pelulus telah dihantar. Butang tidak akan muncul lagi (sekali sahaja).", "Selesai", "success");
+                await CustomAppModal.alert("<i class=\"fa-solid fa-check\"></i> Notifikasi WhatsApp ke Pelulus telah dihantar (sekali sahaja).", "Selesai", "success");
                 fetchAndRenderList('drafts');
               } else {
                 btnWA.disabled = false;
-                btnWA.innerText = '💬 WhatsApp';
+          btnWA.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp';
                 await CustomAppModal.alert("Gagal rekod status WhatsApp. Sila cuba lagi.", "Ralat", "error");
               }
             }
@@ -12770,7 +12770,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btn.onclick = function() { viewRecordOnly(item); };
         } else {
           btn.className = 'btn-sm btn-proses';
-          btn.innerText = '⚡ Proses';
+          btn.innerHTML = '<i class="fa-solid fa-bolt fa-ico"></i>Proses';
           btn.onclick = function() { loadRecordToPelulus(item); };
         }
         btnContainer.appendChild(btn);
@@ -12780,7 +12780,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnDrive.className = 'btn-sm';
           btnDrive.style.backgroundColor = '#2563eb';
           btnDrive.style.color = 'white';
-          btnDrive.innerText = '📂 Fail';
+          btnDrive.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Fail';
           btnDrive.title = 'Urus Fail Drive';
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
@@ -12813,7 +12813,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnDrive.className = 'btn-sm';
           btnDrive.style.backgroundColor = '#2563eb';
           btnDrive.style.color = 'white';
-          btnDrive.innerText = '📂 Fail';
+          btnDrive.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Fail';
           btnDrive.title = 'Urus Fail Drive';
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
@@ -12828,7 +12828,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
             btnPrint.style.backgroundColor = '#6366f1';
-            btnPrint.innerText = '🖨️ Cetak';
+            btnPrint.innerHTML = '<i class="fa-solid fa-print fa-ico"></i>Cetak';
             
             // KOD BARU: Menggunakan processCetakBiasa berbanding processLihatBorangPreview
             btnPrint.onclick = function() { processCetakBiasa(item); };
@@ -12855,7 +12855,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnWA2.className = 'btn-sm';
           btnWA2.style.backgroundColor = '#25D366';
           btnWA2.style.color = 'white';
-          btnWA2.innerText = '💬 WhatsApp';
+                btnWA2.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp';
           btnWA2.title = 'Hantar semula WhatsApp ke Pelulus (sekali sahaja)';
           btnWA2.onclick = async function() {
             const waUrl = buildPelulusWaUrlForItem(item);
@@ -12867,14 +12867,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const waYa = await showWhatsAppConfirmModal(waUrl, item.syarikat, assigned.name);
             if (waYa) {
               btnWA2.disabled = true;
-              btnWA2.innerText = '⏳...';
+              btnWA2.innerHTML = '<i class="fa-solid fa-hourglass-half fa-ico"></i>...';
               const ok = await markWhatsappPelulusSent(item, (item.syor_status || '').toUpperCase() === 'SIASAT' ? 'SIASAT' : 'BIASA');
               if (ok) {
-                await CustomAppModal.alert("✅ WhatsApp ke Pelulus telah dihantar. Butang tidak akan muncul lagi (sekali sahaja).", "Selesai", "success");
+                await CustomAppModal.alert("<i class=\"fa-solid fa-check\"></i> Notifikasi WhatsApp ke Pelulus telah dihantar (sekali sahaja).", "Selesai", "success");
                 fetchAndRenderList('submitted');
               } else {
                 btnWA2.disabled = false;
-                btnWA2.innerText = '💬 WhatsApp';
+          btnWA2.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp';
                 await CustomAppModal.alert("Gagal rekod status WhatsApp. Sila cuba lagi.", "Ralat", "error");
               }
             }
@@ -12905,7 +12905,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           btnDrive.className = 'btn-sm';
           btnDrive.style.backgroundColor = '#2563eb';
           btnDrive.style.color = 'white';
-          btnDrive.innerText = '📂 Fail';
+          btnDrive.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Fail';
           btnDrive.title = 'Urus Fail Drive';
           btnDrive.onclick = function() {
             const fid = extractFolderIdFromUrl(item.pautan);
@@ -12919,7 +12919,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const btnPrint = document.createElement('button');
             btnPrint.className = 'btn-sm';
             btnPrint.style.backgroundColor = '#6366f1';
-            btnPrint.innerText = '🖨️ Cetak';
+            btnPrint.innerHTML = '<i class="fa-solid fa-print fa-ico"></i>Cetak';
             btnPrint.onclick = function() { processPelulusPrint(item); };
             btnContainer.appendChild(btnPrint);
         }
@@ -12949,12 +12949,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       } else if (jenisUpper === 'UBAH MAKLUMAT') {
         jenisBadge = `<span class="app-type-badge type-ubah-maklumat">UBAH MAKLUMAT</span>`;
         if (item.ubah_maklumat) {
-          perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan: ${item.ubah_maklumat}</div>`;
+          perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;"><i class="fa-solid fa-pen fa-ico"></i>Perubahan: ${item.ubah_maklumat}</div>`;
         }
       } else if (jenisUpper === 'UBAH GRED') {
         jenisBadge = `<span class="app-type-badge type-ubah-gred">UBAH GRED</span>`;
         if (item.ubah_gred) {
-          perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;">📝 Perubahan Gred: ${item.ubah_gred}</div>`;
+          perubahanRowHtml = `<div style="background-color:#fffbeb; border-left:3px solid #f59e0b; padding:4px 8px; margin-top:5px; font-size:0.8rem; font-weight:600; color:#d97706;"><i class="fa-solid fa-pen fa-ico"></i>Perubahan Gred: ${item.ubah_gred}</div>`;
         }
       } else {
         jenisBadge = `<span class="app-type-badge">${item.jenis || 'LAIN-LAIN'}</span>`;
@@ -12967,15 +12967,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const stage = pjStatus.siasat_workflow ? pjStatus.siasat_workflow.stage : '';
         const isSiasatItem = (item.syor_status || '').toUpperCase() === 'SIASAT';
         if (isSiasatItem) {
-          if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">⏳ Menunggu Semakan Pelulus</span>`;
+          if (stage === 'MENUNGGU_PELULUS') siasatStatusBadge = `<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-hourglass-half"></i> Menunggu Semakan Pelulus</span>`;
           else if (stage === 'DITOLAK_PELULUS') {
             const alasan = pjStatus.siasat_workflow.alasan_tolak ? ` – ${pjStatus.siasat_workflow.alasan_tolak.substring(0,60)}` : '';
-            siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">↩️ Ditolak Pelulus${alasan}</span>`;
-          } else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
-          else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">📤 Dalam Queue SPI (6 Petang)</span>`;
+            siasatStatusBadge = `<span style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-rotate-left"></i> Ditolak Pelulus${alasan}</span>`;
+          } else if (item.status_hantar_spi === 'TELAH DIHANTAR') siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-check"></i> Dihantar ke SPI</span>`;
+          else if (item.status_hantar_spi === 'DALAM QUEUE') siasatStatusBadge = `<span style="background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-paper-plane"></i> Dalam Queue SPI (6 Petang)</span>`;
         } else if (item.status_hantar_spi === 'TELAH DIHANTAR' && !item.kelulusan) {
           // SIASAT biasa tanpa workflow tapi TELAH DIHANTAR
-          siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;">✅ Dihantar ke SPI</span>`;
+          siasatStatusBadge = `<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:2px 6px;border-radius:6px;font-size:0.7rem;font-weight:700;margin-left:6px;"><i class="fa-solid fa-check"></i> Dihantar ke SPI</span>`;
         }
       } catch(e) {}
 
@@ -12992,19 +12992,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (item.start_date) {
         const displayDate = formatDateDisplay(item.start_date);
         const dateLabel = 'TARIKH MULA (START DATE)';
-        dateInfo = `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;">📅 ${dateLabel}: ${displayDate}</div>`;
+        dateInfo = `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> ${dateLabel}: ${displayDate}</div>`;
       }
 
       let spiDateInfo = '';
       if (item.date_submit) {
         const spiDate = formatDateDisplay(item.date_submit);
-        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;">📤 Tarikh Hantar SPI: ${spiDate}</div>`;
+        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${spiDate}</div>`;
       }
 
       let sptbDateInfo = '';
       if (item.lawatan_submit_sptb) {
         const sptbDate = formatDateDisplay(item.lawatan_submit_sptb);
-        sptbDateInfo = `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;">📋 Date Submit to SPTB: ${sptbDate}</div>`;
+        sptbDateInfo = `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;"><i class="fa-solid fa-clipboard-list"></i> Date Submit to SPTB: ${sptbDate}</div>`;
       }
 
       // --- KOD DUE DATE BARU DITAMBAH ---
@@ -13018,7 +13018,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const isOverdue = due < today;
         const color = isOverdue ? '#dc2626' : '#16a34a'; // Merah jika terlepas tarikh, Hijau jika belum
         const bgColor = isOverdue ? '#fee2e2' : '#dcfce7'; 
-        const icon = isOverdue ? '⚠️' : '⏳';
+        const icon = isOverdue ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '<i class="fa-solid fa-hourglass-half"></i>';
         
         dueDateInfo = `<div style="font-size:0.75rem; color:${color}; background-color:${bgColor}; font-weight:bold; margin-top:6px; margin-bottom:2px; padding: 4px 8px; border-radius: 6px; border: 1px solid ${color}; display: inline-block;">${icon} DUE DATE: ${formatDateDisplay(item.due_date)}</div><br>`;
       }
@@ -13263,13 +13263,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) {
         if(item.status_hantar_spi === 'DALAM QUEUE') {
-            statusDisp.textContent = '⏳ DALAM QUEUE';
+            statusDisp.textContent = 'DALAM QUEUE';
             statusDisp.style.backgroundColor = '#fef3c7';
             statusDisp.style.borderColor = '#d97706';
             statusDisp.style.color = '#b45309';
             statusDisp.style.display = 'inline-block';
         } else if(item.status_hantar_spi === 'TELAH DIHANTAR') {
-            statusDisp.textContent = `✅ TELAH DIHANTAR (${item.tarikh_hantar_spi || ''})`;
+            statusDisp.textContent = `TELAH DIHANTAR (${item.tarikh_hantar_spi || ''})`;
             statusDisp.style.backgroundColor = '#dcfce7';
             statusDisp.style.borderColor = '#16a34a';
             statusDisp.style.color = '#15803d';
@@ -13467,7 +13467,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (divUbahSyor) divUbahSyor.style.display = 'none';
       if (btnSubmit) btnSubmit.style.display = 'none';
       if (labelSah) labelSah.style.display = 'none';
-      if (summary && pelulusActiveItem) summary.innerText = `🔍 SIASAT: ${pelulusActiveItem.syarikat} (${pelulusActiveItem.cidb})`;
+      if (summary && pelulusActiveItem) summary.innerText = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${pelulusActiveItem.syarikat} (${pelulusActiveItem.cidb})`;
       // Isi justifikasi jika kosong
       const justEl = document.getElementById('pelulus_justifikasi_siasat');
       if (justEl && !justEl.value) {
@@ -13542,7 +13542,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // Auto-scroll hint: user perlu tekan Ke Keputusan untuk lihat butang Siasat
     setTimeout(() => {
       const hint = document.getElementById('pelulus_action_summary');
-      if (hint) hint.textContent = `🔍 SIASAT: ${item.syarikat} – sila semak Justifikasi Lawatan di tab Keputusan`;
+      if (hint) hint.textContent = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${item.syarikat} – sila semak Justifikasi Lawatan di tab Keputusan`;
     }, 500);
   }
 
@@ -13570,7 +13570,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     let link = '-';
     if (i.pautan) {
       const pautanId = extractFolderIdFromUrl(i.pautan) || '';
-      link = `<button class="btn-file-mgr" data-pautan="${i.pautan}" style="padding:4px 10px; font-size:0.75rem; background:#dbeafe; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; color:#1e40af; font-weight:600;">📂 Dokumen Drive</button>`;
+      link = `<button class="btn-file-mgr" data-pautan="${i.pautan}" style="padding:4px 10px; font-size:0.75rem; background:#dbeafe; border:1px solid #93c5fd; border-radius:6px; cursor:pointer; color:#1e40af; font-weight:600;"><i class="fa-solid fa-folder-open fa-ico"></i>Dokumen Drive</button>`;
     }
 
     let statusBadge = `<span class="status-badge bg-blue">${safe(i.syor_status)}</span>`;
@@ -13580,11 +13580,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       try {
         const pjView = i.borang_json ? JSON.parse(i.borang_json) : {};
         const st = pjView.siasat_workflow ? pjView.siasat_workflow.stage : '';
-        if (st === 'MENUNGGU_PELULUS') statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">⏳ SIASAT – Menunggu Semakan</span>`;
-        else if (st === 'DITOLAK_PELULUS') statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;">↩️ SIASAT – Ditolak</span>`;
-        else if (st === 'SAHKAN_KE_SPI') statusBadge = `<span class="status-badge" style="background:#dcfce7;color:#065f46;border:1px solid #10b981;">✅ SIASAT – Dihantar ke SPI (6 Petang)</span>`;
-        else statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">🔍 SIASAT</span>`;
-      } catch(e) { statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;">🔍 SIASAT</span>`; }
+        if (st === 'MENUNGGU_PELULUS') statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;"><i class="fa-solid fa-hourglass-half"></i> SIASAT – Menunggu Semakan</span>`;
+        else if (st === 'DITOLAK_PELULUS') statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#991b1b;border:1px solid #ef4444;"><i class="fa-solid fa-rotate-left"></i> SIASAT – Ditolak</span>`;
+        else if (st === 'SAHKAN_KE_SPI') statusBadge = `<span class="status-badge" style="background:#dcfce7;color:#065f46;border:1px solid #10b981;"><i class="fa-solid fa-check"></i> SIASAT – Dihantar ke SPI (6 Petang)</span>`;
+        else statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;"><i class="fa-solid fa-magnifying-glass"></i> SIASAT</span>`;
+      } catch(e) { statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;"><i class="fa-solid fa-magnifying-glass"></i> SIASAT</span>`; }
     }
 
     const rowStartDate = i.start_date ? `
@@ -13602,7 +13602,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     c.innerHTML = `
       <div class="view-container">
         <div class="view-section">
-          <div class="view-section-header">🏢 MAKLUMAT PERMOHONAN</div>
+          <div class="view-section-header"><i class="fa-solid fa-building fa-ico"></i>MAKLUMAT PERMOHONAN</div>
           <div class="view-grid">
             <div class="view-row full-width">
               <span class="view-label">NAMA SYARIKAT</span>
@@ -13644,7 +13644,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         </div>
 
         <div class="view-section">
-          <div class="view-section-header">🚧 MAKLUMAT LAWATAN & PEMATUHAN</div>
+          <div class="view-section-header"><i class="fa-solid fa-helmet-safety fa-ico"></i>MAKLUMAT LAWATAN & PEMATUHAN</div>
           <div class="view-grid">
             <div class="view-row">
               <span class="view-label">TARIKH LAWATAN</span>
@@ -13666,7 +13666,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         </div>
 
         <div class="view-section">
-          <div class="view-section-header">👤 ULASAN PENGESYOR</div>
+          <div class="view-section-header"><i class="fa-solid fa-user fa-ico"></i>ULASAN PENGESYOR</div>
           <div class="view-grid">
             <div class="view-row full-width">
               <span class="view-label">NAMA PENGESYOR</span>
@@ -13689,7 +13689,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
         ${i.tarikh_lulus ? `
         <div class="view-section" style="border-color:#22c55e;">
-          <div class="view-section-header" style="background:#f0fdf4; color:#166534;">✅ KEPUTUSAN PELULUS</div>
+          <div class="view-section-header" style="background:#f0fdf4; color:#166534;"><i class="fa-solid fa-check fa-ico"></i>KEPUTUSAN PELULUS</div>
           <div class="view-grid">
             <div class="view-row full-width">
               <span class="view-label">KEPUTUSAN AKHIR</span>
@@ -13711,7 +13711,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         </div>` : ''}
         
         ${(i.borang_json && i.borang_json.trim() !== '') ? 
-            `<div style="margin-top: 15px;"><button id="btnLihatBorangSemakan" class="btn btn-blue" style="width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">📄 Lihat Borang Semakan</button></div>` 
+            `<div style="margin-top: 15px;"><button id="btnLihatBorangSemakan" class="btn btn-blue" style="width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><i class="fa-solid fa-file-lines fa-ico"></i>Lihat Borang Semakan</button></div>` 
         : ''}
       </div>
     `;
@@ -14041,11 +14041,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const siasatAlamat = document.getElementById('db_alamat_perniagaan')?.value || '';
         const alamatSah = await CustomAppModal.confirm(
             "Sila semak alamat perniagaan syarikat sebelum dihantar ke Pelulus untuk semakan.<br><br>" +
-            "🏢 <b>" + siasatSyarikat + "</b><br>" +
+            "<i class=\"fa-solid fa-building\"></i> <b>" + siasatSyarikat + "</b><br>" +
             "<b>Alamat Perniagaan:</b><br>" +
             (siasatAlamat || 'Tiada alamat') +
             "<br><br>" +
-            "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(siasatAlamat || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
+            "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(siasatAlamat || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'><i class=\"fa-solid fa-map-location-dot\"></i> Buka Google Maps (Tab Baharu)</a>" +
             "<br><br>Adakah alamat perniagaan syarikat ini tepat?",
             "Semakan Alamat SIASAT",
             "info",
@@ -14063,10 +14063,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (!hasSyorAndConfirmed && !isTelahDihantarOriginal) {
           confirmHantarEmel = await CustomAppModal.confirm(
               "Adakah anda ingin hantar emel syarikat ini ke SPI?<br><br>" +
-              "🏢 <b>Alamat Perniagaan:</b><br>" +
+              "<i class=\"fa-solid fa-building\"></i> <b>Alamat Perniagaan:</b><br>" +
               (document.getElementById('db_alamat_perniagaan')?.value || 'Tiada alamat') +
               "<br><br>" +
-              "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'>🗺️ Buka Google Maps (Tab Baharu)</a>" +
+              "<a href='https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(document.getElementById('db_alamat_perniagaan')?.value || '') + "' target='_blank' style='color:#1a73e8;text-decoration:underline;font-weight:bold;'><i class=\"fa-solid fa-map-location-dot\"></i> Buka Google Maps (Tab Baharu)</a>" +
               "<br><br>Sila pastikan alamat adalah terkini.",
               "Hantar Emel SPI",
               "info",
@@ -14391,13 +14391,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                 };
                 // Guna payload.borang_json (data baru sahaja disimpan) sebagai asas merge flag
                 await markWhatsappPelulusSent(_tmpItem, isSiasatWorkflow ? 'SIASAT' : 'BIASA');
-                await CustomAppModal.alert(message + "<br><br>✅ Notifikasi WhatsApp ke Pelulus telah dihantar (sekali sahaja).", "Selesai", "success");
+                await CustomAppModal.alert(message + "<br><br><i class=\"fa-solid fa-check\"></i> Notifikasi WhatsApp ke Pelulus telah dihantar (sekali sahaja).", "Selesai", "success");
               } catch (e) {
                 console.error('Gagal mark WhatsApp sent:', e);
                 await CustomAppModal.alert(message, "Selesai", "success");
               }
             } else {
-              await CustomAppModal.alert(message + "<br><br>💬 Anda tekan <b>Batal</b>. Butang <b>WhatsApp</b> akan muncul di tab <b>Belum Hantar / Telah Syor</b> untuk hantar semula (sekali sahaja).", "Selesai", "success");
+              await CustomAppModal.alert(message + "<br><br><i class=\"fa-solid fa-message\"></i> Anda tekan <b>Batal</b>. Butang <b>WhatsApp</b> akan muncul di tab <b>Belum Hantar / Telah Syor</b> untuk hantar semula (sekali sahaja).", "Selesai", "success");
             }
           } else {
             await CustomAppModal.alert(message, "Selesai", "success");
@@ -14901,7 +14901,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           if (waUrl) {
             const isWa = await CustomAppModal.confirm(`Siasat ditolak dan dikembalikan kepada Pengesyor.<br><br>Alasan: <b>${alasan}</b><br><br>Mahukah anda hantar WhatsApp kepada Pengesyor <b>${pelulusActiveItem.pengesyor}</b> sekarang?`, "Hantar WhatsApp", "info", "Buka WhatsApp", false, true);
             if (isWa) window.open(waUrl, '_blank');
-            else await CustomAppModal.alert("Siasat ditolak. Pengesyor akan lihat status ↩️ di Drafts.", "Selesai", "success");
+            else await CustomAppModal.alert("Siasat ditolak. Pengesyor akan lihat status <i class=\"fa-solid fa-rotate-left\"></i> di Drafts.", "Selesai", "success");
           } else {
             await CustomAppModal.alert(`Siasat ditolak. ${pengesyorPhone ? 'Gagal dapatkan telefon pengesyor untuk WhatsApp.' : 'Telefon pengesyor tiada.'} Sila hubungi manual.`, "Selesai", "warning");
           }
@@ -14924,7 +14924,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   async function siasatUndoConfirm(item) {
     if (!item) return;
     const isConfirm = await CustomAppModal.confirm(
-      `Adakah anda pasti ingin <b>UNDO</b> pengesahan siasat untuk <b>${item.syarikat}</b>?<br><br>Permohonan akan dikeluarkan dari queue email SPI dan kembali ke tab <b>🔍 Siasat – Menunggu Semakan</b>.`,
+      `Adakah anda pasti ingin <b>UNDO</b> pengesahan siasat untuk <b>${item.syarikat}</b>?<br><br>Permohonan akan dikeluarkan dari queue email SPI dan kembali ke tab <b><i class="fa-solid fa-magnifying-glass"></i> Siasat – Menunggu Semakan</b>.`,
       "Undo Siasat",
       "warning",
       "Ya, Undo",
@@ -15009,11 +15009,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const div = document.createElement('div');
     div.className = 'person-card';
     div.innerHTML = `
-      <button class="delete-btn" type="button">✕</button>
+      <button class="delete-btn" type="button"><i class="fa-solid fa-xmark"></i></button>
       <div style="display:flex; justify-content:space-between; margin-bottom:5px; align-items:center;">
         <div style="display:flex; align-items:center; gap:8px;">
           <label>Nama Personel</label>
-          <label class="baru-tambah-wrap" style="display:none; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; border:2px solid #f59e0b; background:#fffbeb; color:#b45309; font-weight:bold; font-size:0.75rem; cursor:pointer;"><input type="checkbox" class="baru-tambah-cb"> ➕ BARU TAMBAH</label>
+          <label class="baru-tambah-wrap" style="display:none; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; border:2px solid #f59e0b; background:#fffbeb; color:#b45309; font-weight:bold; font-size:0.75rem; cursor:pointer;"><input type="checkbox" class="baru-tambah-cb"> <i class="fa-solid fa-plus"></i> BARU TAMBAH</label>
         </div>
         <label><input type="checkbox" class="is-company"> Syarikat?</label>
       </div>
@@ -15076,8 +15076,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const tickContainer = document.createElement('div');
         tickContainer.className = 'tick-buttons';
         tickContainer.innerHTML = `
-          <button type="button" class="tick-btn tick-right" title="Set OK">✓</button>
-          <button type="button" class="tick-btn tick-wrong" title="Set X">✗</button>
+          <button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button>
+          <button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button>
         `;
         input.parentElement.style.position = 'relative';
         input.parentElement.appendChild(tickContainer);
@@ -15257,8 +15257,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     div.className = 'bank-card';
     div.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <label class="bank-title" style="font-weight:bold; color:#0369a1;">🏦 Bank ${(bankListEl.querySelectorAll('.bank-card').length + 1)}</label>
-        <button type="button" class="bank-delete-btn" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:bold; cursor:pointer;">✕ Buang</button>
+        <label class="bank-title" style="font-weight:bold; color:#0369a1;"><i class="fa-solid fa-building-columns fa-ico"></i>Bank ${(bankListEl.querySelectorAll('.bank-card').length + 1)}</label>
+        <button type="button" class="bank-delete-btn" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; padding:4px 10px; font-size:0.8rem; font-weight:bold; cursor:pointer;"><i class="fa-solid fa-xmark fa-ico"></i>Buang</button>
       </div>
       <div class="grid-3">
         <div>
@@ -15275,22 +15275,22 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       <div style="margin-top:8px;">
         <label>Jenis Semakan:</label>
         <div style="display:flex; gap:8px; margin-top:4px;">
-          <button type="button" class="bank-mode-btn" data-mode="CEK" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#0369a1;">✍️ SIGN CEK</button>
-          <button type="button" class="bank-mode-btn" data-mode="ONLINE" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#7c3aed;">💻 ONLINE BANKING</button>
+          <button type="button" class="bank-mode-btn" data-mode="CEK" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#0369a1;"><i class="fa-solid fa-pen-nib fa-ico"></i>SIGN CEK</button>
+          <button type="button" class="bank-mode-btn" data-mode="ONLINE" style="flex:1; padding:8px; border-radius:8px; border:2px solid #d1d5db; background:#fff; font-weight:bold; font-size:0.85rem; cursor:pointer; color:#7c3aed;"><i class="fa-solid fa-laptop fa-ico"></i>ONLINE BANKING</button>
         </div>
       </div>
       <div class="bank-fields-cek" style="display:none; margin-top:8px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px;">
         <label style="font-weight:bold; color:#0369a1;">SIGN CEK</label>
         <div style="display:flex; gap:10px; margin-top:4px;">
           <div style="flex:1;"><label>Semakan Syarat Penandatangan</label><input type="text" class="bank-sign-syarat" placeholder="Nyatakan syarat..."></div>
-          <div style="flex:1;"><label>Status Semakan</label><div class="status-input-container"><input type="text" class="bank-sign-status status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+          <div style="flex:1;"><label>Status Semakan</label><div class="status-input-container"><input type="text" class="bank-sign-status status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button><button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button></div></div></div>
         </div>
       </div>
       <div class="bank-fields-online" style="display:none; margin-top:8px; background:#fdf4ff; border:1px solid #e9d5ff; border-radius:8px; padding:10px;">
         <label style="font-weight:bold; color:#7c3aed;">ONLINE BANKING</label>
         <div style="display:flex; gap:10px; margin-top:4px;">
-          <div style="flex:1;"><label>Semakan Maker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-maker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
-          <div style="flex:1;"><label>Semakan Checker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-checker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK">✓</button><button type="button" class="tick-btn tick-wrong" title="Set X">✗</button></div></div></div>
+          <div style="flex:1;"><label>Semakan Maker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-maker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button><button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button></div></div></div>
+          <div style="flex:1;"><label>Semakan Checker (Status)</label><div class="status-input-container"><input type="text" class="bank-online-checker status-input" maxlength="20" placeholder="-"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button><button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button></div></div></div>
         </div>
       </div>
     `;
@@ -15594,7 +15594,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function syncBankTitles() {
     if (!bankListEl) return;
     bankListEl.querySelectorAll('.bank-card .bank-title').forEach((t, i) => {
-      t.textContent = `🏦 Bank ${i + 1}`;
+      t.innerHTML = `<i class="fa-solid fa-building-columns fa-ico"></i>Bank ${i + 1}`;
     });
     styleBankCards();
   }
@@ -15971,8 +15971,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const data = cardData[key];
       if (!data || data.length === 0) return;
       const labelMap = { total: 'JUMLAH', success: labels.success || defaultLabel, reject: labels.reject || defaultLabel, proses: labels.status || defaultLabel };
-      const iconMap = { total: '📋', success: '✅', reject: '❌', proses: '⏳' };
-      openDashboardCardModal(`${iconMap[key] || '📋'} ${labelMap[key]} — ${data.length} Permohonan`, color, data);
+      const iconMap = { total: 'fa-clipboard-list', success: 'fa-circle-check', reject: 'fa-circle-xmark', proses: 'fa-hourglass-half' };
+      openDashboardCardModal(`<i class="fa-solid ${iconMap[key] || 'fa-clipboard-list'}"></i> ${labelMap[key]} — ${data.length} Permohonan`, color, data);
     });
   }
 
@@ -15989,7 +15989,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     cardEl.addEventListener('click', () => {
       const data = (window.__adminCardData || {})[key];
       if (!data || data.length === 0) return;
-      openDashboardCardModal(`📋 ${label} — ${data.length} Permohonan`, color, data);
+      openDashboardCardModal(`<i class="fa-solid fa-clipboard-list"></i> ${label} — ${data.length} Permohonan`, color, data);
     });
   }
 
@@ -16006,7 +16006,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     cardEl.addEventListener('click', () => {
       const data = (window.__pkaCardData || {})[key];
       if (!data || data.length === 0) return;
-      openDashboardCardModal(`📋 ${label} — ${data.length} Permohonan`, color, data);
+      openDashboardCardModal(`<i class="fa-solid fa-clipboard-list"></i> ${label} — ${data.length} Permohonan`, color, data);
     });
   }
 
@@ -16328,12 +16328,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               div.style.cssText = "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); position: relative;";
               
               div.innerHTML = `
-                  <button class="qc-btn-delete" data-index="${index}" style="position: absolute; top: 12px; right: 12px; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 6px; padding: 5px 10px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: all 0.2s;">🗑️ Buang</button>
+                  <button class="qc-btn-delete" data-index="${index}" style="position: absolute; top: 12px; right: 12px; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 6px; padding: 5px 10px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-trash-can fa-ico"></i>Buang</button>
                   
                   <div style="margin-bottom: 12px; border-bottom: 2px dashed #e2e8f0; padding-bottom: 12px; padding-right: 80px;">
                       <label style="font-size: 0.75rem; color: #64748b; font-weight: bold; margin-bottom: 5px; display: block;">NAMA PERSONEL:</label>
                       <div style="display: flex; align-items: center; gap: 8px;">
-                          <span style="font-size: 1.2rem;">👤</span>
+                          <span style="font-size: 1.2rem;"><i class="fa-solid fa-user"></i></span>
                           <input type="text" class="qc-input-name" value="${name}" placeholder="MASUKKAN NAMA" style="width: 100%; border: 1px solid #94a3b8; border-radius: 6px; padding: 8px 10px; font-weight: bold; font-size: 0.95rem; text-transform: uppercase; outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
                       </div>
                   </div>
@@ -16461,8 +16461,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               <div style="position: relative; display: flex; height: 38px;">
                   <input type="text" class="qc-input-${type}-${index}" value="${value}" placeholder="Catatan..." style="width: 100%; padding: 0 70px 0 10px; font-weight: bold; font-size: 0.9rem; text-align: left; border: 1px solid #cbd5e1; border-radius: 6px; background-color: ${bg}; color: ${color}; outline: none; text-transform: uppercase;">
                   <div style="position: absolute; right: 3px; top: 3px; display: flex; gap: 4px; height: calc(100% - 6px);">
-                      <button type="button" class="qc-btn-right-${type}-${index}" title="Lengkap" style="width: 30px; border: none; border-radius: 4px; background: linear-gradient(135deg, #10b981, #059669); color: white; cursor: pointer; font-weight: bold; font-size: 1.1rem;">✓</button>
-                      <button type="button" class="qc-btn-wrong-${type}-${index}" title="Tidak Lengkap" style="width: 30px; border: none; border-radius: 4px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; cursor: pointer; font-weight: bold; font-size: 1.1rem;">✗</button>
+                      <button type="button" class="qc-btn-right-${type}-${index}" title="Lengkap" style="width: 30px; border: none; border-radius: 4px; background: linear-gradient(135deg, #10b981, #059669); color: white; cursor: pointer; font-weight: bold; font-size: 1.1rem;"><i class="fa-solid fa-check"></i></button>
+                      <button type="button" class="qc-btn-wrong-${type}-${index}" title="Tidak Lengkap" style="width: 30px; border: none; border-radius: 4px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; cursor: pointer; font-weight: bold; font-size: 1.1rem;"><i class="fa-solid fa-xmark"></i></button>
                   </div>
               </div>
           </div>
@@ -16504,7 +16504,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           saat = saat < 10 ? '0' + saat : saat;
           
           // Paparkan ke skrin (Hari, Tarikh Bulan Tahun | Masa AM/PM)
-          clockEl.innerHTML = `🗓️ ${hari}, ${tarikh} ${bulan} ${tahun} <span style="color:#cbd5e1; margin: 0 6px;">|</span> ⏱️ ${jam}:${minit}:${saat} ${ampm}`;
+          clockEl.innerHTML = `<i class="fa-solid fa-calendar-days"></i> ${hari}, ${tarikh} ${bulan} ${tahun} <span style="color:#cbd5e1; margin: 0 6px;">|</span> <i class="fa-solid fa-clock"></i> ${jam}:${minit}:${saat} ${ampm}`;
       }, 1000); // Bergerak setiap 1 saat
   }
 
@@ -16975,7 +16975,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             btnSelectAllDistricts.innerText = "Pilih Semua";
         } else {
             selectedExcelDistricts = new Set(allExcelDistricts);
-            btnSelectAllDistricts.innerText = "✓ Kosongkan";
+            btnSelectAllDistricts.innerHTML = '<i class="fa-solid fa-check fa-ico"></i>Kosongkan';
         }
         renderExcelDistrictButtons();
         renderExcelTable();
@@ -17065,19 +17065,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   } catch(e) {}
               }
               if (isSemakanPelulus) {
-                  statusBadge = `<span style="background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">⏳ Semakan Pelulus</span>`;
+                  statusBadge = `<span style="background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;"><i class="fa-solid fa-hourglass-half"></i> Semakan Pelulus</span>`;
               } else {
-                  statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✅ Telah Disyor</span>`;
+                  statusBadge = `<span style="background: #10b981; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;"><i class="fa-solid fa-check"></i> Telah Disyor</span>`;
               }
               disableCheckbox = true;
           } else if (inDrafts) {
-              statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">📝 Belum Hantar</span>`;
+              statusBadge = `<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;"><i class="fa-solid fa-pen"></i> Belum Hantar</span>`;
               disableCheckbox = true;
           } else if (inBasket) {
-              statusBadge = `<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">🛒 Dalam Bakul</span>`;
+              statusBadge = `<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;"><i class="fa-solid fa-basket-shopping"></i> Dalam Bakul</span>`;
               disableCheckbox = true;
           } else {
-              statusBadge = `<span style="background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">✨ Baru</span>`;
+              statusBadge = `<span style="background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;"><i class="fa-solid fa-wand-magic-sparkles"></i> Baru</span>`;
           }
 
           const checkboxHtml = disableCheckbox 
@@ -17693,7 +17693,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     initSpiSearch();
     const allItems = data.filter(r => r.date_submit);
     if (!allItems.length) {
-      timeline.innerHTML = `<div class="spi-timeline-empty">✅ Tiada permohonan SPI</div>`;
+      timeline.innerHTML = `<div class="spi-timeline-empty"><i class="fa-solid fa-check"></i> Tiada permohonan SPI</div>`;
       return;
     }
     const sorted = [...allItems].sort((a, b) => {
@@ -17707,7 +17707,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const isOverdue = !siap && r.hari_lewat && r.hari_lewat > 0;
       const barCls = siap ? 'spi-tl-bar-siap' : (isOverdue ? 'spi-tl-bar-overdue' : 'spi-tl-bar-pending');
       const pct = siap ? 100 : (r.progress_pct !== undefined ? r.progress_pct : 0);
-      const barLabel = siap ? '✅'
+      const barLabel = siap ? '<i class="fa-solid fa-check"></i>'
         : isOverdue ? `${r.hari_lewat}h`
         : r.baki_hari > 0 ? `${r.baki_hari}h`
         : r.baki_hari === 0 ? '!!'
@@ -17731,13 +17731,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       // Deadline badge
       let deadlineBadge = '';
       if (siap) {
-        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-siap">✅ Siap</span>`;
-      } else if (isOverdue) {
-        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late">⚠️ ${r.hari_lewat} hari lewat</span>`;
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-siap"><i class="fa-solid fa-check"></i> Siap</span>`;
+      } else if (r.hari_lewat && r.hari_lewat > 0) {
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late"><i class="fa-solid fa-triangle-exclamation"></i> ${r.hari_lewat} hari lewat</span>`;
       } else if (r.baki_hari > 0) {
-        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-ok">⏳ ${r.baki_hari} hari lagi</span>`;
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-ok"><i class="fa-solid fa-hourglass-half"></i> ${r.baki_hari} hari lagi</span>`;
       } else if (r.baki_hari === 0) {
-        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late">⚠️ Hari Terakhir!</span>`;
+        deadlineBadge = `<span class="spi-tl-deadline-badge spi-tl-deadline-late"><i class="fa-solid fa-triangle-exclamation"></i> Hari Terakhir!</span>`;
       }
 
       const pengerusi = r.pengesyor ? ` · ${r.pengesyor}` : '';
@@ -17747,7 +17747,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           <div class="spi-tl-name">${r.syarikat || '-'}</div>
           <div class="spi-tl-meta">${jenisBadge}${pengerusi}</div>
           <div class="spi-tl-dates">
-            <span class="spi-tl-date-badge">📤 ${r.date_submit || '-'}</span>
+            <span class="spi-tl-date-badge"><i class="fa-solid fa-paper-plane"></i> ${r.date_submit || '-'}</span>
             ${deadlineBadge}
           </div>
         </div>
@@ -17768,7 +17768,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const colSpan = isSiasat ? 5 : 4;
 
       if (!dataArray || dataArray.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:15px; color:#64748b;">✅ Tiada permohonan dalam queue ini</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="${colSpan}" style="text-align:center; padding:15px; color:#64748b;"><i class="fa-solid fa-check"></i> Tiada permohonan dalam queue ini</td></tr>`;
           return;
       }
 
@@ -17946,7 +17946,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           card.innerHTML = `
               <img src="${item.snippet.thumbnails.medium.url}" style="width:100%; border-radius:8px; margin-bottom:10px; aspect-ratio: 16/9; object-fit: cover;">
               <h4 style="margin:0 0 5px 0; font-size:0.9rem; color:#1e40af;">${item.snippet.title}</h4>
-              <p style="margin:0; font-size:0.75rem; color:#64748b;">👤 ${item.snippet.channelTitle}</p>
+              <p style="margin:0; font-size:0.75rem; color:#64748b;"><i class="fa-solid fa-user"></i> ${item.snippet.channelTitle}</p>
           `;
 
           card.onclick = () => {
@@ -18657,11 +18657,11 @@ async function checkFrozenStatus(cidb, companyName) {
         const companyDisplay = companyName || 'Syarikat ini';
 
         await CustomAppModal.alert(
-            'ΓÜá∩╕Å AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
-            '📅 Mula Beku: ' + mulaStr + '<br>' +
-            '📅 Tamat Beku: ' + tamatStr + '<br><br>' +
+            '<i class="fa-solid fa-triangle-exclamation"></i> AMARAN: <b>' + companyDisplay + '</b> (CIDB: ' + cidb + ') masih dalam <b>TEMPOH PEMBEKUAN</b>!<br><br>' +
+            '<i class="fa-solid fa-calendar-days"></i> Mula Beku: ' + mulaStr + '<br>' +
+            '<i class="fa-solid fa-calendar-days"></i> Tamat Beku: ' + tamatStr + '<br><br>' +
             'Permohonan baharu tidak boleh diproses sehingga tempoh beku tamat. Sila rujuk pentadbir jika perlu.',
-            '🚫 Syarikat Dalam Tempoh Beku',
+            'Syarikat Dalam Tempoh Beku',
             'warning'
         );
         return true;
@@ -18681,11 +18681,11 @@ async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
   const btnBatal = document.getElementById('waConfirmBatal');
   const titleEl = document.getElementById('waConfirmTitle');
   
-  if (titleEl) titleEl.innerHTML = '💬 Hantar Notifikasi WhatsApp';
+  if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-message"></i> Hantar Notifikasi WhatsApp';
   if (msgEl) {
     msgEl.innerHTML = `
       <div style="text-align:center; margin-bottom:15px;">
-        <div style="font-size:3rem; margin-bottom:10px;">💬</div>
+        <div style="font-size:3rem; margin-bottom:10px; color:#25D366;"><i class="fa-solid fa-message"></i></div>
         <div style="font-weight:bold; font-size:1.1rem; color:#075e54;">Notifikasi Kepada Pelulus</div>
         <div style="color:#4b5563; margin-top:8px;">
           Hantar notifikasi WhatsApp ke <strong>${pelulusName}</strong> untuk permohonan <strong>${syarikat}</strong>?
@@ -18723,11 +18723,11 @@ function createWAConfirmModal() {
   div.className = 'custom-modal-overlay';
   div.innerHTML = `
     <div class="custom-modal-card" style="max-width:400px; border-top:6px solid #25D366 !important; text-align:center;">
-      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;">💬 Hantar WhatsApp</div>
+      <div id="waConfirmTitle" style="font-size:1.3rem; font-weight:800; color:#075e54; margin-bottom:10px;"><i class="fa-solid fa-message"></i> Hantar WhatsApp</div>
       <div id="waConfirmMsg"></div>
       <div style="display:flex; gap:12px; justify-content:center; margin-top:15px;">
         <button id="waConfirmBatal" class="custom-modal-btn custom-modal-btn-cancel" style="flex:1;">Batal</button>
-        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);">💬 Ya, Hantar</button>
+        <button id="waConfirmYa" class="custom-modal-btn" style="flex:1; background:linear-gradient(135deg, #25D366, #128C7E); color:white; box-shadow:0 4px 12px rgba(37,211,102,0.3);"><i class="fa-solid fa-message fa-ico"></i>Ya, Hantar</button>
       </div>
     </div>
   `;
@@ -18817,14 +18817,14 @@ async function inboxSaveState() {
 }
 
 const INBOX_CAT_META = {
-  'pelulus-biasa': { ikon: '📋', label: 'Menunggu Keputusan', warna: '#2563eb' },
-  'pelulus-siasat': { ikon: '🔍', label: 'Siasat Menunggu Semakan', warna: '#f59e0b' },
-  'pelulus-queue': { ikon: '📤', label: 'Dalam Queue SPI', warna: '#10b981' },
-  'ditolak': { ikon: '↩️', label: 'SIASAT Ditolak Pelulus', warna: '#ef4444' },
-  'keputusan': { ikon: '📬', label: 'Keputusan Pelulus', warna: '#6366f1' },
-  'lawatan-selesai': { ikon: '✅', label: 'Lawatan Selesai (PKA)', warna: '#059669' },
-  'pka-baru': { ikon: '📥', label: 'Kes Baru Di SPI', warna: '#0ea5e9' },
-  'pka-dalam': { ikon: '🚗', label: 'Dalam Lawatan', warna: '#f59e0b' }
+  'pelulus-biasa': { ikon: '<i class="fa-solid fa-clipboard-list"></i>', label: 'Menunggu Keputusan', warna: '#2563eb' },
+  'pelulus-siasat': { ikon: '<i class="fa-solid fa-magnifying-glass"></i>', label: 'Siasat Menunggu Semakan', warna: '#f59e0b' },
+  'pelulus-queue': { ikon: '<i class="fa-solid fa-paper-plane"></i>', label: 'Dalam Queue SPI', warna: '#10b981' },
+  'ditolak': { ikon: '<i class="fa-solid fa-rotate-left"></i>', label: 'SIASAT Ditolak Pelulus', warna: '#ef4444' },
+  'keputusan': { ikon: '<i class="fa-solid fa-envelope-open-text"></i>', label: 'Keputusan Pelulus', warna: '#6366f1' },
+  'lawatan-selesai': { ikon: '<i class="fa-solid fa-check"></i>', label: 'Lawatan Selesai (PKA)', warna: '#059669' },
+  'pka-baru': { ikon: '<i class="fa-solid fa-inbox"></i>', label: 'Kes Baru Di SPI', warna: '#0ea5e9' },
+  'pka-dalam': { ikon: '<i class="fa-solid fa-car"></i>', label: 'Dalam Lawatan', warna: '#f59e0b' }
 };
 
 function buildInboxItems() {
@@ -18933,11 +18933,11 @@ function inboxToneOf(cat, item) {
 const INBOX_BUCKETS = [
   { key: 'ALL', label: 'Semua' },
   { key: 'MENUNGGU', label: 'Menunggu' },
-  { key: 'SIASAT', label: '🔍 Siasat' },
-  { key: 'LULUS', label: '✅ Lulus' },
-  { key: 'TOLAK', label: '❌ Tolak' },
-  { key: 'TOLAK_SIASAT', label: '↩️ Tolak Siasat' },
-  { key: 'LAWATAN', label: '✅ Lawatan' }
+  { key: 'SIASAT', label: '<i class="fa-solid fa-magnifying-glass"></i> Siasat' },
+  { key: 'LULUS', label: '<i class="fa-solid fa-check"></i> Lulus' },
+  { key: 'TOLAK', label: '<i class="fa-solid fa-xmark"></i> Tolak' },
+  { key: 'TOLAK_SIASAT', label: '<i class="fa-solid fa-rotate-left"></i> Tolak Siasat' },
+  { key: 'LAWATAN', label: '<i class="fa-solid fa-check"></i> Lawatan' }
 ];
 
 function inboxBucketOf(cat, item) {
@@ -19014,7 +19014,7 @@ function ensureInboxBell() {
     btn.className = 'exec-link';
     btn.setAttribute('title', 'Inbox Notifikasi');
     btn.style.cssText = 'position:relative;';
-    btn.innerHTML = '🔔 Inbox <span class="stb-inbox-badge" id="stbInboxBadge">0</span>';
+    btn.innerHTML = '<i class="fa-solid fa-bell fa-ico"></i>Inbox <span class="stb-inbox-badge" id="stbInboxBadge">0</span>';
     group.appendChild(btn);
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -19031,7 +19031,7 @@ function ensureInboxBell() {
       <div class="custom-modal-card" style="max-width: 950px; width: 95%; text-align: left; position: relative; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px;">
         <span class="admin-stats-close" id="stbInboxClose" style="top: 15px; right: 20px;">×</span>
         <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
-          🔔 Inbox Notifikasi <span id="stbInboxTitleBadge"></span>
+          <i class="fa-solid fa-bell fa-ico"></i>Inbox Notifikasi <span id="stbInboxTitleBadge"></span>
         </h2>
         <div id="stbInboxPanel"></div>
       </div>
@@ -19094,7 +19094,7 @@ async function refreshInboxBell() {
     if (titleBadge) titleBadge.innerHTML = '';
     if (inboxPanelOpen) {
       const p = document.getElementById('stbInboxPanel');
-      if (p) p.innerHTML = '<div class="stb-inbox-empty">⏸️ Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
+      if (p) p.innerHTML = '<div class="stb-inbox-empty"><i class="fa-solid fa-circle-pause"></i> Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
     }
     return;
   }
@@ -19133,7 +19133,7 @@ function renderInboxPanel() {
   if (!p) return;
   const items = inboxLastItems || [];
   if (typeof dataMode !== 'undefined' && dataMode === 'history') {
-    p.innerHTML = '<div class="stb-inbox-empty">⏸️ Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
+    p.innerHTML = '<div class="stb-inbox-empty"><i class="fa-solid fa-circle-pause"></i> Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
     return;
   }
   const unreadCount = items.filter(it => !inboxStateCache.read[it.sigKey]).length;
@@ -19149,20 +19149,20 @@ function renderInboxPanel() {
   let html = '<div class="stb-inbox-head">'
     + '<div style="font-size:0.8rem; color:#64748b;">'
     + (unreadCount > 0 ? '<b style="color:#dc2626;">' + unreadCount + ' belum dibaca</b>' : 'Semua telah dibaca')
-    + (selCount > 0 ? ' • <b style="color:#2563eb;">☑ ' + selCount + ' dipilih</b>' : '')
-    + ' • ✕ padam notifikasi sahaja (rekod kekal)</div>'
+    + (selCount > 0 ? ' • <b style="color:#2563eb;"><i class="fa-solid fa-square-check"></i> ' + selCount + ' dipilih</b>' : '')
+    + ' • <i class="fa-solid fa-xmark"></i> padam notifikasi sahaja (rekod kekal)</div>'
     + '<div class="stb-inbox-filters">'
     + visibleBuckets.map(b => '<button class="stb-filter-btn' + (inboxFilter === b.key ? ' active' : '') + '" data-inbox-filter="' + b.key + '">' + b.label + ' <span class="stb-fbadge">' + (bucketCount[b.key] || 0) + '</span></button>').join('')
     + '</div>'
     + '<div class="stb-inbox-actions">'
-    + '<button data-inbox-act="read-all" title="Tandakan semua sebagai dibaca">✓ Semua dibaca</button>'
-    + '<button data-inbox-act="del-read" title="Padam notifikasi yang telah dibaca">🗑 Padam dibaca</button>'
-    + '<button data-inbox-act="del-all" title="Padam semua notifikasi">🗑 Padam semua</button>'
-    + '<button data-inbox-act="sel-read" title="Tandakan yang dipilih sebagai dibaca"' + (selCount === 0 ? ' disabled' : '') + '>✓ Baca pilihan (' + selCount + ')</button>'
-    + '<button data-inbox-act="sel-del" class="stb-act-danger" title="Padam notifikasi yang dipilih"' + (selCount === 0 ? ' disabled' : '') + '>🗑 Padam pilihan (' + selCount + ')</button>'
+    + '<button data-inbox-act="read-all" title="Tandakan semua sebagai dibaca"><i class="fa-solid fa-check fa-ico"></i>Semua dibaca</button>'
+    + '<button data-inbox-act="del-read" title="Padam notifikasi yang telah dibaca"><i class="fa-solid fa-trash-can fa-ico"></i>Padam dibaca</button>'
+    + '<button data-inbox-act="del-all" title="Padam semua notifikasi"><i class="fa-solid fa-trash-can fa-ico"></i>Padam semua</button>'
+    + '<button data-inbox-act="sel-read" title="Tandakan yang dipilih sebagai dibaca"' + (selCount === 0 ? ' disabled' : '') + '><i class="fa-solid fa-check fa-ico"></i>Baca pilihan (' + selCount + ')</button>'
+    + '<button data-inbox-act="sel-del" class="stb-act-danger" title="Padam notifikasi yang dipilih"' + (selCount === 0 ? ' disabled' : '') + '><i class="fa-solid fa-trash-can fa-ico"></i>Padam pilihan (' + selCount + ')</button>'
     + '</div></div>';
   if (shown.length === 0) {
-    html += '<div class="stb-inbox-empty">' + (items.length === 0 ? '🎉 Tiada notifikasi.<br>Semua selesai!' : 'Tiada notifikasi dalam tapisan ini.') + '</div>';
+    html += '<div class="stb-inbox-empty">' + (items.length === 0 ? '<i class="fa-solid fa-face-smile"></i> Tiada notifikasi.<br>Semua selesai!' : 'Tiada notifikasi dalam tapisan ini.') + '</div>';
   } else {
     html += '<div class="stb-inbox-sections">';
     html += '<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; font-weight:700; color:#475569; padding:4px 8px; cursor:pointer;">'
@@ -19186,7 +19186,7 @@ function renderInboxPanel() {
         ? '<div class="stb-meta">'
           + (it.badge ? '<span class="stb-badge ' + badgeCls + '">' + esc(it.badge) + '</span>' : '')
           + (it.approver ? '<span class="stb-approver">' + esc(it.approver) + '</span>' : '')
-          + (masukTxt ? '<span class="stb-date">📅 ' + esc(masukTxt) + '</span>' : '')
+          + (masukTxt ? '<span class="stb-date"><i class="fa-solid fa-calendar-days"></i> ' + esc(masukTxt) + '</span>' : '')
           + '</div>'
         : '';
       html += '<div class="stb-inbox-item' + (isUnread ? ' unread' : ' read') + '" data-inbox-idx="' + idx + '">'
@@ -19196,8 +19196,8 @@ function renderInboxPanel() {
         + (it.sub ? '<div class="stb-s">' + esc(it.sub) + '</div>' : '')
         + metaHtml
         + '</div>'
-        + (isUnread ? '<button class="stb-mini-btn" data-inbox-read="' + idx + '" title="Tanda dibaca">✓</button>' : '')
-        + '<button class="stb-mini-btn" data-inbox-del="' + idx + '" title="Padam notifikasi">✕</button>'
+        + (isUnread ? '<button class="stb-mini-btn" data-inbox-read="' + idx + '" title="Tanda dibaca"><i class="fa-solid fa-check"></i></button>' : '')
+        + '<button class="stb-mini-btn" data-inbox-del="' + idx + '" title="Padam notifikasi"><i class="fa-solid fa-xmark"></i></button>'
         + '</div>';
     });
     html += '</div><div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end; align-items:center;">'
@@ -19496,8 +19496,8 @@ function renderUsersTable(users) {
       <td style="padding:6px 8px; font-size:0.8rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.signUrl ? escHtml(u.signUrl.substring(0,40))+'...' : '-'}</td>
       <td style="padding:6px 8px; font-size:0.8rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.copUrl ? escHtml(u.copUrl.substring(0,40))+'...' : '-'}</td>
       <td style="padding:6px 8px; white-space:nowrap;">
-        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="edit" style="background:#6366f1; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">📝 Edit</button>
-        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="delete" style="background:#ef4444; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">🗑️ Padam</button>
+        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="edit" style="background:#6366f1; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;"><i class="fa-solid fa-pen fa-ico"></i>Edit</button>
+        <button class="btn-sm" data-email="${escHtml(u.email)}" data-action="delete" style="background:#ef4444; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;"><i class="fa-solid fa-trash-can fa-ico"></i>Padam</button>
       </td>
     </tr>`;
   }).join('');
@@ -19524,7 +19524,7 @@ let editingUserOldFirebaseCode = '';
 function showUserModal(user) {
   editingUserEmail = user ? user.email : null;
   editingUserOldFirebaseCode = '';
-  document.getElementById('userModalTitle').textContent = user ? '✏️ Edit Pengguna' : '➕ Tambah Pengguna Baru';
+  document.getElementById('userModalTitle').textContent = user ? 'Edit Pengguna' : 'Tambah Pengguna Baru';
   document.getElementById('userFormName').value = user ? user.name : '';
   document.getElementById('userFormEmail').value = user ? user.email : '';
   document.getElementById('userFormEmail').readOnly = !!user;
@@ -19689,8 +19689,8 @@ async function deleteUser(email) {
   
   const confirmed = await CustomAppModal.confirm(
     `Padamkan <b>${escHtml(userName)}</b> (${escHtml(email)})?<br><br>` +
-    `⚠️ Tandatangan/Cop dalam borang sedia ada <b>TIDAK akan terjejas</b> (telah disimpan dalam snapshot).<br>` +
-    (user && user.role === 'PENGESYOR' ? `🔥 Firebase code dan peraturan tapisan juga akan dipadam.` : ''),
+    `<i class="fa-solid fa-triangle-exclamation"></i> Tandatangan/Cop dalam borang sedia ada <b>TIDAK akan terjejas</b> (telah disimpan dalam snapshot).<br>` +
+    (user && user.role === 'PENGESYOR' ? `<i class="fa-solid fa-fire"></i> Firebase code dan peraturan tapisan juga akan dipadam.` : ''),
     'Pengesahan Padam',
     'warning',
     'Ya, Padam'
@@ -19811,13 +19811,13 @@ async function saveFirebaseRules() {
         cidbEndsWith: cidbEndsWith,
         alphaSplit: alphaSplit
       }, { merge: true });
-      statusEl.textContent = '✅ Peraturan disimpan!';
+      statusEl.textContent = 'Peraturan disimpan!';
       setTimeout(() => { statusEl.textContent = ''; }, 3000);
     } else {
-      statusEl.textContent = '❌ Firebase tidak tersedia';
+      statusEl.textContent = 'Firebase tidak tersedia';
     }
   } catch (e) {
-    statusEl.textContent = '❌ Ralat: ' + e.message;
+    statusEl.textContent = 'Ralat: ' + e.message;
   }
 }
 
@@ -19829,8 +19829,8 @@ async function handleArchiveYear() {
   const currentYear = new Date().getFullYear();
   const confirmed = await CustomAppModal.confirm(
     `Arkibkan semua data dalam Sheet1 ke tab <b>"${currentYear}"</b>?<br><br>` +
-    `📋 Semua rekod akan dipindahkan dan Sheet1 akan dikosongkan untuk data tahun baru.<br>` +
-    `⚠️ Tindakan ini <b>tidak boleh diterbalikkan</b> melalui sistem (boleh manual di Google Sheets).`,
+    `<i class="fa-solid fa-clipboard-list"></i> Semua rekod akan dipindahkan dan Sheet1 akan dikosongkan untuk data tahun baru.<br>` +
+    `<i class="fa-solid fa-triangle-exclamation"></i> Tindakan ini <b>tidak boleh diterbalikkan</b> melalui sistem (boleh manual di Google Sheets).`,
     'Arkib Data Tahunan',
     'info',
     'Ya, Arkibkan'
@@ -19851,11 +19851,11 @@ async function handleArchiveYear() {
     
     const statusEl = document.getElementById('archiveStatus');
     if (result.status === 'success') {
-      if (statusEl) statusEl.textContent = `✅ ${result.message}`;
-      await CustomAppModal.alert(`✅ Data berjaya diarkibkan ke sheet "${currentYear}". ${result.totalRecords || 0} rekod dipindahkan.`, 'Berjaya', 'success');
+      if (statusEl) statusEl.textContent = `${result.message}`;
+      await CustomAppModal.alert(`<i class="fa-solid fa-check"></i> Data berjaya diarkibkan ke sheet "${currentYear}". ${result.totalRecords || 0} rekod dipindahkan.`, 'Berjaya', 'success');
       if (typeof triggerAutoRefresh === 'function') triggerAutoRefresh();
     } else {
-      if (statusEl) statusEl.textContent = `❌ ${result.message}`;
+      if (statusEl) statusEl.textContent = `${result.message}`;
       await CustomAppModal.alert(result.message || 'Ralat', 'Ralat', 'error');
     }
   } catch (e) {
@@ -19892,14 +19892,14 @@ async function handleCleanupFirebaseCodes() {
     const result = await res.json();
     
     if (result.status === 'success') {
-      if (statusEl) statusEl.textContent = `✅ ${result.message}`;
+      if (statusEl) statusEl.textContent = `${result.message}`;
       await CustomAppModal.alert(result.message, 'Berjaya', 'success');
     } else {
-      if (statusEl) statusEl.textContent = `❌ ${result.message}`;
+      if (statusEl) statusEl.textContent = `${result.message}`;
       await CustomAppModal.alert(result.message || 'Ralat', 'Ralat', 'error');
     }
   } catch (e) {
-    if (statusEl) statusEl.textContent = '❌ Ralat rangkaian';
+    if (statusEl) statusEl.textContent = 'Ralat rangkaian';
     await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
   }
 }

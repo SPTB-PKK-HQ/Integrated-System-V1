@@ -527,6 +527,14 @@
         }
 
         /* =========================================================================
+           FONT AWESOME (ikon vektor): warisi warna teks sekeliling, jarak seragam.
+           ========================================================================= */
+        .fa-ico { margin-right: 7px; font-size: 0.92em; }
+        .tab-btn .fa-ico, .tab-icon .fa-solid { font-size: 1.1rem; }
+        button .fa-solid, button .fa-regular, button .fa-brands { pointer-events: none; }
+        h2 .fa-solid, h3 .fa-solid, h4 .fa-solid { margin-right: 7px; font-size: 0.9em; }
+
+        /* =========================================================================
            EXECUTIVE NAVBAR (biru gelap premium): kiri pautan | kanan kad profil.
            Menu kapsul tengah (.tabs) kekal sebagai sauh visual utama di bawahnya.
            ========================================================================= */
@@ -1746,6 +1754,8 @@
         .feature-icon {
             font-size: 2.2rem;
             margin-bottom: 10px;
+            color: #bfdbfe;
+            filter: drop-shadow(0 2px 6px rgba(59,130,246,0.35));
         }
 
         .feature-title {
