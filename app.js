@@ -4459,6 +4459,7 @@ async function handleCredentialResponse(response) {
                 cachedData[idx].ulasan_spi = ulasanSpi;
               }
             }
+            try { refreshInboxBell(); } catch (e) {}
 
             if (loadingEl) loadingEl.classList.remove('show');
 
@@ -12107,6 +12108,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     updateDraftFilterButtons();
     updateSubmittedFilterButtons();
     updateHistoryFilterButtons();
+    try { refreshInboxBell(); } catch (e) {}
   }
 
   // V6.6.0: Modal pilihan undo - syor saja atau termasuk pelulus
@@ -18732,6 +18734,613 @@ function createWAConfirmModal() {
   // Klik luar dikendali dalam showWhatsAppConfirmModal (resolve false) supaya await tidak tergantung
   return div;
 }
+
+// =========================================================================
+// INBOX NOTIFIKASI RINGAN (terbitan klien — sifar panggilan backend tambahan)
+// Sumber: cachedData (window 3 bulan sedia dimuat). State baca/padam per
+// pengguna dalam storan tempatan. Padam = sembunyi notifikasi sahaja —
+// rekod Sheet kekal dan boleh dibuka dari tab Senarai.
+// =========================================================================
+let inboxStateCache = { user: '', read: {}, dismissed: {} };
+let inboxPanelOpen = false;
+let inboxPrevUnread = 0;
+let inboxLastItems = [];
+let inboxFilter = 'ALL';
+let inboxSelected = new Set();
+
+function inboxStageOf(item) {
+  try {
+    const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+    return (pj.siasat_workflow && pj.siasat_workflow.stage) ? pj.siasat_workflow.stage : '';
+  } catch (e) { return ''; }
+}
+
+function inboxSignature(item) {
+  const wa = getWhatsappPelulusState(item);
+  return [
+    item.syor_status || '', item.tarikh_syor || '', item.pelulus || '',
+    item.kelulusan || '', item.tarikh_lulus || '', inboxStageOf(item),
+    item.status_hantar_spi || '', item.lawatan_syor || '',
+    item.lawatan_submit_sptb || '', wa.sent ? '1' : '0'
+  ].join('|');
+}
+
+// Tarikh gaya premium: DD/MM/YYYY (skop modul — diguna oleh build & render)
+function inboxDateFmt(iso) {
+  if (!iso) return '';
+  const s = String(iso).trim();
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[3].padStart(2, '0') + '/' + m[2].padStart(2, '0') + '/' + m[1];
+  if (s.includes('/')) return s;
+  return s;
+}
+
+function inboxStateKey() {
+  const em = (currentUser && currentUser.email ? currentUser.email : '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  return 'stb_inbox_state_' + (em || 'anon');
+}
+
+async function inboxEnsureState() {
+  const em = (currentUser && currentUser.email ? currentUser.email : '').toLowerCase();
+  if (inboxStateCache.user === em) return inboxStateCache;
+  inboxStateCache = { user: em, read: {}, dismissed: {} };
+  try {
+    const res = await storageWrapper.get([inboxStateKey()]);
+    const saved = res ? res[inboxStateKey()] : null;
+    if (saved && typeof saved === 'object') {
+      if (saved.read && typeof saved.read === 'object') inboxStateCache.read = saved.read;
+      if (saved.dismissed && typeof saved.dismissed === 'object') inboxStateCache.dismissed = saved.dismissed;
+    }
+  } catch (e) {}
+  return inboxStateCache;
+}
+
+async function inboxSaveState() {
+  try {
+    const rKeys = Object.keys(inboxStateCache.read);
+    if (rKeys.length > 500) {
+      const keep = rKeys.slice(-500);
+      const nr = {};
+      keep.forEach(k => { nr[k] = 1; });
+      inboxStateCache.read = nr;
+    }
+    const dKeys = Object.keys(inboxStateCache.dismissed);
+    if (dKeys.length > 500) {
+      const keep = dKeys.slice(-500);
+      const nd = {};
+      keep.forEach(k => { nd[k] = 1; });
+      inboxStateCache.dismissed = nd;
+    }
+    await storageWrapper.set({ [inboxStateKey()]: { read: inboxStateCache.read, dismissed: inboxStateCache.dismissed } });
+  } catch (e) {}
+}
+
+const INBOX_CAT_META = {
+  'pelulus-biasa': { ikon: '📋', label: 'Menunggu Keputusan', warna: '#2563eb' },
+  'pelulus-siasat': { ikon: '🔍', label: 'Siasat Menunggu Semakan', warna: '#f59e0b' },
+  'pelulus-queue': { ikon: '📤', label: 'Dalam Queue SPI', warna: '#10b981' },
+  'ditolak': { ikon: '↩️', label: 'SIASAT Ditolak Pelulus', warna: '#ef4444' },
+  'keputusan': { ikon: '📬', label: 'Keputusan Pelulus', warna: '#6366f1' },
+  'lawatan-selesai': { ikon: '✅', label: 'Lawatan Selesai (PKA)', warna: '#059669' },
+  'pka-baru': { ikon: '📥', label: 'Kes Baru Di SPI', warna: '#0ea5e9' },
+  'pka-dalam': { ikon: '🚗', label: 'Dalam Lawatan', warna: '#f59e0b' }
+};
+
+function buildInboxItems() {
+  if (!currentUser || !cachedData || !Array.isArray(cachedData)) return [];
+  const role = currentUser.role || '';
+  const me = (currentUser.name || '').toString().toUpperCase().trim();
+  if (!me) return [];
+  const out = [];
+  const push = (cat, item, tajuk, sub, sortKey, meta) => {
+    const id = cat + ':' + item.row;
+    if (inboxStateCache.dismissed[id]) return;
+    const sig = inboxSignature(item);
+    const m = meta || {};
+    out.push({ id: id, sigKey: id + '|' + sig, cat: cat, row: item.row, tajuk: tajuk, sub: sub, sortKey: sortKey || '', masuk: sortKey || '', tone: inboxToneOf(cat, item), bucket: inboxBucketOf(cat, item), badge: m.badge || '', badgeTone: m.badgeTone || '', approver: m.approver || '', item: item });
+  };
+  const isSiasat = (it) => (it.syor_status || '').toString().toUpperCase() === 'SIASAT';
+
+  if (role === 'PELULUS') {
+    cachedData.forEach(item => {
+      if (!item.syarikat || !item.tarikh_syor) return;
+      if ((item.pelulus || '').toString().toUpperCase().trim() !== me) return;
+      if (item.tarikh_lulus && item.tarikh_lulus.toString().trim() !== '') return;
+      const stage = inboxStageOf(item);
+      const spi = (item.status_hantar_spi || '').toString().toUpperCase();
+      if (isSiasat(item)) {
+        if (stage === 'DITOLAK_PELULUS' || spi === 'TELAH DIHANTAR') return;
+        if (stage === 'SAHKAN_KE_SPI' && spi === 'DALAM QUEUE') {
+          push('pelulus-queue', item, item.syarikat, [item.cidb, item.gred].filter(Boolean).join(' • '), item.date_submit || item.tarikh_syor, { badge: 'Queue SPI', badgeTone: 'info' });
+        } else {
+          push('pelulus-siasat', item, item.syarikat, [item.cidb, item.gred].filter(Boolean).join(' • '), item.tarikh_syor, { badge: 'Siasat', badgeTone: 'warn' });
+        }
+      } else {
+        const syor = (item.syor_status || '').toString().trim();
+        push('pelulus-biasa', item, item.syarikat, [item.cidb, item.jenis].filter(Boolean).join(' • '), item.tarikh_syor, { badge: syor, badgeTone: 'neutral' });
+      }
+    });
+  } else if (role === 'PENGESYOR') {
+    cachedData.forEach(item => {
+      if (!item.syarikat) return;
+      if ((item.pengesyor || '').toString().toUpperCase().trim() !== me) return;
+      const stage = inboxStageOf(item);
+      if (isSiasat(item) && stage === 'DITOLAK_PELULUS') {
+        let alasan = '';
+        let tarikhTolak = '';
+        let pelulusTolak = '';
+        try {
+          const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+          alasan = (pj.siasat_workflow && pj.siasat_workflow.alasan_tolak) ? pj.siasat_workflow.alasan_tolak : '';
+          tarikhTolak = (pj.siasat_workflow && pj.siasat_workflow.tarikh_tolak) ? pj.siasat_workflow.tarikh_tolak : '';
+          pelulusTolak = (pj.siasat_workflow && pj.siasat_workflow.pelulus_tolak) ? pj.siasat_workflow.pelulus_tolak : '';
+        } catch (e) {}
+        push('ditolak', item, item.syarikat, alasan ? alasan.substring(0, 90) : 'Sila semak semula', tarikhTolak || item.tarikh_syor, { badge: 'Ditolak', badgeTone: 'red', approver: pelulusTolak || item.pelulus || '' });
+      }
+      // NOTA: WhatsApp Belum Hantar (biasa & SIASAT) TIDAK dimasukkan ke inbox —
+      // butang 💬 WhatsApp sedia ada di kad Belum Hantar / Telah Syor.
+      if (item.tarikh_lulus && item.tarikh_lulus.toString().trim() !== '' && item.kelulusan) {
+        const kel = item.kelulusan.toString().trim();
+        const isLulus = kel.toUpperCase().includes('LULUS');
+        // Badge ringkas: LULUS / LULUS BERSYARAT / TOLAK / TOLAK & BEKU...
+        let badgeTxt = isLulus ? 'Lulus' : 'Tolak';
+        if (/BERSYARAT/i.test(kel)) badgeTxt = 'Lulus Bersyarat';
+        else if (/BEKU/i.test(kel)) badgeTxt = kel.replace(/^TOLAK\s*&\s*/i, 'Tolak ');
+        push('keputusan', item, item.syarikat, [item.cidb, item.jenis].filter(Boolean).join(' • '), item.tarikh_lulus, { badge: badgeTxt, badgeTone: isLulus ? 'green' : 'red', approver: item.pelulus || '' });
+      }
+      if (item.lawatan_syor && item.lawatan_syor.toString().trim() !== '' && (!item.tarikh_lulus || item.tarikh_lulus.toString().trim() === '')) {
+        const ls = item.lawatan_syor.toString().trim();
+        push('lawatan-selesai', item, item.syarikat, [item.cidb, item.gred].filter(Boolean).join(' • '), item.lawatan_submit_sptb || item.lawatan_tarikh || '', { badge: ls, badgeTone: /TIDAK/i.test(ls) ? 'red' : 'green' });
+      }
+    });
+  } else if (role === 'PKA') {
+    cachedData.forEach(item => {
+      if (!item.syarikat) return;
+      if ((item.syor_lawatan || '').toString().toUpperCase() === 'PEMUTIHAN') return;
+      const syorAda = item.syor_status && item.syor_status.toString().trim() !== '';
+      const lawSyorAda = item.lawatan_syor && item.lawatan_syor.toString().trim() !== '';
+      if ((item.syor_lawatan || '').toString().toUpperCase() === 'YA' && item.date_submit && !syorAda && !lawSyorAda) {
+        push('pka-baru', item, item.syarikat, [item.cidb, item.pengesyor].filter(Boolean).join(' • '), item.date_submit, { badge: 'Baharu', badgeTone: 'info' });
+      } else if (item.lawatan_tarikh && !lawSyorAda) {
+        push('pka-dalam', item, item.syarikat, [item.cidb, item.pengesyor].filter(Boolean).join(' • '), item.lawatan_tarikh, { badge: 'Dalam lawatan', badgeTone: 'warn' });
+      }
+    });
+  } else {
+    return [];
+  }
+
+  out.sort((a, b) => {
+    if (b.sortKey && a.sortKey && b.sortKey !== a.sortKey) return b.sortKey < a.sortKey ? -1 : 1;
+    return (b.row || 0) - (a.row || 0);
+  });
+  return out.slice(0, 30);
+}
+
+// Warna row ikut status keputusan / selesai siasat PKA
+function inboxToneOf(cat, item) {
+  if (cat === 'keputusan') {
+    const k = (item.kelulusan || '').toString().toUpperCase();
+    if (k.includes('LULUS')) return 'lulus';
+    if (k.includes('TOLAK')) return 'tolak';
+  }
+  if (cat === 'lawatan-selesai') return 'siasat-ok';
+  if (cat === 'ditolak') return 'tolak';
+  return '';
+}
+
+// Bakul tapisan: SEMUA | MENUNGGU | SIASAT | LULUS | TOLAK | TOLAK_SIASAT | LAWATAN
+const INBOX_BUCKETS = [
+  { key: 'ALL', label: 'Semua' },
+  { key: 'MENUNGGU', label: 'Menunggu' },
+  { key: 'SIASAT', label: '🔍 Siasat' },
+  { key: 'LULUS', label: '✅ Lulus' },
+  { key: 'TOLAK', label: '❌ Tolak' },
+  { key: 'TOLAK_SIASAT', label: '↩️ Tolak Siasat' },
+  { key: 'LAWATAN', label: '✅ Lawatan' }
+];
+
+function inboxBucketOf(cat, item) {
+  if (cat === 'ditolak') return 'TOLAK_SIASAT';
+  if (cat === 'keputusan') {
+    const k = (item.kelulusan || '').toString().toUpperCase();
+    if (k.includes('LULUS')) return 'LULUS';
+    return 'TOLAK';
+  }
+  if (cat === 'lawatan-selesai') return 'LAWATAN';
+  if (cat === 'pelulus-siasat' || cat === 'pelulus-queue' || cat === 'pka-baru' || cat === 'pka-dalam') return 'SIASAT';
+  return 'MENUNGGU';
+}
+
+function ensureInboxBell() {
+  if (document.getElementById('stbInboxStyles')) {
+    // gaya sudah disuntik
+  } else {
+    const st = document.createElement('style');
+    st.id = 'stbInboxStyles';
+    st.textContent = `
+      #btnInboxBell .stb-inbox-badge { position:absolute; top:-8px; right:-8px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#ef4444; color:#fff; font-size:0.72rem; font-weight:800; line-height:18px; text-align:center; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.25); display:none; }
+      #btnInboxBell.stb-has-unread .stb-inbox-badge { display:block; }
+      #btnInboxBell.stb-pulse { animation: stbBellPulse 1s ease 2; }
+      @keyframes stbBellPulse { 0%{transform:scale(1);} 40%{transform:scale(1.12);} 100%{transform:scale(1);} }
+      #stbInboxOverlay { z-index: 12000; }
+      #stbInboxPanel .stb-inbox-sections { max-height: 56vh; overflow-y: auto; border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); padding:6px; }
+      #stbInboxPanel .stb-inbox-head { padding:10px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+      #stbInboxPanel .stb-inbox-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+      #stbInboxPanel .stb-inbox-actions button { font-size:0.75rem; padding:4px 10px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-weight:700; }
+      #stbInboxPanel .stb-inbox-actions button:disabled { opacity:0.45; cursor:not-allowed; }
+      #stbInboxPanel .stb-inbox-actions button.stb-act-danger { border-color:#fca5a5; color:#b91c1c; }
+      #stbInboxPanel .stb-inbox-filters { display:flex; gap:2px; flex-wrap:wrap; margin-top:10px; background:#f1f5f9; border-radius:999px; padding:4px; width:fit-content; max-width:100%; }
+      #stbInboxPanel .stb-filter-btn { font-size:0.75rem; padding:6px 12px; border-radius:999px; border:none; background:transparent; cursor:pointer; font-weight:700; color:#64748b; }
+      #stbInboxPanel .stb-filter-btn.active { background:#fff; color:#0f172a; box-shadow:0 1px 4px rgba(15,23,42,0.15); }
+      #stbInboxPanel .stb-filter-btn .stb-fbadge { display:inline-block; min-width:18px; padding:0 6px; border-radius:999px; background:#e2e8f0; color:#475569; font-size:0.68rem; margin-left:4px; }
+      #stbInboxPanel .stb-filter-btn.active .stb-fbadge { background:#0f172a; color:#fff; }
+      #stbInboxPanel .stb-inbox-list { overflow-y:auto; padding:6px; }
+      #stbInboxPanel .stb-inbox-cat { font-size:0.72rem; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; color:#94a3b8; padding:12px 10px 6px; }
+      #stbInboxPanel .stb-inbox-item { display:flex; gap:10px; align-items:flex-start; padding:14px; border-radius:12px; cursor:pointer; background:#fff; box-shadow:0 1px 3px rgba(15,23,42,0.08); margin-bottom:10px; }
+      #stbInboxPanel .stb-inbox-item:hover { box-shadow:0 4px 12px rgba(15,23,42,0.12); }
+      #stbInboxPanel .stb-inbox-item.unread { background:#f0f7ff; }
+      #stbInboxPanel .stb-inbox-item.read { background:#f8fafc; }
+      #stbInboxPanel .stb-inbox-item .stb-dot { width:8px; height:8px; border-radius:999px; background:#2563eb; margin-top:7px; flex-shrink:0; }
+      #stbInboxPanel .stb-inbox-item .stb-t { font-weight:800; font-size:0.9rem; color:#0f172a; line-height:1.35; }
+      #stbInboxPanel .stb-inbox-item.read .stb-t { font-weight:600; color:#64748b; }
+      #stbInboxPanel .stb-inbox-item .stb-s { font-size:0.78rem; color:#64748b; margin-top:3px; }
+      #stbInboxPanel .stb-inbox-item.read .stb-s { opacity:0.75; }
+      #stbInboxPanel .stb-inbox-item .stb-meta { display:flex; align-items:center; gap:8px; margin-top:8px; }
+      #stbInboxPanel .stb-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:0.7rem; font-weight:800; }
+      #stbInboxPanel .stb-badge.green { background:#dcfce7; color:#166534; }
+      #stbInboxPanel .stb-badge.red { background:#fee2e2; color:#991b1b; }
+      #stbInboxPanel .stb-badge.amber { background:#fef3c7; color:#92400e; }
+      #stbInboxPanel .stb-badge.blue { background:#dbeafe; color:#1e40af; }
+      #stbInboxPanel .stb-badge.slate { background:#f1f5f9; color:#475569; }
+      #stbInboxPanel .stb-approver { font-size:0.78rem; color:#475569; font-weight:600; }
+      #stbInboxPanel .stb-inbox-item.read .stb-approver { color:#94a3b8; }
+      #stbInboxPanel .stb-date { margin-left:auto; font-size:0.75rem; color:#94a3b8; white-space:nowrap; }
+      #stbInboxPanel .stb-pick { width:18px; height:18px; margin-top:2px; cursor:pointer; flex-shrink:0; accent-color:#2563eb; }
+      #stbInboxPanel .stb-mini-btn { border:none; background:transparent; cursor:pointer; font-size:0.9rem; padding:2px 4px; border-radius:6px; }
+      #stbInboxPanel .stb-mini-btn:hover { background:#e2e8f0; }
+      #stbInboxPanel .stb-inbox-foot { padding:8px 12px; border-top:1px solid #e2e8f0; text-align:center; font-size:0.8rem; color:#64748b; }
+      #stbInboxPanel .stb-inbox-empty { padding:20px; text-align:center; color:#94a3b8; font-size:0.85rem; }
+    `;
+    document.head.appendChild(st);
+  }
+
+  let btn = document.getElementById('btnInboxBell');
+  if (!btn) {
+    const group = document.querySelector('.top-btn-group');
+    if (!group) return null;
+    btn = document.createElement('button');
+    btn.id = 'btnInboxBell';
+    btn.className = 'btn-top-fullview';
+    btn.setAttribute('title', 'Inbox Notifikasi');
+    btn.style.cssText = 'position:relative; color:#f59e0b; border-color:#f59e0b; font-size:0.85rem; padding:5px 10px;';
+    btn.innerHTML = '🔔 Inbox <span class="stb-inbox-badge" id="stbInboxBadge">0</span>';
+    group.appendChild(btn);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleInboxPanel();
+    });
+  }
+  // Struktur seragam modal Queue SPI: overlay gelap + kad putih + tajuk h2 + butang ×
+  let overlay = document.getElementById('stbInboxOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'custom-modal-overlay';
+    overlay.id = 'stbInboxOverlay';
+    overlay.innerHTML = `
+      <div class="custom-modal-card" style="max-width: 950px; width: 95%; text-align: left; position: relative; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px;">
+        <span class="admin-stats-close" id="stbInboxClose" style="top: 15px; right: 20px;">×</span>
+        <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+          🔔 Inbox Notifikasi <span id="stbInboxTitleBadge"></span>
+        </h2>
+        <div id="stbInboxPanel"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeInboxPanel(); });
+    const closeBtn = overlay.querySelector('#stbInboxClose');
+    if (closeBtn) closeBtn.addEventListener('click', () => closeInboxPanel());
+  }
+  if (!document.body.dataset.stbInboxBound) {
+    document.body.dataset.stbInboxBound = '1';
+    document.addEventListener('click', (e) => {
+      if (!inboxPanelOpen) return;
+      if (e.target.closest && (e.target.closest('#stbInboxPanel') || e.target.closest('#btnInboxBell'))) return;
+      closeInboxPanel();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && inboxPanelOpen) closeInboxPanel();
+    });
+  }
+  return btn;
+}
+
+function toggleInboxPanel() {
+  if (inboxPanelOpen) closeInboxPanel();
+  else {
+    inboxPanelOpen = true;
+    const overlay = document.getElementById('stbInboxOverlay');
+    if (overlay) {
+      overlay.classList.add('show');
+      overlay.style.display = 'flex';
+    }
+    renderInboxPanel();
+  }
+}
+
+function closeInboxPanel() {
+  inboxPanelOpen = false;
+  const overlay = document.getElementById('stbInboxOverlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(() => { if (!inboxPanelOpen) overlay.style.display = 'none'; }, 300);
+  }
+}
+
+async function refreshInboxBell() {
+  const btn = ensureInboxBell();
+  if (!btn) return;
+  if (!currentUser || !['PENGESYOR', 'PELULUS', 'PKA'].includes(currentUser.role)) {
+    btn.style.display = 'none';
+    closeInboxPanel();
+    return;
+  }
+  btn.style.display = '';
+  if (typeof dataMode !== 'undefined' && dataMode === 'history') {
+    btn.classList.remove('stb-has-unread');
+    const badge = document.getElementById('stbInboxBadge');
+    if (badge) badge.style.display = 'none';
+    const titleBadge = document.getElementById('stbInboxTitleBadge');
+    if (titleBadge) titleBadge.innerHTML = '';
+    if (inboxPanelOpen) {
+      const p = document.getElementById('stbInboxPanel');
+      if (p) p.innerHTML = '<div class="stb-inbox-empty">⏸️ Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
+    }
+    return;
+  }
+  await inboxEnsureState();
+  const items = buildInboxItems();
+  inboxLastItems = items;
+  // Prune pilihan yang sudah tiada
+  try {
+    const alive = new Set(items.map(it => it.id));
+    inboxSelected.forEach(id => { if (!alive.has(id)) inboxSelected.delete(id); });
+  } catch (e) {}
+  const unread = items.filter(it => !inboxStateCache.read[it.sigKey]).length;
+  const badge = document.getElementById('stbInboxBadge');
+  if (badge) {
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.style.display = unread > 0 ? 'block' : 'none';
+  }
+  const titleBadge = document.getElementById('stbInboxTitleBadge');
+  if (titleBadge) {
+    titleBadge.innerHTML = unread > 0
+      ? '<span style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 10px;font-size:0.8rem;">' + (unread > 99 ? '99+' : unread) + '</span>'
+      : '';
+  }
+  btn.classList.toggle('stb-has-unread', unread > 0);
+  if (unread > inboxPrevUnread && inboxPrevUnread > 0) {
+    btn.classList.remove('stb-pulse');
+    void btn.offsetWidth;
+    btn.classList.add('stb-pulse');
+  }
+  inboxPrevUnread = unread;
+  if (inboxPanelOpen) renderInboxPanel();
+}
+
+function renderInboxPanel() {
+  const p = document.getElementById('stbInboxPanel');
+  if (!p) return;
+  const items = inboxLastItems || [];
+  if (typeof dataMode !== 'undefined' && dataMode === 'history') {
+    p.innerHTML = '<div class="stb-inbox-empty">⏸️ Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
+    return;
+  }
+  const unreadCount = items.filter(it => !inboxStateCache.read[it.sigKey]).length;
+  // Kiraan badge setiap tapisan (dari item yang tidak dipadam)
+  const bucketCount = { ALL: items.length };
+  INBOX_BUCKETS.forEach(b => { if (b.key !== 'ALL') bucketCount[b.key] = items.filter(it => it.bucket === b.key).length; });
+  const visibleBuckets = INBOX_BUCKETS.filter(b => b.key === 'ALL' || (bucketCount[b.key] || 0) > 0);
+  if (inboxFilter !== 'ALL' && !(bucketCount[inboxFilter] > 0)) inboxFilter = 'ALL';
+  const shown = inboxFilter === 'ALL' ? items : items.filter(it => it.bucket === inboxFilter);
+  const selCount = inboxSelected.size;
+  const allShownSelected = shown.length > 0 && shown.every(it => inboxSelected.has(it.id));
+
+  let html = '<div class="stb-inbox-head">'
+    + '<div style="font-size:0.8rem; color:#64748b;">'
+    + (unreadCount > 0 ? '<b style="color:#dc2626;">' + unreadCount + ' belum dibaca</b>' : 'Semua telah dibaca')
+    + (selCount > 0 ? ' • <b style="color:#2563eb;">☑ ' + selCount + ' dipilih</b>' : '')
+    + ' • ✕ padam notifikasi sahaja (rekod kekal)</div>'
+    + '<div class="stb-inbox-filters">'
+    + visibleBuckets.map(b => '<button class="stb-filter-btn' + (inboxFilter === b.key ? ' active' : '') + '" data-inbox-filter="' + b.key + '">' + b.label + ' <span class="stb-fbadge">' + (bucketCount[b.key] || 0) + '</span></button>').join('')
+    + '</div>'
+    + '<div class="stb-inbox-actions">'
+    + '<button data-inbox-act="read-all" title="Tandakan semua sebagai dibaca">✓ Semua dibaca</button>'
+    + '<button data-inbox-act="del-read" title="Padam notifikasi yang telah dibaca">🗑 Padam dibaca</button>'
+    + '<button data-inbox-act="del-all" title="Padam semua notifikasi">🗑 Padam semua</button>'
+    + '<button data-inbox-act="sel-read" title="Tandakan yang dipilih sebagai dibaca"' + (selCount === 0 ? ' disabled' : '') + '>✓ Baca pilihan (' + selCount + ')</button>'
+    + '<button data-inbox-act="sel-del" class="stb-act-danger" title="Padam notifikasi yang dipilih"' + (selCount === 0 ? ' disabled' : '') + '>🗑 Padam pilihan (' + selCount + ')</button>'
+    + '</div></div>';
+  if (shown.length === 0) {
+    html += '<div class="stb-inbox-empty">' + (items.length === 0 ? '🎉 Tiada notifikasi.<br>Semua selesai!' : 'Tiada notifikasi dalam tapisan ini.') + '</div>';
+  } else {
+    html += '<div class="stb-inbox-sections">';
+    html += '<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; font-weight:700; color:#475569; padding:4px 8px; cursor:pointer;">'
+      + '<input type="checkbox" class="stb-pick" data-inbox-select-all="1"' + (allShownSelected ? ' checked' : '') + '> Pilih semua yang dipapar (' + shown.length + ')</label>';
+    let lastCat = '';
+    // Cari indeks asal dalam inboxLastItems supaya tindakan tepat walaupun bertapis
+    shown.forEach((it) => {
+      const idx = inboxLastItems.indexOf(it);
+      const meta = INBOX_CAT_META[it.cat] || { ikon: '•', label: it.cat, warna: '#64748b' };
+      if (it.cat !== lastCat) {
+        html += '<div class="stb-inbox-cat"><span style="color:' + meta.warna + ';">' + meta.ikon + '</span> ' + meta.label + '</div>';
+        lastCat = it.cat;
+      }
+      const isUnread = !inboxStateCache.read[it.sigKey];
+      const checked = inboxSelected.has(it.id) ? ' checked' : '';
+      const masukTxt = it.masuk ? inboxDateFmt(it.masuk) : '';
+      const esc = (s) => String(s || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const toneMap = { green: 'green', red: 'red', warn: 'amber', info: 'blue', neutral: 'slate' };
+      const badgeCls = toneMap[it.badgeTone] || 'slate';
+      const metaHtml = (it.badge || it.approver || masukTxt)
+        ? '<div class="stb-meta">'
+          + (it.badge ? '<span class="stb-badge ' + badgeCls + '">' + esc(it.badge) + '</span>' : '')
+          + (it.approver ? '<span class="stb-approver">' + esc(it.approver) + '</span>' : '')
+          + (masukTxt ? '<span class="stb-date">📅 ' + esc(masukTxt) + '</span>' : '')
+          + '</div>'
+        : '';
+      html += '<div class="stb-inbox-item' + (isUnread ? ' unread' : ' read') + '" data-inbox-idx="' + idx + '">'
+        + '<input type="checkbox" class="stb-pick" data-inbox-pick="' + idx + '"' + checked + ' title="Pilih">'
+        + (isUnread ? '<span class="stb-dot"></span>' : '')
+        + '<div style="flex:1; min-width:0;"><div class="stb-t">' + esc(it.tajuk === '-' ? '-' : it.tajuk) + '</div>'
+        + (it.sub ? '<div class="stb-s">' + esc(it.sub) + '</div>' : '')
+        + metaHtml
+        + '</div>'
+        + (isUnread ? '<button class="stb-mini-btn" data-inbox-read="' + idx + '" title="Tanda dibaca">✓</button>' : '')
+        + '<button class="stb-mini-btn" data-inbox-del="' + idx + '" title="Padam notifikasi">✕</button>'
+        + '</div>';
+    });
+    html += '</div><div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end; align-items:center;">'
+      + '<span style="flex:1; font-size:0.75rem; color:#94a3b8;">Klik item untuk buka rekod</span>'
+      + '<button class="btn btn-blue" data-inbox-close="1" style="padding:8px 20px;">Tutup</button>'
+      + '</div>';
+  }
+  p.innerHTML = html;
+
+  const closeBtn2 = p.querySelector('[data-inbox-close]');
+  if (closeBtn2) closeBtn2.onclick = (e) => { e.stopPropagation(); closeInboxPanel(); };
+
+  p.querySelectorAll('[data-inbox-act]').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); inboxBulkAct(b.getAttribute('data-inbox-act')); };
+  });
+  p.querySelectorAll('[data-inbox-filter]').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); inboxFilter = b.getAttribute('data-inbox-filter'); renderInboxPanel(); };
+  });
+  const selAll = p.querySelector('[data-inbox-select-all]');
+  if (selAll) {
+    selAll.onclick = (e) => {
+      e.stopPropagation();
+      const check = selAll.checked;
+      shown.forEach(it => { if (check) inboxSelected.add(it.id); else inboxSelected.delete(it.id); });
+      renderInboxPanel();
+    };
+  }
+  p.querySelectorAll('[data-inbox-pick]').forEach(cb => {
+    cb.onclick = (e) => {
+      e.stopPropagation();
+      const i = parseInt(cb.getAttribute('data-inbox-pick'), 10);
+      const it = inboxLastItems[i];
+      if (!it) return;
+      if (cb.checked) inboxSelected.add(it.id); else inboxSelected.delete(it.id);
+      renderInboxPanel();
+    };
+  });
+  p.querySelectorAll('[data-inbox-read]').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); inboxMarkReadIdx(parseInt(b.getAttribute('data-inbox-read'), 10)); };
+  });
+  p.querySelectorAll('[data-inbox-del]').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); inboxDismissIdx(parseInt(b.getAttribute('data-inbox-del'), 10)); };
+  });
+  p.querySelectorAll('.stb-inbox-item').forEach(el => {
+    el.onclick = () => { inboxJumpIdx(parseInt(el.getAttribute('data-inbox-idx'), 10)); };
+  });
+}
+
+async function inboxMarkReadIdx(idx) {
+  const it = inboxLastItems[idx];
+  if (!it) return;
+  inboxStateCache.read[it.sigKey] = 1;
+  await inboxSaveState();
+  refreshInboxBell();
+}
+
+async function inboxDismissIdx(idx) {
+  const it = inboxLastItems[idx];
+  if (!it) return;
+  inboxStateCache.dismissed[it.id] = 1;
+  inboxSelected.delete(it.id);
+  await inboxSaveState();
+  refreshInboxBell();
+}
+
+async function inboxBulkAct(act) {
+  const items = inboxLastItems || [];
+  if (act === 'read-all') {
+    items.forEach(it => { inboxStateCache.read[it.sigKey] = 1; });
+    await inboxSaveState();
+    refreshInboxBell();
+    return;
+  }
+  if (act === 'sel-read' || act === 'sel-del') {
+    const target = items.filter(it => inboxSelected.has(it.id));
+    if (target.length === 0) {
+      await CustomAppModal.alert('Tiada item dipilih. Tandakan checkbox pada notifikasi dahulu.', 'Makluman', 'info');
+      return;
+    }
+    if (act === 'sel-read') {
+      target.forEach(it => { inboxStateCache.read[it.sigKey] = 1; });
+      inboxSelected.clear();
+      await inboxSaveState();
+      refreshInboxBell();
+      return;
+    }
+    const ok = await CustomAppModal.confirm(
+      'Padam <b>' + target.length + '</b> notifikasi yang dipilih? Rekod permohonan kekal.',
+      'Padam Notifikasi', 'warning', 'Ya, Padam', true
+    );
+    if (!ok) return;
+    target.forEach(it => { inboxStateCache.dismissed[it.id] = 1; inboxSelected.delete(it.id); });
+    await inboxSaveState();
+    refreshInboxBell();
+    return;
+  }
+  const target = act === 'del-read' ? items.filter(it => inboxStateCache.read[it.sigKey]) : items;
+  if (target.length === 0) {
+    await CustomAppModal.alert(act === 'del-read' ? 'Tiada notifikasi yang telah dibaca untuk dipadam.' : 'Tiada notifikasi untuk dipadam.', 'Makluman', 'info');
+    return;
+  }
+  const ok = await CustomAppModal.confirm(
+    act === 'del-read'
+      ? 'Padam <b>' + target.length + '</b> notifikasi yang telah dibaca? Rekod permohonan kekal.'
+      : 'Padam <b>semua ' + target.length + '</b> notifikasi yang dipapar? Rekod permohonan kekal.',
+    'Padam Notifikasi', 'warning', 'Ya, Padam', true
+  );
+  if (!ok) return;
+  target.forEach(it => { inboxStateCache.dismissed[it.id] = 1; inboxSelected.delete(it.id); });
+  await inboxSaveState();
+  refreshInboxBell();
+}
+
+async function inboxJumpIdx(idx) {
+  const it = inboxLastItems[idx];
+  if (!it || !it.item) return;
+  inboxStateCache.read[it.sigKey] = 1;
+  await inboxSaveState();
+  closeInboxPanel();
+  refreshInboxBell();
+  const item = it.item;
+  try {
+    if (it.cat === 'pelulus-biasa') {
+      loadRecordToPelulus(item);
+    } else if (it.cat === 'pelulus-siasat') {
+      if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
+      else loadRecordToPelulus(item);
+    } else if (it.cat === 'pelulus-queue') {
+      switchTab('inbox');
+    } else if (it.cat === 'keputusan') {
+      viewRecordOnly(item);
+    } else if (it.cat === 'pka-baru' || it.cat === 'pka-dalam') {
+      switchTab('pka-inbox');
+    } else {
+      loadRecordToDbOnly(item);
+    }
+  } catch (e) {
+    console.error('inboxJump gagal:', e);
+  }
+}
+
+// Cangkuk kira semula: dipanggil di hujung renderFilteredList + selepas PKA simpan lawatan.
+// Pencetus awal: pastikan loceng wujud sejurus DOM siap (badge dikira semula bila senarai render).
+setTimeout(() => { try { refreshInboxBell(); } catch (e) {} }, 2000);
 
 // V6.9.3: Auto refresh dashboard & inbox tab
 // Inbox: refresh setiap 60 saat (dahulu 5 saat tanpa cache - elak beban)
