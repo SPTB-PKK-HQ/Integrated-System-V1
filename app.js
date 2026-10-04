@@ -1,6 +1,14 @@
 // app.js - V6.5.2 (WEB APP VERSION)
 // (UPDATED: Auto Email Authentication, Removed PIN Login, Dynamic URL Routing, Anonymous Access, Mobile UI Polish, Unique ID, Fixed CORS & WhatsApp Popup, Pemutihan Email Confirmation, Ketua Seksyen Tab Fixes, GIS Integration)
 
+// TEMA CERAH/GELAP: baca pilihan tersimpan secara SINKRON sebelum render (elak kilat tema).
+(function () {
+  try {
+    var savedMode = localStorage.getItem('stb_color_mode');
+    if (savedMode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  } catch (e) {}
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
   console.log("BUILD TAG: 20260926-siasat-tolak-fix");
@@ -7137,6 +7145,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (!item || !item.row) return false;
     // Hanya di Belum Hantar (drafts) & Telah Syor (submitted)
     if (type !== 'drafts' && type !== 'submitted') return false;
+    // Di Belum Hantar: rekod dalam tapisan "Hantar Ke SPI" (sudah ada date_submit) — tiada butang WhatsApp
+    if (type === 'drafts' && item.date_submit && item.date_submit.toString().trim() !== '') return false;
     // Mesti sudah bersyor + ada pelulus assigned + belum ada keputusan pelulus
     if (!item.tarikh_syor || item.tarikh_syor.toString().trim() === '') return false;
     const assigned = getPelulusAssignedForItem(item);
@@ -10317,6 +10327,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
 
   function switchTab(tabName) {
+    // Pastikan carta yang bakal dirender ikut tema semasa (gelap/cerah)
+    try { if (typeof applyChartTheme === 'function') applyChartTheme(currentColorMode() === 'dark'); } catch (e) {}
     closeMobileMenu();
     
     if (lastActiveTab) {
@@ -10682,6 +10694,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         fetchAndRenderList('inbox', true);
       }
       else if (tabName === 'pelulus-action') {
+        // Rekod sejarah / sudah ada keputusan: tidak dibenarkan masuk tab Keputusan (elak redundan)
+        const sudahAdaKeputusan = pelulusActiveItem && (
+          (pelulusActiveItem.tarikh_lulus && pelulusActiveItem.tarikh_lulus.toString().trim() !== '') ||
+          (pelulusActiveItem.kelulusan && pelulusActiveItem.kelulusan.toString().trim() !== '')
+        );
+        if (sudahAdaKeputusan) {
+          CustomAppModal.alert(
+            "Permohonan ini sudah mempunyai keputusan pelulus.<br><br>Tab <b>Keputusan</b> hanya untuk rekod yang masih menunggu keputusan.",
+            "Rekod Sejarah", "info"
+          );
+          switchTab('pelulus-view');
+          return;
+        }
         if(!pelulusActiveItem) { 
           switchTab('inbox'); 
           return; 
@@ -12530,7 +12555,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       } else {
         activeList.forEach((item, idx) => {
           const wrapper = document.createElement('div');
-          wrapper.className = 'app-item-wrapper inbox-pending';
+          // Permohonan Biasa: gaya kad sama seperti tab "Telah Syor" pengesyor (tiada latar kuning inbox-pending)
+          wrapper.className = 'app-item-wrapper' + (isBiasaActive ? '' : ' inbox-pending');
           const numberDiv = document.createElement('div');
           numberDiv.className = 'app-item-number';
           numberDiv.textContent = (idx + 1).toString();
@@ -13467,7 +13493,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (divUbahSyor) divUbahSyor.style.display = 'none';
       if (btnSubmit) btnSubmit.style.display = 'none';
       if (labelSah) labelSah.style.display = 'none';
-      if (summary && pelulusActiveItem) summary.innerText = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${pelulusActiveItem.syarikat} (${pelulusActiveItem.cidb})`;
+      if (summary && pelulusActiveItem) summary.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${pelulusActiveItem.syarikat} (${pelulusActiveItem.cidb})`;
       // Isi justifikasi jika kosong
       const justEl = document.getElementById('pelulus_justifikasi_siasat');
       if (justEl && !justEl.value) {
@@ -13542,7 +13568,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // Auto-scroll hint: user perlu tekan Ke Keputusan untuk lihat butang Siasat
     setTimeout(() => {
       const hint = document.getElementById('pelulus_action_summary');
-      if (hint) hint.textContent = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${item.syarikat} – sila semak Justifikasi Lawatan di tab Keputusan`;
+      if (hint) hint.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> SIASAT: ${item.syarikat} – sila semak Justifikasi Lawatan di tab Keputusan`;
     }, 500);
   }
 
@@ -15435,9 +15461,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return;
     }
     dropdown.innerHTML = filtered.map(b => `
-      <div class="bank-option" data-name="${esc(b.name)}" style="display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border-bottom:1px solid #f1f5f9;">
+      <div class="bank-option" data-name="${esc(b.name)}">
         ${bankLogoItem(b)}
-        <span style="font-size:0.85rem; font-weight:600;">${esc(b.name)}</span>
+        <span class="bank-option-name">${esc(b.name)}</span>
       </div>
     `).join('');
     dropdown.style.display = 'block';
@@ -15447,8 +15473,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         dropdown.style.display = 'none';
         saveFormData();
       });
-      opt.addEventListener('mouseover', () => { opt.style.background = '#eff6ff'; });
-      opt.addEventListener('mouseout', () => { opt.style.background = '#fff'; });
     });
   }
 
@@ -19020,6 +19044,9 @@ function ensureInboxBell() {
       e.stopPropagation();
       toggleInboxPanel();
     });
+    // Pastikan suis tema kekal di sebelah kanan loceng Inbox
+    const modeSw = document.getElementById('btnColorMode');
+    if (modeSw) btn.insertAdjacentElement('afterend', modeSw);
   }
   // Struktur seragam modal Queue SPI: overlay gelap + kad putih + tajuk h2 + butang ×
   let overlay = document.getElementById('stbInboxOverlay');
@@ -19052,8 +19079,133 @@ function ensureInboxBell() {
       if (e.key === 'Escape' && inboxPanelOpen) closeInboxPanel();
     });
   }
+  try { ensureColorModeToggle(); } catch (e) {}
   return btn;
 }
+
+// =========================================================================
+// TEMA CERAH/GELAP: suis gelangsar matahari/bulan (sebelah butang Inbox)
+// =========================================================================
+function currentColorMode() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function applyColorMode(mode) {
+  const isDark = mode === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  try { localStorage.setItem('stb_color_mode', isDark ? 'dark' : 'light'); } catch (e) {}
+  const sw = document.getElementById('btnColorMode');
+  if (sw) {
+    sw.setAttribute('aria-checked', isDark ? 'true' : 'false');
+    sw.classList.toggle('dark', isDark);
+    sw.title = isDark ? 'Tema Gelap — klik/seret untuk cerah' : 'Tema Cerah — klik/seret untuk gelap';
+  }
+  try { applyChartTheme(isDark); } catch (e) {}
+}
+
+function toggleColorMode() {
+  applyColorMode(currentColorMode() === 'dark' ? 'light' : 'dark');
+}
+
+// Kemas kini semua carta Chart.js sedia ada untuk tema semasa
+function applyChartTheme(isDark) {
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.color = isDark ? '#cbd5e1' : '#374151';
+  Chart.defaults.borderColor = isDark ? 'rgba(148,163,184,0.18)' : 'rgba(226,232,240,0.9)';
+  try {
+    Object.values(Chart.instances || {}).forEach(ch => {
+      try {
+        if (ch.options && ch.options.scales) {
+          Object.values(ch.options.scales).forEach(sc => {
+            if (!sc) return;
+            if (sc.ticks) sc.ticks.color = Chart.defaults.color;
+            if (sc.grid && sc.grid.color) sc.grid.color = isDark ? 'rgba(148,163,184,0.15)' : '#f1f5f9';
+          });
+        }
+        if (ch.options && ch.options.plugins && ch.options.plugins.legend && ch.options.plugins.legend.labels) {
+          ch.options.plugins.legend.labels.color = Chart.defaults.color;
+        }
+        ch.update('none');
+      } catch (e) {}
+    });
+  } catch (e) {}
+}
+
+function ensureColorModeToggle() {
+  const group = document.querySelector('.top-btn-group');
+  if (!group || document.getElementById('btnColorMode')) return;
+  const btn = document.createElement('button');
+  btn.id = 'btnColorMode';
+  btn.type = 'button';
+  btn.className = 'exec-mode-switch';
+  btn.setAttribute('role', 'switch');
+  btn.setAttribute('aria-checked', currentColorMode() === 'dark' ? 'true' : 'false');
+  if (currentColorMode() === 'dark') btn.classList.add('dark');
+  btn.title = 'Tema Cerah/Gelap';
+  btn.innerHTML = `
+    <span class="exec-mode-track">
+      <i class="fa-solid fa-sun exec-mode-bgico exec-mode-bgico-sun"></i>
+      <i class="fa-solid fa-moon exec-mode-bgico exec-mode-bgico-moon"></i>
+      <span class="exec-mode-knob">
+        <i class="fa-solid fa-sun exec-mode-knobico exec-mode-knobico-sun"></i>
+        <i class="fa-solid fa-moon exec-mode-knobico exec-mode-knobico-moon"></i>
+      </span>
+    </span>`;
+  const bell = document.getElementById('btnInboxBell');
+  if (bell) bell.insertAdjacentElement('afterend', btn);
+  else group.appendChild(btn);
+
+  // Klik (jika bukan selepas seret)
+  btn.addEventListener('click', () => {
+    if (btn._suppressClick) { btn._suppressClick = false; return; }
+    toggleColorMode();
+  });
+
+  // Seret kiri/kanan (Pointer Events)
+  let startX = null;
+  let moved = false;
+  const knob = btn.querySelector('.exec-mode-knob');
+  const MAX_SHIFT = 30;
+  btn.addEventListener('pointerdown', (e) => {
+    startX = e.clientX;
+    moved = false;
+    btn.classList.add('dragging');
+    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  btn.addEventListener('pointermove', (e) => {
+    if (startX === null || !knob) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 4) moved = true;
+    const base = currentColorMode() === 'dark' ? MAX_SHIFT : 0;
+    const shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, base + dx));
+    knob.style.transform = `translateY(-50%) translateX(${shift}px)`;
+  });
+  const finishDrag = (e) => {
+    if (startX === null) return;
+    btn.classList.remove('dragging');
+    if (knob) knob.style.transform = '';
+    const dx = (e.clientX || startX) - startX;
+    startX = null;
+    if (moved && Math.abs(dx) > 12) {
+      const isDark = currentColorMode() === 'dark';
+      if ((!isDark && dx > 0) || (isDark && dx < 0)) {
+        applyColorMode(isDark ? 'light' : 'dark');
+        btn._suppressClick = true;
+        setTimeout(() => { btn._suppressClick = false; }, 350);
+      }
+    }
+  };
+  btn.addEventListener('pointerup', finishDrag);
+  btn.addEventListener('pointercancel', finishDrag);
+}
+
+// Pencetus awal suis tema (loceng dipanggil lewat; pastikan suis wujud lebih awal)
+setTimeout(() => {
+  try {
+    ensureColorModeToggle();
+    if (currentColorMode() === 'dark') applyChartTheme(true);
+  } catch (e) {}
+}, 800);
 
 function toggleInboxPanel() {
   if (inboxPanelOpen) closeInboxPanel();

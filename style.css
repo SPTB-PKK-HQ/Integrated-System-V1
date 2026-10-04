@@ -650,6 +650,82 @@
             border-color: #ef4444;
             color: #ffffff;
         }
+        /* =========================================================================
+           SUIS TEMA CERAH/GELAP (gelangsar matahari/bulan) — sebelah butang Inbox
+           ========================================================================= */
+        #execNavbar .exec-mode-switch {
+            background: transparent;
+            border: none;
+            padding: 4px 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            position: relative;
+            border-radius: 999px;
+            transition: background 0.2s ease;
+        }
+        #execNavbar .exec-mode-switch:hover {
+            background: color-mix(in srgb, var(--theme-color) 12%, white);
+        }
+        .exec-mode-track {
+            position: relative;
+            width: 58px;
+            height: 28px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            border: 1px solid #cbd5e1;
+            display: inline-flex;
+            align-items: center;
+            transition: background 0.25s ease, border-color 0.25s ease;
+            overflow: hidden;
+        }
+        .exec-mode-switch.dark .exec-mode-track {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        .exec-mode-bgico {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.72rem;
+            transition: opacity 0.25s ease;
+        }
+        .exec-mode-bgico-sun { left: 7px; color: #f59e0b; }
+        .exec-mode-bgico-moon { right: 7px; color: #94a3b8; }
+        /* Cerah: bulan samar di kanan; Gelap: matahari samar di kiri */
+        .exec-mode-bgico-sun { opacity: 0; }
+        .exec-mode-bgico-moon { opacity: 0.7; }
+        .exec-mode-switch.dark .exec-mode-bgico-sun { opacity: 0.75; }
+        .exec-mode-switch.dark .exec-mode-bgico-moon { opacity: 0; }
+        .exec-mode-knob {
+            position: absolute;
+            left: 3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.25s ease;
+            z-index: 2;
+        }
+        .exec-mode-switch.dark .exec-mode-knob {
+            transform: translateY(-50%) translateX(30px);
+            background: #0f172a;
+        }
+        .exec-mode-switch.dragging .exec-mode-knob { transition: none; }
+        .exec-mode-knobico {
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+        .exec-mode-knobico-sun { color: #f59e0b; }
+        .exec-mode-knobico-moon { color: #cbd5e1; display: none; }
+        .exec-mode-switch.dark .exec-mode-knobico-sun { display: none; }
+        .exec-mode-switch.dark .exec-mode-knobico-moon { display: inline-block; }
         /* KOD BARU: Untuk Cetakan Borang Semakan (Highlight Syor) */
         @media print {
             .syor-selected {
@@ -2297,3 +2373,1070 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
   cursor: not-allowed;
 }
 
+
+/* =========================================================================
+   DARK MODE (html[data-theme="dark"]) — dibalut @media screen supaya
+   cetakan/PDF kekal cerah. Ditulis sekali di hujung fail.
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --glass-bg: rgba(15, 23, 42, 0.92);
+    --glass-border: 1px solid rgba(148, 163, 184, 0.14);
+  }
+
+  /* --- Latar halaman --- */
+  html[data-theme="dark"] body {
+    color: #e2e8f0;
+    background: linear-gradient(-45deg, #0b1220, color-mix(in srgb, var(--theme-color) 26%, #0b1220), #0f172a, color-mix(in srgb, var(--theme-color) 18%, #111827));
+  }
+  html[data-theme="dark"] .card {
+    background: var(--glass-bg);
+    border-color: rgba(148, 163, 184, 0.12);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.35);
+  }
+
+  /* --- Navigasi: navbar & kapsul tab --- */
+  html[data-theme="dark"] #execNavbar {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: color-mix(in srgb, var(--theme-color) 35%, #1e293b);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  html[data-theme="dark"] #execNavbar .exec-link { color: #cbd5e1; }
+  html[data-theme="dark"] #execNavbar .exec-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+  }
+  html[data-theme="dark"] #execNavbar .exec-mode-switch:hover { background: rgba(255, 255, 255, 0.1); }
+  html[data-theme="dark"] #execNavbar .exec-profile {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+  html[data-theme="dark"] #execNavbar .exec-profile .user-badge { color: #ffffff; }
+  html[data-theme="dark"] #execNavbar #digitalClock { color: #94a3b8; }
+  html[data-theme="dark"] #execNavbar .exec-profile .jata-badge-img {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+  html[data-theme="dark"] #execNavbar .exec-logout {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fecaca;
+  }
+  html[data-theme="dark"] #execNavbar .exec-logout:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+  }
+  html[data-theme="dark"] .tabs {
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(148, 163, 184, 0.16);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  html[data-theme="dark"] .tab-btn { color: #cbd5e1; }
+  html[data-theme="dark"] .tab-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff;
+  }
+  html[data-theme="dark"] .tab-btn.active { color: #ffffff !important; }
+
+  /* --- Borang: input/select/textarea global --- */
+  html[data-theme="dark"] input[type="text"],
+  html[data-theme="dark"] input[type="date"],
+  html[data-theme="dark"] input[type="month"],
+  html[data-theme="dark"] input[type="email"],
+  html[data-theme="dark"] input[type="number"],
+  html[data-theme="dark"] input[type="time"],
+  html[data-theme="dark"] select,
+  html[data-theme="dark"] textarea {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+  html[data-theme="dark"] input::placeholder,
+  html[data-theme="dark"] textarea::placeholder { color: #64748b; }
+  html[data-theme="dark"] .status-input { background-color: #1e293b !important; color: #e2e8f0 !important; }
+  html[data-theme="dark"] .status-input.status-row-ok { background-color: #14532d !important; color: #bbf7d0 !important; }
+  html[data-theme="dark"] .status-input.status-row-x { background-color: #7f1d1d !important; color: #fecaca !important; }
+  html[data-theme="dark"] .status-input.status-row-empty { background-color: #1e293b !important; color: #94a3b8 !important; }
+  html[data-theme="dark"] .form-empty { background-color: #3a2e10 !important; border-color: #a16207 !important; }
+  html[data-theme="dark"] .form-filled { background-color: #123524 !important; border-color: #16a34a !important; }
+
+  /* --- Modal & toast --- */
+  html[data-theme="dark"] .custom-modal-card,
+  html[data-theme="dark"] .admin-stats-content {
+    background: #16213a;
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+  html[data-theme="dark"] .custom-modal-title { color: #f1f5f9; }
+  html[data-theme="dark"] .custom-modal-message { color: #cbd5e1; }
+  html[data-theme="dark"] .custom-modal-icon-container { background: #1e293b; }
+  html[data-theme="dark"] .custom-modal-btn-cancel { background: #1e293b; color: #cbd5e1; }
+  html[data-theme="dark"] .custom-modal-btn-cancel:hover { background: #334155; color: #f1f5f9; }
+
+  /* --- Senarai permohonan --- */
+  html[data-theme="dark"] .app-item { background: #16213a !important; color: #e2e8f0; }
+  html[data-theme="dark"] .app-item-wrapper { border-color: rgba(148, 163, 184, 0.12); }
+  html[data-theme="dark"] .app-title { color: #f1f5f9 !important; }
+  html[data-theme="dark"] .app-sub { color: #94a3b8 !important; }
+  html[data-theme="dark"] .app-item[style*="background-color: rgb(209, 250, 229)"],
+  html[data-theme="dark"] .app-item[style*="background-color: #d1fae5"] { background-color: #123524 !important; }
+  html[data-theme="dark"] .app-item[style*="background-color: rgb(255, 251, 235)"],
+  html[data-theme="dark"] .app-item[style*="background-color: #fffbeb"] { background-color: #3a2e10 !important; }
+  html[data-theme="dark"] .app-item[style*="background-color: rgb(254, 242, 242)"],
+  html[data-theme="dark"] .app-item[style*="background-color: #fef2f2"] { background-color: #3f1d1d !important; }
+  html[data-theme="dark"] .app-item[style*="background-color: rgb(236, 253, 245)"],
+  html[data-theme="dark"] .app-item[style*="background-color: #ecfdf5"] { background-color: #10332a !important; }
+  html[data-theme="dark"] .blue-bg { background-color: #1e3a5f !important; }
+  html[data-theme="dark"] .app-item-number { background: #1e293b; color: #94a3b8; }
+
+  /* --- Jadual --- */
+  html[data-theme="dark"] .monthly-table th { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] .monthly-table td { border-color: #334155; color: #e2e8f0; }
+  html[data-theme="dark"] .monthly-table tr:hover { background: #1e293b; }
+  html[data-theme="dark"] .admin-stats-table th { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] .admin-stats-table td { border-color: #334155; color: #e2e8f0; }
+  html[data-theme="dark"] .spi-table { background: #16213a; }
+  html[data-theme="dark"] .spi-table th { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] .spi-table td { color: #e2e8f0; border-color: #26334d; }
+  html[data-theme="dark"] .spi-table tr:hover td { background: #1e293b; }
+
+  /* --- Kad PKA & timeline --- */
+  html[data-theme="dark"] .pka-card { background: #16213a; border-color: #26334d; color: #e2e8f0; }
+  html[data-theme="dark"] .pka-card-item { background: #1b2740 !important; border-color: #334155 !important; }
+  html[data-theme="dark"] .pka-card-item-title { color: #f1f5f9; }
+  html[data-theme="dark"] .pka-card-item-sub { color: #94a3b8; }
+  html[data-theme="dark"] .pka-keputusan-header { background: linear-gradient(135deg, #1e293b, #1b2740); border-color: #334155; }
+  html[data-theme="dark"] .pka-keputusan-title { color: #f1f5f9; }
+  html[data-theme="dark"] .spi-timeline-container { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] .spi-timeline-header h4 { color: #e2e8f0; }
+  html[data-theme="dark"] .spi-timeline-item { border-color: #26334d; }
+  html[data-theme="dark"] .spi-tl-name { color: #f1f5f9; }
+  html[data-theme="dark"] .spi-tl-track { background: #1e293b; }
+  html[data-theme="dark"] .spi-header { background: #16213a; color: #e2e8f0; }
+  html[data-theme="dark"] .spi-header h2 { color: #f1f5f9; }
+  html[data-theme="dark"] .spi-skeleton-card { background: #16213a; }
+  html[data-theme="dark"] .spi-skeleton-line { background: linear-gradient(90deg, #1e293b 25%, #26334d 50%, #1e293b 75%); }
+
+  /* --- Inbox notifikasi --- */
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-head { background: #1b2740; border-color: #26334d; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-sections { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item { background: #1b2740; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item.unread { background: #1e3a5f; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item.read { background: #16213a; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item .stb-t { color: #f1f5f9; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item.read .stb-t { color: #94a3b8; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-item .stb-s { color: #94a3b8; }
+  html[data-theme="dark"] #stbInboxPanel .stb-approver { color: #cbd5e1; }
+  html[data-theme="dark"] #stbInboxPanel .stb-mini-btn:hover { background: #334155; }
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn { color: #94a3b8; }
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn.active { background: #334155; color: #f1f5f9; }
+  html[data-theme="dark"] #stbInboxPanel .stb-fbadge { background: #334155; color: #cbd5e1; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-filters { background: #0f172a; }
+  html[data-theme="dark"] #stbInboxPanel .stb-badge.slate { background: #334155; color: #cbd5e1; }
+
+  /* --- Bank, personel, file manager --- */
+  html[data-theme="dark"] .person-card { background: #1b2740; border-color: #334155; }
+  html[data-theme="dark"] .bank-card { background: #1b2740; border-color: #334155; }
+  html[data-theme="dark"] .bank-dropdown { background: #1e293b !important; border-color: #334155 !important; }
+  html[data-theme="dark"] .bank-dropdown div:hover, html[data-theme="dark"] .bank-dropdown .bank-option:hover { background: #26334d !important; }
+  html[data-theme="dark"] #fileManagerList { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] #fileManagerList > div[style*="background:white"], 
+  html[data-theme="dark"] #fileManagerList > div[style*="background: white"] { background: #1b2740 !important; border-color: #334155 !important; }
+  html[data-theme="dark"] .fileManagerDropOverlay, html[data-theme="dark"] #fileManagerDropOverlay > div { background: #1e293b !important; }
+
+  /* --- Drawer mudah alih --- */
+  html[data-theme="dark"] #tabs-container { background: rgba(15, 23, 42, 0.98) !important; }
+  html[data-theme="dark"] #tabs-container .tab-btn { color: #cbd5e1; }
+  html[data-theme="dark"] #tabs-container .tab-btn:hover { background: #1e293b !important; color: #ffffff; }
+  html[data-theme="dark"] #tabs-container .tab-btn.active { background: var(--theme-color) !important; color: #ffffff !important; }
+  html[data-theme="dark"] .mobile-header #mobileMenuBtn { box-shadow: 0 6px 14px rgba(0,0,0,0.5); }
+
+  /* --- Filter & carian --- */
+  html[data-theme="dark"] .filter-section { background: #16213a !important; border-color: #26334d !important; }
+  html[data-theme="dark"] #submittedFiltersContainer,
+  html[data-theme="dark"] #historyFiltersContainer { background: #16213a !important; border-color: #26334d !important; }
+  html[data-theme="dark"] .search-box input { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+
+  /* --- Flatpickr kalendar --- */
+  html[data-theme="dark"] .flatpickr-calendar { background: #16213a; border-color: #334155; }
+  html[data-theme="dark"] .flatpickr-months .flatpickr-month,
+  html[data-theme="dark"] .flatpickr-current-month { color: #e2e8f0; }
+  html[data-theme="dark"] .flatpickr-weekday { color: #94a3b8; }
+  html[data-theme="dark"] .flatpickr-day { color: #e2e8f0; }
+  html[data-theme="dark"] .flatpickr-day:hover:not(.selected):not(.startRange):not(.endRange) { background: #1e293b; border-color: #1e293b; color: #ffffff; }
+  html[data-theme="dark"] .flatpickr-day.flatpickr-disabled, html[data-theme="dark"] .flatpickr-day.flatpickr-disabled:hover { color: #475569; }
+  html[data-theme="dark"] .flatpickr-calendar .fp-quick-actions { background: #1b2740; border-color: #334155; }
+  html[data-theme="dark"] .flatpickr-calendar .fp-quick-btn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+  html[data-theme="dark"] .flatpickr-calendar .fp-quick-btn:hover { background: #26334d; }
+  html[data-theme="dark"] .flatpickr-calendar.arrowTop:after { border-bottom-color: #16213a; }
+  html[data-theme="dark"] .flatpickr-calendar.arrowTop:before { border-bottom-color: #334155; }
+  html[data-theme="dark"] .flatpickr-calendar.arrowBottom:after { border-top-color: #16213a; }
+  html[data-theme="dark"] .flatpickr-calendar.arrowBottom:before { border-top-color: #334155; }
+
+  /* --- Dashboard & admin --- */
+  html[data-theme="dark"] .chart-container { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] .chart-title { color: #f1f5f9; }
+  html[data-theme="dark"] #dashboardUserInfo { background: #1b2740; border-color: #334155; }
+  html[data-theme="dark"] #dashboardUserInfo p { color: #cbd5e1 !important; }
+  html[data-theme="dark"] .reason-stats { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] .admin-stats-section { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] .admin-chart-wrap { background: #16213a; }
+  html[data-theme="dark"] .dashboard-header { color: #e2e8f0; }
+  html[data-theme="dark"] .dashboard-header h2 { color: #e2e8f0 !important; }
+
+  /* --- Lain-lain --- */
+  html[data-theme="dark"] .pengesyor-view-section, 
+  html[data-theme="dark"] .verification-box { background: #16213a; border-color: #334155; }
+  html[data-theme="dark"] .custom-upload-btn { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+  html[data-theme="dark"] .pdf-upload-section { background: #16213a !important; }
+  html[data-theme="dark"] .pdf-result { background: #16213a !important; border-color: #10b981 !important; }
+  html[data-theme="dark"] .pdf-extracted-data { background: #1b2740 !important; }
+  html[data-theme="dark"] .tick-btn { border-color: #334155 !important; }
+  html[data-theme="dark"] .btn-white { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+  html[data-theme="dark"] .btn-option { background: transparent; }
+  /* Badge status (LULUS/TIDAK SOKONG/SIASAT) — warna dark yang jelas */
+  html[data-theme="dark"] .status-badge { border: 1px solid transparent; }
+  html[data-theme="dark"] .bg-green {
+    background: rgba(16, 185, 129, 0.18) !important;
+    color: #6ee7b7 !important;
+    border-color: rgba(16, 185, 129, 0.45) !important;
+  }
+  html[data-theme="dark"] .bg-red {
+    background: rgba(239, 68, 68, 0.18) !important;
+    color: #fca5a5 !important;
+    border-color: rgba(239, 68, 68, 0.45) !important;
+  }
+  html[data-theme="dark"] .bg-yellow {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #fde68a !important;
+    border-color: rgba(245, 158, 11, 0.45) !important;
+  }
+  html[data-theme="dark"] .bg-blue {
+    background: rgba(59, 130, 246, 0.18) !important;
+    color: #93c5fd !important;
+    border-color: rgba(59, 130, 246, 0.45) !important;
+  }
+  html[data-theme="dark"] #historyBanner { background: #3a2e10; border-color: #a16207; }
+  html[data-theme="dark"] #historyBannerText { color: #fde68a; }
+  html[data-theme="dark"] #windowIndicator { color: #94a3b8; }
+  html[data-theme="dark"] #listStatus { color: #94a3b8 !important; }
+  html[data-theme="dark"] .view-label { color: #aab8cc; }
+  html[data-theme="dark"] .view-value { color: #e2e8f0; }
+  html[data-theme="dark"] .view-section-header { background: #1e293b; color: #cbd5e1; }
+  html[data-theme="dark"] #historyToolbar .btn-white { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] #oldDataPicker { background: #1e293b; border-color: #334155; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 2: SEMAKAN SETIAP TAB (label global, teks inline,
+   kad dashboard, pelulus action, admin, PKA, excel/bakul, modal)
+   ========================================================================= */
+@media screen {
+  /* --- GLOBAL: tajuk & label borang (punca utama teks gelap) --- */
+  html[data-theme="dark"] h2 { color: #e2e8f0; border-bottom-color: rgba(148,163,184,0.2); }
+  html[data-theme="dark"] h3, html[data-theme="dark"] h4 { color: #e2e8f0; }
+  html[data-theme="dark"] label { color: #cbd5e1; }
+  html[data-theme="dark"] strong { color: #f1f5f9; }
+  html[data-theme="dark"] hr { border-color: rgba(148,163,184,0.2); }
+
+  /* --- Peta warna teks INLINE (tanpa background) untuk semua tab --- */
+  html[data-theme="dark"] [style*="color:#0f172a"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #0f172a"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#111827"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#1e293b"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #1e293b"]:not([style*="background"]) { color: #f1f5f9 !important; }
+  html[data-theme="dark"] [style*="color:#334155"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #334155"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#374151"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#444"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#333"]:not([style*="background"]) { color: #e2e8f0 !important; }
+  html[data-theme="dark"] [style*="color:#475569"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #475569"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#64748b"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #64748b"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#555"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#666"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#4b5563"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #4b5563"]:not([style*="background"]) { color: #a8b6c8 !important; }
+  html[data-theme="dark"] [style*="color:#1e40af"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #1e40af"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#1d4ed8"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#2563eb"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #2563eb"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#3b82f6"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #3b82f6"]:not([style*="background"]) { color: #93c5fd !important; }
+  html[data-theme="dark"] [style*="color:#0369a1"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #0369a1"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#0284c7"]:not([style*="background"]) { color: #7dd3fc !important; }
+  html[data-theme="dark"] [style*="color:#047857"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#059669"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#166534"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#065f46"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#15803d"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #15803d"]:not([style*="background"]) { color: #34d399 !important; }
+  html[data-theme="dark"] [style*="color:#b45309"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#d97706"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#92400e"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#854d0e"]:not([style*="background"]) { color: #fbbf24 !important; }
+  html[data-theme="dark"] [style*="color:#dc2626"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#991b1b"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#b91c1c"]:not([style*="background"]) { color: #f87171 !important; }
+  html[data-theme="dark"] [style*="color:#7c3aed"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#6d28d9"]:not([style*="background"]) { color: #c4b5fd !important; }
+
+  /* --- Baris berwarna (Bakul / Senarai) --- */
+  html[data-theme="dark"] .row-new { background-color: #10263d !important; }
+  html[data-theme="dark"] .row-renewal { background-color: #10332a !important; }
+  html[data-theme="dark"] .row-info { background-color: #3a2e10 !important; }
+  html[data-theme="dark"] .row-grade { background-color: #2a1b3d !important; }
+  html[data-theme="dark"] tr[style*="#f8fafc"] { background: #1b2740 !important; }
+  html[data-theme="dark"] td[style*="#f8fafc"] { background: #1b2740 !important; color: #e2e8f0 !important; }
+
+  /* --- Overlay loading & spinner borang --- */
+  html[data-theme="dark"] .loading-container { background: rgba(15, 23, 42, 0.94); }
+  html[data-theme="dark"] .loading-text {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--theme-color) 55%, white), color-mix(in srgb, var(--theme-color) 25%, white));
+    -webkit-background-clip: text; background-clip: text;
+  }
+  html[data-theme="dark"] .loading-progress-percent, 
+  html[data-theme="dark"] .loading-progress-label { color: #cbd5e1; }
+  html[data-theme="dark"] .loading-subtext { color: #94a3b8; }
+  html[data-theme="dark"] .form-checker-loading-spinner { background: rgba(15, 23, 42, 0.95); }
+  html[data-theme="dark"] .form-checker-loading-text { color: #93c5fd; }
+  html[data-theme="dark"] .dashboard-loading-text { color: #93c5fd; }
+  html[data-theme="dark"] .skeleton-box { background: linear-gradient(90deg, #1e293b 25%, #26334d 50%, #1e293b 75%) !important; background-size: 200% 100% !important; }
+
+  /* --- Tab Dashboard --- */
+  html[data-theme="dark"] .stat-card { background: #16213a; box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+  html[data-theme="dark"] .stat-value { color: color-mix(in srgb, var(--theme-color) 45%, white); }
+  html[data-theme="dark"] .stat-label { color: #94a3b8; }
+  html[data-theme="dark"] .dashboard-filter label { color: #93c5fd; }
+  html[data-theme="dark"] .reason-card { background: #16213a; box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+  html[data-theme="dark"] .reason-card h4 { color: #cbd5e1; }
+  html[data-theme="dark"] .reason-count { color: color-mix(in srgb, var(--theme-color) 45%, white); }
+  html[data-theme="dark"] #tab-dashboard [style*="background: #f0f9ff"],
+  html[data-theme="dark"] #tab-dashboard [style*="background:#f0f9ff"] { background: #10263d !important; border-left-color: var(--theme-color) !important; }
+  html[data-theme="dark"] #tab-dashboard [style*="background: #fef3c7"],
+  html[data-theme="dark"] #tab-dashboard [style*="background:#fef3c7"] { background: #3a2e10 !important; border-left-color: #f59e0b !important; }
+
+  /* --- Tab Borang Semakan / Input Database --- */
+  html[data-theme="dark"] .pdf-upload-area { background: #16213a; border-color: #475569; }
+  html[data-theme="dark"] .extracted-label { color: #cbd5e1; }
+  html[data-theme="dark"] .extracted-value { color: #93c5fd; }
+  html[data-theme="dark"] .drive-section { background: #10263d; border-color: color-mix(in srgb, var(--theme-color) 60%, #1e293b); }
+  html[data-theme="dark"] .drive-section h3 { color: #cbd5e1; }
+  html[data-theme="dark"] .drive-link { background: #1e293b; color: #7dd3fc; }
+  html[data-theme="dark"] .bank-fields-cek { background: #10263d !important; border-color: #1e3a5f !important; }
+  html[data-theme="dark"] .bank-fields-online { background: #2a1b3d !important; border-color: #3b2a52 !important; }
+  html[data-theme="dark"] .bank-mode-btn { background: #1e293b !important; border-color: #334155 !important; }
+  html[data-theme="dark"] #db_perubahan_input { background-color: #3a2e10 !important; color: #fde68a !important; border-color: #a16207 !important; }
+  html[data-theme="dark"] .baru-tambah-wrap { background: #3a2e10 !important; color: #fbbf24 !important; }
+
+  /* --- Tab Keputusan Pelulus / Paparan --- */
+  html[data-theme="dark"] #tab-pelulus-action [style*="background:#fefce8"],
+  html[data-theme="dark"] #tab-pelulus-action [style*="background: #fefce8"] { background: #3a2e10 !important; border-color: #a16207 !important; }
+  html[data-theme="dark"] #tab-pelulus-action [style*="background:#fefce8"] h3 { color: #fde68a !important; }
+  html[data-theme="dark"] #div_ubah_syor_lawatan { background: #10263d !important; border-color: #1e3a5f !important; }
+  html[data-theme="dark"] #div_ubah_syor_lawatan h4, 
+  html[data-theme="dark"] #div_ubah_syor_lawatan label { color: #7dd3fc !important; }
+  html[data-theme="dark"] #div_siasat_pelulus { background: #3a2e10 !important; border-color: #a16207 !important; }
+  html[data-theme="dark"] #div_siasat_pelulus h4,
+  html[data-theme="dark"] #div_siasat_pelulus label { color: #fbbf24 !important; }
+  html[data-theme="dark"] #pelulus_whatsapp_container { background: #10263d !important; border-color: #1e3a5f !important; }
+  html[data-theme="dark"] #pelulus_whatsapp_container label { color: #7dd3fc !important; }
+
+  /* --- Tab Admin --- */
+  html[data-theme="dark"] .admin-stats-section h3 { color: #93c5fd; }
+  html[data-theme="dark"] .toggle-btn { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  html[data-theme="dark"] .toggle-btn.active { background: var(--theme-color); color: #ffffff; border-color: var(--theme-color); }
+  html[data-theme="dark"] .toggle-btn:hover:not(.active) { border-color: #93c5fd; color: #93c5fd; }
+  html[data-theme="dark"] .laporan-harian-modal-title { color: #93c5fd; }
+  html[data-theme="dark"] .lh-form-field label, 
+  html[data-theme="dark"] .lh-section-label { color: #cbd5e1; }
+  html[data-theme="dark"] .lh-konsultansi-preview { background: #10263d; color: #93c5fd; }
+  html[data-theme="dark"] #quickCheckContent > div { background: #1b2740 !important; border-color: #334155 !important; }
+
+  /* --- Tab PKA / SPI --- */
+  html[data-theme="dark"] .pka-filter-btn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+  html[data-theme="dark"] .pka-filter-btn:hover { border-color: #93c5fd; color: #93c5fd; }
+  html[data-theme="dark"] .pka-filter-btn.active { border-color: var(--theme-color); background: #10263d; color: #93c5fd; }
+  html[data-theme="dark"] .pka-btn-ghost { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] .pka-card-field label { color: #cbd5e1; }
+  html[data-theme="dark"] .spi-tl-num { background: #1e3a5f; color: #93c5fd; }
+  html[data-theme="dark"] .spi-tl-date-badge { color: #7dd3fc; }
+  html[data-theme="dark"] .spi-tl-deadline-ok, 
+  html[data-theme="dark"] .spi-tl-deadline-late, 
+  html[data-theme="dark"] .spi-tl-deadline-siap { color: #0f172a; }
+  html[data-theme="dark"] .spi-timeline-sub { color: #94a3b8; }
+  html[data-theme="dark"] .queue-loading-text { color: #93c5fd !important; }
+
+  /* --- YouTube & Audio panel --- */
+  html[data-theme="dark"] #youtubeResults > div { background: #1b2740 !important; border-color: #334155 !important; }
+  html[data-theme="dark"] .audio-slider-group label { color: #cbd5e1; }
+  html[data-theme="dark"] .audio-value-badge { background: #1e293b; color: #93c5fd; }
+  html[data-theme="dark"] #sfx-control-panel { background: #16213a !important; border-color: #334155 !important; }
+
+  /* --- Umum tambahan --- */
+  html[data-theme="dark"] .view-value, 
+  html[data-theme="dark"] .view-row .view-value { color: #e2e8f0; }
+  html[data-theme="dark"] .app-sub { color: #94a3b8 !important; }
+  html[data-theme="dark"] .drive-creating, 
+  html[data-theme="dark"] .drive-success, 
+  html[data-theme="dark"] .drive-error { filter: brightness(0.95); }
+  html[data-theme="dark"] #deletedLogsCount, html[data-theme="dark"] #archiveStatus, 
+  html[data-theme="dark"] #cleanupStatus, html[data-theme="dark"] #firebaseRulesStatus { color: #94a3b8 !important; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 3: latar belakang INLINE (panel kelabu/biru cair)
+   dikecualikan untuk input/select/textarea/butang (mempunyai gaya sendiri)
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"] [style*="background:#f8fafc"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background: #f8fafc"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background-color:#f8fafc"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background-color: #f8fafc"]:not(input):not(select):not(textarea):not(button):not(a) {
+    background: #1b2740 !important;
+    border-color: #334155 !important;
+    color: #e2e8f0;
+  }
+  html[data-theme="dark"] [style*="background:#f1f5f9"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background: #f1f5f9"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background-color:#f1f5f9"]:not(input):not(select):not(textarea):not(button):not(a) {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #e2e8f0;
+  }
+  html[data-theme="dark"] [style*="background:#eff6ff"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background: #eff6ff"]:not(input):not(select):not(textarea):not(button):not(a) {
+    background: #10263d !important;
+    border-color: #1e3a5f !important;
+    color: #93c5fd;
+  }
+  html[data-theme="dark"] [style*="background:#e0f2fe"]:not(input):not(select):not(textarea):not(button):not(a),
+  html[data-theme="dark"] [style*="background: #e0f2fe"]:not(input):not(select):not(textarea):not(button):not(a) {
+    background: #10263d !important;
+    border-color: #1e3a5f !important;
+    color: #93c5fd;
+  }
+  html[data-theme="dark"] [style*="background:#fffbeb"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #fffbeb"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background-color:#fffbeb"]:not(input):not(select):not(textarea):not(button) {
+    background: #3a2e10 !important;
+    color: #fde68a;
+  }
+  html[data-theme="dark"] [style*="background:#fef3c7"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #fef3c7"]:not(input):not(select):not(textarea):not(button) {
+    background: #3a2e10 !important;
+    color: #fde68a;
+  }
+  html[data-theme="dark"] [style*="background:#fef2f2"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #fef2f2"]:not(input):not(select):not(textarea):not(button) {
+    background: #3f1d1d !important;
+    color: #fca5a5;
+  }
+  html[data-theme="dark"] [style*="background:#dcfce7"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #dcfce7"]:not(input):not(select):not(textarea):not(button) {
+    background: #123524 !important;
+    color: #86efac;
+  }
+  html[data-theme="dark"] [style*="background:#dbeafe"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #dbeafe"]:not(input):not(select):not(textarea):not(button) {
+    background: #10263d !important;
+    color: #93c5fd;
+  }
+  html[data-theme="dark"] [style*="background-color:#dcfce7"]:not(input):not(select):not(textarea):not(button) {
+    background: #123524 !important;
+    color: #86efac;
+  }
+  html[data-theme="dark"] [style*="background-color:#fee2e2"]:not(input):not(select):not(textarea):not(button) {
+    background: #3f1d1d !important;
+    color: #fca5a5;
+  }
+  html[data-theme="dark"] [style*="background:#fee2e2"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #fee2e2"]:not(input):not(select):not(textarea):not(button) {
+    background: #3f1d1d !important;
+    color: #fca5a5;
+  }
+  html[data-theme="dark"] [style*="background:#fefce8"]:not(input):not(select):not(textarea):not(button),
+  html[data-theme="dark"] [style*="background: #fefce8"]:not(input):not(select):not(textarea):not(button) {
+    background: #3a2e10 !important;
+    color: #fde68a;
+    border-color: #a16207 !important;
+  }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 4: view-section Pelulus, kotak Excel/Bakul, misc
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"] .view-section { background: #16213a; border-color: #334155; }
+  html[data-theme="dark"] .view-row { border-bottom-color: #26334d; }
+  html[data-theme="dark"] .view-section-header { border-bottom-color: #26334d; }
+  html[data-theme="dark"] .view-section-header[style*="f0fdf4"] { background: #123524 !important; color: #86efac !important; }
+  html[data-theme="dark"] .app-item-number { background: #1e293b !important; color: #94a3b8 !important; }
+  html[data-theme="dark"] .status-input { border-color: #334155 !important; }
+  html[data-theme="dark"] #districtFilterContainer,
+  html[data-theme="dark"] #excelResultsContainer { background: #16213a !important; border-color: #334155 !important; }
+  html[data-theme="dark"] #districtFilterContainer h3 { color: #93c5fd !important; }
+  html[data-theme="dark"] #excelResultsContainer strong { color: #93c5fd !important; }
+  html[data-theme="dark"] .admin-stats-close { color: #94a3b8; }
+  html[data-theme="dark"] #bakulCountBadge { box-shadow: none; }
+  html[data-theme="dark"] .statusMsg, html[data-theme="dark"] #statusMsg { color: #94a3b8; }
+  html[data-theme="dark"] #fileManagerHeader #fileManagerFolderInfo { color: #94a3b8; }
+  html[data-theme="dark"] #deletedLogsCount { color: #94a3b8; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 5: kad bank (inline background), tarikh proses readonly,
+   input readonly & butang mod bank
+   ========================================================================= */
+@media screen {
+  /* Kad bank: background di-set INLINE oleh styleBankCards() — perlu !important.
+     Border berwarna (6px kiri) dikekalkan supaya identiti palette kekal. */
+  html[data-theme="dark"] .bank-card { background: #1b2740 !important; }
+  html[data-theme="dark"] .bank-card .bank-title { color: #7dd3fc !important; }
+  html[data-theme="dark"] .bank-mode-btn { background: #1e293b !important; border-color: #334155 !important; }
+  html[data-theme="dark"] .bank-mode-btn.active { background: #10263d !important; border-color: #3b82f6 !important; color: #93c5fd !important; }
+  html[data-theme="dark"] .bank-mode-btn.active[data-mode="ONLINE"] { background: #2a1b3d !important; border-color: #a855f7 !important; color: #c4b5fd !important; }
+  html[data-theme="dark"] .bank-name, 
+  html[data-theme="dark"] .bank-account,
+  html[data-theme="dark"] .bank-date { background: #1e293b !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+
+  /* Tarikh Proses (auto/readonly) & input readonly ringan lain */
+  html[data-theme="dark"] #borang_tarikh_proses { background: #1e293b !important; color: #94a3b8 !important; border-color: #334155 !important; }
+  html[data-theme="dark"] #pelulus_nama { background: #1e293b !important; color: #e2e8f0 !important; }
+  html[data-theme="dark"] #db_pengesyor { color: #93c5fd !important; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 6: kelas latar cerah yang tercicir (kad Jenis Permohonan,
+   senarai, highlight, conditional input, zebra jadual admin)
+   ========================================================================= */
+@media screen {
+  /* Kad "Jenis Permohonan" (radio group) di Borang Semakan */
+  html[data-theme="dark"] .radio-group { background: #16213a; border-color: #334155; }
+  html[data-theme="dark"] .radio-group label { color: #cbd5e1; }
+  html[data-theme="dark"] .radio-group input[type="radio"] { accent-color: var(--theme-color); }
+
+  /* Input bersyarat (UBAH MAKLUMAT/GRED) & pautan wajib */
+  html[data-theme="dark"] .conditional-input,
+  html[data-theme="dark"] .pautan-required input {
+    background-color: #3a2e10 !important;
+    border-color: #a16207 !important;
+    color: #fde68a !important;
+  }
+  html[data-theme="dark"] #input_ubah_maklumat,
+  html[data-theme="dark"] #input_ubah_gred { background-color: #3a2e10 !important; border-color: #a16207 !important; color: #fde68a !important; }
+
+  /* Senarai & wrapper */
+  html[data-theme="dark"] .app-list { background: #16213a; border-color: #26334d; }
+  html[data-theme="dark"] .app-item-wrapper { border-bottom-color: #26334d; }
+  html[data-theme="dark"] .app-item-wrapper:hover { background: #1b2740; }
+  html[data-theme="dark"] .app-item-wrapper.inbox-pending { background: #3a2e10 !important; border-left-color: #f59e0b !important; }
+  html[data-theme="dark"] .app-item-wrapper.inbox-pending:hover { background: #4a3a14 !important; }
+
+  /* Kotak highlight & proses PDF */
+  html[data-theme="dark"] .highlight-box { background-color: #3a2e10; border-color: #f97316; }
+  html[data-theme="dark"] .pdf-processing { background: #3a2e10; border-color: #a16207; color: #fde68a; }
+
+  /* Jadual admin: baris zebra */
+  html[data-theme="dark"] .admin-stats-table tr:nth-child(even) { background: #1b2740; }
+  html[data-theme="dark"] .admin-stats-table tr:hover { background: #1e293b; }
+}
+
+/* DARK MODE — FASA 7: kekalkan highlight kad BARU TAMBAH dalam gelap */
+@media screen {
+  html[data-theme="dark"] .person-card.baru-tambah-card { background-color: #3a2e10 !important; border-color: #f59e0b !important; box-shadow: 0 0 0 1px #f59e0b !important; }
+}
+
+/* DARK MODE — FASA 8: warna inline biru navy (#1e3a8a) — nama syarikat di Bakul */
+@media screen {
+  html[data-theme="dark"] [style*="color: #1e3a8a"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#1e3a8a"]:not([style*="background"]) { color: #93c5fd !important; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 9: modal Inbox (teks & butang tindakan) + modal Queue SPI
+   ========================================================================= */
+@media screen {
+  /* Modal Inbox: baris keterangan "Semua telah dibaca • padam notifikasi..." */
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-head > div:first-child { color: #cbd5e1 !important; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-head b { color: #e2e8f0; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-head b[style*="dc2626"] { color: #fca5a5 !important; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-head b[style*="2563eb"] { color: #93c5fd !important; }
+
+  /* Butang tindakan (Semua dibaca / Padam dibaca / Padam semua / pilihan) */
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-actions button {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #cbd5e1 !important;
+  }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-actions button:hover:not(:disabled) {
+    background: #26334d !important;
+    color: #f1f5f9 !important;
+  }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-actions button:disabled { opacity: 0.6 !important; }
+  html[data-theme="dark"] #stbInboxPanel .stb-inbox-actions button.stb-act-danger {
+    border-color: #7f1d1d !important;
+    color: #fca5a5 !important;
+  }
+
+  /* Tapisan (Semua / Lulus / Tolak ...) — naikkan kontras */
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn { color: #cbd5e1; }
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn .stb-fbadge { background: #334155; color: #e2e8f0; }
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn.active { background: #334155; color: #ffffff; }
+  html[data-theme="dark"] #stbInboxPanel .stb-filter-btn.active .stb-fbadge { background: #f1f5f9; color: #0f172a; }
+
+  /* Modal Queue SPI: bekas jadual putih (inline) -> gelap + teks jelas */
+  html[data-theme="dark"] #queueSpiModal div[style*="background: white"],
+  html[data-theme="dark"] #queueSpiModal div[style*="background:white"] {
+    background: #16213a !important;
+    border-color: #334155 !important;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.35) !important;
+  }
+  html[data-theme="dark"] #queueSpiModal h3 { color: #93c5fd !important; }
+  html[data-theme="dark"] #queueSpiModal td { color: #e2e8f0; }
+  html[data-theme="dark"] #queueSpiModal .monthly-table th { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  html[data-theme="dark"] #queueSpiModal .monthly-table td { border-color: #334155; color: #e2e8f0; }
+  html[data-theme="dark"] #queueSpiModal .admin-stats-close { color: #94a3b8; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 10: bar penapis Dashboard (Tempoh / Bulan / Tahun / CSV)
+   ========================================================================= */
+@media screen {
+  html[data-theme="dark"] .dashboard-filter {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: #334155;
+  }
+  html[data-theme="dark"] .dashboard-filter label { color: #93c5fd; }
+  html[data-theme="dark"] .dashboard-filter select {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+  html[data-theme="dark"] .dashboard-filter select option {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+  html[data-theme="dark"] .dashboard-header h2 { color: #e2e8f0; }
+}
+
+/* =========================================================================
+   PEMILIH BULAN (Muat Data Bulan Lama) — reka bentuk premium
+   Digunakan di tab Telah Syor / Sejarah (historyToolbar)
+   ========================================================================= */
+.old-data-picker {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 8px 12px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+.old-data-picker .odp-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+.old-data-picker .odp-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin: 0 2px 0 0;
+}
+.old-data-picker .odp-select {
+  width: auto !important;
+  border: none;
+  background: transparent;
+  padding: 4px 2px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  border-radius: 8px;
+  text-transform: none;
+  cursor: pointer;
+  outline: none;
+}
+.old-data-picker .odp-select.odp-year { min-width: 74px; }
+.old-data-picker .odp-select:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-color) 22%, transparent);
+}
+.old-data-picker .odp-arrow {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+}
+.old-data-picker .odp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 2px;
+}
+.old-data-picker .odp-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 75%, black));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--theme-color) 35%, transparent);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.old-data-picker .odp-btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.old-data-picker .odp-btn-primary:active { transform: translateY(0) scale(0.98); }
+.old-data-picker .odp-btn-cancel {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.old-data-picker .odp-btn-cancel:hover { background: #e2e8f0; color: #1e293b; }
+
+/* Dark mode untuk pemilih bulan */
+@media screen {
+  html[data-theme="dark"] .old-data-picker {
+    background: #16213a;
+    border-color: #334155;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  }
+  html[data-theme="dark"] .old-data-picker .odp-group {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  html[data-theme="dark"] .old-data-picker .odp-label { color: #94a3b8; }
+  html[data-theme="dark"] .old-data-picker .odp-select { background: transparent; color: #e2e8f0; }
+  html[data-theme="dark"] .old-data-picker .odp-select option { background: #1e293b; color: #e2e8f0; }
+  html[data-theme="dark"] .old-data-picker .odp-arrow { color: #64748b; }
+  html[data-theme="dark"] .old-data-picker .odp-btn-cancel {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+  }
+  html[data-theme="dark"] .old-data-picker .odp-btn-cancel:hover { background: #26334d; color: #f1f5f9; }
+  html[data-theme="dark"] #historyToolbar #btnLoadOldData {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: #334155 !important;
+  }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 12: butang pilihan (YA/TIDAK, SOKONG/TIDAK DISOKONG,
+   PEMUTIHAN, SIASAT, ADA/TIADA) — warna lebih jelas & kontras
+   ========================================================================= */
+@media screen {
+  /* Hijau (YA / SOKONG / ADA) */
+  html[data-theme="dark"] .btn-opt-green {
+    border-color: #34d399 !important;
+    color: #a7f3d0 !important;
+    background: rgba(16, 185, 129, 0.14) !important;
+  }
+  html[data-theme="dark"] .btn-opt-green:hover { background: rgba(16, 185, 129, 0.24) !important; }
+  html[data-theme="dark"] .btn-opt-green.active {
+    background: #059669 !important;
+    border-color: #6ee7b7 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35), 0 4px 12px rgba(5, 150, 105, 0.45) !important;
+  }
+
+  /* Merah (TIDAK / TIDAK DISOKONG / ADA salah) */
+  html[data-theme="dark"] .btn-opt-red {
+    border-color: #f87171 !important;
+    color: #fecaca !important;
+    background: rgba(239, 68, 68, 0.14) !important;
+  }
+  html[data-theme="dark"] .btn-opt-red:hover { background: rgba(239, 68, 68, 0.24) !important; }
+  html[data-theme="dark"] .btn-opt-red.active {
+    background: #dc2626 !important;
+    border-color: #fca5a5 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35), 0 4px 12px rgba(220, 38, 38, 0.45) !important;
+  }
+
+  /* Jingga (SIASAT) */
+  html[data-theme="dark"] .btn-opt-orange {
+    border-color: #fbbf24 !important;
+    color: #fde68a !important;
+    background: rgba(245, 158, 11, 0.14) !important;
+  }
+  html[data-theme="dark"] .btn-opt-orange:hover { background: rgba(245, 158, 11, 0.24) !important; }
+  html[data-theme="dark"] .btn-opt-orange.active {
+    background: #d97706 !important;
+    border-color: #fcd34d !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.35), 0 4px 12px rgba(217, 119, 6, 0.45) !important;
+  }
+
+  /* Biru (PEMUTIHAN) */
+  html[data-theme="dark"] .btn-opt-blue {
+    border-color: #60a5fa !important;
+    color: #bfdbfe !important;
+    background: rgba(59, 130, 246, 0.14) !important;
+  }
+  html[data-theme="dark"] .btn-opt-blue:hover { background: rgba(59, 130, 246, 0.24) !important; }
+  html[data-theme="dark"] .btn-opt-blue.active {
+    background: #2563eb !important;
+    border-color: #93c5fd !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.35), 0 4px 12px rgba(37, 99, 235, 0.45) !important;
+  }
+
+  /* Segmen PKA (Sahkan & Hantar ke SPI / Tolak ke Pengesyor) */
+  html[data-theme="dark"] .pka-syor-seg .btn-option[data-value="SOKONG"] { color: #a7f3d0 !important; }
+  html[data-theme="dark"] .pka-syor-seg .btn-option[data-value="TIDAK DISOKONG"] { color: #fecaca !important; }
+  html[data-theme="dark"] .pka-syor-seg .btn-option[data-value="SOKONG"].active {
+    background: linear-gradient(135deg, #34d399, #059669) !important;
+    color: #ffffff !important;
+  }
+  html[data-theme="dark"] .pka-syor-seg .btn-option[data-value="TIDAK DISOKONG"].active {
+    background: linear-gradient(135deg, #f87171, #dc2626) !important;
+    color: #ffffff !important;
+  }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 13: kad "Pilih Pelulus" (senarai butang nama pelulus)
+   Butang dijana secara dinamik dengan background putih inline — perlu !important.
+   Warna teks per-pelulus dikekalkan mengikut turutan palet (nth-child).
+   ========================================================================= */
+@media screen {
+  /* Butang nama pelulus: latar gelap, teks cerah, border berwarna kekal */
+  html[data-theme="dark"] #pelulus_button_group button {
+    background: #1e293b !important;
+    box-shadow: none !important;
+  }
+  html[data-theme="dark"] #pelulus_button_group button:hover { background: #26334d !important; }
+
+  /* Warna teks mengikut palet (10 warna, berulang) — versi cerah untuk dark mode */
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+1) { color: #34d399 !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+2) { color: #93c5fd !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+3) { color: #fcd34d !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+4) { color: #c4b5fd !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+5) { color: #f9a8d4 !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+6) { color: #5eead4 !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+7) { color: #fdba74 !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+8) { color: #a5b4fc !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+9) { color: #bef264 !important; }
+  html[data-theme="dark"] #pelulus_button_group button:nth-child(10n+10) { color: #67e8f9 !important; }
+
+  /* Butang dipilih: isian warna tema + glow supaya jelas */
+  html[data-theme="dark"] #pelulus_button_group button.selected {
+    background: var(--theme-color) !important;
+    color: #ffffff !important;
+    border-color: var(--theme-color) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-color) 40%, transparent) !important;
+  }
+
+  /* Teks status auto-pilih di bawah butang */
+  html[data-theme="dark"] #pelulus_autoselect_status[style*="rgb(5, 150, 105)"] { color: #34d399 !important; }
+  html[data-theme="dark"] #pelulus_autoselect_status[style*="rgb(220, 38, 38)"] { color: #fca5a5 !important; }
+}
+
+/* =========================================================================
+   DROPDOWN BANK — gaya kelas (ganti inline JS) + dark mode
+   ========================================================================= */
+.bank-dropdown .bank-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  transition: background 0.12s ease;
+}
+.bank-dropdown .bank-option:last-child { border-bottom: none; }
+.bank-dropdown .bank-option:hover { background: #eff6ff; }
+.bank-dropdown .bank-option-name { font-size: 0.85rem; font-weight: 600; }
+
+@media screen {
+  html[data-theme="dark"] .bank-dropdown .bank-option {
+    background: #1e293b;
+    border-bottom-color: #334155;
+    color: #e2e8f0;
+  }
+  html[data-theme="dark"] .bank-dropdown .bank-option:hover { background: #26334d; }
+  html[data-theme="dark"] .bank-dropdown .bank-option-name { color: #e2e8f0; }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 14: pemilih bulan flatpickr (plugin monthSelect) —
+   nama bulan (Januari..Disember) & input bulan KWSP lebih jelas
+   ========================================================================= */
+@media screen {
+  /* Grid nama bulan — plugin asal warna #393939 (gelap) */
+  html[data-theme="dark"] .flatpickr-monthSelect-month { color: #e2e8f0; }
+  html[data-theme="dark"] .flatpickr-monthSelect-month:hover {
+    background: #26334d;
+    color: #ffffff;
+  }
+  html[data-theme="dark"] .flatpickr-monthSelect-month.selected,
+  html[data-theme="dark"] .flatpickr-monthSelect-month.selected:hover {
+    background: var(--theme-color);
+    color: #ffffff;
+  }
+  html[data-theme="dark"] .flatpickr-monthSelect-month.today {
+    border: 1px solid var(--theme-color);
+    color: #93c5fd;
+  }
+  html[data-theme="dark"] .flatpickr-monthSelect-month.flatpickr-disabled,
+  html[data-theme="dark"] .flatpickr-monthSelect-month.flatpickr-disabled:hover {
+    color: #475569;
+  }
+
+  /* Input bulan (altInput) — nama bulan dipaparkan di sini */
+  html[data-theme="dark"] input.flatpickr-input,
+  html[data-theme="dark"] input.fp-alt-input {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+  /* Butang bulan/tahun dalam header kalendar */
+  html[data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months,
+  html[data-theme="dark"] .flatpickr-current-month input.cur-year {
+    color: #e2e8f0;
+    background: transparent;
+  }
+  html[data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months option {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+}
+
+/* =========================================================================
+   DARK MODE — FASA 15: SEMUA TEKS HIJAU (dan cip warna) lebih jelas
+   - Menangkap kedua-dua bentuk: hex (#059669) dan rgb() (serialisasi JS)
+   - Cip latar cerah: latar gelap + teks cerah dengan !important
+   ========================================================================= */
+@media screen {
+  /* --- Teks hijau tulen (tiada latar) — cerah --- */
+  html[data-theme="dark"] [style*="color:#059669"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #059669"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#047857"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #047857"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#166534"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #166534"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#065f46"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #065f46"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#15803d"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #15803d"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#16a34a"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: #16a34a"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color:#10b981"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(5, 150, 105)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(4, 120, 87)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(22, 101, 52)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(6, 95, 70)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(21, 128, 61)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(22, 163, 74)"]:not([style*="background"]),
+  html[data-theme="dark"] [style*="color: rgb(16, 185, 129)"]:not([style*="background"]) {
+    color: #4ade80 !important;
+  }
+
+  /* --- Cip/lencana latar hijau cerah (hex & rgb) — latar gelap, teks cerah --- */
+  html[data-theme="dark"] [style*="background:#dcfce7"],
+  html[data-theme="dark"] [style*="background: #dcfce7"],
+  html[data-theme="dark"] [style*="background-color:#dcfce7"],
+  html[data-theme="dark"] [style*="background-color: #dcfce7"],
+  html[data-theme="dark"] [style*="background-color: rgb(220, 252, 231)"],
+  html[data-theme="dark"] [style*="background-color:rgb(220, 252, 231)"] {
+    background: #123524 !important;
+    color: #86efac !important;
+    border-color: #16a34a !important;
+  }
+  html[data-theme="dark"] [style*="background:#d1fae5"],
+  html[data-theme="dark"] [style*="background: #d1fae5"],
+  html[data-theme="dark"] [style*="background-color: rgb(209, 250, 229)"] {
+    background: #123524 !important;
+    color: #6ee7b7 !important;
+    border-color: #16a34a !important;
+  }
+  html[data-theme="dark"] [style*="background:#ecfdf5"],
+  html[data-theme="dark"] [style*="background: #ecfdf5"],
+  html[data-theme="dark"] [style*="background-color: rgb(236, 253, 245)"] {
+    background: #10332a !important;
+    color: #6ee7b7 !important;
+    border-color: #14b8a6 !important;
+  }
+  html[data-theme="dark"] [style*="background:#f0fdf4"],
+  html[data-theme="dark"] [style*="background: #f0fdf4"],
+  html[data-theme="dark"] [style*="background-color: rgb(240, 253, 244)"] {
+    background: #10332a !important;
+    color: #86efac !important;
+    border-color: #16a34a !important;
+  }
+
+  /* --- Cip latar kuning / merah / biru (hex & rgb) — teks cerah !important --- */
+  html[data-theme="dark"] [style*="background:#fef3c7"],
+  html[data-theme="dark"] [style*="background: #fef3c7"],
+  html[data-theme="dark"] [style*="background-color: rgb(254, 243, 199)"],
+  html[data-theme="dark"] [style*="background:#fffbeb"],
+  html[data-theme="dark"] [style*="background: #fffbeb"],
+  html[data-theme="dark"] [style*="background-color: rgb(255, 251, 235)"],
+  html[data-theme="dark"] [style*="background:#fef9c3"],
+  html[data-theme="dark"] [style*="background-color: rgb(254, 249, 195)"] {
+    background: #3a2e10 !important;
+    color: #fde68a !important;
+    border-color: #a16207 !important;
+  }
+  html[data-theme="dark"] [style*="background:#fee2e2"],
+  html[data-theme="dark"] [style*="background: #fee2e2"],
+  html[data-theme="dark"] [style*="background-color: rgb(254, 226, 226)"],
+  html[data-theme="dark"] [style*="background:#fef2f2"],
+  html[data-theme="dark"] [style*="background: #fef2f2"],
+  html[data-theme="dark"] [style*="background-color: rgb(254, 242, 242)"] {
+    background: #3f1d1d !important;
+    color: #fca5a5 !important;
+    border-color: #ef4444 !important;
+  }
+  html[data-theme="dark"] [style*="background:#dbeafe"],
+  html[data-theme="dark"] [style*="background: #dbeafe"],
+  html[data-theme="dark"] [style*="background-color: rgb(219, 234, 254)"],
+  html[data-theme="dark"] [style*="background:#eff6ff"],
+  html[data-theme="dark"] [style*="background: #eff6ff"],
+  html[data-theme="dark"] [style*="background-color: rgb(239, 246, 255)"],
+  html[data-theme="dark"] [style*="background:#e0f2fe"],
+  html[data-theme="dark"] [style*="background: #e0f2fe"],
+  html[data-theme="dark"] [style*="background-color: rgb(224, 242, 254)"],
+  html[data-theme="dark"] [style*="background:#f0f9ff"],
+  html[data-theme="dark"] [style*="background: #f0f9ff"],
+  html[data-theme="dark"] [style*="background-color: rgb(240, 249, 255)"] {
+    background: #10263d !important;
+    color: #93c5fd !important;
+    border-color: #1e3a5f !important;
+  }
+
+  /* --- Kelas hijau (bukan inline) --- */
+  html[data-theme="dark"] .spi-status-siap { color: #4ade80 !important; }
+  html[data-theme="dark"] .drive-success { background: #123524 !important; color: #86efac !important; }
+  html[data-theme="dark"] .stat-change.positive { background: #123524 !important; color: #86efac !important; }
+  html[data-theme="dark"] .pka-badge-green { background: #123524 !important; color: #6ee7b7 !important; }
+  html[data-theme="dark"] .form-filled { color: #86efac !important; }
+  html[data-theme="dark"] .spi-tl-deadline-ok { background: #123524 !important; color: #86efac !important; }
+  html[data-theme="dark"] .spi-tl-deadline-siap { background: #10332a !important; color: #6ee7b7 !important; }
+  html[data-theme="dark"] .spi-tl-deadline-late { background: #3f1d1d !important; color: #fca5a5 !important; }
+}
