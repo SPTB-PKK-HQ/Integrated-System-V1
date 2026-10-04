@@ -7083,6 +7083,127 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return whatsappUrl;
   }
 
+  // === WHATSAPP KE PELULUS: HANTAR SEKALI SAHAJA + BUTANG ULANGAN ===
+  // Flag disimpan dalam borang_json.whatsapp_pelulus supaya kekal merentas refresh/peranti.
+  // { sent:true, tarikh:'YYYY-MM-DD', kepada:'NAMA PELULUS', telefon:'...', template:'BIASA|SIASAT' }
+  function getWhatsappPelulusState(item) {
+    try {
+      if (!item || !item.borang_json || item.borang_json.toString().trim() === '') return { sent: false };
+      const pj = JSON.parse(item.borang_json);
+      const w = pj.whatsapp_pelulus || null;
+      if (!w) return { sent: false };
+      return { sent: w.sent === true, tarikh: w.tarikh || '', kepada: w.kepada || '', telefon: w.telefon || '', template: w.template || '' };
+    } catch (e) { return { sent: false }; }
+  }
+
+  function getPelulusAssignedForItem(item) {
+    let name = (item.pelulus || '').toString().trim();
+    let phone = '';
+    try {
+      const pj = item.borang_json ? JSON.parse(item.borang_json) : {};
+      const wf = pj.siasat_workflow || {};
+      if (!name && wf.pelulus_asal) name = (wf.pelulus_asal || '').toString().trim();
+      if (wf.pelulus_phone) phone = (wf.pelulus_phone || '').toString().trim();
+    } catch (e) {}
+    if (!phone && name && typeof usersList !== 'undefined' && usersList) {
+      const u = usersList.find(x => (x.name || '').toString().toUpperCase() === name.toUpperCase());
+      if (u && u.phone) phone = u.phone;
+    }
+    return { name, phone };
+  }
+
+  function buildPelulusWaUrlForItem(item) {
+    const assigned = getPelulusAssignedForItem(item);
+    if (!assigned.name || !assigned.phone) return null;
+    const isSiasat = (item.syor_status || '').toString().toUpperCase() === 'SIASAT';
+    if (isSiasat) {
+      return sendWhatsAppSiasatToPelulus(
+        item.syarikat, item.cidb, item.jenis,
+        item.justifikasi, assigned.phone,
+        item.ubah_maklumat, item.ubah_gred,
+        item.pengesyor
+      );
+    }
+    return sendWhatsAppNotification(
+      item.syarikat, item.cidb, item.jenis,
+      item.syor_status, item.tarikh_syor, assigned.phone,
+      item.ubah_maklumat, item.ubah_gred
+    );
+  }
+
+  function shouldShowWaResend(item, type) {
+    if (!item || !item.row) return false;
+    // Hanya di Belum Hantar (drafts) & Telah Syor (submitted)
+    if (type !== 'drafts' && type !== 'submitted') return false;
+    // Mesti sudah bersyor + ada pelulus assigned + belum ada keputusan pelulus
+    if (!item.tarikh_syor || item.tarikh_syor.toString().trim() === '') return false;
+    const assigned = getPelulusAssignedForItem(item);
+    if (!assigned.name) return false;
+    if (item.kelulusan && item.kelulusan.toString().trim() !== '') return false;
+    if (item.tarikh_lulus && item.tarikh_lulus.toString().trim() !== '') return false;
+    // Sekali sahaja: jika sudah sent, sorok
+    const st = getWhatsappPelulusState(item);
+    if (st.sent) return false;
+    // Telefon mesti boleh dibina (jika tiada, sorok supaya tidak confuse — atau boleh tunjuk disabled)
+    if (!assigned.phone) return false;
+    // Jangan tunjuk dalam mod sejarah bulan lama
+    try { if (typeof dataMode !== 'undefined' && dataMode === 'history') return false; } catch (e) {}
+    return true;
+  }
+
+  function resetWhatsappPelulusFlagInJson(borangJsonStr) {
+    try {
+      const pj = borangJsonStr && borangJsonStr.toString().trim() !== '' ? JSON.parse(borangJsonStr) : {};
+      if (pj.whatsapp_pelulus) {
+        pj.whatsapp_pelulus.sent = false;
+        pj.whatsapp_pelulus.tarikh_reset = new Date().toISOString().split('T')[0];
+      }
+      return JSON.stringify(pj);
+    } catch (e) { return borangJsonStr; }
+  }
+
+  async function markWhatsappPelulusSent(item, templateOverride) {
+    if (!item || !item.row) return false;
+    const assigned = getPelulusAssignedForItem(item);
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    let pj = {};
+    try { pj = item.borang_json && item.borang_json.toString().trim() !== '' ? JSON.parse(item.borang_json) : {}; } catch (e) { pj = {}; }
+    const isSiasat = (item.syor_status || '').toString().toUpperCase() === 'SIASAT';
+    pj.whatsapp_pelulus = {
+      sent: true,
+      tarikh: today,
+      kepada: assigned.name || '',
+      telefon: assigned.phone || '',
+      template: templateOverride || (isSiasat ? 'SIASAT' : 'BIASA')
+    };
+    const payload = {
+      action: 'updateRecord',
+      row: item.row,
+      borang_json: JSON.stringify(pj),
+      email: (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.email || '') : ''
+    };
+    try {
+      const resp = await fetchWithRetry(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }, 3, 1000);
+      const result = await resp.json();
+      if (result && result.status === 'success') {
+        try {
+          if (typeof cachedData !== 'undefined' && cachedData) {
+            const idx = cachedData.findIndex(d => d.row == item.row);
+            if (idx !== -1) cachedData[idx].borang_json = payload.borang_json;
+          }
+          item.borang_json = payload.borang_json;
+        } catch (e) {}
+        return true;
+      }
+      console.error('markWhatsappPelulusSent gagal:', result);
+      return false;
+    } catch (e) {
+      console.error('markWhatsappPelulusSent ralat:', e);
+      return false;
+    }
+  }
+
   function generatePdfCssString(userColor) {
     const themeColor = userColor || '#2563eb';
     
@@ -12139,6 +12260,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         row: item.row,
         syor_status: '',
         tarikh_syor: '',
+        // WHATSAPP RESET: undo ke Belum Hantar -> jadi macam tak hantar lagi
+        borang_json: resetWhatsappPelulusFlagInJson(item.borang_json),
         email: currentUser ? currentUser.email : ''
       };
       
@@ -12155,6 +12278,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           try {
               let parsed = JSON.parse(updatedBorangJson);
               parsed.catatan_pelulus = ''; // Kosongkan catatan
+              // WHATSAPP RESET: jadi macam tak hantar lagi
+              if (parsed.whatsapp_pelulus) {
+                parsed.whatsapp_pelulus.sent = false;
+                parsed.whatsapp_pelulus.tarikh_reset = new Date().toISOString().split('T')[0];
+              }
               updatedBorangJson = JSON.stringify(parsed);
           } catch(e) {}
       }
@@ -12232,6 +12360,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             } else if (action === 'undo_syor') {
               cachedData[index].syor_status = '';
               cachedData[index].tarikh_syor = '';
+              try { cachedData[index].borang_json = resetWhatsappPelulusFlagInJson(cachedData[index].borang_json); } catch (e) {}
+              try { item.borang_json = cachedData[index].borang_json; } catch (e) {}
             } else if (action === 'undo_lulus') {
               cachedData[index].kelulusan = '';
               cachedData[index].alasan = '';
@@ -12244,6 +12374,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               cachedData[index].alasan = '';
               cachedData[index].tarikh_lulus = '';
               cachedData[index].pelulus = '';
+              try {
+                let _p = cachedData[index].borang_json ? JSON.parse(cachedData[index].borang_json) : {};
+                if (_p.whatsapp_pelulus) { _p.whatsapp_pelulus.sent = false; }
+                if (_p.catatan_pelulus !== undefined) _p.catatan_pelulus = '';
+                cachedData[index].borang_json = JSON.stringify(_p);
+              } catch (e) {}
             } else if (action === 'padam_syor') {
               cachedData[index].syor_status = '';
               cachedData[index].tarikh_syor = '';
@@ -12590,6 +12726,39 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             deleteOrClearRecord(item, 'padam_semua');
         };
         btnContainer.appendChild(btnDelete);
+
+        // WHATSAPP ULANGAN KE PELULUS (sekali sahaja) — muncul jika Batal sebelum ini
+        if (shouldShowWaResend(item, 'drafts')) {
+          const btnWA = document.createElement('button');
+          btnWA.className = 'btn-sm';
+          btnWA.style.backgroundColor = '#25D366';
+          btnWA.style.color = 'white';
+          btnWA.innerText = '💬 WhatsApp';
+          btnWA.title = 'Hantar semula WhatsApp ke Pelulus (sekali sahaja)';
+          btnWA.onclick = async function() {
+            const waUrl = buildPelulusWaUrlForItem(item);
+            if (!waUrl) {
+              await CustomAppModal.alert("Nombor telefon Pelulus tiada. Sila semak senarai pengguna.", "Makluman", "warning");
+              return;
+            }
+            const assigned = getPelulusAssignedForItem(item);
+            const waYa = await showWhatsAppConfirmModal(waUrl, item.syarikat, assigned.name);
+            if (waYa) {
+              btnWA.disabled = true;
+              btnWA.innerText = '⏳...';
+              const ok = await markWhatsappPelulusSent(item, (item.syor_status || '').toUpperCase() === 'SIASAT' ? 'SIASAT' : 'BIASA');
+              if (ok) {
+                await CustomAppModal.alert("✅ WhatsApp ke Pelulus telah dihantar. Butang tidak akan muncul lagi (sekali sahaja).", "Selesai", "success");
+                fetchAndRenderList('drafts');
+              } else {
+                btnWA.disabled = false;
+                btnWA.innerText = '💬 WhatsApp';
+                await CustomAppModal.alert("Gagal rekod status WhatsApp. Sila cuba lagi.", "Ralat", "error");
+              }
+            }
+          };
+          btnContainer.appendChild(btnWA);
+        }
       } else if (type === 'inbox') {
         const btn = document.createElement('button');
         if (currentUser.role === 'KETUA SEKSYEN' || currentUser.role === 'PENGARAH') {
@@ -12675,6 +12844,39 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             deleteOrClearRecord(item, 'undo_syor');
           };
           btnContainer.appendChild(btnUndo);
+        }
+
+        // WHATSAPP ULANGAN KE PELULUS (sekali sahaja) — Telah Syor
+        if (shouldShowWaResend(item, 'submitted')) {
+          const btnWA2 = document.createElement('button');
+          btnWA2.className = 'btn-sm';
+          btnWA2.style.backgroundColor = '#25D366';
+          btnWA2.style.color = 'white';
+          btnWA2.innerText = '💬 WhatsApp';
+          btnWA2.title = 'Hantar semula WhatsApp ke Pelulus (sekali sahaja)';
+          btnWA2.onclick = async function() {
+            const waUrl = buildPelulusWaUrlForItem(item);
+            if (!waUrl) {
+              await CustomAppModal.alert("Nombor telefon Pelulus tiada. Sila semak senarai pengguna.", "Makluman", "warning");
+              return;
+            }
+            const assigned = getPelulusAssignedForItem(item);
+            const waYa = await showWhatsAppConfirmModal(waUrl, item.syarikat, assigned.name);
+            if (waYa) {
+              btnWA2.disabled = true;
+              btnWA2.innerText = '⏳...';
+              const ok = await markWhatsappPelulusSent(item, (item.syor_status || '').toUpperCase() === 'SIASAT' ? 'SIASAT' : 'BIASA');
+              if (ok) {
+                await CustomAppModal.alert("✅ WhatsApp ke Pelulus telah dihantar. Butang tidak akan muncul lagi (sekali sahaja).", "Selesai", "success");
+                fetchAndRenderList('submitted');
+              } else {
+                btnWA2.disabled = false;
+                btnWA2.innerText = '💬 WhatsApp';
+                await CustomAppModal.alert("Gagal rekod status WhatsApp. Sila cuba lagi.", "Ralat", "error");
+              }
+            }
+          };
+          btnContainer.appendChild(btnWA2);
         }
       } else if (type === 'history') {
         const btn = document.createElement('button');
@@ -14052,6 +14254,33 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
            }
          }
        }
+        // =====================================================================
+        // WHATSAPP KE PELULUS SEKALI SAHAJA: kekal / reset flag dalam borang_json
+        // - Rekod baharu: tiada flag (lalai belum hantar)
+        // - Edit rekod sedia ada + sah syor:
+        //   * jika tukar pelulus (nama berbeza) -> reset sent=false (boleh hantar ke pelulus baru sekali)
+        //   * jika pelulus sama -> kekalkan flag lama (kekal sekali sahaja)
+        // =====================================================================
+        if (targetRow && cachedData) {
+          try {
+            const _oldWa = cachedData.find(item => item.row == targetRow);
+            if (_oldWa && _oldWa.borang_json) {
+              const _oldP = JSON.parse(_oldWa.borang_json);
+              const _oldFlag = _oldP.whatsapp_pelulus || null;
+              if (_oldFlag && _oldFlag.sent === true) {
+                const _oldKepada = (_oldFlag.kepada || '').toString().toUpperCase().trim();
+                const _newKepada = (selectedPelulusName || '').toString().toUpperCase().trim();
+                if (isConfirmed && _newKepada && _oldKepada && _newKepada !== _oldKepada) {
+                  // Tukar pelulus -> reset supaya boleh hantar ke pelulus baru sekali
+                  borangJsonData['whatsapp_pelulus'] = { sent: false, tarikh: '', kepada: '', telefon: '', template: '', tarikh_reset: localToday };
+                } else {
+                  // Kekalkan flag lama supaya kekal sekali sahaja (jangan hilang semasa edit)
+                  borangJsonData['whatsapp_pelulus'] = _oldFlag;
+                }
+              }
+            }
+          } catch (e) {}
+        }
        
        const payload = {
         row: targetRow,
@@ -14126,6 +14355,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         await playSuccessSound();
         
         // Modal WhatsApp selepas submit – SIASAT guna template semakan (langkau jika bypass TELAH DIHANTAR)
+        // SEKALI SAHAJA: jika tekan Ya -> mark sent dalam Sheet; jika Batal -> biar sent=false supaya butang ulangan muncul
         if (!isSiasatBypassKePelulus && isConfirmed && selectedPelulusPhone) {
           let waUrl = null;
           if (isSiasatWorkflow) {
@@ -14143,7 +14373,29 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             );
           }
           if (waUrl) {
-            showWhatsAppConfirmModal(waUrl, payload.syarikat, selectedPelulusName);
+            const waYa = await showWhatsAppConfirmModal(waUrl, payload.syarikat, selectedPelulusName);
+            if (waYa) {
+              try {
+                const _rowSent = (result && result.row) ? result.row : targetRow;
+                const _tmpItem = {
+                  row: _rowSent,
+                  syarikat: payload.syarikat, cidb: payload.cidb, jenis: payload.jenis,
+                  justifikasi: payload.justifikasi, syor_status: payload.syor_status,
+                  tarikh_syor: payload.tarikh_syor, pengesyor: payload.pengesyor,
+                  ubah_maklumat: payload.ubah_maklumat, ubah_gred: payload.ubah_gred,
+                  pelulus: payload.pelulus || selectedPelulusName,
+                  borang_json: payload.borang_json
+                };
+                // Guna payload.borang_json (data baru sahaja disimpan) sebagai asas merge flag
+                await markWhatsappPelulusSent(_tmpItem, isSiasatWorkflow ? 'SIASAT' : 'BIASA');
+                await CustomAppModal.alert(message + "<br><br>✅ Notifikasi WhatsApp ke Pelulus telah dihantar (sekali sahaja).", "Selesai", "success");
+              } catch (e) {
+                console.error('Gagal mark WhatsApp sent:', e);
+                await CustomAppModal.alert(message, "Selesai", "success");
+              }
+            } else {
+              await CustomAppModal.alert(message + "<br><br>💬 Anda tekan <b>Batal</b>. Butang <b>WhatsApp</b> akan muncul di tab <b>Belum Hantar / Telah Syor</b> untuk hantar semula (sekali sahaja).", "Selesai", "success");
+            }
           } else {
             await CustomAppModal.alert(message, "Selesai", "success");
           }
@@ -14599,6 +14851,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         borangJsonData2.siasat_workflow.pelulus_tolak = currentUser ? currentUser.name : '';
         const justBaru2 = justifikasiSiasatEl ? justifikasiSiasatEl.value.trim() : pelulusActiveItem.justifikasi || '';
         borangJsonData2.siasat_workflow.justifikasi = justBaru2;
+        // WHATSAPP RESET: ditolak ke pengesyor untuk semakan semula -> jadi macam tak hantar lagi
+        if (borangJsonData2.whatsapp_pelulus) {
+          borangJsonData2.whatsapp_pelulus.sent = false;
+          borangJsonData2.whatsapp_pelulus.tarikh_reset = todayTolak;
+        }
         const payload2 = {
           action: 'siasatTolak',
           row: pelulusActiveItem.row,
@@ -14680,6 +14937,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     borangJsonData.siasat_workflow.stage = 'MENUNGGU_PELULUS';
     borangJsonData.siasat_workflow.tarikh_undo = todayUndo;
     borangJsonData.siasat_workflow.pelulus_undo = currentUser ? currentUser.name : '';
+    // WHATSAPP RESET: undo siasat -> jadi macam tak hantar lagi (backend turut reset)
+    if (borangJsonData.whatsapp_pelulus) {
+      borangJsonData.whatsapp_pelulus.sent = false;
+      borangJsonData.whatsapp_pelulus.tarikh_reset = todayUndo;
+    }
     const payload = {
       action: 'siasatUndo',
       row: item.row,
@@ -18433,15 +18695,22 @@ async function showWhatsAppConfirmModal(waUrl, syarikat, pelulusName) {
   overlay.classList.add('show');
   
   return new Promise((resolve) => {
-    btnYa.onclick = () => {
+    let settled = false;
+    const done = (val) => {
+      if (settled) return;
+      settled = true;
       overlay.style.display = 'none';
+      overlay.classList.remove('show');
+      resolve(val);
+    };
+    btnYa.onclick = () => {
       window.open(waUrl, '_blank');
-      resolve(true);
+      done(true);
     };
     btnBatal.onclick = () => {
-      overlay.style.display = 'none';
-      resolve(false);
+      done(false);
     };
+    overlay.onclick = (e) => { if (e.target === overlay) done(false); };
   });
 }
 
@@ -18460,7 +18729,7 @@ function createWAConfirmModal() {
     </div>
   `;
   document.body.appendChild(div);
-  div.addEventListener('click', (e) => { if (e.target === div) div.style.display = 'none'; });
+  // Klik luar dikendali dalam showWhatsAppConfirmModal (resolve false) supaya await tidak tergantung
   return div;
 }
 

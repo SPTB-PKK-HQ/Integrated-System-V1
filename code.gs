@@ -2705,6 +2705,12 @@ function handleSiasatUndo(data, sheet) {
     let wfBaru = {};
     try { wfBaru = JSON.parse(data.borang_json || '{}'); } catch (e) { wfBaru = {}; }
     if (wfBaru && wfBaru.siasat_workflow) existing.siasat_workflow = wfBaru.siasat_workflow;
+    // WHATSAPP KE PELULUS SEKALI SAHAJA: undo -> reset supaya jadi macam tak hantar lagi
+    if (wfBaru && wfBaru.whatsapp_pelulus) {
+      existing.whatsapp_pelulus = wfBaru.whatsapp_pelulus;
+    } else if (existing.whatsapp_pelulus && existing.whatsapp_pelulus.sent === true) {
+      existing.whatsapp_pelulus.sent = false;
+    }
     sheet.getRange(rowNum, 29).setValue(JSON.stringify(existing));
 
     // Buang dari queue SIASAT + kosongkan status/tarikh supaya keluar dari cron 6 petang
