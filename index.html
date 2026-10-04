@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
-    <link rel="stylesheet" href="style.css?v=20261003a">
+    <link rel="stylesheet" href="style.css?v=20261004a">
 </head>
 <body>
 
@@ -124,23 +124,22 @@
         <!-- MENU OVERLAY -->
         <div id="menuOverlay" class="menu-overlay"></div>
 
-        <!-- TOP RIGHT: USER BADGE & FULL VIEW BUTTON -->
-        <div class="top-controls" style="flex-direction: column; align-items: flex-end; gap: 0; top: 12px; right: 15px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 2px solid white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 8px 12px; z-index: 100;">
-            
-            <div class="user-badge" id="userBadge" title="Profil Pengguna" style="box-shadow: none; border: none; background: transparent; padding: 2px 5px; margin-bottom: 4px; font-size: 0.9rem;">👤 User</div>
-            
-            <div style="width: 100%; height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); margin-bottom: 6px;"></div>
-            
-            <div id="digitalClock" style="font-size: 0.75rem; font-weight: 800; color: var(--theme-color); display: flex; align-items: center; justify-content: center; letter-spacing: 0.3px;">
-                ⏳ Memuatkan...
+        <!-- EXECUTIVE NAVBAR: kiri pautan pantas | kanan kad profil -->
+        <header id="execNavbar" class="no-print">
+            <div class="exec-nav-left top-btn-group">
+                <button id="btnQueueSPI" class="exec-link" title="Queue SPI">📋 SPI</button>
+                <button id="btnRefreshData" class="exec-link" title="Refresh Data">🔄 Refresh</button>
             </div>
-            
-        </div>
-        <button id="btnLogoutTop" class="btn-top-fullview" style="color: #ef4444; border-color: #ef4444;" title="Log Keluar">🚪 Log Keluar</button>
-        <div class="top-btn-group" style="position:absolute; top:45px; left:5px; display:flex; gap:5px; z-index:100;">
-            <button id="btnQueueSPI" class="btn-top-fullview" style="position:static; color:#0ea5e9; border-color:#0ea5e9; font-size:0.85rem; padding:5px 10px;" title="Queue SPI">📋 SPI</button>
-            <button id="btnRefreshData" class="btn-top-fullview" style="position:static; color:#8b5cf6; border-color:#8b5cf6; font-size:0.85rem; padding:5px 10px;" title="Refresh Data">🔄 Refresh</button>
-        </div>
+            <div class="exec-nav-center">
+                <div class="exec-profile">
+                    <div class="user-badge" id="userBadge" title="Profil Pengguna">👤 User</div>
+                </div>
+            </div>
+            <div class="exec-nav-right">
+                <div id="digitalClock">⏳ Memuatkan...</div>
+                <button id="btnLogoutTop" class="exec-logout" title="Log Keluar">🚪 Log Keluar</button>
+            </div>
+        </header>
         
        <div id="customModalOverlay" class="custom-modal-overlay">
         <div class="custom-modal-card" id="customModalCard">

@@ -785,9 +785,10 @@ async function handleCredentialResponse(response) {
       // Update maklumat profil pengguna
       if (userBadge) {
     const pic = currentUser.picture;
+    const jataImg = `<img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.innerHTML = pic
-      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
-      : `👤 ${currentUser.name} (${currentUser.role})`;
+      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) ${jataImg}`
+      : `👤 ${currentUser.name} (${currentUser.role}) ${jataImg}`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {
@@ -10048,8 +10049,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
     const pic = currentUser.picture;
     userBadge.innerHTML = pic
-      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role})`
-      : `👤 ${currentUser.name} (${currentUser.role})`;
+      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`
+      : `👤 ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
     userBadge.onclick = function() {
@@ -19010,9 +19011,9 @@ function ensureInboxBell() {
     if (!group) return null;
     btn = document.createElement('button');
     btn.id = 'btnInboxBell';
-    btn.className = 'btn-top-fullview';
+    btn.className = 'exec-link';
     btn.setAttribute('title', 'Inbox Notifikasi');
-    btn.style.cssText = 'position:relative; color:#f59e0b; border-color:#f59e0b; font-size:0.85rem; padding:5px 10px;';
+    btn.style.cssText = 'position:relative;';
     btn.innerHTML = '🔔 Inbox <span class="stb-inbox-badge" id="stbInboxBadge">0</span>';
     group.appendChild(btn);
     btn.addEventListener('click', (e) => {

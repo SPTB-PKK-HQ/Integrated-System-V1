@@ -525,6 +525,119 @@
             border: 2px solid white;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+
+        /* =========================================================================
+           EXECUTIVE NAVBAR (biru gelap premium): kiri pautan | kanan kad profil.
+           Menu kapsul tengah (.tabs) kekal sebagai sauh visual utama di bawahnya.
+           ========================================================================= */
+        #execNavbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: linear-gradient(135deg, #0b1e4b 0%, #1e3a8a 100%);
+            border-radius: 14px;
+            padding: 6px 14px;
+            margin-bottom: 8px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+        }
+        #execNavbar .top-btn-group {
+            position: static;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            z-index: auto;
+        }
+        #execNavbar .exec-link {
+            background: transparent;
+            border: none;
+            color: #e2e8f0;
+            font-size: 0.88rem;
+            font-weight: 600;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        #execNavbar .exec-link:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+        #execNavbar .exec-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            padding: 5px 6px 5px 14px;
+        }
+        /* Zon tengah: kad profil sentiasa di tengah; zon kanan: jam + logout */
+        #execNavbar .exec-nav-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+        #execNavbar .exec-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #execNavbar .exec-profile .user-badge {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            font-size: 0.85rem;
+            color: #ffffff;
+        }
+        #execNavbar .exec-profile .user-badge-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        /* Jata Negara di profil — sama saiz dengan gambar profil */
+        #execNavbar .exec-profile .jata-badge-img {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            object-fit: cover;
+            vertical-align: middle;
+            margin-left: 6px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            flex-shrink: 0;
+        }
+        #execNavbar #digitalClock {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+        }
+        #execNavbar .exec-logout {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            color: #fecaca;
+            font-size: 0.78rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        #execNavbar .exec-logout:hover {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: #ffffff;
+        }
         /* KOD BARU: Untuk Cetakan Borang Semakan (Highlight Syor) */
         @media print {
             .syor-selected {
@@ -714,14 +827,16 @@
             display: flex;
             justify-content: center;
             width: fit-content;
-            margin: 0 auto 20px auto;
-            background: rgba(255, 255, 255, 0.7); /* Diterangkan sedikit supaya jelas bila scroll */
-            backdrop-filter: blur(12px);          /* KOD BARU: Efek kaca kabur bila scroll */
-            -webkit-backdrop-filter: blur(12px);  /* KOD BARU: Sokongan untuk browser Safari/Apple */
-            border-radius: 12px;
-            padding: 5px;
-            border: var(--glass-border);
-            flex-wrap: wrap;
+            max-width: 100%;
+            margin: 0 auto 12px auto;
+            background: linear-gradient(135deg, #0b1e4b 0%, #1e3a8a 100%);
+            border-radius: 14px;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: thin;
             
             /* --- KOD BARU UNTUK JADIKAN IA MELEKAT (STICKY) --- */
             position: sticky; 
@@ -732,60 +847,58 @@
 
         /* KOD BARU: Latar Belakang (Slider) */
         .tab-slider {
-            position: absolute;
-            background-color: var(--theme-color);
-            border-radius: 8px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            left: 0;
-            top: 0;
-            width: 0;
-            height: 0;
+            display: none;
         }
 
         .tab-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 10px 15px;
+            padding: 10px 16px;
             cursor: pointer;
             border: none;
             background: transparent !important; 
-            color: #444;
-            border-radius: 8px;
-            transition: color 0.3s, gap 0.3s ease;
+            color: #cbd5e1;
+            border-radius: 9px;
+            transition: background 0.2s ease, color 0.2s ease;
             white-space: nowrap;
             position: relative; 
             z-index: 2; 
-            gap: 0; 
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            flex: none;
             /* Pastikan kod 'flex: 1;' dibuang dari sini supaya butang tidak memanjang */
+        }
+
+        .tab-btn:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: #ffffff;
         }
 
         /* KOD BARU: Asingkan saiz ikon dan sembunyikan teks */
         .tab-icon {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             line-height: 1;
         }
 
         .tab-text {
-            max-width: 0;
-            opacity: 0;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            font-weight: bold;
-            font-size: 0.9rem;
+            opacity: 1;
+            font-weight: 700;
+            font-size: 0.88rem;
+            white-space: nowrap;
         }
 
         /* KOD BARU: Tunjuk teks dan wujudkan jarak bila aktif */
         .tab-btn.active {
-            color: white !important; 
-            box-shadow: none !important;
+            background: #ffffff !important;
+            color: #0f2456 !important; 
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
             gap: 8px; 
         }
 
         .tab-btn.active .tab-text {
-            max-width: 200px;
+            max-width: none;
             opacity: 1;
         }
 
@@ -1081,6 +1194,15 @@
             .tab-btn { padding: 12px 20px; font-size: 1rem; }
         }
 
+        /* Skrin dikecilkan: rel ikon — teks hanya pada tab aktif (PC kekal label penuh) */
+        @media (max-width: 1024px) {
+            .tabs { flex-wrap: nowrap; overflow-x: auto; width: fit-content; max-width: 100%; }
+            .tabs .tab-btn { flex: none; gap: 0; padding: 10px 12px; transition: gap 0.3s ease; }
+            .tabs .tab-text { max-width: 0; opacity: 0; overflow: hidden; transition: max-width 0.3s ease, opacity 0.3s ease; }
+            .tabs .tab-btn.active { gap: 8px; }
+            .tabs .tab-btn.active .tab-text { max-width: 200px; opacity: 1; }
+        }
+
         /* ========== RESPONSIVE MOBILE STYLES ========== */
         @media (max-width: 768px) {
             body {
@@ -1124,12 +1246,24 @@
                 flex: none;
             }
 
+            /* Drawer mudah alih kekal cerah: teks gelap + aktif warna tema */
+            #tabs-container .tab-btn { color: #334155; }
+            #tabs-container .tab-btn:hover { background: #f1f5f9 !important; color: #0f172a; }
+            #tabs-container .tab-btn.active { background: var(--theme-color) !important; color: #ffffff !important; }
+
             .top-controls {
                 position: static;
                 justify-content: flex-end;
                 margin-bottom: 10px;
                 flex-wrap: wrap;
             }
+
+            #execNavbar {
+                flex-wrap: wrap;
+                justify-content: center;
+                text-align: center;
+            }
+            #execNavbar .exec-nav-center { flex: none; }
 
             .btn-top-fullview {
                 position: static;
@@ -1409,11 +1543,11 @@
         
         /* 5. Rapatkan sedikit jarak keseluruhan App Container utama */
         #app-container {
-            padding-top: 50px !important;
+            padding-top: 12px !important;
         }
         @media (max-width: 768px) {
             #app-container {
-                padding-top: 20px !important;
+                padding-top: 10px !important;
             }
         }
 
