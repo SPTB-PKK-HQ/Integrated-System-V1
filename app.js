@@ -370,7 +370,69 @@ document.addEventListener('DOMContentLoaded', () => {
   const sfxVolumeSlider = document.getElementById('sfxVolumeSlider');
   const sfxVolumeValue = document.getElementById('sfxVolumeValue');
 
+  // Audio unlock: browser sekat bunyi sebelum interaksi pertama (autoplay policy).
+  // Tandakan unlock pada gesture pertama dan cuba semula bunyi tertunda.
+  let audioUnlocked = false;
+  let pendingSounds = [];
+  let sharedAudioCtx = null;
+
+  function unlockAudioOnGesture() {
+    audioUnlocked = true;
+    try {
+      if (!sharedAudioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) sharedAudioCtx = new AC();
+      }
+      if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') sharedAudioCtx.resume();
+    } catch (e) {}
+    if (pendingSounds.length) {
+      const q = pendingSounds.slice();
+      pendingSounds = [];
+      q.forEach(f => { try { playSoundEffect(f); } catch (e) {} });
+    }
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, unlockAudioOnGesture, { passive: true });
+  });
+
+  // Beep sintetik (WebAudio) sebagai sandaran jika fail MP3 disekat/gagal.
+  // Nota: WebAudio juga disekat sebelum gesture pertama — jangan cipta/resume awal.
+  function beepFallback(freqFirst = 880, freqSecond = 660) {
+    if (!audioUnlocked) return false;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      if (!sharedAudioCtx) sharedAudioCtx = new AC();
+      const ctx = sharedAudioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const vol = Math.max(0.01, Math.min(1, parseFloat(sfxVolume) || 0.7));
+      [[freqFirst, 0], [freqSecond, 0.18]].forEach(([freq, delay]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.25 * vol + 0.01, ctx.currentTime + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + 0.16);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.18);
+      });
+      return true;
+    } catch (e) {
+      console.warn('Beep fallback gagal:', e);
+      return false;
+    }
+  }
+
   async function playSoundEffect(soundFile) {
+    // Dasar autoplay Chrome: jangan cuba main sebelum interaksi pertama —
+    // queue dan main semula pada klik/kekunci pertama (elak NotAllowedError).
+    if (!audioUnlocked) {
+      if (pendingSounds.length < 5 && !pendingSounds.includes(soundFile)) pendingSounds.push(soundFile);
+      console.log(`V6.5.2 SFX ditunda sehingga interaksi pertama: ${soundFile}`);
+      return false;
+    }
     try {
       let fileName = soundFile;
       if (fileName === 'ui_click.mp3') fileName = 'audio/ui click.mp3';
@@ -378,14 +440,37 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (fileName === 'error_buzz.mp3') fileName = 'audio/error buzz.mp3';
       else if (!fileName.includes('/')) fileName = 'audio/' + fileName;
 
+      const vol = Math.max(0, Math.min(1, parseFloat(sfxVolume) || 0.7));
+      if (vol <= 0) {
+        console.warn(`V6.5.2 SFX disenyapkan (volume 0) — langkau ${fileName}`);
+        return false;
+      }
       const sfx = new Audio(fileName);
-      sfx.volume = sfxVolume;
+      sfx.volume = vol;
+      sfx.preload = 'auto';
       await sfx.play();
       console.log(`V6.5.2 (Web) Sound effect played: ${fileName}`);
+      return true;
     } catch (error) {
-      console.error(`V6.5.2 (Web) Failed to play sound effect (${soundFile}):`, error);
+      const errName = error && error.name ? error.name : '';
+      // NotAllowedError selepas unlock (jarang) — jangan spam error, cuba beep
+      if (errName === 'NotAllowedError' || errName === 'NotSupportedError') {
+        console.log(`V6.5.2 SFX masih disekat (${errName}) — cuba beep sandaran`);
+        try { beepFallback(); } catch (e) {}
+      } else {
+        console.error(`V6.5.2 (Web) Failed to play sound effect (${soundFile}):`, errName ? errName + ': ' + error.message : error);
+        // Fail lain (fail tiada/rangkaian) — terus beep supaya notifikasi tetap berbunyi
+        try { beepFallback(); } catch (e) {}
+      }
+      return false;
     }
   }
+  // Ujian manual dari konsol: testInboxSound()
+  window.testInboxSound = function() {
+    unlockAudioOnGesture();
+    playSoundEffect('minimal alert.mp3');
+    setTimeout(() => { try { beepFallback(); } catch (e) {} }, 350);
+  };
     
   async function updateSfxVolume(newVolume) {
     try {
@@ -6774,7 +6859,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
             
       if (storage.stb_sfx_volume !== undefined) {
-        sfxVolume = storage.stb_sfx_volume;
+        const v = parseFloat(storage.stb_sfx_volume);
+        sfxVolume = isNaN(v) ? 0.7 : Math.max(0, Math.min(1, v));
       }
       
       // Restore search inputs
@@ -18772,6 +18858,10 @@ let inboxPrevUnread = 0;
 let inboxLastItems = [];
 let inboxFilter = 'ALL';
 let inboxSelected = new Set();
+// Kad notifikasi terapung (floating toast) sebelah profil — auto-hilang 10s
+let iftTimer = null;
+let iftDismissedUnread = -1;
+let iftInitialDone = false;
 
 function inboxStageOf(item) {
   try {
@@ -19207,9 +19297,132 @@ setTimeout(() => {
   } catch (e) {}
 }, 800);
 
+// =========================================================================
+// KAD NOTIFIKASI TERAPUNG INBOX (gaya banner telefon) — sebelah profil
+// Papar nama syarikat + tindakan, animasi fade-in (CSS), auto-hilang 10s,
+// butang X untuk tutup awal. Klik badan untuk buka Inbox/rekod.
+// =========================================================================
+function ensureInboxFloatToast() {
+  const center = document.querySelector('#execNavbar .exec-nav-center');
+  const host = center || document.getElementById('execNavbar');
+  let toast = document.getElementById('inboxFloatToast');
+  if (toast) {
+    // Pastikan kekal sebelum profil (tengah, tolak profil ke kanan)
+    try {
+      const h = toast.parentElement || host;
+      const prof = h ? h.querySelector('.exec-profile') : null;
+      if (h && prof && toast.nextElementSibling !== prof && toast !== prof) h.insertBefore(toast, prof);
+    } catch (e) {}
+    return toast;
+  }
+  if (!host) return null;
+  toast = document.createElement('div');
+  toast.id = 'inboxFloatToast';
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'polite');
+  toast.hidden = true;
+  toast.innerHTML = ''
+    + '<div class="ift-icon"><i class="fa-solid fa-bell"></i><span class="ift-count" id="iftCount">0</span></div>'
+    + '<div class="ift-body"><div class="ift-title" id="iftTitle">Inbox</div>'
+    + '<div class="ift-msg" id="iftMsg"></div>'
+    + '<div class="ift-progress"><div id="iftBar"></div></div></div>'
+    + '<button class="ift-close" id="iftClose" title="Tutup" aria-label="Tutup notifikasi">×</button>';
+  // Sebaris sama dengan profil: selit SEBELUM .exec-profile supaya toast di tengah,
+  // profil tertolak ke kanan secara flex (CSS order:-1 sebagai sandaran).
+  const profileEl = host.querySelector ? host.querySelector('.exec-profile') : null;
+  if (profileEl) host.insertBefore(toast, profileEl);
+  else host.appendChild(toast);
+  const closeBtn = toast.querySelector('#iftClose');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try {
+        const unreadNow = (inboxLastItems || []).filter(it => !inboxStateCache.read[it.sigKey]).length;
+        iftDismissedUnread = unreadNow;
+      } catch (err) {}
+      hideInboxFloatToast();
+    });
+  }
+  toast.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('#iftClose')) return;
+    hideInboxFloatToast();
+    try {
+      const unreadItems = (inboxLastItems || []).filter(it => !inboxStateCache.read[it.sigKey]);
+      if (unreadItems.length === 1) {
+        const idx = inboxLastItems.indexOf(unreadItems[0]);
+        if (idx >= 0) { inboxJumpIdx(idx); return; }
+      }
+      if (!inboxPanelOpen) toggleInboxPanel();
+    } catch (err) {
+      try { if (!inboxPanelOpen) toggleInboxPanel(); } catch (e2) {}
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideInboxFloatToast();
+  });
+  return toast;
+}
+
+function hideInboxFloatToast() {
+  const toast = document.getElementById('inboxFloatToast');
+  if (iftTimer) { clearTimeout(iftTimer); iftTimer = null; }
+  const nav = document.getElementById('execNavbar');
+  if (nav) nav.classList.remove('has-float-toast');
+  if (!toast) return;
+  toast.classList.remove('show');
+  toast.classList.add('hide');
+  setTimeout(() => {
+    if (!toast.classList.contains('show')) toast.hidden = true;
+  }, 260);
+}
+
+function showInboxFloatToast(unread, items) {
+  if (!unread || unread <= 0 || !items || !items.length) return;
+  if (typeof dataMode !== 'undefined' && dataMode === 'history') return;
+  if (inboxPanelOpen) return;
+  const toast = ensureInboxFloatToast();
+  if (!toast) return;
+  const unreadItems = items.filter(it => !inboxStateCache.read[it.sigKey]);
+  if (!unreadItems.length) return;
+  const latest = unreadItems[0];
+  const titleEl = toast.querySelector('#iftTitle');
+  const msgEl = toast.querySelector('#iftMsg');
+  const countEl = toast.querySelector('#iftCount');
+  const barEl = toast.querySelector('#iftBar');
+  const catMeta = (typeof INBOX_CAT_META !== 'undefined' && INBOX_CAT_META[latest.cat])
+    ? INBOX_CAT_META[latest.cat].label : (latest.cat || 'Inbox');
+  const badgeTxt = (latest.badge || '').toString().trim();
+  const subTxt = (latest.sub || '').toString().trim();
+  const actionTxt = [badgeTxt, catMeta].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' • ');
+  let msg = [actionTxt, subTxt].filter(Boolean).join(' • ');
+  if (unread > 1) msg += ' • +' + (unread - 1) + ' lagi belum dibaca';
+  if (titleEl) titleEl.textContent = (latest.tajuk || 'Mesej Baharu').toString().toUpperCase().substring(0, 60);
+  if (msgEl) msgEl.textContent = msg.substring(0, 120);
+  if (countEl) countEl.textContent = unread > 99 ? '99+' : String(unread);
+  const nav = document.getElementById('execNavbar');
+  if (nav) nav.classList.add('has-float-toast');
+  toast.hidden = false;
+  void toast.offsetWidth;
+  toast.classList.remove('hide');
+  toast.classList.add('show');
+  // Bunyi notifikasi masuk (hormat volume SFX sedia ada)
+  try { playSoundEffect('minimal alert.mp3'); } catch (e) {}
+  // Bar progres 10 saat + auto-hilang 10 saat
+  if (barEl) {
+    barEl.style.transition = 'none';
+    barEl.style.width = '100%';
+    void barEl.offsetWidth;
+    barEl.style.transition = 'width 10s linear';
+    barEl.style.width = '0%';
+  }
+  if (iftTimer) clearTimeout(iftTimer);
+  iftTimer = setTimeout(() => { hideInboxFloatToast(); }, 10000);
+}
+
 function toggleInboxPanel() {
   if (inboxPanelOpen) closeInboxPanel();
   else {
+    hideInboxFloatToast();
     inboxPanelOpen = true;
     const overlay = document.getElementById('stbInboxOverlay');
     if (overlay) {
@@ -19235,6 +19448,7 @@ async function refreshInboxBell() {
   if (!currentUser || !['PENGESYOR', 'PELULUS', 'PKA'].includes(currentUser.role)) {
     btn.style.display = 'none';
     closeInboxPanel();
+    try { hideInboxFloatToast(); } catch (e) {}
     return;
   }
   btn.style.display = '';
@@ -19244,6 +19458,7 @@ async function refreshInboxBell() {
     if (badge) badge.style.display = 'none';
     const titleBadge = document.getElementById('stbInboxTitleBadge');
     if (titleBadge) titleBadge.innerHTML = '';
+    try { hideInboxFloatToast(); } catch (e) {}
     if (inboxPanelOpen) {
       const p = document.getElementById('stbInboxPanel');
       if (p) p.innerHTML = '<div class="stb-inbox-empty"><i class="fa-solid fa-circle-pause"></i> Inbox digantung dalam mod sejarah.<br>Sila kembali ke data semasa.</div>';
@@ -19276,6 +19491,17 @@ async function refreshInboxBell() {
     void btn.offsetWidth;
     btn.classList.add('stb-pulse');
   }
+  // Pencetus kad terapung: mesej baharu masuk (unread bertambah) atau
+  // paparan pertama kali ada unread. Hormat butang X (jangan ulang selagi count sama).
+  try {
+    if (unread <= 0) {
+      hideInboxFloatToast();
+      iftDismissedUnread = -1;
+    } else if (unread !== iftDismissedUnread && (unread > inboxPrevUnread || !iftInitialDone)) {
+      showInboxFloatToast(unread, items);
+    }
+  } catch (e) {}
+  iftInitialDone = true;
   inboxPrevUnread = unread;
   if (inboxPanelOpen) renderInboxPanel();
 }

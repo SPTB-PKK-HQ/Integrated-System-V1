@@ -587,12 +587,190 @@
             border: 1px solid color-mix(in srgb, var(--theme-color) 25%, white);
             border-radius: 999px;
             padding: 5px 6px 5px 14px;
+            transition: transform 0.3s ease;
         }
         /* Zon tengah: kad profil sentiasa di tengah; zon kanan: jam + logout */
+        #execNavbar {
+            position: relative;
+        }
         #execNavbar .exec-nav-center {
             flex: 1;
+            min-width: 0;
             display: flex;
             justify-content: center;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+        /* Bila toast sebaris aktif, kumpulan (toast+profil) kekal tengah:
+           toast order:-1 duduk tengah, profil tertolak ke kanan secara flex */
+        #execNavbar.has-float-toast .exec-nav-center {
+            justify-content: center;
+        }
+        /* =========================================================================
+           KAD NOTIFIKASI INBOX SEBARIS (gaya banner telefon) — tengah, tolak profil ke kanan
+           ========================================================================= */
+        #inboxFloatToast[hidden] {
+            display: none !important;
+        }
+        #inboxFloatToast {
+            position: static;
+            order: -1;
+            flex: 0 1 360px;
+            width: 360px;
+            max-width: 360px;
+            min-width: 0;
+            min-height: 38px;
+            max-height: 38px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid color-mix(in srgb, var(--theme-color) 25%, white);
+            border-radius: 999px;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+            padding: 4px 6px 4px 4px;
+            z-index: 5000;
+            opacity: 0;
+            pointer-events: none;
+            cursor: pointer;
+            overflow: hidden;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            text-transform: none;
+        }
+        #inboxFloatToast.show {
+            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(0);
+            animation: iftFadeIn 0.35s ease;
+        }
+        #inboxFloatToast.hide {
+            display: flex;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(12px);
+        }
+        @keyframes iftFadeIn {
+            from { opacity: 0; transform: translateY(-8px) translateX(12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+        }
+        #inboxFloatToast .ift-icon {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, black));
+            color: #fff;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-color) 45%, transparent);
+        }
+        #inboxFloatToast .ift-icon .ift-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 3px;
+            border-radius: 999px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            line-height: 14px;
+            text-align: center;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        }
+        #inboxFloatToast .ift-body {
+            flex: 1;
+            min-width: 0;
+            line-height: 1.2;
+        }
+        #inboxFloatToast .ift-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+        #inboxFloatToast .ift-msg {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 0;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #inboxFloatToast .ift-progress {
+            margin-top: 3px;
+            height: 2px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        #inboxFloatToast .ift-progress > div {
+            height: 100%;
+            width: 100%;
+            background: var(--theme-color);
+            border-radius: 999px;
+        }
+        #inboxFloatToast .ift-close {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: none;
+            background: #f1f5f9;
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        #inboxFloatToast .ift-close:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        /* Mobile: ruang sisi sempit — jadikan banner atas tengah ala telefon (tidak tolak layout) */
+        @media (max-width: 900px) {
+            #execNavbar .exec-nav-center {
+                gap: 0;
+            }
+            #inboxFloatToast,
+            #inboxFloatToast.show,
+            #inboxFloatToast.hide {
+                position: fixed;
+                order: unset;
+                flex: none;
+                left: 50%;
+                top: 12px;
+                transform: translateX(-50%);
+                width: min(92vw, 340px);
+                max-width: min(92vw, 340px);
+            }
+            #inboxFloatToast.show {
+                animation: iftFadeInMobile 0.35s ease;
+            }
+            @keyframes iftFadeInMobile {
+                from { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.96); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+            }
         }
         #execNavbar .exec-nav-right {
             display: flex;
@@ -2428,6 +2606,16 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
     border-color: #ef4444;
     color: #ffffff;
   }
+  html[data-theme="dark"] #inboxFloatToast {
+    background: rgba(15, 23, 42, 0.97);
+    border-color: rgba(148, 163, 184, 0.25);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+  html[data-theme="dark"] #inboxFloatToast .ift-title { color: #f1f5f9; }
+  html[data-theme="dark"] #inboxFloatToast .ift-msg { color: #94a3b8; }
+  html[data-theme="dark"] #inboxFloatToast .ift-progress { background: #334155; }
+  html[data-theme="dark"] #inboxFloatToast .ift-close { background: #334155; color: #cbd5e1; }
+  html[data-theme="dark"] #inboxFloatToast .ift-close:hover { background: rgba(239,68,68,0.25); color: #fecaca; }
   html[data-theme="dark"] .tabs {
     background: rgba(15, 23, 42, 0.95);
     border-color: rgba(148, 163, 184, 0.16);
