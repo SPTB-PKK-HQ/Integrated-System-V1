@@ -2404,9 +2404,9 @@ function getDashboardStats(role, userName) {
 
       // Metrik PKA (diSPI / selesaiLawatan)
       const syorLawatan = row[8] ? String(row[8]).toUpperCase().trim() : '';
-      const hasSyorStatus = syorStatus.trim() !== '';
       const lawatanSyor = row[19] ? String(row[19]).trim() : '';
-      const isDiSPI = syorLawatan === 'YA' && row[9] && String(row[9]).trim() !== '' && !hasSyorStatus && lawatanSyor === '';
+      const syorOk = syorStatus.trim() === '' || syorStatus.toUpperCase().trim() === 'SIASAT';
+      const isDiSPI = syorLawatan === 'YA' && row[9] && String(row[9]).trim() !== '' && syorOk && lawatanSyor === '';
       if (isDiSPI) grand.pkaSpi++;
       if (lawatanSyor !== '') grand.pkaSelesai++;
 

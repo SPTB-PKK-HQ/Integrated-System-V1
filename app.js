@@ -4134,7 +4134,7 @@ async function handleCredentialResponse(response) {
     const diSPI = all.filter(d =>
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.date_submit && d.date_submit.toString().trim() !== '' &&
-      (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.syor_status || d.syor_status.toString().trim() === '' || d.syor_status.toString().toUpperCase().trim() === 'SIASAT') &&
       (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
@@ -4258,7 +4258,7 @@ async function handleCredentialResponse(response) {
     window._pkaInboxData = (cachedData || []).filter(d =>
       d.syor_lawatan && d.syor_lawatan.toString().toUpperCase() === 'YA' &&
       d.date_submit && d.date_submit.toString().trim() !== '' &&
-      (!d.syor_status || d.syor_status.toString().trim() === '') &&
+      (!d.syor_status || d.syor_status.toString().trim() === '' || d.syor_status.toString().toUpperCase().trim() === 'SIASAT') &&
       (!d.lawatan_syor || d.lawatan_syor.toString().trim() === '') &&
       (!d.syor_lawatan || d.syor_lawatan.toString().toUpperCase() !== 'PEMUTIHAN')
     );
@@ -19012,9 +19012,9 @@ function buildInboxItems() {
     cachedData.forEach(item => {
       if (!item.syarikat) return;
       if ((item.syor_lawatan || '').toString().toUpperCase() === 'PEMUTIHAN') return;
-      const syorAda = item.syor_status && item.syor_status.toString().trim() !== '';
       const lawSyorAda = item.lawatan_syor && item.lawatan_syor.toString().trim() !== '';
-      if ((item.syor_lawatan || '').toString().toUpperCase() === 'YA' && item.date_submit && !syorAda && !lawSyorAda) {
+      const syorOk = !item.syor_status || item.syor_status.toString().trim() === '' || item.syor_status.toString().toUpperCase().trim() === 'SIASAT';
+      if ((item.syor_lawatan || '').toString().toUpperCase() === 'YA' && item.date_submit && item.date_submit.toString().trim() !== '' && syorOk && !lawSyorAda) {
         push('pka-baru', item, item.syarikat, [item.cidb, item.pengesyor].filter(Boolean).join(' • '), item.date_submit, { badge: 'Baharu', badgeTone: 'info' });
       } else if (item.lawatan_tarikh && !lawSyorAda) {
         push('pka-dalam', item, item.syarikat, [item.cidb, item.pengesyor].filter(Boolean).join(' • '), item.lawatan_tarikh, { badge: 'Dalam lawatan', badgeTone: 'warn' });
