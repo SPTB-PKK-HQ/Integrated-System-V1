@@ -8651,10 +8651,26 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       files.forEach(function(file) {
         if (file.isFolder) return;
         const isImage = file.mimeType && file.mimeType.startsWith('image/');
-        const thumbnailUrl = isImage ? file.thumbnailLink : getFileIcon(file.mimeType, file.name);
-        const displayIcon = isImage
-          ? '<img src="' + thumbnailUrl + '" alt="' + escapeHtml(file.name) + '" style="width:100%; height:120px; object-fit:cover; border-radius:8px;">'
-          : '<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + thumbnailUrl + '</div>';
+        const isPdf = (file.mimeType === 'application/pdf') || (/\.pdf$/i.test(file.name || ''));
+        const isPreviewable = isImage || isPdf;
+        // PDF guna thumbnail Drive sama macam gambar (sz=w400 lebih tajam); fallback ke ikon jika tiada/gagal
+        var rawThumb = file.thumbnailLink || '';
+        if (rawThumb) rawThumb = rawThumb.replace(/([?&])sz=s?\d+/i, '$1sz=w400').replace(/([?&])sz=w\d+/i, '$1sz=w400');
+        const pdfFallbackIcon = getFileIcon(file.mimeType, file.name);
+        const thumbnailUrl = isPreviewable && rawThumb ? rawThumb : getFileIcon(file.mimeType, file.name);
+        var displayIcon = '';
+        if (isPreviewable && rawThumb) {
+          const badge = isPdf ? '<span style="position:absolute; top:6px; left:6px; background:#dc2626; color:white; font-size:0.6rem; font-weight:800; padding:2px 7px; border-radius:20px; letter-spacing:0.5px;">PDF</span>' : '';
+          const zoomHint = isPdf ? '<span style="position:absolute; bottom:6px; right:6px; background:rgba(15,23,42,0.75); color:white; font-size:0.62rem; padding:2px 8px; border-radius:20px;"><i class="fa-solid fa-expand"></i> Klik untuk preview</span>' : '';
+          displayIcon = '<div class="fm-pdf-thumb" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" data-mime="' + escapeHtml(file.mimeType || '') + '" data-url="' + (file.webViewLink || '') + '" data-thumb="' + escapeHtml(rawThumb) + '" style="position:relative; width:100%; height:120px; border-radius:8px; overflow:hidden; background:#f1f5f9; cursor:' + (isPdf ? 'zoom-in' : 'pointer') + ';" title="' + (isPdf ? 'Klik untuk preview PDF' : escapeHtml(file.name)) + '">'
+            + badge
+            + '<img class="fm-thumb-img" src="' + escapeHtml(rawThumb) + '" alt="' + escapeHtml(file.name) + '" loading="lazy" style="width:100%; height:120px; object-fit:cover; border-radius:8px; display:block;">'
+            + '<div class="fm-thumb-fallback" style="display:none; width:100%; height:120px; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + pdfFallbackIcon + '</div>'
+            + zoomHint
+            + '</div>';
+        } else {
+          displayIcon = '<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:3rem; background:#f1f5f9; border-radius:8px;">' + thumbnailUrl + '</div>';
+        }
         const canRename = canRenameDriveFile(file);
         const canDelete = canDeleteDriveFile(file);
           const ownerLabel = file.uploadedByName ? '<p style="font-size:0.62rem; color:#64748b; margin:2px 0;"><i class="fa-solid fa-user"></i> ' + escapeHtml(file.uploadedByName) + '</p>' : '';
@@ -8665,7 +8681,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           + '<p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">' + formatFileSize(file.size) + '</p>'
           + ownerLabel
           + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">'
-          + '<button class="btn-file-view" data-url="' + file.webViewLink + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;"><i class="fa-solid fa-eye fa-ico"></i>Buka</button>'
+          + '<button class="btn-file-view" data-url="' + file.webViewLink + '" data-id="' + file.id + '" data-mime="' + escapeHtml(file.mimeType || '') + '" data-name="' + escapeHtml(file.name) + '" data-thumb="' + escapeHtml(file.thumbnailLink || '') + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;"><i class="fa-solid fa-eye fa-ico"></i>Buka</button>'
           + (canRename ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;"><i class="fa-solid fa-pen"></i></button>' : '')
           + (canDelete ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;"><i class="fa-solid fa-trash-can"></i></button>' : '')
           + '</div>'
@@ -8675,6 +8691,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     html += '</div>';
     listEl.innerHTML = html;
+    // CSP-safe: ganti inline onerror — bind ralat imej via JS selepas render
+    listEl.querySelectorAll('.fm-thumb-img').forEach(function(img) {
+      img.addEventListener('error', function() {
+        img.style.display = 'none';
+        var fb = img.parentElement ? img.parentElement.querySelector('.fm-thumb-fallback') : null;
+        if (fb) fb.style.display = 'flex';
+      });
+    });
   }
 
   function navigateToFolder(folderId, folderName) {
@@ -8692,6 +8716,46 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       loadDriveFiles(prev.id);
     }
   }
+
+  function isPdfFile(mime, name) {
+    if (mime === 'application/pdf') return true;
+    return /\.pdf$/i.test(String(name || ''));
+  }
+
+  function openPdfPreviewModal(fileId, fileName, webViewLink) {
+    const modal = document.getElementById('pdfPreviewModal');
+    const frame = document.getElementById('pdfPreviewFrame');
+    const title = document.getElementById('pdfPreviewTitle');
+    const openDrive = document.getElementById('pdfPreviewOpenDrive');
+    if (!modal || !frame) {
+      if (webViewLink) window.open(webViewLink, '_blank');
+      return;
+    }
+    if (title) title.textContent = fileName || 'Preview PDF';
+    if (openDrive) openDrive.href = webViewLink || ('https://drive.google.com/file/d/' + fileId + '/view');
+    frame.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
+    modal.style.display = 'flex';
+    requestAnimationFrame(function() { modal.classList.add('show'); });
+  }
+
+  function closePdfPreviewModal() {
+    const modal = document.getElementById('pdfPreviewModal');
+    const frame = document.getElementById('pdfPreviewFrame');
+    if (!modal) return;
+    modal.classList.remove('show');
+    setTimeout(function() {
+      modal.style.display = 'none';
+      if (frame) frame.src = '';
+    }, 200);
+  }
+
+  (function initPdfPreviewModal() {
+    const closeBtn = document.getElementById('pdfPreviewClose');
+    const modal = document.getElementById('pdfPreviewModal');
+    if (closeBtn) closeBtn.addEventListener('click', closePdfPreviewModal);
+    if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) closePdfPreviewModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePdfPreviewModal(); });
+  })();
 
   // V6.6.1: Kebenaran Drive dipecah — upload ikut role, padam ikut pemilik fail
   function canUploadDriveFiles() {
@@ -9067,6 +9131,545 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return result;
   }
 
+  // =========================================================================
+  // DOKUMEN INDIVIDU BORANG SEMAKAN (X -> Upload -> Auto ✓ + Drive)
+  // Skop: semua medan tick (statik + dinamik bank/personel).
+  // Slot hanya muncul bila status == X; upload berjaya auto jadi ✓.
+  // Metadata disimpan dalam borang_json (*_file) + papar link+thumbnail di Ringkasan.
+  // =========================================================================
+  window.__docFiles = window.__docFiles || {};
+  const DOC_UPLOAD_DEFS = [
+    { statusId: 'ssm_status', fileKey: 'ssm_file', label: 'SSM', prefix: 'SSM' },
+    { statusId: 'doc_carta_status', fileKey: 'doc_carta_file', label: 'Carta', prefix: 'CARTA' },
+    { statusId: 'doc_peta_status', fileKey: 'doc_peta_file', label: 'Peta', prefix: 'PETA' },
+    { statusId: 'doc_gambar_status', fileKey: 'doc_gambar_file', label: 'Gambar', prefix: 'GAMBAR' },
+    { statusId: 'doc_sewa_status', fileKey: 'doc_sewa_file', label: 'Sewa', prefix: 'SEWA' },
+    { statusId: 'kwsp_s1', fileKey: 'kwsp_1_file', label: 'KWSP 1', prefix: 'KWSP1' },
+    { statusId: 'kwsp_s2', fileKey: 'kwsp_2_file', label: 'KWSP 2', prefix: 'KWSP2' },
+    { statusId: 'kwsp_s3', fileKey: 'kwsp_3_file', label: 'KWSP 3', prefix: 'KWSP3' }
+  ];
+
+  function docStatusIsX(input) {
+    if (!input) return false;
+    const v = String(input.value || '').trim().toUpperCase();
+    return v === 'X' || v === '✗';
+  }
+
+  function setDocStatusTick(input) {
+    if (!input) return;
+    input.value = '✓ DRIVE';
+    input.style.backgroundColor = '#dcfce7';
+    input.style.color = '#166534';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    try { if (typeof saveFormData === 'function') saveFormData(); } catch (e) {}
+  }
+
+  // Kosongkan semula status ✓/X/DRIVE (bila semua fail bagi medan itu dipadam)
+  function clearDocStatus(input) {
+    if (!input) return;
+    input.value = '';
+    input.style.backgroundColor = '';
+    input.style.color = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    try { if (typeof saveFormData === 'function') saveFormData(); } catch (e) {}
+  }
+
+  function persistDocFiles() {
+    try { storageWrapper.set({ 'stb_doc_files': window.__docFiles || {} }); } catch (e) {}
+  }
+
+  function clearDocUploads() {
+    try { window.__docFiles = {}; } catch (e) {}
+    try { storageWrapper.remove(['stb_doc_files']); } catch (e) {}
+    try {
+      document.querySelectorAll('.bank-card, .person-card').forEach(function(card) {
+        try { card._docFiles = {}; } catch (e) {}
+      });
+    } catch (e) {}
+    try { refreshDocSlots(); } catch (e) {}
+  }
+
+  function restoreDocFilesCache() {
+    try {
+      storageWrapper.get(['stb_doc_files']).then(function(res) {
+        if (res && res.stb_doc_files && typeof res.stb_doc_files === 'object') {
+          window.__docFiles = Object.assign(window.__docFiles || {}, res.stb_doc_files);
+          refreshDocSlots();
+        }
+      });
+    } catch (e) {}
+  }
+
+  async function ensureDocFolder() {
+    // WAJIB folder borang semakan yang sama: createdFolderId / db_pautan_drive sahaja.
+    // Jangan guna fmCurrentFolderId (boleh jadi subfolder lain) dan jangan auto-cipta.
+    var folderId = (typeof createdFolderId !== 'undefined' && createdFolderId) ? createdFolderId : '';
+    if (!folderId) {
+      const pautanDrive = document.getElementById('db_pautan_drive')?.value || '';
+      folderId = extractFolderIdFromUrl(pautanDrive) || '';
+      if (folderId && typeof createdFolderId !== 'undefined') createdFolderId = folderId;
+    }
+    if (folderId) return folderId;
+    // Sekat: tiada folder Drive — arah pengguna cipta folder borang semakan dahulu
+    await CustomAppModal.alert('Tiada folder Drive untuk borang semakan ini.<br><br>Sila klik <strong>Cipta Folder Drive</strong> di tab <strong>Input Database</strong> dahulu, kemudian muat naik dokumen di sini. Fail akan disimpan dalam folder borang semakan yang sama.', 'Folder Drive Tiada', 'warning');
+    return '';
+  }
+
+  function normFileList(v) {
+    if (Array.isArray(v)) return v.filter(function(m) { return m && m.url; });
+    if (v && typeof v === 'object' && v.url) return [v];
+    return [];
+  }
+
+  function docFileChipHtml(meta) {
+    if (!meta || !meta.url) return '';
+    const nm = escapeHtml(meta.name || 'Dokumen');
+    const isPdf = /\.pdf$/i.test(meta.name || '') || (meta.mimeType === 'application/pdf');
+    const thumb = meta.thumbnailLink ? escapeHtml(String(meta.thumbnailLink).replace(/([?&])sz=s?\d+/i, '$1sz=w200')) : '';
+    const prev = thumb
+      ? '<img src="' + thumb + '" alt="" loading="lazy" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc;">'
+      : '<span style="width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:1.3rem; background:#f1f5f9; border-radius:6px; border:1px solid #e2e8f0;">' + (isPdf ? '📕' : '📎') + '</span>';
+    return '<div style="display:flex; align-items:center; gap:8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:6px 8px; margin-top:6px;">'
+      + '<a href="' + escapeHtml(meta.url) + '" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:8px; text-decoration:none; flex:1; min-width:0;">'
+      + prev
+      + '<span style="font-size:0.72rem; color:#065f46; word-break:break-word; flex:1;">' + nm + '<br><span style="display:inline-block; background:#2563eb; color:white; font-size:0.62rem; font-weight:800; padding:1px 7px; border-radius:20px; letter-spacing:0.5px; margin-top:2px;">DRIVE</span> <span style="color:#2563eb; font-weight:700;">Lihat ›</span></span></a>'
+      + '<button type="button" class="btn-doc-del-one" data-id="' + escapeHtml(meta.id || '') + '" title="Padam fail ini" style="flex-shrink:0; padding:5px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;"><i class="fa-solid fa-trash-can"></i></button></div>';
+  }
+
+  function docFilesChipHtml(list) {
+    return normFileList(list).map(docFileChipHtml).join('');
+  }
+
+  function refreshDocSlots() {
+    DOC_UPLOAD_DEFS.forEach(function(def) {
+      const input = document.getElementById(def.statusId);
+      if (!input) return;
+      const isKwsp = def.fileKey.indexOf('kwsp_') === 0;
+      let slot = document.getElementById('slot_' + def.fileKey);
+      const container = input.closest('.status-input-container');
+      if (!container) return;
+      // KWSP: slot duduk dalam baris baru penuh di bawah (.kwsp-row), bukan di sebelah dalam flex
+      const wantParent = isKwsp ? (container.closest('.kwsp-row') || container.parentElement) : container.parentElement;
+      if (!wantParent) return;
+      if (!slot) {
+        slot = document.createElement('div');
+        slot.id = 'slot_' + def.fileKey;
+        slot.className = 'doc-upload-slot';
+        slot.style.cssText = isKwsp ? 'margin-top:8px; display:none; width:100%; flex-basis:100%;' : 'margin-top:6px; display:none;';
+        slot.innerHTML = '<input type="file" style="display:none;" accept="*/*" multiple>'
+          + '<button type="button" class="btn-doc-upload" style="width:100%; padding:7px 10px; font-size:0.75rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"><i class="fa-solid fa-upload fa-ico"></i>Muat Naik ' + escapeHtml(def.label) + '</button>'
+          + '<div class="doc-upload-prog" style="display:none; margin-top:6px;"><div style="background:#e2e8f0; border-radius:10px; height:5px; overflow:hidden;"><div class="doc-upload-bar" style="background:#2563eb; height:100%; width:0%;"></div></div><p class="doc-upload-txt" style="font-size:0.68rem; color:#64748b; margin:3px 0 0;"></p></div>'
+          + '<div class="doc-upload-chip"' + (isKwsp ? ' style="display:flex; gap:6px; flex-wrap:wrap;"' : '') + '></div>';
+        wantParent.appendChild(slot);
+        const fileInput = slot.querySelector('input[type="file"]');
+        slot.querySelector('.btn-doc-upload').addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+          if (fileInput.files && fileInput.files.length > 0) handleStaticDocUpload(def, Array.prototype.slice.call(fileInput.files), slot);
+          fileInput.value = '';
+        });
+        slot.querySelector('.doc-upload-chip').addEventListener('click', function(e) {
+          const del = e.target.closest ? e.target.closest('.btn-doc-del-one') : null;
+          if (del) deleteStaticDocOne(def, del.getAttribute('data-id'));
+        });
+      } else {
+        // Pindahkan slot KWSP lama yang tersesat di dalam flex ke baris penuh di bawah
+        if (slot.parentElement !== wantParent) wantParent.appendChild(slot);
+        if (isKwsp) { slot.style.width = '100%'; slot.style.flexBasis = '100%'; }
+      }
+      const list = normFileList((window.__docFiles || {})[def.fileKey]);
+      const chipBox = slot.querySelector('.doc-upload-chip');
+      const upBtn = slot.querySelector('.btn-doc-upload');
+      if (list.length > 0) {
+        slot.style.display = 'block';
+        if (chipBox) {
+          chipBox.innerHTML = docFilesChipHtml(list);
+          if (isKwsp) {
+            chipBox.style.display = 'flex';
+            chipBox.style.gap = '6px';
+            chipBox.style.flexWrap = 'wrap';
+            chipBox.querySelectorAll(':scope > div').forEach(function(ch) {
+              ch.style.flex = '1 1 220px';
+              ch.style.marginTop = '6px';
+            });
+          }
+        }
+        if (upBtn) upBtn.innerHTML = '<i class="fa-solid fa-plus fa-ico"></i>Tambah ' + escapeHtml(def.label) + ' (' + list.length + ')';
+      } else if (docStatusIsX(input)) {
+        slot.style.display = 'block';
+        if (chipBox) chipBox.innerHTML = '';
+        if (upBtn) upBtn.innerHTML = '<i class="fa-solid fa-upload fa-ico"></i>Muat Naik ' + escapeHtml(def.label);
+      } else {
+        slot.style.display = 'none';
+      }
+    });
+    refreshDynamicDocSlots();
+  }
+
+  async function handleStaticDocUpload(def, fileObjs, slot) {
+    const bar = slot ? slot.querySelector('.doc-upload-bar') : null;
+    const txt = slot ? slot.querySelector('.doc-upload-txt') : null;
+    const prog = slot ? slot.querySelector('.doc-upload-prog') : null;
+    const files = Array.isArray(fileObjs) ? fileObjs : [fileObjs];
+    try {
+      if (!currentUser) { await CustomAppModal.alert('Sila log masuk dahulu.', 'Makluman', 'warning'); return; }
+      const folderId = await ensureDocFolder();
+      if (!folderId) return;
+      if (prog) prog.style.display = 'block';
+      const syarikat = (document.getElementById('borang_syarikat')?.value || document.getElementById('db_syarikat')?.value || 'DOKUMEN').toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 30);
+      const existing = normFileList((window.__docFiles || {})[def.fileKey]);
+      let okCount = 0;
+      for (let fi = 0; fi < files.length; fi++) {
+        const fileObj = files[fi];
+        const ext = (fileObj.name && fileObj.name.includes('.')) ? fileObj.name.slice(fileObj.name.lastIndexOf('.')) : '';
+        const upName = def.prefix + '_' + syarikat + '_' + new Date().toISOString().slice(0, 10) + (files.length > 1 ? '_' + (existing.length + okCount + 1) : '') + ext;
+        const renamed = new File([fileObj], upName, { type: fileObj.type || 'application/octet-stream' });
+        if (txt) txt.textContent = 'Memuat naik ' + (fi + 1) + '/' + files.length + '...';
+        const res = await uploadSingleFileWithProgress(renamed, folderId, currentUser.email || '', function(f) {
+          const pct = Math.round(((fi + f) / files.length) * 100);
+          if (bar) bar.style.width = pct + '%';
+          if (txt) txt.textContent = 'Memuat naik ' + (fi + 1) + '/' + files.length + ' — ' + pct + '%...';
+        });
+        if (res && res.success && res.file) {
+          const f = res.file;
+          existing.push({
+            id: f.id || '', url: f.webViewLink || '', name: f.name || upName,
+            mimeType: f.mimeType || renamed.type || '', thumbnailLink: f.thumbnailLink || '',
+            uploadedAt: new Date().toISOString()
+          });
+          okCount++;
+        } else {
+          throw new Error((res && res.error) || 'Muat naik gagal');
+        }
+      }
+      if (okCount > 0) {
+        window.__docFiles[def.fileKey] = existing;
+        persistDocFiles();
+        const input = document.getElementById(def.statusId);
+        setDocStatusTick(input);
+        refreshDocSlots();
+        await playSuccessSound();
+        const syncRes = await syncBorangJsonToSheet();
+        showToast(def.label + ' dimuat naik & ditanda ✓' + (syncRes === 'ok' ? ' — rekod dikemaskini' : ''), 'success');
+        if (syncRes === 'fail') showToast('Auto-simpan ke rekod gagal — sila tekan Simpan', 'warning');
+      } else {
+        throw new Error((res && res.error) || 'Muat naik gagal');
+      }
+    } catch (err) {
+      if (txt) txt.textContent = 'Ralat: ' + err.message;
+      await CustomAppModal.alert('Gagal muat naik: ' + err.message, 'Ralat', 'error');
+    } finally {
+      setTimeout(function() { if (prog) prog.style.display = 'none'; }, 1500);
+    }
+  }
+
+  async function deleteStaticDocOne(def, fileId) {
+    const list = normFileList((window.__docFiles || {})[def.fileKey]);
+    const meta = list.find(function(m) { return String(m.id || '') === String(fileId || ''); }) || list[0];
+    if (!meta) { refreshDocSlots(); return; }
+    const ok = await CustomAppModal.confirm('Padam fail "' + (meta.name || def.label) + '"?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Padam Fail', 'warning', 'Ya, Padam', true);
+    if (!ok) return;
+    await deleteDriveFileById(meta.id);
+    window.__docFiles[def.fileKey] = list.filter(function(m) { return String(m.id || '') !== String(meta.id || ''); });
+    if (window.__docFiles[def.fileKey].length === 0) delete window.__docFiles[def.fileKey];
+    persistDocFiles();
+    // Jika tiada fail tinggal — kosongkan semula status ✓/X/DRIVE
+    try {
+      if (normFileList((window.__docFiles || {})[def.fileKey]).length === 0) {
+        clearDocStatus(document.getElementById(def.statusId));
+      }
+    } catch (e) {}
+    refreshDocSlots();
+    const syncDel = await syncBorangJsonToSheet();
+    if (syncDel === 'ok') showToast('Fail dipadam — rekod dikemaskini', 'success');
+    else if (syncDel === 'fail') showToast('Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod', 'warning');
+  }
+
+  async function deleteDriveFileById(fileId) {
+    if (!fileId) return false;
+    try {
+      const resp = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'deleteDriveFile', fileId: fileId, email: currentUser ? currentUser.email : '' })
+      }, 2, 1000);
+      const res = await resp.json();
+      return !!(res && res.success);
+    } catch (e) { return false; }
+  }
+
+  // Bina semula teras borang_json semasa dari DOM (input checker + personel + bank + fail statik).
+  // Diguna oleh Simpan penuh DAN sync minima selepas upload/padam dokumen.
+  function buildFreshBorangCore() {
+    const o = {};
+    document.querySelectorAll('#tab-checker input, #tab-checker select, #tab-checker textarea').forEach(function(el) {
+      if (el.id && !el.id.includes('print_') && !el.id.includes('pelulus_') && !el.id.includes('login')) {
+        if (el.type === 'checkbox' || el.type === 'radio') o[el.id] = el.checked;
+        else o[el.id] = el.value;
+      }
+    });
+    const selRadio = document.querySelector('input[name="jenisApp"]:checked');
+    if (selRadio) o['jenisApp'] = selRadio.value;
+    const plist = [];
+    document.querySelectorAll('.person-card').forEach(function(card) {
+      const roles = [];
+      card.querySelectorAll('.role-cb:checked').forEach(function(cb) { roles.push(cb.value); });
+      const pdf = card._docFiles || {};
+      const pg = function(v) { try { return normFileList(v); } catch (e) { return []; } };
+      plist.push({
+        name: card.querySelector('.p-name')?.value || '',
+        isCompany: card.querySelector('.is-company')?.checked || false,
+        roles: roles,
+        baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
+        s_ic: card.querySelector('.status-ic')?.value || '',
+        s_sb: card.querySelector('.status-sb')?.value || '',
+        s_epf: card.querySelector('.status-epf')?.value || '',
+        c_date: card.querySelector('.comp-date')?.value || '',
+        c_status: card.querySelector('.status-comp')?.value || '',
+        ic_file: pg(pdf.ic_file),
+        sb_file: pg(pdf.sb_file),
+        epf_file: pg(pdf.epf_file),
+        comp_file: pg(pdf.comp_file)
+      });
+    });
+    o['personnel'] = plist;
+    try { o['banks'] = (typeof collectBanks === 'function') ? collectBanks() : []; } catch (e) { o['banks'] = []; }
+    try {
+      Object.keys(window.__docFiles || {}).forEach(function(k) {
+        const lst = normFileList(window.__docFiles[k]);
+        if (lst.length > 0) o[k] = lst;
+      });
+    } catch (e) {}
+    if (currentUser) {
+      o['currentUser_name'] = currentUser.name || '';
+      o['currentUser_email'] = currentUser.email || '';
+      if (currentUser.signUrl) o['currentUser_signUrl'] = currentUser.signUrl;
+      if (currentUser.copUrl) o['currentUser_copUrl'] = currentUser.copUrl;
+      if (currentUser.role) o['currentUser_role'] = currentUser.role;
+    }
+    return o;
+  }
+
+  // Sync minima: tulis semula borang_json (kolum AC sahaja) untuk rekod sedia ada
+  // supaya upload/padam dokumen kekal walaupun pengguna tidak tekan Simpan.
+  // Rekod baharu (tiada db_row_index) dilangkau senyap — akan disimpan semasa Hantar.
+  async function syncBorangJsonToSheet() {
+    try {
+      const targetRow = document.getElementById('db_row_index')?.value || '';
+      if (!targetRow || parseInt(targetRow) < 2) return 'new';
+      if (typeof cachedData === 'undefined' || !cachedData) return 'new';
+      const item = cachedData.find(function(d) { return d.row == targetRow; });
+      if (!item) return 'new';
+      let old = {};
+      try { old = JSON.parse(item.borang_json || '{}'); } catch (e) { old = {}; }
+      const fresh = buildFreshBorangCore();
+      const merged = Object.assign({}, old, fresh);
+      const resp = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          row: targetRow,
+          borang_json: JSON.stringify(merged),
+          email: currentUser ? currentUser.email : '',
+          pengesyor: (currentUser && currentUser.name) ? currentUser.name : ''
+        })
+      }, 2, 1500);
+      const res = await resp.json();
+      if (res && res.status === 'success') {
+        item.borang_json = JSON.stringify(merged);
+        return 'ok';
+      }
+      return 'fail';
+    } catch (e) { return 'fail'; }
+  }
+
+  async function deleteStaticDocFile(def, slot) {
+    const list = normFileList((window.__docFiles || {})[def.fileKey]);
+    if (!list.length) { refreshDocSlots(); return; }
+    await deleteStaticDocOne(def, list[list.length - 1].id);
+  }
+
+  // ----- Slot dinamik: kad Bank & Personel (semua input .status-input dalam kad) -----
+  function cardDocKey(input) {
+    if (!input) return '';
+    if (input.classList.contains('bank-sign-status')) return 'sign_file';
+    if (input.classList.contains('bank-online-maker')) return 'maker_file';
+    if (input.classList.contains('bank-online-checker')) return 'checker_file';
+    if (input.classList.contains('status-ic')) return 'ic_file';
+    if (input.classList.contains('status-sb')) return 'sb_file';
+    if (input.classList.contains('status-epf')) return 'epf_file';
+    if (input.classList.contains('status-comp')) return 'comp_file';
+    return '';
+  }
+
+  function cardDocLabel(input) {
+    if (!input) return 'Dokumen';
+    if (input.classList.contains('bank-sign-status')) return 'Sign Cek';
+    if (input.classList.contains('bank-online-maker')) return 'Maker';
+    if (input.classList.contains('bank-online-checker')) return 'Checker';
+    if (input.classList.contains('status-ic')) return 'IC';
+    if (input.classList.contains('status-sb')) return 'SB';
+    if (input.classList.contains('status-epf')) return 'EPF';
+    if (input.classList.contains('status-comp')) return 'Semakan Syarikat';
+    return 'Dokumen';
+  }
+
+  function ensureCardUid(card) {
+    if (!card) return '';
+    if (!card.dataset.docUid) card.dataset.docUid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    if (!card._docFiles) card._docFiles = {};
+    return card.dataset.docUid;
+  }
+
+  function refreshDynamicDocSlots() {
+    document.querySelectorAll('.bank-card, .person-card').forEach(function(card) {
+      ensureCardUid(card);
+      card.querySelectorAll('.status-input').forEach(function(input) {
+        const key = cardDocKey(input);
+        if (!key) return;
+        const container = input.closest('.status-input-container');
+        if (!container || !container.parentElement) return;
+        let slot = container.parentElement.querySelector(':scope > .doc-upload-slot-dyn[data-key="' + key + '"]');
+        if (!slot) {
+          slot = document.createElement('div');
+          slot.className = 'doc-upload-slot-dyn';
+          slot.dataset.key = key;
+          slot.style.cssText = 'margin-top:6px; display:none;';
+          slot.innerHTML = '<input type="file" style="display:none;" accept="*/*" multiple>'
+            + '<button type="button" class="btn-doc-upload" style="width:100%; padding:6px 10px; font-size:0.72rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"></button>'
+            + '<div class="doc-upload-prog" style="display:none; margin-top:6px;"><div style="background:#e2e8f0; border-radius:10px; height:5px; overflow:hidden;"><div class="doc-upload-bar" style="background:#2563eb; height:100%; width:0%;"></div></div><p class="doc-upload-txt" style="font-size:0.68rem; color:#64748b; margin:3px 0 0;"></p></div>'
+            + '<div class="doc-upload-chip"></div>';
+          container.parentElement.appendChild(slot);
+          const fi = slot.querySelector('input[type="file"]');
+          slot.querySelector('.btn-doc-upload').addEventListener('click', function() { fi.click(); });
+          fi.addEventListener('change', function() {
+            if (fi.files && fi.files.length > 0) handleDynamicDocUpload(card, input, Array.prototype.slice.call(fi.files), slot);
+            fi.value = '';
+          });
+          slot.querySelector('.doc-upload-chip').addEventListener('click', function(e) {
+            const del = e.target.closest ? e.target.closest('.btn-doc-del-one') : null;
+            if (del) deleteDynamicDocOne(card, key, del.getAttribute('data-id'));
+          });
+        }
+        const list = normFileList((card._docFiles || {})[key]);
+        const chipBox = slot.querySelector('.doc-upload-chip');
+        const upBtn = slot.querySelector('.btn-doc-upload');
+        const lbl = cardDocLabel(input);
+        if (list.length > 0) {
+          slot.style.display = 'block';
+          if (chipBox) chipBox.innerHTML = docFilesChipHtml(list);
+          if (upBtn) upBtn.innerHTML = '<i class="fa-solid fa-plus fa-ico"></i>Tambah ' + escapeHtml(lbl) + ' (' + list.length + ')';
+        } else if (docStatusIsX(input)) {
+          slot.style.display = 'block';
+          if (chipBox) chipBox.innerHTML = '';
+          if (upBtn) upBtn.innerHTML = '<i class="fa-solid fa-upload fa-ico"></i>Muat Naik ' + escapeHtml(lbl);
+        } else {
+          slot.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  async function handleDynamicDocUpload(card, input, fileObjs, slot) {
+    const bar = slot ? slot.querySelector('.doc-upload-bar') : null;
+    const txt = slot ? slot.querySelector('.doc-upload-txt') : null;
+    const prog = slot ? slot.querySelector('.doc-upload-prog') : null;
+    const files = Array.isArray(fileObjs) ? fileObjs : [fileObjs];
+    try {
+      if (!currentUser) { await CustomAppModal.alert('Sila log masuk dahulu.', 'Makluman', 'warning'); return; }
+      const folderId = await ensureDocFolder();
+      if (!folderId) return;
+      if (prog) prog.style.display = 'block';
+      const key = cardDocKey(input);
+      const lbl = cardDocLabel(input);
+      const personName = (card.querySelector('.p-name')?.value || card.querySelector('.bank-name')?.value || 'DOK').toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 20);
+      ensureCardUid(card);
+      const existing = normFileList((card._docFiles || {})[key]);
+      let okCount = 0;
+      for (let fi = 0; fi < files.length; fi++) {
+        const fileObj = files[fi];
+        const ext = (fileObj.name && fileObj.name.includes('.')) ? fileObj.name.slice(fileObj.name.lastIndexOf('.')) : '';
+        const upName = lbl.toUpperCase().replace(/[^A-Z0-9]+/g, '') + '_' + personName + '_' + new Date().toISOString().slice(0, 10) + (files.length > 1 || existing.length > 0 ? '_' + (existing.length + okCount + 1) : '') + ext;
+        const renamed = new File([fileObj], upName, { type: fileObj.type || 'application/octet-stream' });
+        if (txt) txt.textContent = 'Memuat naik ' + (fi + 1) + '/' + files.length + '...';
+        const res = await uploadSingleFileWithProgress(renamed, folderId, currentUser.email || '', function(f) {
+          const pct = Math.round(((fi + f) / files.length) * 100);
+          if (bar) bar.style.width = pct + '%';
+          if (txt) txt.textContent = 'Memuat naik ' + (fi + 1) + '/' + files.length + ' — ' + pct + '%...';
+        });
+        if (res && res.success && res.file) {
+          const f = res.file;
+          existing.push({
+            id: f.id || '', url: f.webViewLink || '', name: f.name || upName,
+            mimeType: f.mimeType || renamed.type || '', thumbnailLink: f.thumbnailLink || '',
+            uploadedAt: new Date().toISOString()
+          });
+          okCount++;
+        } else {
+          throw new Error((res && res.error) || 'Muat naik gagal');
+        }
+      }
+      if (okCount > 0) {
+        card._docFiles[key] = existing;
+        setDocStatusTick(input);
+        refreshDynamicDocSlots();
+        await playSuccessSound();
+        const syncRes = await syncBorangJsonToSheet();
+        showToast(lbl + ' dimuat naik & ditanda ✓' + (syncRes === 'ok' ? ' — rekod dikemaskini' : ''), 'success');
+        if (syncRes === 'fail') showToast('Auto-simpan ke rekod gagal — sila tekan Simpan', 'warning');
+      } else {
+        throw new Error('Muat naik gagal');
+      }
+    } catch (err) {
+      if (txt) txt.textContent = 'Ralat: ' + err.message;
+      await CustomAppModal.alert('Gagal muat naik: ' + err.message, 'Ralat', 'error');
+    } finally {
+      setTimeout(function() { if (prog) prog.style.display = 'none'; }, 1500);
+    }
+  }
+
+  async function deleteDynamicDocOne(card, key, fileId) {
+    const list = normFileList((card._docFiles || {})[key]);
+    const meta = list.find(function(m) { return String(m.id || '') === String(fileId || ''); }) || list[0];
+    if (!meta) { refreshDynamicDocSlots(); return; }
+    const ok = await CustomAppModal.confirm('Padam fail "' + (meta.name || key) + '"?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Padam Fail', 'warning', 'Ya, Padam', true);
+    if (!ok) return;
+    await deleteDriveFileById(meta.id);
+    card._docFiles[key] = list.filter(function(m) { return String(m.id || '') !== String(meta.id || ''); });
+    if (card._docFiles[key].length === 0) delete card._docFiles[key];
+    // Jika tiada fail tinggal — kosongkan semula status ✓/X/DRIVE bagi input berkaitan
+    try {
+      if (normFileList((card._docFiles || {})[key]).length === 0) {
+        let targetInput = null;
+        card.querySelectorAll('.status-input').forEach(function(inp) {
+          try { if (cardDocKey(inp) === key) targetInput = inp; } catch (e) {}
+        });
+        clearDocStatus(targetInput);
+      }
+    } catch (e) {}
+    refreshDynamicDocSlots();
+    try { if (typeof saveFormData === 'function') saveFormData(); } catch (e) {}
+    const syncDel = await syncBorangJsonToSheet();
+    if (syncDel === 'ok') showToast('Fail dipadam — rekod dikemaskini', 'success');
+    else if (syncDel === 'fail') showToast('Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod', 'warning');
+  }
+
+  // Segerakan slot bila tick ditekan / nilai berubah + polling ringan untuk kad dinamik
+  document.addEventListener('click', function(e) {
+    if (e.target.closest && e.target.closest('.tick-btn')) {
+      setTimeout(function() { try { refreshDocSlots(); } catch (err) {} }, 80);
+    }
+  });
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList && e.target.classList.contains('status-input')) {
+      setTimeout(function() { try { refreshDocSlots(); } catch (err) {} }, 80);
+    }
+  });
+  setInterval(function() { try { refreshDocSlots(); } catch (e) {} }, 2500);
+  restoreDocFilesCache();
+  setTimeout(function() { try { refreshDocSlots(); } catch (e) {} }, 800);
+
   if (btnFileManagerRefresh) {
     btnFileManagerRefresh.addEventListener('click', async () => {
       var folderId = fmCurrentFolderId || createdFolderId;
@@ -9136,10 +9739,40 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return;
     }
 
+    const ringkasDoc = e.target.closest('.ringkas-doc');
+    if (ringkasDoc) {
+      e.preventDefault();
+      const fid = ringkasDoc.getAttribute('data-id');
+      const fname = ringkasDoc.getAttribute('data-name') || 'Preview Dokumen';
+      const url = ringkasDoc.getAttribute('data-url');
+      const rthumb = ringkasDoc.getAttribute('data-thumb') || '';
+      if (fid) { openPdfPreviewModal(fid, fname, url, rthumb); return; }
+      if (url) window.open(url, '_blank');
+      return;
+    }
+
     const viewBtn = e.target.closest('.btn-file-view');
     if (viewBtn) {
       e.preventDefault();
       const url = viewBtn.getAttribute('data-url');
+      const fid = viewBtn.getAttribute('data-id');
+      const mime = viewBtn.getAttribute('data-mime') || '';
+      const fname = viewBtn.getAttribute('data-name') || 'Preview PDF';
+      const vthumb = viewBtn.getAttribute('data-thumb') || '';
+      if (fid && isPdfFile(mime, fname)) { openPdfPreviewModal(fid, fname, url, vthumb); return; }
+      if (url) window.open(url, '_blank');
+      return;
+    }
+
+    const pdfThumb = e.target.closest('.fm-pdf-thumb');
+    if (pdfThumb) {
+      e.preventDefault();
+      const fid = pdfThumb.getAttribute('data-id');
+      const fname = pdfThumb.getAttribute('data-name') || 'Preview PDF';
+      const pmime = pdfThumb.getAttribute('data-mime') || '';
+      const url = pdfThumb.getAttribute('data-url');
+      const pthumb = pdfThumb.getAttribute('data-thumb') || '';
+      if (fid && isPdfFile(pmime, fname)) { openPdfPreviewModal(fid, fname, url, pthumb); return; }
       if (url) window.open(url, '_blank');
       return;
     }
@@ -11375,20 +12008,31 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   async function resetForm() {
     cleanupStorage();
     await storageWrapper.remove([
-      'stb_form_data', 
-      'stb_form_states', 
-      'stb_has_printed', 
-      'stb_drive_folder_url', 
-      'stb_user_folder_url', 
+      'stb_form_data',
+      'stb_form_states',
+      'stb_has_printed',
+      'stb_drive_folder_url',
+      'stb_user_folder_url',
       'stb_extracted_pdf_data',
       'stb_form_persistence',
-      'stb_database_persistence'
+      'stb_database_persistence',
+      'stb_doc_files'
     ]);
+    try { window.__docFiles = {}; } catch (e) {}
+    try {
+      document.querySelectorAll('.bank-card, .person-card').forEach(function(card) {
+        try { card._docFiles = {}; } catch (e) {}
+      });
+    } catch (e) {}
 
     document.querySelectorAll('input, select, textarea').forEach(el => {
       if (el.id !== 'db_pengesyor' && el.id !== 'pelulus_nama' && !el.id.startsWith('login')) {
         if(el.type === 'checkbox' || el.type === 'radio') el.checked = false;
         else el.value = '';
+        if (el.classList && el.classList.contains('status-input')) {
+          el.style.backgroundColor = '';
+          el.style.color = '';
+        }
       }
     });
     if (dbUlasanSpi) autoResizeTextarea(dbUlasanSpi);
@@ -11448,6 +12092,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     updateOpenDriveButton();
 
     addPerson();
+    try { clearDocUploads(); } catch (e) {}
     // KOD BARU: Guna Custom Modal Animation
     await CustomAppModal.alert("Borang telah diset semula.", "Berjaya", "success");
 
@@ -11556,8 +12201,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       'stb_user_folder_url', 
       'stb_extracted_pdf_data',
       'stb_form_persistence',
-      'stb_database_persistence'
+      'stb_database_persistence',
+      'stb_doc_files'
     ]);
+    try { clearDocUploads(); } catch (e) {}
 
     console.log("V6.5.2 Borang telah direset untuk edit.");
     updateSendToSheetState();
@@ -13460,6 +14107,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                 restoreBankCards([]);
             }
 
+            // 3b. Restore fail dokumen statik (X -> upload, berbilang fail)
+            try {
+              window.__docFiles = window.__docFiles || {};
+              ['ssm_file','doc_carta_file','doc_peta_file','doc_gambar_file','doc_sewa_file','kwsp_1_file','kwsp_2_file','kwsp_3_file'].forEach(function(k) {
+                const lst = (typeof normFileList === 'function') ? normFileList(parsedData[k]) : (Array.isArray(parsedData[k]) ? parsedData[k] : (parsedData[k] && parsedData[k].url ? [parsedData[k]] : []));
+                if (lst.length > 0) window.__docFiles[k] = lst;
+                else delete window.__docFiles[k];
+              });
+              persistDocFiles();
+              setTimeout(function() { try { refreshDocSlots(); } catch (e) {} }, 150);
+            } catch (e) {}
+
             // 4. SELAMATKAN KE DALAM MEMORI (HINDARI OVERWRITE OLEH switchTab)
             formStates['stb'] = parsedData;
             storageWrapper.set({ 'stb_form_states': formStates });
@@ -13711,6 +14370,169 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         <span class="view-value">${formatDate(i.tarikh_surat_terdahulu)}</span>
       </div>` : '';
 
+    // --- RINGKASAN BORANG SEMAKAN (fleksibel: sembunyi baris/seksyen kosong) ---
+    const hasBorangVal = (v) => String(v == null ? '' : v).trim() !== '';
+    const fmtBorangDate = (d) => {
+      if (!hasBorangVal(d)) return '';
+      const s = String(d).trim();
+      const m = s.match(/^(\d{4})-(\d{2})$/);
+      if (m) return m[2] + '/' + m[1];
+      return formatDateDisplay(s);
+    };
+    const statusBadgeBorang = (v) => {
+      const s = String(v == null ? '' : v).trim().toUpperCase();
+      if (s.includes('✓') || s.includes('DRIVE') || s === 'OK' || s === 'LULUS' || s === 'ADA' || s === 'SOKONG') return `<span class="status-badge bg-green">${escapeHtml(String(v).trim())}</span>`;
+      if (s === 'X' || s === '✗' || s === 'TIADA' || s === 'GAGAL' || s === 'TIDAK DISOKONG') return `<span class="status-badge bg-red">${escapeHtml(String(v).trim())}</span>`;
+      return escapeHtml(String(v).trim());
+    };
+    const bRow = (label, value, full) => {
+      if (!hasBorangVal(value)) return '';
+      return `<div class="view-row${full ? ' full-width' : ''}"><span class="view-label">${label}</span><span class="view-value">${value}</span></div>`;
+    };
+    const docLinkSmall = (meta) => {
+      const list = Array.isArray(meta) ? meta.filter(function(m) { return m && m.url; }) : ((meta && meta.url) ? [meta] : []);
+      if (list.length === 0) return '';
+      return '<span style="display:inline-flex; gap:6px; flex-wrap:wrap; margin-top:4px;">' + list.map(function(one) {
+        const thumb = one.thumbnailLink ? String(one.thumbnailLink).replace(/([?&])sz=s?\d+/i, '$1sz=w200') : '';
+        const fid = escapeHtml(one.id || '');
+        const furl = escapeHtml(one.url || '');
+        const fmime = escapeHtml(one.mimeType || '');
+        const fthumb = escapeHtml(one.thumbnailLink || '');
+        const fnm = escapeHtml(one.name || 'Dokumen');
+        const isPdf = /\.pdf$/i.test(one.name || '') || ((one.mimeType || '') === 'application/pdf');
+        const inner = thumb
+          ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0; display:block;">`
+          : `<span style="width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; font-size:1.25rem; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px;">${isPdf ? '📕' : '📎'}</span>`;
+        return `<span class="ringkas-doc" data-id="${fid}" data-url="${furl}" data-mime="${fmime}" data-thumb="${fthumb}" data-name="${fnm}" title="${fnm} — klik untuk preview" style="cursor:zoom-in; display:inline-block;">${inner}</span>`;
+      }).join('') + '</span>';
+    };
+    const hasDocFiles = (v) => {
+      if (Array.isArray(v)) return v.some(function(m) { return m && m.url; });
+      return !!(v && v.url);
+    };
+    let borangHtml = '';
+    try {
+      const bj = (i.borang_json && String(i.borang_json).trim() !== '') ? JSON.parse(i.borang_json) : null;
+      if (bj && typeof bj === 'object') {
+        // 1) Maklumat asas borang
+        const jenisMap = { baru: 'BARU', pembaharuan: 'PEMBAHARUAN', ubah_maklumat: 'UBAH MAKLUMAT', ubah_gred: 'UBAH GRED' };
+        const jenisAppVal = bj.jenisApp ? (jenisMap[String(bj.jenisApp).toLowerCase()] || String(bj.jenisApp).toUpperCase()) : '';
+        let asasInner = '';
+        asasInner += bRow('JENIS PERMOHONAN (BORANG)', jenisAppVal ? escapeHtml(jenisAppVal) : '');
+        asasInner += bRow('TARIKH MOHON (BORANG)', hasBorangVal(bj.borang_tarikh_mohon) ? escapeHtml(fmtBorangDate(bj.borang_tarikh_mohon)) : '');
+        asasInner += bRow('TATATERTIB (BORANG)', hasBorangVal(bj.borang_tatatertib) ? escapeHtml(String(bj.borang_tatatertib).toUpperCase()) : '');
+        asasInner += bRow('NO. TELEFON', hasBorangVal(bj.borang_no_telefon) ? escapeHtml(String(bj.borang_no_telefon)) : '');
+        asasInner += bRow('TEMPOH SPKK', hasBorangVal(bj.spkkDuration) ? escapeHtml(String(bj.spkkDuration)) : '');
+        asasInner += bRow('TEMPOH STB', hasBorangVal(bj.stbDuration) ? escapeHtml(String(bj.stbDuration)) : '');
+        asasInner += bRow('TARIKH E-INFO SSM', hasBorangVal(bj.ssm_date_input) ? escapeHtml(fmtBorangDate(bj.ssm_date_input)) : '');
+        asasInner += bRow('STATUS SSM', (hasBorangVal(bj.ssm_status) || hasDocFiles(bj.ssm_file)) ? (hasBorangVal(bj.ssm_status) ? statusBadgeBorang(bj.ssm_status) : '') + docLinkSmall(bj.ssm_file) : '');
+        const ubahMak = bj.input_ubah_maklumat || bj.ubah_maklumat || '';
+        const ubahGred = bj.input_ubah_gred || bj.ubah_gred || '';
+        if (String(jenisAppVal) === 'UBAH MAKLUMAT' && hasBorangVal(ubahMak)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
+        else if (hasBorangVal(ubahMak) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
+        if (String(jenisAppVal) === 'UBAH GRED' && hasBorangVal(ubahGred)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
+        else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
+        const justBorang = bj.borang_justifikasi || bj.input_justifikasi || '';
+        asasInner += bRow('JUSTIFIKASI (BORANG)', hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
+        if (asasInner) {
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-lines fa-ico"></i>MAKLUMAT BORANG SEMAKAN</div><div class="view-grid">${asasInner}</div></div>`;
+        }
+
+        // 2) Bank
+        let bankList = Array.isArray(bj.banks) ? bj.banks.slice() : [];
+        if (bankList.length === 0 && (hasBorangVal(bj.bank_date_input) || hasBorangVal(bj.bank_sign_input) || hasBorangVal(bj.bank_status_input))) {
+          bankList = [{ bank: '', account: '', bank_date: bj.bank_date_input || '', mode: ['CEK'], sign_syarat: bj.bank_sign_input || '', sign_status: bj.bank_status_input || '', online_maker: '', online_checker: '' }];
+        }
+        bankList = bankList.filter(function(b) {
+          if (!b || typeof b !== 'object') return false;
+          return hasBorangVal(b.bank) || hasBorangVal(b.account) || hasBorangVal(b.bank_date) || hasBorangVal(b.sign_syarat) || hasBorangVal(b.sign_status) || hasBorangVal(b.online_maker) || hasBorangVal(b.online_checker) || (Array.isArray(b.mode) && b.mode.length > 0 && hasBorangVal(b.mode.join(''))) || hasDocFiles(b.sign_file) || hasDocFiles(b.maker_file) || hasDocFiles(b.checker_file);
+        });
+        if (bankList.length > 0) {
+          let bankInner = '';
+          bankList.forEach(function(b, idx) {
+            const modeArr = Array.isArray(b.mode) ? b.mode : (hasBorangVal(b.mode) ? [String(b.mode)] : []);
+            const parts = [];
+            if (hasBorangVal(b.bank)) parts.push(escapeHtml(String(b.bank)));
+            if (hasBorangVal(b.account)) parts.push('Akaun: ' + escapeHtml(String(b.account)));
+            if (hasBorangVal(b.bank_date)) parts.push('Tarikh: ' + escapeHtml(fmtBorangDate(b.bank_date)));
+            if (modeArr.length > 0) parts.push('Mod: ' + escapeHtml(modeArr.join(' / ')));
+            if (hasBorangVal(b.sign_syarat)) parts.push('Syarat: ' + escapeHtml(String(b.sign_syarat)));
+            if (hasBorangVal(b.sign_status)) parts.push('Status: ' + escapeHtml(String(b.sign_status)));
+            if (hasBorangVal(b.online_maker)) parts.push('Maker: ' + escapeHtml(String(b.online_maker)));
+            if (hasBorangVal(b.online_checker)) parts.push('Checker: ' + escapeHtml(String(b.online_checker)));
+            let fileLinks = '';
+            fileLinks += docLinkSmall(b.sign_file);
+            fileLinks += docLinkSmall(b.maker_file);
+            fileLinks += docLinkSmall(b.checker_file);
+            if (parts.length > 0 || fileLinks) bankInner += `<div class="view-row full-width"><span class="view-label">BANK ${idx + 1}</span><span class="view-value">${parts.join(' &nbsp;|&nbsp; ')}${fileLinks}</span></div>`;
+          });
+          if (bankInner) borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-building-columns fa-ico"></i>SURAT PENGESAHAN BANK</div><div class="view-grid">${bankInner}</div></div>`;
+        }
+
+        // 3) Personel (termasuk Pengarah)
+        const plist = Array.isArray(bj.personnel) ? bj.personnel : [];
+        const plistShown = plist.filter(function(p) {
+          if (!p || typeof p !== 'object') return false;
+          return hasBorangVal(p.name) || (Array.isArray(p.roles) && p.roles.length > 0) || hasBorangVal(p.s_ic) || hasBorangVal(p.s_sb) || hasBorangVal(p.s_epf) || hasBorangVal(p.c_date) || hasBorangVal(p.c_status) || hasDocFiles(p.ic_file) || hasDocFiles(p.sb_file) || hasDocFiles(p.epf_file) || hasDocFiles(p.comp_file);
+        });
+        if (plistShown.length > 0) {
+          let rows = '';
+          plistShown.forEach(function(p) {
+            const nm = hasBorangVal(p.name) ? escapeHtml(String(p.name).toUpperCase()) : '-';
+            const roles = Array.isArray(p.roles) && p.roles.length > 0 ? escapeHtml(p.roles.join(', ')) : '-';
+            const isPengarah = Array.isArray(p.roles) && p.roles.some(function(r) { return String(r).toUpperCase().indexOf('PENGARAH') !== -1; });
+            const ic = hasBorangVal(p.s_ic) ? statusBadgeBorang(p.s_ic) : '-';
+            const sb = hasBorangVal(p.s_sb) ? statusBadgeBorang(p.s_sb) : '-';
+            const epf = hasBorangVal(p.s_epf) ? statusBadgeBorang(p.s_epf) : '-';
+            let extra = '';
+            if (p.isCompany) {
+              const cd = hasBorangVal(p.c_date) ? escapeHtml(fmtBorangDate(p.c_date)) : '-';
+              const cs = hasBorangVal(p.c_status) ? statusBadgeBorang(p.c_status) : '-';
+              extra = ` <span style="font-size:0.72rem; color:#64748b;">(Syarikat: ${cd} / ${cs})</span>`;
+            } else if (hasBorangVal(p.c_date) || hasBorangVal(p.c_status)) {
+              extra = ` <span style="font-size:0.72rem; color:#64748b;">(${escapeHtml(fmtBorangDate(p.c_date) || '-')} / ${hasBorangVal(p.c_status) ? statusBadgeBorang(p.c_status) : '-'})</span>`;
+            }
+            let pFiles = '';
+            pFiles += docLinkSmall(p.ic_file);
+            pFiles += docLinkSmall(p.sb_file);
+            pFiles += docLinkSmall(p.epf_file);
+            pFiles += docLinkSmall(p.comp_file);
+            const baruTag = p.baruTambah ? ' <span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b; font-size:0.65rem;">BARU TAMBAH</span>' : '';
+            const hl = isPengarah ? ' style="border-left:3px solid #2563eb; padding-left:8px;"' : '';
+            rows += `<div class="view-row full-width"${hl}><span class="view-label">${isPengarah ? 'PENGARAH' : 'PERSONEL'}${baruTag}</span><span class="view-value"><strong>${nm}</strong> — ${roles} &nbsp;|&nbsp; IC: ${ic} &nbsp; SB: ${sb} &nbsp; EPF: ${epf}${extra}${pFiles}</span></div>`;
+          });
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-users fa-ico"></i>MAKLUMAT PERSONEL & PENGARAH</div><div class="view-grid">${rows}</div></div>`;
+        }
+
+        // 4) Dokumen & KWSP
+        let dokInner = '';
+        const dokMap = [['CARTA', bj.doc_carta_status, bj.doc_carta_file], ['PETA', bj.doc_peta_status, bj.doc_peta_file], ['GAMBAR', bj.doc_gambar_status, bj.doc_gambar_file], ['SEWA', bj.doc_sewa_status, bj.doc_sewa_file]];
+        dokMap.forEach(function(tri) {
+          if (hasBorangVal(tri[1]) || hasDocFiles(tri[2])) dokInner += `<div class="view-row"><span class="view-label">${tri[0]}</span><span class="view-value">${hasBorangVal(tri[1]) ? statusBadgeBorang(tri[1]) : ''}${docLinkSmall(tri[2])}</span></div>`;
+        });
+        const kwspFiles = [bj.kwsp_1_file, bj.kwsp_2_file, bj.kwsp_3_file];
+        for (let k = 1; k <= 3; k++) {
+          const dd = bj['kwsp_date_' + k];
+          const ss = bj['kwsp_s' + k];
+          const ff = kwspFiles[k - 1];
+          if (hasBorangVal(dd) || hasBorangVal(ss) || hasDocFiles(ff)) {
+            const dl = hasBorangVal(dd) ? escapeHtml(fmtBorangDate(dd)) : '-';
+            const sl = hasBorangVal(ss) ? statusBadgeBorang(ss) : '-';
+            dokInner += `<div class="view-row"><span class="view-label">KWSP BULAN ${k}</span><span class="view-value">${dl} — ${sl}${docLinkSmall(ff)}</span></div>`;
+          }
+        }
+        if (dokInner) borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-folder fa-ico"></i>DOKUMEN & KWSP (BORANG)</div><div class="view-grid">${dokInner}</div></div>`;
+      }
+    } catch (e) { borangHtml = ''; }
+
+    // --- MAKLUMAT LAWATAN: sembunyi baris kosong, sembunyi seksyen jika semua kosong ---
+    let lawatanInner = '';
+    if (hasBorangVal(i.lawatan_tarikh)) lawatanInner += `<div class="view-row"><span class="view-label">TARIKH LAWATAN</span><span class="view-value">${formatDate(i.lawatan_tarikh)}</span></div>`;
+    if (hasBorangVal(i.lawatan_submit_sptb)) lawatanInner += `<div class="view-row"><span class="view-label">DATE SUBMIT TO SPTB</span><span class="view-value">${formatDate(i.lawatan_submit_sptb)}</span></div>`;
+    if (hasBorangVal(i.lawatan_syor)) lawatanInner += `<div class="view-row"><span class="view-label">SYOR LAWATAN</span><span class="view-value">${safe(i.lawatan_syor)}</span></div>`;
+    if (hasBorangVal(i.ulasan_spi)) lawatanInner += `<div class="view-row full-width"><span class="view-label">ULASAN SPI</span><span class="view-value">${safe(i.ulasan_spi)}</span></div>`;
+    const lawatanHtml = lawatanInner ? `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-helmet-safety fa-ico"></i>MAKLUMAT LAWATAN & PEMATUHAN</div><div class="view-grid">${lawatanInner}</div></div>` : '';
+
     c.innerHTML = `
       <div class="view-container">
         <div class="view-section">
@@ -13755,27 +14577,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           </div>
         </div>
 
-        <div class="view-section">
-          <div class="view-section-header"><i class="fa-solid fa-helmet-safety fa-ico"></i>MAKLUMAT LAWATAN & PEMATUHAN</div>
-          <div class="view-grid">
-            <div class="view-row">
-              <span class="view-label">TARIKH LAWATAN</span>
-              <span class="view-value">${formatDate(i.lawatan_tarikh)}</span>
-            </div>
-            <div class="view-row">
-              <span class="view-label">DATE SUBMIT TO SPTB</span>
-              <span class="view-value">${formatDate(i.lawatan_submit_sptb)}</span>
-            </div>
-            <div class="view-row">
-              <span class="view-label">SYOR LAWATAN</span>
-              <span class="view-value">${safe(i.lawatan_syor)}</span>
-            </div>
-            <div class="view-row full-width">
-              <span class="view-label">ULASAN SPI</span>
-              <span class="view-value">${safe(i.ulasan_spi)}</span>
-            </div>
-          </div>
-        </div>
+        ${borangHtml}
+
+        ${lawatanHtml}
 
         <div class="view-section">
           <div class="view-section-header"><i class="fa-solid fa-user fa-ico"></i>ULASAN PENGESYOR</div>
@@ -14225,55 +15029,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       // =====================================================================
       // (KOD BARU KEMASKINI) LANGKAH A: TANGKAP SEMUA DATA BORANG & PERSONEL
+      // (fungsi kongsi buildFreshBorangCore — juga diguna sync minima upload/padam dokumen)
       // =====================================================================
-      const borangJsonData = {};
-      
-      document.querySelectorAll('#tab-checker input, #tab-checker select, #tab-checker textarea').forEach(el => {
-        if (el.id && !el.id.includes('print_') && !el.id.includes('pelulus_') && !el.id.includes('login')) {
-          if (el.type === 'checkbox' || el.type === 'radio') {
-            borangJsonData[el.id] = el.checked;
-          } else {
-            borangJsonData[el.id] = el.value;
-          }
-        }
-      });
-      
-      // Ambil nilai radio button jenis permohonan secara manual
-      const selectedRadio = document.querySelector('input[name="jenisApp"]:checked');
-      if (selectedRadio) {
-        borangJsonData['jenisApp'] = selectedRadio.value;
-      }
-      
-      // Ambil maklumat personel dinamik
-      const personnelListObj = [];
-      document.querySelectorAll('.person-card').forEach(card => {
-        const roles = [];
-        card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
-        personnelListObj.push({
-          name: card.querySelector('.p-name')?.value || '',
-          isCompany: card.querySelector('.is-company')?.checked || false,
-          roles: roles,
-          baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
-          s_ic: card.querySelector('.status-ic')?.value || '',
-          s_sb: card.querySelector('.status-sb')?.value || '',
-          s_epf: card.querySelector('.status-epf')?.value || '',
-          c_date: card.querySelector('.comp-date')?.value || '',
-          c_status: card.querySelector('.status-comp')?.value || ''
-        });
-      });
-      borangJsonData['personnel'] = personnelListObj;
-
-      // Ambil maklumat bank dinamik (Surat Pengesahan Bank)
-      borangJsonData['banks'] = collectBanks();
-      
-      // V6.8.0: Snapshot sign/cop pengguna semasa ke dalam borang_json
-      if (currentUser) {
-        borangJsonData['currentUser_name'] = currentUser.name || '';
-        borangJsonData['currentUser_email'] = currentUser.email || '';
-        if (currentUser.signUrl) borangJsonData['currentUser_signUrl'] = currentUser.signUrl;
-        if (currentUser.copUrl) borangJsonData['currentUser_copUrl'] = currentUser.copUrl;
-        if (currentUser.role) borangJsonData['currentUser_role'] = currentUser.role;
-      }
+      const borangJsonData = buildFreshBorangCore();
       
       // =====================================================================
       // KOD BARU: KAWALAN TARIKH MASUK SHEET (TERMASUK REKOD SEDIA ADA)
@@ -14653,8 +15411,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       'stb_form_data', 
       'stb_form_states',
       'stb_form_persistence',
-      'stb_database_persistence'
+      'stb_database_persistence',
+      'stb_doc_files'
     ]);
+    try { clearDocUploads(); } catch (e) {}
 
     console.log("V6.5.2 Borang telah direset sepenuhnya selepas hantar data.");
 
@@ -15335,13 +16095,39 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           statusEpf.style.color = '#991b1b';
         }
       }
+      try {
+        div._docFiles = {};
+        const pf = function(v) { try { return normFileList(v); } catch (e) { return Array.isArray(v) ? v : (v && v.url ? [v] : []); } };
+        const iL = pf(data.ic_file), sL = pf(data.sb_file), eL = pf(data.epf_file), cL = pf(data.comp_file);
+        if (iL.length > 0) div._docFiles.ic_file = iL;
+        if (sL.length > 0) div._docFiles.sb_file = sL;
+        if (eL.length > 0) div._docFiles.epf_file = eL;
+        if (cL.length > 0) div._docFiles.comp_file = cL;
+        setTimeout(function() { try { refreshDynamicDocSlots(); } catch (e) {} }, 60);
+      } catch (e) {}
     }
 
     const deleteBtn = div.querySelector('.delete-btn');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => { 
-        div.remove(); 
+      deleteBtn.addEventListener('click', async () => {
+        const cardFiles = [];
+        try {
+          Object.keys(div._docFiles || {}).forEach(function(k) {
+            normFileList(div._docFiles[k]).forEach(function(m) { if (m.id) cardFiles.push(m); });
+          });
+        } catch (e) {}
+        if (cardFiles.length > 0) {
+          const ok = await CustomAppModal.confirm('Buang personel ini beserta ' + cardFiles.length + ' fail dokumen?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Buang Personel', 'warning', 'Ya, Buang', true);
+          if (!ok) return;
+          for (const m of cardFiles) await deleteDriveFileById(m.id);
+        }
+        div.remove();
         saveFormData();
+        try { refreshDynamicDocSlots(); } catch (e) {}
+        try {
+          const sr = await syncBorangJsonToSheet();
+          if (sr === 'fail') showToast('Tekan Simpan untuk kemaskini rekod', 'warning');
+        } catch (e) {}
       });
     }
   }
@@ -15360,7 +16146,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const addBankBtn = document.getElementById('addBankBtn');
 
   function bankLogoItem(bankItem) {
-    return `<img src="${bankItem.logo || BANK_GENERIC_LOGO}" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0;" onerror="this.onerror=null; this.src=BANK_GENERIC_LOGO;">`;
+    return `<img class="bank-logo-img" data-fallback="1" src="${bankItem.logo || BANK_GENERIC_LOGO}" alt="" style="width:24px; height:24px; object-fit:contain; flex-shrink:0;">`;
   }
 
   function addBankCard(data) {
@@ -15526,10 +16312,26 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // Butang buang
     const delBtn = card.querySelector('.bank-delete-btn');
     if (delBtn) {
-      delBtn.addEventListener('click', () => {
+      delBtn.addEventListener('click', async () => {
+        const cardFiles = [];
+        try {
+          Object.keys(card._docFiles || {}).forEach(function(k) {
+            normFileList(card._docFiles[k]).forEach(function(m) { if (m.id) cardFiles.push(m); });
+          });
+        } catch (e) {}
+        if (cardFiles.length > 0) {
+          const ok = await CustomAppModal.confirm('Buang kad bank ini beserta ' + cardFiles.length + ' fail dokumen?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Buang Bank', 'warning', 'Ya, Buang', true);
+          if (!ok) return;
+          for (const m of cardFiles) await deleteDriveFileById(m.id);
+        }
         card.remove();
         syncBankTitles();
         saveFormData();
+        try { refreshDynamicDocSlots(); } catch (e) {}
+        try {
+          const sr = await syncBorangJsonToSheet();
+          if (sr === 'fail') showToast('Tekan Simpan untuk kemaskini rekod', 'warning');
+        } catch (e) {}
       });
     }
 
@@ -15553,6 +16355,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       </div>
     `).join('');
     dropdown.style.display = 'block';
+    dropdown.querySelectorAll('.bank-logo-img').forEach(function(img) {
+      img.addEventListener('error', function() {
+        img.src = (typeof BANK_GENERIC_LOGO !== 'undefined') ? BANK_GENERIC_LOGO : '';
+      }, { once: true });
+    });
     dropdown.querySelectorAll('.bank-option').forEach(opt => {
       opt.addEventListener('click', () => {
         setBankNameInput(card, opt.dataset.name);
@@ -15634,6 +16441,17 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const hasOnline = modeBtns[1].classList.contains('active');
     if (fieldsCek) fieldsCek.style.display = hasCek ? 'block' : 'none';
     if (fieldsOnline) fieldsOnline.style.display = hasOnline ? 'block' : 'none';
+
+    // Restore fail dokumen bank (X -> upload, berbilang fail; sokong rekod lama objek tunggal)
+    try {
+      card._docFiles = {};
+      const bf = function(v) { try { return normFileList(v); } catch (e) { return Array.isArray(v) ? v : (v && v.url ? [v] : []); } };
+      const sL = bf(data.sign_file), mL = bf(data.maker_file), cL = bf(data.checker_file);
+      if (sL.length > 0) card._docFiles.sign_file = sL;
+      if (mL.length > 0) card._docFiles.maker_file = mL;
+      if (cL.length > 0) card._docFiles.checker_file = cL;
+      setTimeout(function() { try { refreshDynamicDocSlots(); } catch (e) {} }, 60);
+    } catch (e) {}
   }
 
   function collectBanks() {
@@ -15642,6 +16460,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     bankListEl.querySelectorAll('.bank-card').forEach(card => {
       const mode = [];
       card.querySelectorAll('.bank-mode-btn.active').forEach(b => mode.push(b.dataset.mode));
+      const df = card._docFiles || {};
+      const gl = function(v) { try { return normFileList(v); } catch (e) { return []; } };
       banks.push({
         bank: card.querySelector('.bank-name')?.value || '',
         account: card.querySelector('.bank-account')?.value || '',
@@ -15650,7 +16470,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         sign_syarat: card.querySelector('.bank-sign-syarat')?.value || '',
         sign_status: card.querySelector('.bank-sign-status')?.value || '',
         online_maker: card.querySelector('.bank-online-maker')?.value || '',
-        online_checker: card.querySelector('.bank-online-checker')?.value || ''
+        online_checker: card.querySelector('.bank-online-checker')?.value || '',
+        sign_file: gl(df.sign_file),
+        maker_file: gl(df.maker_file),
+        checker_file: gl(df.checker_file)
       });
     });
     return banks;

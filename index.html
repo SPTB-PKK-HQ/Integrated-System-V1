@@ -882,6 +882,22 @@
             </div>
         </div>
 
+        <div class="custom-modal-overlay" id="pdfPreviewModal" style="display:none; z-index:12500;">
+            <div class="custom-modal-card" style="max-width: 900px; width: 95%; text-align: left; position: relative; max-height: 92vh; overflow-y: auto; padding: 0; border-radius: 16px; display:flex; flex-direction:column;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 20px; border-bottom:2px solid #e2e8f0;">
+                    <h3 id="pdfPreviewTitle" style="margin:0; font-size:1rem; color:#1e40af; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;"><i class="fa-solid fa-file-pdf fa-ico"></i>Preview PDF</h3>
+                    <span id="pdfPreviewClose" style="font-size:28px; cursor:pointer; color:#64748b; line-height:1;">&times;</span>
+                </div>
+                <div style="flex:1; min-height:0; background:#f1f5f9; padding:14px 20px;">
+                    <iframe id="pdfPreviewFrame" title="Preview PDF" style="width:100%; height:65vh; border:1px solid #e2e8f0; border-radius:10px; background:white;" allowfullscreen></iframe>
+                    <p style="font-size:0.75rem; color:#64748b; margin:8px 0 0;">Jika preview kosong (fail perlukan kebenaran Google / belum dikongsi), klik <strong>Buka di Drive</strong> untuk lihat penuh.</p>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; padding:12px 20px; border-top:1px solid #e2e8f0; background:white;">
+                    <a id="pdfPreviewOpenDrive" href="#" target="_blank" rel="noopener" class="btn btn-white" style="padding:8px 16px; font-size:0.85rem; text-decoration:none;"><i class="fa-solid fa-arrow-up-right-from-square fa-ico"></i>Buka di Drive</a>
+                </div>
+            </div>
+        </div>
+
         <style>
             @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
             .pka-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
