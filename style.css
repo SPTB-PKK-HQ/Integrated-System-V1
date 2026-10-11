@@ -1323,14 +1323,32 @@
         .radio-group input[type="radio"] { width: auto; margin: 0; }
 
         .view-container { display: flex; flex-direction: column; gap: 15px; font-family: 'Segoe UI', sans-serif; }
-        .view-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .view-section-header { background: #f8fafc; padding: 10px 15px; font-weight: 700; color: #334155; border-bottom: 1px solid #e2e8f0; font-size: 0.9rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .view-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .view-section-header { background: #f8fafc; padding: 10px 15px; font-weight: 800; color: #334155; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; }
         .view-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; }
-        .view-row { padding: 10px 15px; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; }
+        .view-grid > .view-row:nth-child(odd) { border-right: 1px solid #f1f5f9; }
+        .view-grid > .view-row.full-width { border-right: none; }
+        .view-row { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px; }
         .view-row.full-width { grid-column: span 2; }
         .view-row:last-child { border-bottom: none; }
-        .view-label { font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 2px; }
-        .view-value { font-size: 0.95rem; color: #0f172a; font-weight: 500; word-break: break-word; }
+        .view-label { font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px; }
+        .view-value { font-size: 0.92rem; color: #0f172a; font-weight: 500; word-break: break-word; line-height: 1.5; }
+        .person-neat { border-bottom: 1px solid #eef2f7 !important; }
+        .person-neat:last-child { border-bottom: none !important; }
+        /* Butang Dokumen moden (pill biru lembut + ikon mata dalam bulatan) */
+        .doc-btn-neat { display: inline-flex; align-items: center; gap: 7px; padding: 5px 13px 5px 6px; font-size: 0.74rem; font-weight: 700; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; cursor: pointer; color: #1d4ed8; box-shadow: 0 1px 2px rgba(37,99,235,0.12); transition: all 0.16s ease; line-height: 1; white-space: nowrap; }
+        .doc-btn-neat .doc-eye { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff; font-size: 0.62rem; flex-shrink: 0; }
+        .doc-btn-neat:hover { background: #2563eb; border-color: #2563eb; color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.28); }
+        .doc-btn-neat:hover .doc-eye { background: #fff; color: #2563eb; }
+        .doc-btn-neat:active { transform: translateY(0); }
+        /* Butang biru Buka Laporan lawatan */
+        .lawatan-report-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 24px; font-size: 0.84rem; font-weight: 800; background: linear-gradient(180deg, #0ea5e9, #0284c7); border: 1px solid #0284c7; border-radius: 999px; cursor: pointer; color: #fff; text-decoration: none; box-shadow: 0 3px 10px rgba(2,132,199,0.35); transition: all 0.16s ease; }
+        .lawatan-report-btn:hover { background: linear-gradient(180deg, #0284c7, #0369a1); border-color: #0369a1; color: #fff; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(2,132,199,0.4); }
+        @media (max-width: 640px) {
+            .view-grid { grid-template-columns: 1fr; }
+            .view-grid > .view-row:nth-child(odd) { border-right: none; }
+            .view-row.full-width { grid-column: span 1; }
+        }
 
         .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
         .bg-green { background: #dcfce7; color: #166534; }

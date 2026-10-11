@@ -4335,6 +4335,15 @@ async function handleCredentialResponse(response) {
     const row = item.row;
     const spiDate = item.date_submit ? formatDateDisplay(item.date_submit) : '-';
     const curSyor = (item.lawatan_syor || '').toString();
+    let curLaporanUrl = '';
+    try {
+      const bjPka = item.borang_json ? JSON.parse(item.borang_json) : null;
+      if (bjPka && typeof bjPka === 'object') {
+        const candPka = bjPka.laporan_spi_url || bjPka.laporan_lawatan_url || '';
+        if (typeof candPka === 'string') curLaporanUrl = candPka;
+        else if (candPka && candPka.url) curLaporanUrl = candPka.url;
+      }
+    } catch(e) {}
 
     list.innerHTML = `<div class="pka-card-item pka-keputusan-card">
       <div class="pka-card-item-info">
@@ -4348,6 +4357,11 @@ async function handleCredentialResponse(response) {
         <div class="pka-card-field">
           <label>Ulasan SPI</label>
           <div style="flex:1;"><textarea class="editable-textarea" id="pkaUlasanSpi_${row}" placeholder="Catatan siasatan...">${item.ulasan_spi || ''}</textarea></div>
+        </div>
+        <div class="pka-card-field" style="flex-direction:column;align-items:stretch;">
+          <label><i class="fa-solid fa-file-circle-check fa-ico"></i>Link Dokumen / Laporan Lawatan (Drive)</label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><input type="url" class="editable-input" id="pkaLaporanUrl_${row}" value="${escapeHtml(curLaporanUrl).replace(/\"/g, '&quot;')}" placeholder="Tampal link Drive laporan lawatan di sini..." style="flex:1;min-width:200px;"><button type="button" class="pka-btn-sm pka-btn-orange" data-pka-action="urus-fail" data-pka-row="${row}" title="Buka Drive untuk salin link"><i class="fa-solid fa-folder-open fa-ico"></i>Drive</button></div>
+          <div style="font-size:0.72rem;color:#64748b;">Fail <strong>LAPORAN*.pdf</strong> yang dimuat naik via <strong>Urus Fail / Drive</strong> akan dikesan automatik di Ringkasan. Link manual di bawah adalah pilihan tambahan.</div>
         </div>
       </div>
       <div class="pka-card-item-actions">
@@ -4383,6 +4397,12 @@ async function handleCredentialResponse(response) {
       const failBtn = d.pautan
         ? `<button class="btn-sm" style="background-color:#2563eb;color:white;" data-pka-action="urus-fail" data-pka-row="${d.row}" title="Urus Fail Drive"><i class="fa-solid fa-folder-open fa-ico"></i>Fail</button>`
         : '';
+      let laporanBtnSej = '';
+      try {
+        const bjSej = d.borang_json ? JSON.parse(d.borang_json) : null;
+        const lu = bjSej && bjSej.laporan_spi_url ? String(bjSej.laporan_spi_url).trim() : '';
+        if (lu) laporanBtnSej = `<a href="${escapeHtml(lu)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;font-weight:700;color:#fff;background:#0284c7;border-radius:6px;padding:3px 8px;text-decoration:none;margin-top:4px;"><i class="fa-solid fa-eye"></i>Buka Laporan</a>`;
+      } catch(e) {}
       return `<div class="app-item-wrapper">
         <div class="app-item-number">${i + 1}</div>
         <div class="app-item-content"><div class="app-item">
@@ -4393,6 +4413,7 @@ async function handleCredentialResponse(response) {
         + `<div style="font-size:0.75rem;color:#047857;font-weight:600;margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Lawatan: ${lawatanDate} | <i class="fa-solid fa-clipboard-list"></i> SPTB: ${sptbDate} | <i class="fa-solid fa-check"></i> Syor: ${d.lawatan_syor || '-'}</div>`
         + `<div style="font-size:0.75rem;color:#555;margin-top:2px;">Pengesyor: ${d.pengesyor || '-'}${d.kelulusan ? ' | Keputusan: ' + d.kelulusan : ''}</div>`
         + (d.ulasan_spi ? `<div style="font-size:0.78rem;color:#64748b;margin-top:4px;background:#f8fafc;padding:4px 8px;border-radius:4px;"><i class="fa-solid fa-message"></i> ${d.ulasan_spi}</div>` : '')
+        + (laporanBtnSej ? `<div style="margin-top:4px;">${laporanBtnSej}</div>` : '')
         + `</div>
         <div class="app-actions-btn" style="display:flex;gap:8px;flex-shrink:0;">
         <button class="${viewCls}" data-pka-action="lihat" data-pka-row="${d.row}">Lihat</button>${failBtn}
@@ -4494,6 +4515,7 @@ async function handleCredentialResponse(response) {
           const lawatanSptb = document.getElementById(`pkaLawatanSptb_${row}`)?.value || '';
           const lawatanSyor = document.getElementById(`pkaLawatanSyor_${row}`)?.value || '';
           const ulasanSpi = document.getElementById(`pkaUlasanSpi_${row}`)?.value || '';
+          const laporanSpiUrl = document.getElementById(`pkaLaporanUrl_${row}`)?.value.trim() || '';
 
           if (!lawatanTarikh || !lawatanSptb || !lawatanSyor) {
             await CustomAppModal.alert("Sila isi Tarikh Lawatan, Tarikh Hantar SPTB, dan Syor SPI.", "Makluman", "warning");
@@ -4508,18 +4530,21 @@ async function handleCredentialResponse(response) {
           if (loadingSub) loadingSub.textContent = 'Sila tunggu sebentar';
 
           try {
+            const pkaPayload = {
+              action: 'pkaUpdateLawatan',
+              email: currentUser.email,
+              row: row,
+              lawatan_tarikh: lawatanTarikh,
+              lawatan_submit_sptb: lawatanSptb,
+              lawatan_syor: lawatanSyor,
+              ulasan_spi: ulasanSpi
+            };
+            // Jangan padam URL sedia ada jika input dibiar kosong — fail Drive (cth LAPORAN*.pdf) tetap dikesan automatik di Ringkasan
+            if (laporanSpiUrl) pkaPayload.laporan_spi_url = laporanSpiUrl;
             const result = await fetchWithRetry(SCRIPT_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({
-                action: 'pkaUpdateLawatan',
-                email: currentUser.email,
-                row: row,
-                lawatan_tarikh: lawatanTarikh,
-                lawatan_submit_sptb: lawatanSptb,
-                lawatan_syor: lawatanSyor,
-                ulasan_spi: ulasanSpi
-              })
+              body: JSON.stringify(pkaPayload)
             }, 3, 1000);
 
             const res = await result.json();
@@ -4551,6 +4576,13 @@ async function handleCredentialResponse(response) {
                 cachedData[idx].lawatan_submit_sptb = lawatanSptb;
                 cachedData[idx].lawatan_syor = lawatanSyor;
                 cachedData[idx].ulasan_spi = ulasanSpi;
+                if (laporanSpiUrl) {
+                  try {
+                    const bjOld = cachedData[idx].borang_json ? JSON.parse(cachedData[idx].borang_json) : {};
+                    bjOld.laporan_spi_url = laporanSpiUrl;
+                    cachedData[idx].borang_json = JSON.stringify(bjOld);
+                  } catch(e) {}
+                }
               }
             }
             try { refreshInboxBell(); } catch (e) {}
@@ -14385,6 +14417,34 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (s === 'X' || s === '✗' || s === 'TIADA' || s === 'GAGAL' || s === 'TIDAK DISOKONG') return `<span class="status-badge bg-red">${escapeHtml(String(v).trim())}</span>`;
       return escapeHtml(String(v).trim());
     };
+    // V6.10.3: Paparan kemas — ikut peraturan borang: kosong = Tidak Berkaitan, X = pangkah ✗, ✓/DRIVE = Lengkap
+    const tidakBerkaitanBadge = `<span class="status-badge" style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;">Tidak Berkaitan</span>`;
+    const pangkahBadge = `<span class="status-badge bg-red">✗</span>`;
+    const lengkapBadgeOnly = `<span class="status-badge bg-green">Lengkap</span>`;
+    const isLengkapVal = (v) => {
+      const s = String(v == null ? '' : v).trim().toUpperCase();
+      if (!s) return null;
+      if (s.includes('TIDAK BERKAITAN') || s === '-' || s === 'N/A' || s === 'NA' || s === 'TB') return null;
+      if (s.includes('TIDAK') || s.includes('TIADA') || s.includes('GAGAL') || s.includes('INCOMPLETE') || s === 'X' || s === '✗') return false;
+      if (s.includes('LENGKAP') || s.includes('✓') || s.includes('DRIVE') || s === 'OK' || s === 'LULUS' || s === 'ADA' || s === 'SOKONG' || s === 'COMPLETE' || s === 'YA' || s === 'Y') return true;
+      return null;
+    };
+    const isTidakBerkaitanVal = (v) => {
+      const s = String(v == null ? '' : v).trim().toUpperCase();
+      if (!s) return true;
+      return s.includes('TIDAK BERKAITAN') || s === '-' || s === 'N/A' || s === 'NA' || s === 'TB';
+    };
+    const lengkapBadge = (statusVal, hasFile) => {
+      if (isTidakBerkaitanVal(statusVal) && !hasFile) return tidakBerkaitanBadge;
+      const st = isLengkapVal(statusVal);
+      if (st === true) return lengkapBadgeOnly;
+      if (st === false) return pangkahBadge;
+      if (hasFile) return lengkapBadgeOnly;
+      if (hasBorangVal(statusVal)) return pangkahBadge;
+      return tidakBerkaitanBadge;
+    };
+    const roleBadge = (r) => `<span class="status-badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;text-transform:uppercase;">${escapeHtml(String(r).trim())}</span>`;
+    const miniLabel = (t) => `<span style="font-size:0.72rem;color:#64748b;font-weight:700;margin-left:6px;">${t}</span>`;
     const bRow = (label, value, full) => {
       if (!hasBorangVal(value)) return '';
       return `<div class="view-row${full ? ' full-width' : ''}"><span class="view-label">${label}</span><span class="view-value">${value}</span></div>`;
@@ -14392,84 +14452,110 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const docLinkSmall = (meta) => {
       const list = Array.isArray(meta) ? meta.filter(function(m) { return m && m.url; }) : ((meta && meta.url) ? [meta] : []);
       if (list.length === 0) return '';
-      return '<span style="display:inline-flex; gap:6px; flex-wrap:wrap; margin-top:4px;">' + list.map(function(one) {
-        const thumb = one.thumbnailLink ? String(one.thumbnailLink).replace(/([?&])sz=s?\d+/i, '$1sz=w200') : '';
+      return '<span style="display:inline-flex; gap:6px; flex-wrap:wrap; margin-top:4px; vertical-align:middle;">' + list.map(function(one) {
         const fid = escapeHtml(one.id || '');
         const furl = escapeHtml(one.url || '');
         const fmime = escapeHtml(one.mimeType || '');
         const fthumb = escapeHtml(one.thumbnailLink || '');
         const fnm = escapeHtml(one.name || 'Dokumen');
-        const isPdf = /\.pdf$/i.test(one.name || '') || ((one.mimeType || '') === 'application/pdf');
-        const inner = thumb
-          ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy" style="width:40px; height:40px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0; display:block;">`
-          : `<span style="width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; font-size:1.25rem; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px;">${isPdf ? '📕' : '📎'}</span>`;
-        return `<span class="ringkas-doc" data-id="${fid}" data-url="${furl}" data-mime="${fmime}" data-thumb="${fthumb}" data-name="${fnm}" title="${fnm} — klik untuk preview" style="cursor:zoom-in; display:inline-block;">${inner}</span>`;
+        return `<button type="button" class="btn-file-view doc-btn-neat" data-id="${fid}" data-url="${furl}" data-mime="${fmime}" data-thumb="${fthumb}" data-name="${fnm}" title="${fnm} — klik untuk buka"><span class="doc-eye"><i class="fa-solid fa-eye"></i></span>Dokumen</button>`;
       }).join('') + '</span>';
     };
     const hasDocFiles = (v) => {
       if (Array.isArray(v)) return v.some(function(m) { return m && m.url; });
       return !!(v && v.url);
     };
+    const bankLogoFor = (nm) => {
+      const raw = String(nm || '').trim();
+      try {
+        if (typeof BANK_GENERIC_LOGO !== 'undefined' && !raw) return BANK_GENERIC_LOGO;
+        if (typeof BANK_LIST !== 'undefined' && Array.isArray(BANK_LIST) && raw) {
+          const up = raw.toUpperCase();
+          const found = BANK_LIST.find(function(x) { return x && x.name && (x.name.toUpperCase() === up || up.indexOf(x.name.toUpperCase()) !== -1 || x.name.toUpperCase().indexOf(up) !== -1); });
+          if (found && found.logo) return found.logo;
+        }
+        if (typeof bankLogoDataURI === 'function' && raw) return bankLogoDataURI(raw);
+      } catch (e) {}
+      try { return (typeof BANK_GENERIC_LOGO !== 'undefined' ? BANK_GENERIC_LOGO : ''); } catch (e2) { return ''; }
+    };
     let borangHtml = '';
+    let bjParsed = null;
     try {
       const bj = (i.borang_json && String(i.borang_json).trim() !== '') ? JSON.parse(i.borang_json) : null;
-      if (bj && typeof bj === 'object') {
-        // 1) Maklumat asas borang
+      bjParsed = (bj && typeof bj === 'object') ? bj : null;
+      if (bjParsed) {
+        const bjRef = bjParsed;
+        // 1) Maklumat asas borang (kekal, cuma kemas — tanpa SSM di sini kerana dipindah ke seksyen E-INFO SSM)
         const jenisMap = { baru: 'BARU', pembaharuan: 'PEMBAHARUAN', ubah_maklumat: 'UBAH MAKLUMAT', ubah_gred: 'UBAH GRED' };
-        const jenisAppVal = bj.jenisApp ? (jenisMap[String(bj.jenisApp).toLowerCase()] || String(bj.jenisApp).toUpperCase()) : '';
+        const jenisAppVal = bjRef.jenisApp ? (jenisMap[String(bjRef.jenisApp).toLowerCase()] || String(bjRef.jenisApp).toUpperCase()) : '';
         let asasInner = '';
         asasInner += bRow('JENIS PERMOHONAN (BORANG)', jenisAppVal ? escapeHtml(jenisAppVal) : '');
-        asasInner += bRow('TARIKH MOHON (BORANG)', hasBorangVal(bj.borang_tarikh_mohon) ? escapeHtml(fmtBorangDate(bj.borang_tarikh_mohon)) : '');
-        asasInner += bRow('TATATERTIB (BORANG)', hasBorangVal(bj.borang_tatatertib) ? escapeHtml(String(bj.borang_tatatertib).toUpperCase()) : '');
-        asasInner += bRow('NO. TELEFON', hasBorangVal(bj.borang_no_telefon) ? escapeHtml(String(bj.borang_no_telefon)) : '');
-        asasInner += bRow('TEMPOH SPKK', hasBorangVal(bj.spkkDuration) ? escapeHtml(String(bj.spkkDuration)) : '');
-        asasInner += bRow('TEMPOH STB', hasBorangVal(bj.stbDuration) ? escapeHtml(String(bj.stbDuration)) : '');
-        asasInner += bRow('TARIKH E-INFO SSM', hasBorangVal(bj.ssm_date_input) ? escapeHtml(fmtBorangDate(bj.ssm_date_input)) : '');
-        asasInner += bRow('STATUS SSM', (hasBorangVal(bj.ssm_status) || hasDocFiles(bj.ssm_file)) ? (hasBorangVal(bj.ssm_status) ? statusBadgeBorang(bj.ssm_status) : '') + docLinkSmall(bj.ssm_file) : '');
-        const ubahMak = bj.input_ubah_maklumat || bj.ubah_maklumat || '';
-        const ubahGred = bj.input_ubah_gred || bj.ubah_gred || '';
+        asasInner += bRow('TARIKH MOHON (BORANG)', hasBorangVal(bjRef.borang_tarikh_mohon) ? escapeHtml(fmtBorangDate(bjRef.borang_tarikh_mohon)) : '');
+        asasInner += bRow('TATATERTIB (BORANG)', hasBorangVal(bjRef.borang_tatatertib) ? escapeHtml(String(bjRef.borang_tatatertib).toUpperCase()) : '');
+        asasInner += bRow('NO. TELEFON', hasBorangVal(bjRef.borang_no_telefon) ? escapeHtml(String(bjRef.borang_no_telefon)) : '');
+        asasInner += bRow('TEMPOH SPKK', hasBorangVal(bjRef.spkkDuration) ? escapeHtml(String(bjRef.spkkDuration)) : '');
+        asasInner += bRow('TEMPOH STB', hasBorangVal(bjRef.stbDuration) ? escapeHtml(String(bjRef.stbDuration)) : '');
+        const ubahMak = bjRef.input_ubah_maklumat || bjRef.ubah_maklumat || '';
+        const ubahGred = bjRef.input_ubah_gred || bjRef.ubah_gred || '';
         if (String(jenisAppVal) === 'UBAH MAKLUMAT' && hasBorangVal(ubahMak)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
         else if (hasBorangVal(ubahMak) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
         if (String(jenisAppVal) === 'UBAH GRED' && hasBorangVal(ubahGred)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
         else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
-        const justBorang = bj.borang_justifikasi || bj.input_justifikasi || '';
+        const justBorang = bjRef.borang_justifikasi || bjRef.input_justifikasi || '';
         asasInner += bRow('JUSTIFIKASI (BORANG)', hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
         if (asasInner) {
           borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-lines fa-ico"></i>MAKLUMAT BORANG SEMAKAN</div><div class="view-grid">${asasInner}</div></div>`;
         }
 
-        // 2) Bank
-        let bankList = Array.isArray(bj.banks) ? bj.banks.slice() : [];
-        if (bankList.length === 0 && (hasBorangVal(bj.bank_date_input) || hasBorangVal(bj.bank_sign_input) || hasBorangVal(bj.bank_status_input))) {
-          bankList = [{ bank: '', account: '', bank_date: bj.bank_date_input || '', mode: ['CEK'], sign_syarat: bj.bank_sign_input || '', sign_status: bj.bank_status_input || '', online_maker: '', online_checker: '' }];
-        }
-        bankList = bankList.filter(function(b) {
-          if (!b || typeof b !== 'object') return false;
-          return hasBorangVal(b.bank) || hasBorangVal(b.account) || hasBorangVal(b.bank_date) || hasBorangVal(b.sign_syarat) || hasBorangVal(b.sign_status) || hasBorangVal(b.online_maker) || hasBorangVal(b.online_checker) || (Array.isArray(b.mode) && b.mode.length > 0 && hasBorangVal(b.mode.join(''))) || hasDocFiles(b.sign_file) || hasDocFiles(b.maker_file) || hasDocFiles(b.checker_file);
-        });
-        if (bankList.length > 0) {
-          let bankInner = '';
-          bankList.forEach(function(b, idx) {
-            const modeArr = Array.isArray(b.mode) ? b.mode : (hasBorangVal(b.mode) ? [String(b.mode)] : []);
-            const parts = [];
-            if (hasBorangVal(b.bank)) parts.push(escapeHtml(String(b.bank)));
-            if (hasBorangVal(b.account)) parts.push('Akaun: ' + escapeHtml(String(b.account)));
-            if (hasBorangVal(b.bank_date)) parts.push('Tarikh: ' + escapeHtml(fmtBorangDate(b.bank_date)));
-            if (modeArr.length > 0) parts.push('Mod: ' + escapeHtml(modeArr.join(' / ')));
-            if (hasBorangVal(b.sign_syarat)) parts.push('Syarat: ' + escapeHtml(String(b.sign_syarat)));
-            if (hasBorangVal(b.sign_status)) parts.push('Status: ' + escapeHtml(String(b.sign_status)));
-            if (hasBorangVal(b.online_maker)) parts.push('Maker: ' + escapeHtml(String(b.online_maker)));
-            if (hasBorangVal(b.online_checker)) parts.push('Checker: ' + escapeHtml(String(b.online_checker)));
-            let fileLinks = '';
-            fileLinks += docLinkSmall(b.sign_file);
-            fileLinks += docLinkSmall(b.maker_file);
-            fileLinks += docLinkSmall(b.checker_file);
-            if (parts.length > 0 || fileLinks) bankInner += `<div class="view-row full-width"><span class="view-label">BANK ${idx + 1}</span><span class="view-value">${parts.join(' &nbsp;|&nbsp; ')}${fileLinks}</span></div>`;
-          });
-          if (bankInner) borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-building-columns fa-ico"></i>SURAT PENGESAHAN BANK</div><div class="view-grid">${bankInner}</div></div>`;
+        // 1B) MAKLUMAT E-INFO SSM — kiri papar tarikh sahaja, kanan dokumen (kosong=Tidak Berkaitan)
+        {
+          const ssmHasFile = hasDocFiles(bjRef.ssm_file);
+          const ssmDateVal = hasBorangVal(bjRef.ssm_date_input)
+            ? `<span style="font-weight:700;">${escapeHtml(fmtBorangDate(bjRef.ssm_date_input))}</span>`
+            : tidakBerkaitanBadge;
+          const ssmDokVal = `${lengkapBadge(bjRef.ssm_status, ssmHasFile)}${docLinkSmall(bjRef.ssm_file)}`;
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-circle-nodes fa-ico"></i>MAKLUMAT E-INFO SSM</div><div class="view-grid"><div class="view-row"><span class="view-label">TARIKH SEMAKAN SSM</span><span class="view-value">${ssmDateVal}</span></div><div class="view-row"><span class="view-label">DOKUMEN E-INFO SSM</span><span class="view-value">${ssmDokVal}</span></div></div></div>`;
         }
 
-        // 3) Personel (termasuk Pengarah)
+        // 2) SURAT PENGESAHAN BANK — sentiasa papar (kemas), jangan sembunyi
+        {
+          let bankList = Array.isArray(bj.banks) ? bj.banks.slice() : [];
+          if (bankList.length === 0 && (hasBorangVal(bj.bank_date_input) || hasBorangVal(bj.bank_sign_input) || hasBorangVal(bj.bank_status_input))) {
+            bankList = [{ bank: '', account: '', bank_date: bj.bank_date_input || '', mode: ['CEK'], sign_syarat: bj.bank_sign_input || '', sign_status: bj.bank_status_input || '', online_maker: '', online_checker: '' }];
+          }
+          bankList = bankList.filter(function(b) {
+            if (!b || typeof b !== 'object') return false;
+            return hasBorangVal(b.bank) || hasBorangVal(b.account) || hasBorangVal(b.bank_date) || hasBorangVal(b.sign_syarat) || hasBorangVal(b.sign_status) || hasBorangVal(b.online_maker) || hasBorangVal(b.online_checker) || (Array.isArray(b.mode) && b.mode.length > 0 && hasBorangVal(b.mode.join(''))) || hasDocFiles(b.sign_file) || hasDocFiles(b.maker_file) || hasDocFiles(b.checker_file);
+          });
+          let bankInner = '';
+          if (bankList.length === 0) {
+            bankInner = `<div class="view-row full-width"><span class="view-label">STATUS</span><span class="view-value" style="color:#94a3b8;">Tiada maklumat bank direkodkan</span></div>`;
+          } else {
+            bankList.forEach(function(b, idx) {
+              const modeArr = Array.isArray(b.mode) ? b.mode : (hasBorangVal(b.mode) ? [String(b.mode)] : []);
+              const logoSrc = bankLogoFor(b.bank);
+              const logoImg = logoSrc ? `<img src="${escapeHtml(logoSrc)}" alt="" loading="lazy" onerror="this.style.display='none'" style="width:30px;height:30px;object-fit:contain;border-radius:7px;background:#fff;border:1px solid #e2e8f0;padding:2px;flex-shrink:0;">` : '';
+              const bankName = hasBorangVal(b.bank) ? `<strong style="font-size:0.95rem;">${escapeHtml(String(b.bank))}</strong>` : `<span style="color:#94a3b8;">Bank ${idx + 1}</span>`;
+              const bankLabel = `<span style="display:flex;align-items:center;gap:8px;">${logoImg}${bankName}</span>`;
+              const chips = [];
+              if (hasBorangVal(b.account)) chips.push(`<span style="font-size:0.75rem;color:#475569;">Akaun: <strong>${escapeHtml(String(b.account))}</strong></span>`);
+              if (hasBorangVal(b.bank_date)) chips.push(`<span style="font-size:0.75rem;color:#475569;">Tarikh: <strong>${escapeHtml(fmtBorangDate(b.bank_date))}</strong></span>`);
+              if (modeArr.length > 0) chips.push(modeArr.map(function(m){ return `<span class="status-badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">${escapeHtml(String(m))}</span>`; }).join(' '));
+              if (hasBorangVal(b.sign_syarat)) chips.push(`<span style="font-size:0.75rem;color:#475569;">Syarat: ${escapeHtml(String(b.sign_syarat))}</span>`);
+              chips.push(`${miniLabel('Status')} ${lengkapBadge(b.sign_status, hasDocFiles(b.sign_file))}`);
+              chips.push(`${miniLabel('Maker')} ${lengkapBadge(b.online_maker, hasDocFiles(b.maker_file))}`);
+              chips.push(`${miniLabel('Checker')} ${lengkapBadge(b.online_checker, hasDocFiles(b.checker_file))}`);
+              let fileLinks = '';
+              fileLinks += docLinkSmall(b.sign_file);
+              fileLinks += docLinkSmall(b.maker_file);
+              fileLinks += docLinkSmall(b.checker_file);
+              bankInner += `<div class="view-row full-width person-neat"><span class="view-label">${bankLabel}</span><span class="view-value"><span style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${chips.join(' ')}${fileLinks}</span></span></div>`;
+            });
+          }
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-building-columns fa-ico"></i>SURAT PENGESAHAN BANK</div><div class="view-grid">${bankInner}</div></div>`;
+        }
+
+        // 3) PENGARAH, PEMEGANG SAHAM & PERSONEL — paparan kemas ikut contoh (nama sebagai label + badge peranan + badge IC/SB/EPF)
         const plist = Array.isArray(bj.personnel) ? bj.personnel : [];
         const plistShown = plist.filter(function(p) {
           if (!p || typeof p !== 'object') return false;
@@ -14479,18 +14565,23 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           let rows = '';
           plistShown.forEach(function(p) {
             const nm = hasBorangVal(p.name) ? escapeHtml(String(p.name).toUpperCase()) : '-';
-            const roles = Array.isArray(p.roles) && p.roles.length > 0 ? escapeHtml(p.roles.join(', ')) : '-';
-            const isPengarah = Array.isArray(p.roles) && p.roles.some(function(r) { return String(r).toUpperCase().indexOf('PENGARAH') !== -1; });
-            const ic = hasBorangVal(p.s_ic) ? statusBadgeBorang(p.s_ic) : '-';
-            const sb = hasBorangVal(p.s_sb) ? statusBadgeBorang(p.s_sb) : '-';
-            const epf = hasBorangVal(p.s_epf) ? statusBadgeBorang(p.s_epf) : '-';
+            const rolesArr = Array.isArray(p.roles) ? p.roles.filter(function(r){ return hasBorangVal(r); }) : [];
+            const rolesBadges = rolesArr.length > 0 ? rolesArr.map(roleBadge).join(' ') : `<span style="color:#94a3b8;">-</span>`;
+            const statHideTB = (label, val, file) => {
+              if (isTidakBerkaitanVal(val) && !hasDocFiles(file)) return '';
+              return `${miniLabel(label)} ${lengkapBadge(val, hasDocFiles(file))}`;
+            };
+            const icPart = statHideTB('IC', p.s_ic, p.ic_file);
+            const sbPart = statHideTB('SB', p.s_sb, p.sb_file);
+            const epfPart = statHideTB('EPF', p.s_epf, p.epf_file);
             let extra = '';
             if (p.isCompany) {
               const cd = hasBorangVal(p.c_date) ? escapeHtml(fmtBorangDate(p.c_date)) : '-';
-              const cs = hasBorangVal(p.c_status) ? statusBadgeBorang(p.c_status) : '-';
-              extra = ` <span style="font-size:0.72rem; color:#64748b;">(Syarikat: ${cd} / ${cs})</span>`;
+              const csHide = (isTidakBerkaitanVal(p.c_status) && !hasDocFiles(p.comp_file)) ? '' : lengkapBadge(p.c_status, hasDocFiles(p.comp_file));
+              extra = ` <span style="font-size:0.72rem; color:#64748b;">(Syarikat: ${cd} ${csHide})</span>`;
             } else if (hasBorangVal(p.c_date) || hasBorangVal(p.c_status)) {
-              extra = ` <span style="font-size:0.72rem; color:#64748b;">(${escapeHtml(fmtBorangDate(p.c_date) || '-')} / ${hasBorangVal(p.c_status) ? statusBadgeBorang(p.c_status) : '-'})</span>`;
+              const csHide2 = (isTidakBerkaitanVal(p.c_status)) ? '' : lengkapBadge(p.c_status, false);
+              extra = ` <span style="font-size:0.72rem; color:#64748b;">(${escapeHtml(fmtBorangDate(p.c_date) || '-')} ${csHide2})</span>`;
             }
             let pFiles = '';
             pFiles += docLinkSmall(p.ic_file);
@@ -14498,40 +14589,92 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             pFiles += docLinkSmall(p.epf_file);
             pFiles += docLinkSmall(p.comp_file);
             const baruTag = p.baruTambah ? ' <span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b; font-size:0.65rem;">BARU TAMBAH</span>' : '';
-            const hl = isPengarah ? ' style="border-left:3px solid #2563eb; padding-left:8px;"' : '';
-            rows += `<div class="view-row full-width"${hl}><span class="view-label">${isPengarah ? 'PENGARAH' : 'PERSONEL'}${baruTag}</span><span class="view-value"><strong>${nm}</strong> — ${roles} &nbsp;|&nbsp; IC: ${ic} &nbsp; SB: ${sb} &nbsp; EPF: ${epf}${extra}${pFiles}</span></div>`;
+            rows += `<div class="view-row full-width person-neat"><span class="view-label" style="font-size:0.95rem;font-weight:800;color:#0f172a;letter-spacing:0.2px;">${nm}${baruTag}</span><span class="view-value"><span style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${rolesBadges}${icPart}${sbPart}${epfPart}${extra}${pFiles}</span></span></div>`;
           });
-          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-users fa-ico"></i>MAKLUMAT PERSONEL & PENGARAH</div><div class="view-grid">${rows}</div></div>`;
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-users fa-ico"></i>PENGARAH, PEMEGANG SAHAM &amp; PERSONEL</div><div class="view-grid person-grid">${rows}</div></div>`;
         }
 
-        // 4) Dokumen & KWSP
-        let dokInner = '';
-        const dokMap = [['CARTA', bj.doc_carta_status, bj.doc_carta_file], ['PETA', bj.doc_peta_status, bj.doc_peta_file], ['GAMBAR', bj.doc_gambar_status, bj.doc_gambar_file], ['SEWA', bj.doc_sewa_status, bj.doc_sewa_file]];
-        dokMap.forEach(function(tri) {
-          if (hasBorangVal(tri[1]) || hasDocFiles(tri[2])) dokInner += `<div class="view-row"><span class="view-label">${tri[0]}</span><span class="view-value">${hasBorangVal(tri[1]) ? statusBadgeBorang(tri[1]) : ''}${docLinkSmall(tri[2])}</span></div>`;
-        });
-        const kwspFiles = [bj.kwsp_1_file, bj.kwsp_2_file, bj.kwsp_3_file];
-        for (let k = 1; k <= 3; k++) {
-          const dd = bj['kwsp_date_' + k];
-          const ss = bj['kwsp_s' + k];
-          const ff = kwspFiles[k - 1];
-          if (hasBorangVal(dd) || hasBorangVal(ss) || hasDocFiles(ff)) {
-            const dl = hasBorangVal(dd) ? escapeHtml(fmtBorangDate(dd)) : '-';
-            const sl = hasBorangVal(ss) ? statusBadgeBorang(ss) : '-';
-            dokInner += `<div class="view-row"><span class="view-label">KWSP BULAN ${k}</span><span class="view-value">${dl} — ${sl}${docLinkSmall(ff)}</span></div>`;
+        // 4) STATUS DOKUMEN SOKONGAN — sentiasa papar semua 7 baris ikut contoh (kemas 2 kolum)
+        {
+          const dokMapNeat = [
+            ['CARTA ORGANISASI', bj.doc_carta_status, bj.doc_carta_file],
+            ['PETA LAKARAN PREMIS', bj.doc_peta_status, bj.doc_peta_file],
+            ['GAMBAR PREMIS', bj.doc_gambar_status, bj.doc_gambar_file],
+            ['DOKUMEN PEMILIKAN (SEWA / HAK MILIK)', bj.doc_sewa_status, bj.doc_sewa_file]
+          ];
+          let dokInner = '';
+          dokMapNeat.forEach(function(tri) {
+            const hasF = hasDocFiles(tri[2]);
+            dokInner += `<div class="view-row"><span class="view-label">${tri[0]}</span><span class="view-value"><span style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${lengkapBadge(tri[1], hasF)}${docLinkSmall(tri[2])}</span></span></div>`;
+          });
+          const kwspFiles = [bj.kwsp_1_file, bj.kwsp_2_file, bj.kwsp_3_file];
+          for (let k = 1; k <= 3; k++) {
+            const ss = bj['kwsp_s' + k];
+            const ff = kwspFiles[k - 1];
+            const dd = bj['kwsp_date_' + k];
+            const hasF = hasDocFiles(ff);
+            const dateTxt = hasBorangVal(dd) ? `<span style="font-size:0.8rem;color:#475569;font-weight:700;">${escapeHtml(fmtBorangDate(dd))}</span>` : '';
+            dokInner += `<div class="view-row"><span class="view-label" style="font-size:0.85rem;">KWSP BULAN ${k}</span><span class="view-value"><span style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${lengkapBadge(ss, hasF)}${dateTxt}${docLinkSmall(ff)}</span></span></div>`;
           }
+          borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-circle-check fa-ico"></i>STATUS DOKUMEN SOKONGAN</div><div class="view-grid">${dokInner}</div></div>`;
         }
-        if (dokInner) borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-folder fa-ico"></i>DOKUMEN & KWSP (BORANG)</div><div class="view-grid">${dokInner}</div></div>`;
       }
     } catch (e) { borangHtml = ''; }
 
-    // --- MAKLUMAT LAWATAN: sembunyi baris kosong, sembunyi seksyen jika semua kosong ---
-    let lawatanInner = '';
-    if (hasBorangVal(i.lawatan_tarikh)) lawatanInner += `<div class="view-row"><span class="view-label">TARIKH LAWATAN</span><span class="view-value">${formatDate(i.lawatan_tarikh)}</span></div>`;
-    if (hasBorangVal(i.lawatan_submit_sptb)) lawatanInner += `<div class="view-row"><span class="view-label">DATE SUBMIT TO SPTB</span><span class="view-value">${formatDate(i.lawatan_submit_sptb)}</span></div>`;
-    if (hasBorangVal(i.lawatan_syor)) lawatanInner += `<div class="view-row"><span class="view-label">SYOR LAWATAN</span><span class="view-value">${safe(i.lawatan_syor)}</span></div>`;
-    if (hasBorangVal(i.ulasan_spi)) lawatanInner += `<div class="view-row full-width"><span class="view-label">ULASAN SPI</span><span class="view-value">${safe(i.ulasan_spi)}</span></div>`;
-    const lawatanHtml = lawatanInner ? `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-helmet-safety fa-ico"></i>MAKLUMAT LAWATAN & PEMATUHAN</div><div class="view-grid">${lawatanInner}</div></div>` : '';
+    // --- MAKLUMAT LAWATAN & PEMATUHAN — hanya papar jika ada maklumat lawatan sahaja ---
+    // Link dokumen: 1) laporan_spi_url dalam borang_json, 2) auto-kesan fail LAPORAN*/LAWATAN* dalam folder Drive (cth LAPORAN AG SNERGY SDN BHD.pdf dimuat naik PKA via Urus Fail)
+    let lawatanHtml = '';
+    {
+      let laporanUrl = '';
+      let laporanLabel = '';
+      try {
+        const bjL = bjParsed || ((i.borang_json && String(i.borang_json).trim() !== '') ? JSON.parse(i.borang_json) : null);
+        if (bjL && typeof bjL === 'object') {
+          const cand = bjL.laporan_spi_url || bjL.laporan_lawatan_url || bjL.lawatan_laporan_url || bjL.lawatan_file || bjL.laporan_file || '';
+          if (typeof cand === 'string' && cand.trim() !== '') { laporanUrl = cand.trim(); }
+          else if (cand && typeof cand === 'object' && cand.url) { laporanUrl = String(cand.url).trim(); laporanLabel = cand.name || ''; }
+          else if (Array.isArray(cand)) {
+            const first = cand.find(function(m){ return m && m.url; });
+            if (first) { laporanUrl = String(first.url).trim(); laporanLabel = first.name || ''; }
+          }
+          if (!laporanUrl && bjL.laporan_spi_file) {
+            const lf = bjL.laporan_spi_file;
+            if (typeof lf === 'string' && lf.trim() !== '') laporanUrl = lf.trim();
+            else if (lf && lf.url) { laporanUrl = String(lf.url).trim(); laporanLabel = lf.name || ''; }
+            else if (Array.isArray(lf)) { const f2 = lf.find(function(m){ return m && m.url; }); if (f2) { laporanUrl = String(f2.url).trim(); laporanLabel = f2.name || ''; } }
+          }
+        }
+      } catch(e) {}
+      const hasLawatanFields = hasBorangVal(i.date_submit) || hasBorangVal(i.lawatan_tarikh) || hasBorangVal(i.lawatan_submit_sptb) || hasBorangVal(i.lawatan_syor) || hasBorangVal(i.ulasan_spi);
+      let lawatanFolderId = '';
+      try { lawatanFolderId = (typeof extractFolderIdFromUrl === 'function' ? extractFolderIdFromUrl(i.pautan) : '') || ''; } catch(e) { lawatanFolderId = ''; }
+      const hasLawatanData = hasLawatanFields || laporanUrl !== '' || lawatanFolderId !== '';
+      if (hasLawatanData) {
+        let lawatanInner = '';
+        if (hasBorangVal(i.date_submit)) lawatanInner += `<div class="view-row"><span class="view-label">BILA SPI TERIMA</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.date_submit))}</span></div>`;
+        if (hasBorangVal(i.lawatan_tarikh)) lawatanInner += `<div class="view-row"><span class="view-label">BILA SPI SIASAT SYARIKAT</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.lawatan_tarikh))}</span></div>`;
+        if (hasBorangVal(i.lawatan_submit_sptb)) lawatanInner += `<div class="view-row"><span class="view-label">BILA LAPORAN DISAHKAN</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.lawatan_submit_sptb))}</span></div>`;
+        if (hasBorangVal(i.lawatan_syor)) {
+          const sUp = String(i.lawatan_syor).toUpperCase();
+          let syorBadge = '';
+          if (sUp.includes('TIDAK')) syorBadge = `<span class="status-badge bg-red">${escapeHtml(String(i.lawatan_syor).trim())}</span>`;
+          else if (sUp.includes('SOKONG')) syorBadge = `<span class="status-badge bg-green">${escapeHtml(String(i.lawatan_syor).trim())}</span>`;
+          else syorBadge = `<span class="status-badge bg-blue">${escapeHtml(String(i.lawatan_syor).trim())}</span>`;
+          lawatanInner += `<div class="view-row"><span class="view-label">SYOR SPI</span><span class="view-value">${syorBadge}</span></div>`;
+        }
+        if (hasBorangVal(i.ulasan_spi)) lawatanInner += `<div class="view-row full-width"><span class="view-label">ULASAN SPI</span><span class="view-value">${escapeHtml(String(i.ulasan_spi))}</span></div>`;
+        if (laporanUrl) {
+          const safeUrl = escapeHtml(laporanUrl);
+          const titleTxt = laporanLabel ? escapeHtml(String(laporanLabel)) : 'Buka Laporan';
+          lawatanInner += `<div class="view-row full-width" style="text-align:center;align-items:center;"><span style="display:flex;flex-direction:column;align-items:center;gap:8px;"><span style="font-size:0.72rem;color:#64748b;font-weight:700;">LAPORAN LAWATAN PREMIS — STATUS DISAHKAN</span><a href="${safeUrl}" target="_blank" rel="noopener" class="lawatan-report-btn"><i class="fa-solid fa-eye"></i>${titleTxt}</a></span></div>`;
+        } else if (lawatanFolderId) {
+          lawatanInner += `<div class="view-row full-width" style="text-align:center;align-items:center;"><span style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;"><span style="font-size:0.72rem;color:#64748b;font-weight:700;">LAPORAN LAWATAN PREMIS</span><span id="lawatanLaporanBox" data-folder="${escapeHtml(lawatanFolderId)}" data-hasfields="${hasLawatanFields ? '1' : '0'}" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;"><span style="color:#64748b;font-size:0.8rem;"><i class="fa-solid fa-circle-notch fa-spin"></i> Menyemak dokumen lawatan di Drive...</span></span></span></div>`;
+        } else {
+          lawatanInner += `<div class="view-row full-width" style="text-align:center;align-items:center;"><span style="display:flex;flex-direction:column;align-items:center;gap:8px;"><span style="font-size:0.72rem;color:#64748b;font-weight:700;">LAPORAN LAWATAN PREMIS</span><span style="color:#94a3b8;font-size:0.85rem;">Tiada dokumen dimuat naik oleh PKA</span></span></div>`;
+        }
+        lawatanHtml = `<div class="view-section" id="lawatanSection"><div class="view-section-header"><i class="fa-solid fa-helmet-safety fa-ico"></i>MAKLUMAT LAWATAN &amp; PEMATUHAN</div><div class="view-grid">${lawatanInner}</div></div>`;
+      }
+    }
 
     c.innerHTML = `
       <div class="view-container">
@@ -14640,6 +14783,52 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                 processLihatBorangPreview(pelulusActiveItem);
             };
         }
+
+        // Auto-kesan fail laporan lawatan dalam folder Drive (cth LAPORAN AG SNERGY SDN BHD.pdf oleh PKA via Urus Fail)
+        try {
+          const lawBox = document.getElementById('lawatanLaporanBox');
+          if (lawBox) {
+            const fidLaw = lawBox.getAttribute('data-folder') || '';
+            const hasFieldsLaw = lawBox.getAttribute('data-hasfields') === '1';
+            const pautanLaw = (pelulusActiveItem && pelulusActiveItem.pautan) ? pelulusActiveItem.pautan : '';
+            if (!fidLaw) {
+              if (hasFieldsLaw) lawBox.innerHTML = `<span style="color:#94a3b8;font-size:0.85rem;">Tiada dokumen dimuat naik oleh PKA</span>`;
+              else document.getElementById('lawatanSection')?.remove();
+            } else {
+              fetchWithRetry(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'listDriveFiles', folderId: fidLaw, email: currentUser ? currentUser.email : '' })
+              }, 2, 1000).then(function(resp) { return resp.json(); }).then(function(res) {
+                const box = document.getElementById('lawatanLaporanBox');
+                if (!box) return;
+                const files = (res && res.success && Array.isArray(res.files)) ? res.files : [];
+                const laporanFiles = files.filter(function(f) { return f && !f.isFolder && f.name && /laporan|lawatan|spi|siasat|sptb/i.test(f.name); });
+                if (laporanFiles.length > 0) {
+                  box.innerHTML = `<span style="font-size:0.72rem;color:#64748b;font-weight:700;">LAPORAN LAWATAN PREMIS — STATUS DISAHKAN</span>` + laporanFiles.map(function(f) {
+                    const nm = escapeHtml(f.name || 'Laporan');
+                    const furl = escapeHtml(f.webViewLink || '');
+                    const fmid = escapeHtml(f.id || '');
+                    const fmime = escapeHtml(f.mimeType || '');
+                    const fthumb = escapeHtml(f.thumbnailLink || '');
+                    const sz = f.size ? ` <span style="font-weight:400;color:#64748b;">(${escapeHtml(formatFileSize(f.size))})</span>` : '';
+                    const owner = f.uploadedByName ? ` <span style="font-weight:400;color:#64748b;">— ${escapeHtml(f.uploadedByName)}</span>` : '';
+                    return `<span style="display:flex;flex-direction:column;align-items:center;gap:4px;"><span style="font-size:0.78rem;color:#0f172a;font-weight:600;">${nm}${sz}${owner}</span><button type="button" class="btn-file-view lawatan-report-btn" data-url="${furl}" data-id="${fmid}" data-mime="${fmime}" data-name="${nm}" data-thumb="${fthumb}"><i class="fa-solid fa-eye"></i>Buka Laporan</button></span>`;
+                  }).join('');
+                } else if (hasFieldsLaw) {
+                  box.innerHTML = `<span style="color:#94a3b8;font-size:0.85rem;">Tiada dokumen dimuat naik oleh PKA</span><button type="button" class="btn-file-mgr doc-btn-neat" data-pautan="${escapeHtml(pautanLaw)}" style="margin-top:4px;"><span class="doc-eye"><i class="fa-solid fa-folder-open"></i></span>Buka Folder Drive</button>`;
+                } else {
+                  document.getElementById('lawatanSection')?.remove();
+                }
+              }).catch(function() {
+                const box2 = document.getElementById('lawatanLaporanBox');
+                if (!box2) return;
+                if (hasFieldsLaw) box2.innerHTML = `<span style="color:#94a3b8;font-size:0.85rem;">Tiada dokumen dimuat naik oleh PKA</span><button type="button" class="btn-file-mgr doc-btn-neat" data-pautan="${escapeHtml(pautanLaw)}" style="margin-top:4px;"><span class="doc-eye"><i class="fa-solid fa-folder-open"></i></span>Buka Folder Drive</button>`;
+                else document.getElementById('lawatanSection')?.remove();
+              });
+            }
+          }
+        } catch (e) {}
         
         // Load map automatically
         const mapContainer = document.getElementById('mapViewContainer');
