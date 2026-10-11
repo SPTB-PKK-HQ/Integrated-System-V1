@@ -1845,7 +1845,9 @@
         #login-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            /* Biru navy solid — selaras dengan kad login */
+            background: #0c2560;
+            background-color: #0c2560;
             z-index: 2000;
             display: flex;
             justify-content: center;
@@ -1856,12 +1858,12 @@
 
         .landing-wrapper {
             width: 100%;
-            max-width: 900px;
+            max-width: 1240px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 20px clamp(12px, 3vw, 32px);
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 18px;
             animation: fadeInUp 0.8s ease-out;
         }
 
@@ -1870,121 +1872,264 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* HERO */
-        .landing-hero {
-            position: relative;
-            background: linear-gradient(135deg, color-mix(in srgb, var(--theme-color) 60%, #0f172a) 0%, var(--theme-color) 50%, color-mix(in srgb, var(--theme-color) 80%, black) 100%);
-            border-radius: 24px;
-            padding: 40px 30px;
-            overflow: hidden;
-            box-shadow: 0 25px 60px rgba(37, 99, 235, 0.3);
+        /* BAR ATAS — kaca biru navy */
+        .login-topbar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: linear-gradient(135deg, rgba(11,30,75,0.72), rgba(29,78,216,0.55));
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,0.28);
+            border-radius: 20px;
+            padding: 14px 22px;
+            box-shadow: 0 18px 45px rgba(2,8,30,0.45);
+        }
+        .topbar-logo {
+            width: 64px;
+            height: auto;
+            flex-shrink: 0;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+        }
+        .topbar-text { flex: 1; min-width: 0; }
+        .topbar-title {
+            color: #ffffff;
+            font-size: 1.45rem;
+            font-weight: 900;
+            margin: 0 0 4px 0;
+            letter-spacing: 1.5px;
+            text-shadow: 0 2px 12px rgba(0,0,0,0.55);
+            line-height: 1.2;
+        }
+        .topbar-subtitle {
+            color: rgba(255,255,255,0.92);
+            font-size: 0.86rem;
+            margin: 0;
+            font-weight: 500;
+            text-shadow: 0 1px 8px rgba(0,0,0,0.55);
+            line-height: 1.45;
         }
 
-        .hero-bg-shapes {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            overflow: hidden;
+        /* GRID DUA KOLUM */
+        .login-grid {
+            display: grid;
+            grid-template-columns: 1.18fr 0.82fr;
+            gap: 18px;
+            align-items: stretch;
         }
 
-        .shape {
-            position: absolute;
+        /* KIRI — kad pengumuman kaca putih */
+        .announce-card {
+            background: rgba(240,246,255,0.94);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.85);
+            border-radius: 22px;
+            padding: 20px 22px 16px 22px;
+            box-shadow: 0 22px 55px rgba(2,8,30,0.40);
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .announce-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .announce-head-left { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+        .announce-icon {
+            width: 46px; height: 46px;
+            flex-shrink: 0;
             border-radius: 50%;
-            opacity: 0.1;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1d4ed8, #0b1e4b);
+            color: #fff;
+            font-size: 1.2rem;
+            box-shadow: 0 6px 16px rgba(29,78,216,0.45);
         }
-        .shape-1 {
-            width: 300px; height: 300px;
-            background: #60a5fa;
-            top: -100px; right: -80px;
-            animation: float 6s ease-in-out infinite;
+        .announce-title { color: #0b1e4b; font-size: 1.25rem; font-weight: 900; margin: 0 0 2px 0; }
+        .announce-subtitle { color: #475569; font-size: 0.82rem; margin: 0; }
+        .announce-controls { display: flex; align-items: center; gap: 8px; }
+        .carousel-btn {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e3a8a;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
         }
-        .shape-2 {
-            width: 200px; height: 200px;
-            background: #93c5fd;
-            bottom: -50px; left: -50px;
-            animation: float 8s ease-in-out infinite reverse;
+        .carousel-btn:hover { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+        .carousel-btn:focus-visible, .carousel-side:focus-visible, .carousel-dots button:focus-visible {
+            outline: 3px solid #93c5fd; outline-offset: 2px;
         }
-        .shape-3 {
-            width: 150px; height: 150px;
-            background: #bfdbfe;
-            top: 50%; left: 30%;
-            animation: float 5s ease-in-out infinite 2s;
+        .carousel-dots { display: flex; align-items: center; gap: 7px; }
+        .carousel-dots button {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            border: none;
+            background: #cbd5e1;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.25s ease;
         }
+        .carousel-dots button.is-active { background: #1d4ed8; transform: scale(1.35); box-shadow: 0 0 0 4px rgba(29,78,216,0.18); }
 
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(5deg); }
-        }
-
-        .hero-content {
+        /* Viewport carousel — transisi Fade + Zoom, nisbah dikekalkan, tiada crop */
+        .carousel-viewport {
             position: relative;
-            z-index: 2;
+            overflow: hidden;
+            border-radius: 16px;
+            background: #dbe7fb;
+            border: 1px solid rgba(30,58,138,0.15);
+        }
+        .carousel-track { position: relative; aspect-ratio: 3 / 2; max-height: 430px; }
+        .carousel-slide {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: #dbe7fb;
+            opacity: 0; visibility: hidden;
+            will-change: transform, opacity;
+        }
+        .carousel-slide.is-active { opacity: 1; visibility: visible; }
+        .carousel-slide img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            background: #dbe7fb;
+            user-select: none;
+            transform-origin: center;
+        }
+        /* Kesan Ken Burns: poster aktif zoom perlahan */
+        .carousel-slide.is-active img { animation: kbZoom 7s ease-out forwards; }
+        @keyframes kbZoom {
+            from { transform: scale(1); }
+            to { transform: scale(1.07); }
+        }
+        .carousel-side {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.5);
+            background: rgba(11,30,75,0.78);
+            backdrop-filter: blur(6px);
+            color: #fff;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            z-index: 3;
+        }
+        .carousel-side:hover { background: #1d4ed8; transform: translateY(-50%) scale(1.08); }
+        .carousel-side.prev { left: 12px; }
+        .carousel-side.next { right: 12px; }
+        /* KANAN — panel login kaca biru */
+        .login-panel {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(165deg, rgba(37,99,235,0.88) 0%, rgba(11,30,75,0.94) 78%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.30);
+            border-radius: 22px;
+            padding: 30px 26px;
+            box-shadow: 0 22px 55px rgba(2,8,30,0.50);
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-width: 0;
         }
-
-        .hero-logo {
-            width: 80px;
+        .login-panel::before {
+            content: '';
+            position: absolute;
+            width: 340px; height: 340px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(147,197,253,0.35) 0%, transparent 70%);
+            top: -120px; right: -120px;
+            pointer-events: none;
+        }
+        .login-panel-logo {
+            width: 72px;
             margin-bottom: 10px;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+            position: relative;
+        }
+        .login-panel-title {
+            color: white;
+            font-size: 1.7rem;
+            font-weight: 900;
+            margin: 12px 0 8px 0;
+            text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+            letter-spacing: 1.5px;
+            line-height: 1.25;
+            position: relative;
+        }
+        .login-panel-subtitle {
+            color: rgba(255,255,255,0.92);
+            font-size: 0.85rem;
+            margin: 0 0 6px 0;
+            font-weight: 500;
+            text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+            line-height: 1.5;
+            position: relative;
         }
 
         .hero-badge {
             display: inline-block;
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.22);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.35);
             color: white;
             padding: 4px 16px;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 700;
             letter-spacing: 1px;
-            margin-bottom: 12px;
+            text-shadow: 0 1px 6px rgba(0,0,0,0.4);
         }
-
-        .hero-title {
-            color: white;
-            font-size: 2.2rem;
-            font-weight: 900;
-            margin: 0 0 8px 0;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            letter-spacing: 2px;
-            line-height: 1.2;
-        }
-
-        .hero-subtitle {
-            color: rgba(255,255,255,0.8);
-            font-size: 0.95rem;
-            margin: 0 0 20px 0;
-            font-weight: 500;
-        }
+        .login-topbar .hero-badge { margin-left: auto; flex-shrink: 0; }
 
         .hero-divider {
             width: 80px;
             height: 3px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+            background: linear-gradient(90deg, transparent, #fbbf24, transparent);
             border-radius: 2px;
-            margin-bottom: 20px;
+            margin: 0 auto 18px auto;
+            position: relative;
         }
 
-        .login-section {
-            background: rgba(255,255,255,0.1);
+        .login-box {
+            background: rgba(255,255,255,0.08);
             backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.22);
             border-radius: 16px;
-            padding: 20px 30px;
+            padding: 22px 22px;
             width: 100%;
-            max-width: 380px;
+            position: relative;
+        }
+
+        .login-welcome {
+            color: #ffffff;
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0 0 4px 0;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.45);
         }
 
         .login-prompt {
-            color: rgba(255,255,255,0.9);
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin: 0 0 15px 0;
+            color: rgba(255,255,255,0.88);
+            font-size: 0.88rem;
+            font-weight: 500;
+            margin: 0 0 16px 0;
         }
 
         .google-btn-wrapper {
@@ -1992,62 +2137,111 @@
             justify-content: center;
             align-items: center;
         }
+        .google-btn-wrapper > div { max-width: 100%; }
+
+        .login-or {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.8rem;
+            margin: 16px 0 12px 0;
+        }
+        .login-or::before, .login-or::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.25);
+        }
+        .login-note {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.22);
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: rgba(255,255,255,0.85);
+            font-size: 0.76rem;
+        }
 
         .auth-error {
-            color: #fca5a5;
+            color: #fecaca;
             font-weight: 600;
             font-size: 0.85rem;
             margin-top: 10px;
             display: none;
-            background: rgba(239,68,68,0.15);
+            background: rgba(239,68,68,0.18);
             padding: 10px;
             border-radius: 8px;
-            border: 1px solid rgba(239,68,68,0.3);
+            border: 1px solid rgba(239,68,68,0.4);
         }
 
-        /* FEATURE CARDS */
+        /* FEATURE CARDS — kaca biru navy */
         .landing-features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
         }
 
         .feature-card {
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: linear-gradient(135deg, rgba(11,30,75,0.78), rgba(29,78,216,0.62));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.25);
             border-radius: 16px;
-            padding: 20px;
-            text-align: center;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             transition: all 0.3s ease;
             cursor: default;
+            box-shadow: 0 12px 30px rgba(2,8,30,0.35);
         }
 
         .feature-card:hover {
             transform: translateY(-5px);
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.2);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-color: rgba(255,255,255,0.45);
+            box-shadow: 0 18px 40px rgba(2,8,30,0.5);
         }
 
         .feature-icon {
-            font-size: 2.2rem;
-            margin-bottom: 10px;
-            color: #bfdbfe;
-            filter: drop-shadow(0 2px 6px rgba(59,130,246,0.35));
+            width: 52px; height: 52px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            color: #ffffff;
+            background: linear-gradient(135deg, #3b82f6, #1e3a8a);
+            border: 1px solid rgba(255,255,255,0.35);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.35);
         }
+        .feature-icon-wa { background: linear-gradient(135deg, #22c55e, #15803d); }
+        .feature-icon-drive { background: linear-gradient(135deg, #fbbf24, #b45309); }
 
+        .feature-text { flex: 1; min-width: 0; text-align: left; }
         .feature-title {
-            color: #e2e8f0;
+            color: #ffffff;
             font-weight: 800;
-            font-size: 1rem;
-            margin-bottom: 6px;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
+            text-shadow: 0 1px 6px rgba(0,0,0,0.4);
         }
 
         .feature-desc {
-            color: #94a3b8;
-            font-size: 0.8rem;
-            line-height: 1.4;
+            color: rgba(255,255,255,0.78);
+            font-size: 0.74rem;
+            line-height: 1.45;
+        }
+        .feature-arrow {
+            width: 28px; height: 28px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.4);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem;
         }
 
         @keyframes fadeIn {
@@ -2058,25 +2252,46 @@
         /* FOOTER */
         .landing-footer {
             text-align: center;
-            padding: 10px;
+            padding: 12px 10px 4px 10px;
         }
         .landing-footer p {
-            color: #475569;
-            font-size: 0.8rem;
+            color: rgba(255,255,255,0.75);
+            font-size: 0.78rem;
             margin: 0;
+            text-shadow: 0 1px 6px rgba(0,0,0,0.5);
         }
 
-        /* MOBILE RESPONSIVE */
+        /* RESPONSIF */
+        @media (max-width: 1024px) {
+            .login-grid { grid-template-columns: 1fr 1fr; }
+            .landing-features { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 860px) {
+            .login-grid { grid-template-columns: 1fr; }
+            .login-panel { order: -1; }
+            .carousel-track { max-height: 340px; }
+            .topbar-title { font-size: 1.15rem; }
+        }
         @media (max-width: 768px) {
-            .hero-title { font-size: 1.5rem; }
-            .landing-features { grid-template-columns: 1fr 1fr; }
-            .landing-hero { padding: 25px 20px; }
-            .login-section { padding: 15px 20px; }
+            .login-panel-title { font-size: 1.4rem; }
+            .login-panel { padding: 24px 18px; }
+            .announce-card { padding: 16px 14px 12px 14px; }
         }
         @media (max-width: 480px) {
             .landing-features { grid-template-columns: 1fr; }
-            .hero-title { font-size: 1.3rem; }
-            .hero-logo { width: 60px; }
+            .login-panel-title { font-size: 1.25rem; }
+            .topbar-logo { width: 48px; }
+            .topbar-subtitle { font-size: 0.76rem; }
+            .login-topbar { padding: 12px 14px; gap: 10px; }
+            .login-topbar .hero-badge { padding: 3px 10px; font-size: 0.7rem; }
+            .carousel-side { width: 36px; height: 36px; }
+            .carousel-track { max-height: 260px; }
+            .announce-controls { width: 100%; justify-content: center; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            /* Fade dan Ken Burns dilumpuhkan (tukaran serta-merta) */
+            .carousel-slide.is-active img { animation: none; }
+            .landing-wrapper { animation: none; }
         }
 
 

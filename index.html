@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261005b">
+    <link rel="stylesheet" href="style.css?v=20261011c">
 </head>
 <body>
 
@@ -60,50 +60,95 @@
     <!-- LOGIN / LANDING PAGE -->
     <div id="login-screen">
         <div class="landing-wrapper">
-            <!-- Hero Section -->
-            <div class="landing-hero">
-                <div class="hero-bg-shapes">
-                    <div class="shape shape-1"></div>
-                    <div class="shape shape-2"></div>
-                    <div class="shape shape-3"></div>
+            <!-- Bar atas: Jata Negara + nama sistem + versi -->
+            <div class="login-topbar">
+                <img src="jata.svg" alt="Jata Negara" class="topbar-logo">
+                <div class="topbar-text">
+                    <h1 class="topbar-title">SISTEM BERSEPADU SPTB (HQ)</h1>
+                    <p class="topbar-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Pembangunan Usahawan dan Koperasi (KUSKOP)</p>
                 </div>
-                <div class="hero-content">
-                    <img src="jata.svg" alt="Jata Negara" class="hero-logo">
+                <div class="hero-badge">V6.6.0</div>
+            </div>
+
+            <!-- Grid dua kolum: carousel kiri + login kanan -->
+            <div class="login-grid">
+                <!-- Kiri: Pengumuman & Hebahan -->
+                <section class="announce-card" aria-label="Pengumuman dan hebahan">
+                    <div class="announce-head">
+                        <div class="announce-head-left">
+                            <span class="announce-icon"><i class="fa-solid fa-bullhorn"></i></span>
+                            <div>
+                                <h2 class="announce-title">Pengumuman &amp; Hebahan</h2>
+                                <p class="announce-subtitle">Maklumat terkini, hebahan rasmi dan panduan penggunaan sistem.</p>
+                            </div>
+                        </div>
+                        <div class="announce-controls">
+                            <button type="button" class="carousel-btn" id="announcePrevTop" aria-label="Slaid sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
+                            <div class="carousel-dots" id="announceDots" role="tablist" aria-label="Pilih slaid"></div>
+                            <button type="button" class="carousel-btn" id="announceNextTop" aria-label="Slaid seterusnya"><i class="fa-solid fa-chevron-right"></i></button>
+                            <button type="button" class="carousel-btn" id="announcePause" aria-label="Jeda / sambung pertukaran automatik"><i class="fa-solid fa-pause"></i></button>
+                        </div>
+                    </div>
+                    <div class="carousel-viewport" id="announceViewport">
+                        <div class="carousel-track" id="announceTrack">
+                            <div class="carousel-slide is-active">
+                                <img src="assets/posters/poster-pengesyor.jpg" alt="Poster ciri baharu untuk Pengesyor" draggable="false">
+                            </div>
+                            <div class="carousel-slide">
+                                <img src="assets/posters/poster-pelulus.jpg" alt="Poster ciri baharu untuk Pelulus" draggable="false">
+                            </div>
+                            <div class="carousel-slide">
+                                <img src="assets/posters/poster-pka.jpg" alt="Poster ciri baharu untuk PKA dan semua pengguna" draggable="false">
+                            </div>
+                        </div>
+                        <button type="button" class="carousel-side prev" id="announcePrevSide" aria-label="Slaid sebelumnya"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button type="button" class="carousel-side next" id="announceNextSide" aria-label="Slaid seterusnya"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </section>
+
+                <!-- Kanan: Panel log masuk -->
+                <section class="login-panel" aria-label="Log masuk sistem">
+                    <img src="jata.svg" alt="Jata Negara" class="login-panel-logo">
                     <div class="hero-badge">V6.6.0</div>
-                    <h1 class="hero-title">SISTEM BERSEPADU<br>SPTB (HQ)</h1>
-                    <p class="hero-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Pembangunan Usahawan dan Koperasi (KUSKOP)</p>
+                    <h2 class="login-panel-title">SISTEM BERSEPADU<br>SPTB (HQ)</h2>
+                    <p class="login-panel-subtitle">Pusat Khidmat Kontraktor<br>Kementerian Pembangunan Usahawan dan Koperasi (KUSKOP)</p>
                     <div class="hero-divider"></div>
-                    
-                    <!-- Google Sign In -->
-                    <div class="login-section">
+                    <div class="login-box">
+                        <h3 class="login-welcome">Selamat Datang</h3>
                         <p class="login-prompt">Log masuk untuk mengakses sistem</p>
                         <div id="googleButton" class="google-btn-wrapper" style="min-height: 50px; display: flex; justify-content: center; align-items: center;"></div>
                         <div class="auth-error" id="authError"></div>
+                        <div class="login-or"><span>atau</span></div>
+                        <div class="login-note"><i class="fa-solid fa-lock"></i><span>Akses terhad kepada pengguna yang dibenarkan.</span></div>
                     </div>
-                </div>
+                </section>
             </div>
 
             <!-- Feature Cards -->
             <div class="landing-features">
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-clipboard-list"></i></div>
-                    <div class="feature-title">Borang Semakan</div>
-                    <div class="feature-desc">Auto-ekstrak PDF, semak dokumen dan personel</div>
+                    <div class="feature-icon"><i class="fa-solid fa-file-lines"></i></div>
+                    <div class="feature-text"><div class="feature-title">Borang Semakan</div>
+                    <div class="feature-desc">Auto-ekstrak PDF, semak dokumen dan personel</div></div>
+                    <span class="feature-arrow"><i class="fa-solid fa-chevron-right"></i></span>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fa-solid fa-chart-column"></i></div>
-                    <div class="feature-title">Dashboard Analisis</div>
-                    <div class="feature-desc">Statistik permohonan, trend bulanan dan jenis permohonan</div>
+                    <div class="feature-text"><div class="feature-title">Dashboard Analisis</div>
+                    <div class="feature-desc">Statistik permohonan, trend bulanan dan jenis permohonan</div></div>
+                    <span class="feature-arrow"><i class="fa-solid fa-chevron-right"></i></span>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-message"></i></div>
-                    <div class="feature-title">Notifikasi WhatsApp</div>
-                    <div class="feature-desc">Hantar notifikasi segera ke Pelulus dan Pengesyor</div>
+                    <div class="feature-icon feature-icon-wa"><i class="fa-brands fa-whatsapp"></i></div>
+                    <div class="feature-text"><div class="feature-title">Notifikasi WhatsApp</div>
+                    <div class="feature-desc">Hantar notifikasi segera ke Pelulus dan Pengesyor</div></div>
+                    <span class="feature-arrow"><i class="fa-solid fa-chevron-right"></i></span>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon"><i class="fa-solid fa-folder"></i></div>
-                    <div class="feature-title">Google Drive</div>
-                    <div class="feature-desc">Folder automatik dan simpanan PDF berwarna</div>
+                    <div class="feature-icon feature-icon-drive"><i class="fa-brands fa-google-drive"></i></div>
+                    <div class="feature-text"><div class="feature-title">Google Drive</div>
+                    <div class="feature-desc">Folder automatik dan simpanan PDF berwarna</div></div>
+                    <span class="feature-arrow"><i class="fa-solid fa-chevron-right"></i></span>
                 </div>
             </div>
 
@@ -1073,6 +1118,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261011n"></script>
+    <script src="app.js?v=20261011o"></script>
 </body>
 </html>

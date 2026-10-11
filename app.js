@@ -1041,6 +1041,149 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  // =========================================================================
+  // V6.6.0: CAROUSEL PENGUMUMAN (landing login — statik, tiada backend)
+  // Slaid dibaca terus dari DOM (#announceTrack > .carousel-slide).
+  // Untuk tambah poster: letak JPG/PNG dalam assets/posters/ dan tambah
+  // satu blok .carousel-slide dalam index.html. Nisbah asal dikekalkan
+  // melalui CSS object-fit:contain (tiada crop).
+  // =========================================================================
+  function initAnnouncementCarousel() {
+    const track = document.getElementById('announceTrack');
+    const viewport = document.getElementById('announceViewport');
+    const dotsWrap = document.getElementById('announceDots');
+    if (!track || !viewport || track.dataset.init === '1') return;
+    track.dataset.init = '1';
+
+    const slides = Array.from(track.children);
+    if (slides.length < 2) return; // satu slaid: tiada navigasi diperlukan
+    let index = 0;
+    let timer = null;
+    let paused = false;
+    const DELAY = 6000;
+
+    // Bina dots mengikut bilangan slaid
+    slides.forEach((_, i) => {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.setAttribute('role', 'tab');
+      d.setAttribute('aria-label', 'Ke slaid ' + (i + 1));
+      if (i === 0) d.classList.add('is-active');
+      d.addEventListener('click', () => { go(i); restart(); });
+      dotsWrap.appendChild(d);
+    });
+    const dots = Array.from(dotsWrap.children);
+    const pauseBtn = document.getElementById('announcePause');
+    const pauseIcon = pauseBtn ? pauseBtn.querySelector('i, svg') : null;
+
+    // V6.6.1: Transisi Fade + Zoom — slaid lama pudar keluar manakala
+    // slaid baharu pudar masuk (0.6s), dengan kesan Ken Burns (zoom
+    // perlahan) pada poster aktif melalui CSS. Kurang-gerakan
+    // (prefers-reduced-motion): tukar serta-merta tanpa pudar.
+    let animating = false;
+    const reduceMotion = (typeof window !== 'undefined' && window.matchMedia)
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
+
+    function go(i) {
+      const n = (i + slides.length) % slides.length;
+      if (n === index || animating) return;
+      const out = slides[index];
+      const inn = slides[n];
+      index = n;
+      dots.forEach((d, k) => d.classList.toggle('is-active', k === index));
+      if (reduceMotion) {
+        slides.forEach((s, k) => s.classList.toggle('is-active', k === index));
+        return;
+      }
+      animating = true;
+      // Slaid masuk bermula telus (kelas ditambah dahulu supaya animasi
+      // Ken Burns bermula, kelegapan dikawal inline)
+      inn.classList.add('is-active');
+      inn.style.transition = 'none';
+      inn.style.opacity = '0';
+      inn.style.visibility = 'visible';
+      void inn.offsetWidth; // paksa reflow sebelum pudar masuk
+      // Pudar silang: keluar 1->0, masuk 0->1 serentak
+      out.style.transition = 'opacity 0.6s ease';
+      inn.style.transition = 'opacity 0.6s ease';
+      out.style.opacity = '0';
+      inn.style.opacity = '1';
+      setTimeout(() => {
+        // Kemas: keluar kehilangan aktif, kawalan dipulangkan kepada CSS
+        out.classList.remove('is-active');
+        ['transition', 'opacity', 'visibility'].forEach(p => {
+          out.style[p] = '';
+          inn.style[p] = '';
+        });
+        animating = false;
+      }, 650);
+    }
+    function next() { go(index + 1); }
+    function prev() { go(index - 1); }
+    function start() {
+      stop();
+      if (!paused) timer = setInterval(next, DELAY);
+    }
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function restart() { start(); }
+    function setPaused(p) {
+      paused = p;
+      if (pauseBtn) {
+        pauseBtn.setAttribute('aria-pressed', p ? 'true' : 'false');
+        pauseBtn.setAttribute('aria-label', p ? 'Sambung pertukaran automatik' : 'Jeda pertukaran automatik');
+        if (pauseIcon) pauseIcon.className = p ? 'fa-solid fa-play' : 'fa-solid fa-pause';
+      }
+      if (p) stop(); else start();
+    }
+
+    ['announceNextTop', 'announceNextSide'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', () => { next(); restart(); });
+    });
+    ['announcePrevTop', 'announcePrevSide'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', () => { prev(); restart(); });
+    });
+    if (pauseBtn) pauseBtn.addEventListener('click', () => setPaused(!paused));
+
+    // Jeda semasa hover/fokus supaya pengguna sempat membaca
+    viewport.addEventListener('mouseenter', stop);
+    viewport.addEventListener('mouseleave', start);
+    viewport.addEventListener('focusin', stop);
+    viewport.addEventListener('focusout', start);
+
+    // Sokongan swipe pada telefon pintar
+    let touchX = null;
+    viewport.addEventListener('touchstart', e => {
+      touchX = e.touches[0].clientX;
+      stop();
+    }, { passive: true });
+    viewport.addEventListener('touchend', e => {
+      if (touchX === null) { start(); return; }
+      const dx = e.changedTouches[0].clientX - touchX;
+      if (Math.abs(dx) > 40) { if (dx < 0) next(); else prev(); }
+      touchX = null;
+      start();
+    }, { passive: true });
+
+    // Navigasi papan kekunci
+    viewport.setAttribute('tabindex', '0');
+    viewport.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight') { next(); restart(); }
+      else if (e.key === 'ArrowLeft') { prev(); restart(); }
+    });
+
+    // Jeda auto-slaid bila tab pelayar disembunyikan (jimat bateri)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stop();
+      else if (!paused) start();
+    });
+
+    go(0);
+    start();
+  }
+
   // --- Helper function to get user color in HEX ---
   function getUserColorHex(colorName) {
     if (!colorName) return '#2563eb';
@@ -6941,6 +7084,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       }
       // Initialize Google Sign-In pada skrin login
       initializeGoogleSignIn();
+      // V6.6.0: Hidupkan carousel pengumuman (bebas daripada logik auth)
+      try { initAnnouncementCarousel(); } catch (e) { console.warn('Carousel init gagal:', e); }
     }
   }
 
