@@ -8625,6 +8625,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       if (result.success) {
         fmCurrentFolderId = folderId;
+        try { window._fmLastFiles = Array.isArray(result.files) ? result.files : []; } catch (e) {}
 
         var navBtns = '';
         if (fmFolderStack.length > 0) {
@@ -8641,7 +8642,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         folderLabel += (result.folderName || 'Folder');
 
         folderInfo.innerHTML = navBtns + '<i class="fa-solid fa-folder fa-ico"></i>' + folderLabel
-          + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></span>';
+          + ' <span class="btn-open-drive-folder" data-folderid="' + folderId + '" style="cursor:pointer; color:#2563eb; font-weight:600; text-decoration:underline; font-size:0.85rem;" title="Buka di Drive">Buka di Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></span>'
+          + ((window._docPickTarget) ? ' <span style="display:inline-block; background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd; font-size:0.7rem; font-weight:800; padding:2px 10px; border-radius:20px; margin-left:6px;"><i class="fa-solid fa-hand-pointer"></i> Mod pilih dokumen — klik Pilih pada fail (boleh banyak fail, tutup bila selesai)</span>' : '');
 
         renderDriveFiles(result.files || [], result.folders || [], folderId);
       } else {
@@ -8712,7 +8714,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           + '<p style="font-size:0.75rem; margin:5px 0; word-break:break-word; line-height:1.2; min-height:2.4em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">' + escapeHtml(file.name) + '</p>'
           + '<p style="font-size:0.65rem; color:#94a3b8; margin:2px 0;">' + formatFileSize(file.size) + '</p>'
           + ownerLabel
-          + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px;">'
+          + '<div style="display:flex; gap:4px; justify-content:center; margin-top:4px; flex-wrap:wrap;">'
+          + (window._docPickTarget ? '<button class="btn-file-pick" data-id="' + file.id + '" style="padding:4px 10px; font-size:0.7rem; font-weight:800; background:#dcfce7; border:1px solid #86efac; border-radius:6px; cursor:pointer; color:#166534;"><i class="fa-solid fa-check fa-ico"></i>Pilih</button>' : '')
           + '<button class="btn-file-view" data-url="' + file.webViewLink + '" data-id="' + file.id + '" data-mime="' + escapeHtml(file.mimeType || '') + '" data-name="' + escapeHtml(file.name) + '" data-thumb="' + escapeHtml(file.thumbnailLink || '') + '" style="padding:4px 8px; font-size:0.7rem; background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px; cursor:pointer; color:#0369a1;"><i class="fa-solid fa-eye fa-ico"></i>Buka</button>'
           + (canRename ? '<button class="btn-file-rename" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer; color:#92400e;"><i class="fa-solid fa-pen"></i></button>' : '')
           + (canDelete ? '<button class="btn-file-delete" data-id="' + file.id + '" data-name="' + escapeHtml(file.name) + '" style="padding:4px 8px; font-size:0.7rem; background:#fee2e2; border:1px solid #fecaca; border-radius:6px; cursor:pointer; color:#dc2626;"><i class="fa-solid fa-trash-can"></i></button>' : '')
@@ -9181,6 +9184,20 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     { statusId: 'kwsp_s3', fileKey: 'kwsp_3_file', label: 'KWSP 3', prefix: 'KWSP3' }
   ];
 
+  // KWSP: prefix ikut bulan dimasukkan pengesyor (input month YYYY-MM) — cth 2026-10 → KWSP102026, 2026-06 → KWSP062026. Fallback ke KWSP1/2/3 jika tarikh kosong.
+  function docPrefixFor(def) {
+    try {
+      if (def && typeof def.fileKey === 'string' && def.fileKey.indexOf('kwsp_') === 0) {
+        const n = def.fileKey.replace('kwsp_', '').replace('_file', '');
+        const dateEl = document.getElementById('kwsp_date_' + n);
+        const v = dateEl ? String(dateEl.value || '').trim() : '';
+        const m = v.match(/^(\d{4})-(\d{2})/);
+        if (m) return 'KWSP' + m[2] + m[1];
+      }
+    } catch (e) {}
+    return def ? def.prefix : 'DOK';
+  }
+
   function docStatusIsX(input) {
     if (!input) return false;
     const v = String(input.value || '').trim().toUpperCase();
@@ -9249,6 +9266,128 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return '';
   }
 
+  // =========================================================================
+  // PILIH DARI DRIVE (rename di tempat ikut format muat naik biasa)
+  // Sasaran: { kind:'static', def } atau { kind:'dynamic', cardUid, key }
+  // =========================================================================
+  let docPickTarget = null;
+  window._fmLastFiles = window._fmLastFiles || [];
+
+  function closeDocPicker() {
+    docPickTarget = null;
+    try { window._docPickTarget = null; } catch (e) {}
+  }
+
+  async function openDocDrivePicker(target) {
+    try {
+      if (!currentUser) { await CustomAppModal.alert('Sila log masuk dahulu.', 'Makluman', 'warning'); return; }
+      const folderId = await ensureDocFolder();
+      if (!folderId) return;
+      docPickTarget = target;
+      try { window._docPickTarget = target; } catch (e) {}
+      await openFileManager(folderId);
+    } catch (e) {
+      closeDocPicker();
+    }
+  }
+
+  function buildPickNewName(target, driveFileName) {
+    const ext = (driveFileName && driveFileName.includes('.')) ? driveFileName.slice(driveFileName.lastIndexOf('.')) : '';
+    const today = new Date().toISOString().slice(0, 10);
+    if (target && target.kind === 'static' && target.def) {
+      const def = target.def;
+      const syarikat = (document.getElementById('borang_syarikat')?.value || document.getElementById('db_syarikat')?.value || 'DOKUMEN').toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 30);
+      const existing = normFileList((window.__docFiles || {})[def.fileKey]);
+      const suffix = existing.length > 0 ? '_' + (existing.length + 1) : '';
+      return docPrefixFor(def) + '_' + syarikat + '_' + today + suffix + ext;
+    }
+    // dynamic: cari kad + input semasa (DOM mungkin dibina semula)
+    const card = target && target.cardUid ? document.querySelector('.bank-card[data-doc-uid="' + target.cardUid + '"], .person-card[data-doc-uid="' + target.cardUid + '"]') : null;
+    const key = target ? target.key : '';
+    let lbl = 'DOK';
+    let personName = 'DOK';
+    if (card) {
+      const inp = card.querySelector('.status-input');
+      const allInputs = card.querySelectorAll('.status-input');
+      let found = null;
+      allInputs.forEach(function(x) { try { if (cardDocKey(x) === key) found = x; } catch (e) {} });
+      lbl = cardDocLabel(found || inp);
+      personName = (card.querySelector('.p-name')?.value || card.querySelector('.bank-name')?.value || 'DOK').toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 20);
+      const existing = normFileList((card._docFiles || {})[key]);
+      const suffix = existing.length > 0 ? '_' + (existing.length + 1) : '';
+      return lbl.toUpperCase().replace(/[^A-Z0-9]+/g, '') + '_' + personName + '_' + today + suffix + ext;
+    }
+    return 'DOK_' + today + ext;
+  }
+
+  async function handleDocPickSelect(fileId) {
+    const target = docPickTarget;
+    if (!target || !fileId) return;
+    const files = Array.isArray(window._fmLastFiles) ? window._fmLastFiles : [];
+    const f = files.find(function(x) { return String(x.id || '') === String(fileId); });
+    if (!f) { await CustomAppModal.alert('Fail tidak dijumpai dalam senarai.', 'Ralat', 'error'); return; }
+    // Elak lampir dua kali
+    const isDup = function(list) { return normFileList(list).some(function(m) { return String(m.id || '') === String(fileId); }); };
+    if (target.kind === 'static' && target.def) {
+      if (isDup((window.__docFiles || {})[target.def.fileKey])) { await CustomAppModal.alert('Fail ini sudah dilampirkan.', 'Makluman', 'warning'); return; }
+    } else if (target.kind === 'dynamic') {
+      const c0 = target.cardUid ? document.querySelector('.bank-card[data-doc-uid="' + target.cardUid + '"], .person-card[data-doc-uid="' + target.cardUid + '"]') : null;
+      if (c0 && isDup((c0._docFiles || {})[target.key])) { await CustomAppModal.alert('Fail ini sudah dilampirkan.', 'Makluman', 'warning'); return; }
+    }
+    const newName = buildPickNewName(target, f.name || '');
+    const ok = await CustomAppModal.confirm('Lampirkan fail ini?<br><br><span style="font-size:0.8rem;">"' + escapeHtml(f.name || '') + '"</span><br>akan dinamakan semula kepada<br><strong>' + escapeHtml(newName) + '</strong>', 'Pilih dari Drive', 'info', 'Ya, Lampirkan', true);
+    if (!ok) return;
+    try {
+      const resp = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'renameDriveFile', fileId: fileId, newName: newName, email: currentUser ? currentUser.email : '' })
+      }, 3, 1000);
+      if (!resp.ok) throw new Error('HTTP error! status: ' + resp.status);
+      const res = await resp.json();
+      if (!res || !res.success || !res.file) throw new Error((res && res.error) || 'Gagal menamakan semula fail');
+      const rf = res.file;
+      const meta = {
+        id: rf.id || fileId, url: rf.webViewLink || f.webViewLink || '',
+        name: rf.name || newName, mimeType: rf.mimeType || f.mimeType || '',
+        thumbnailLink: rf.thumbnailLink || f.thumbnailLink || '',
+        uploadedAt: new Date().toISOString()
+      };
+      let doneLabel = '';
+      if (target.kind === 'static' && target.def) {
+        const def = target.def;
+        const existing = normFileList((window.__docFiles || {})[def.fileKey]);
+        existing.push(meta);
+        window.__docFiles[def.fileKey] = existing;
+        persistDocFiles();
+        setDocStatusTick(document.getElementById(def.statusId));
+        doneLabel = def.label;
+      } else if (target.kind === 'dynamic') {
+        const card = target.cardUid ? document.querySelector('.bank-card[data-doc-uid="' + target.cardUid + '"], .person-card[data-doc-uid="' + target.cardUid + '"]') : null;
+        if (!card) throw new Error('Kad bank/personel tidak dijumpai (mungkin dibina semula). Sila pilih semula.');
+        const key = target.key;
+        const existing = normFileList((card._docFiles || {})[key]);
+        existing.push(meta);
+        card._docFiles[key] = existing;
+        let targetInput = null;
+        card.querySelectorAll('.status-input').forEach(function(inp) { try { if (cardDocKey(inp) === key) targetInput = inp; } catch (e) {} });
+        setDocStatusTick(targetInput);
+        doneLabel = cardDocLabel(targetInput);
+      }
+      try { refreshDocSlots(); } catch (e) {}
+      try { refreshDynamicDocSlots(); } catch (e) {}
+      try { playSuccessSound().catch(function() {}); } catch (e) {}
+      const syncRes = await queueSyncBorangJsonToSheet();
+      showToast(doneLabel + ' dilampirkan dari Drive & ditanda ✓' + (syncRes === 'ok' ? ' — rekod dikemaskini' : ''), 'success');
+      if (syncRes === 'fail') showToast('Auto-simpan ke rekod gagal — sila tekan Simpan', 'warning');
+      // Kekalkan pemilih terbuka untuk fail seterusnya — refresh senarai (paparan nama baru).
+      // Tutup manual via X / klik luar bila selesai.
+      try { if (fmCurrentFolderId) await loadDriveFiles(fmCurrentFolderId); } catch (e) {}
+    } catch (err) {
+      await CustomAppModal.alert('Gagal melampirkan: ' + err.message, 'Ralat', 'error');
+    }
+  }
+
   function normFileList(v) {
     if (Array.isArray(v)) return v.filter(function(m) { return m && m.url; });
     if (v && typeof v === 'object' && v.url) return [v];
@@ -9291,12 +9430,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         slot.className = 'doc-upload-slot';
         slot.style.cssText = isKwsp ? 'margin-top:8px; display:none; width:100%; flex-basis:100%;' : 'margin-top:6px; display:none;';
         slot.innerHTML = '<input type="file" style="display:none;" accept="*/*" multiple>'
-          + '<button type="button" class="btn-doc-upload" style="width:100%; padding:7px 10px; font-size:0.75rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"><i class="fa-solid fa-upload fa-ico"></i>Muat Naik ' + escapeHtml(def.label) + '</button>'
+          + '<div class="doc-upload-btnrow" style="display:flex; gap:6px;">'
+          + '<button type="button" class="btn-doc-upload" style="flex:1; padding:7px 10px; font-size:0.75rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"><i class="fa-solid fa-upload fa-ico"></i>Muat Naik ' + escapeHtml(def.label) + '</button>'
+          + '<button type="button" class="btn-doc-pick" style="flex:1; padding:7px 10px; font-size:0.75rem; font-weight:700; background:#fefce8; border:1.5px dashed #facc15; border-radius:8px; cursor:pointer; color:#854d0e;"><i class="fa-solid fa-folder-open fa-ico"></i>Pilih dari Drive</button>'
+          + '</div>'
           + '<div class="doc-upload-prog" style="display:none; margin-top:6px;"><div style="background:#e2e8f0; border-radius:10px; height:5px; overflow:hidden;"><div class="doc-upload-bar" style="background:#2563eb; height:100%; width:0%;"></div></div><p class="doc-upload-txt" style="font-size:0.68rem; color:#64748b; margin:3px 0 0;"></p></div>'
           + '<div class="doc-upload-chip"' + (isKwsp ? ' style="display:flex; gap:6px; flex-wrap:wrap;"' : '') + '></div>';
         wantParent.appendChild(slot);
         const fileInput = slot.querySelector('input[type="file"]');
         slot.querySelector('.btn-doc-upload').addEventListener('click', function() { fileInput.click(); });
+        slot.querySelector('.btn-doc-pick').addEventListener('click', function() { openDocDrivePicker({ kind: 'static', def: def }); });
         fileInput.addEventListener('change', function() {
           if (fileInput.files && fileInput.files.length > 0) handleStaticDocUpload(def, Array.prototype.slice.call(fileInput.files), slot);
           fileInput.value = '';
@@ -9309,6 +9452,26 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         // Pindahkan slot KWSP lama yang tersesat di dalam flex ke baris penuh di bawah
         if (slot.parentElement !== wantParent) wantParent.appendChild(slot);
         if (isKwsp) { slot.style.width = '100%'; slot.style.flexBasis = '100%'; }
+        // Naik taraf slot lama (sebelum butang Pilih): balut butang sedia ada sebaris sama saiz
+        if (!slot.querySelector('.btn-doc-pick')) {
+          const upOld = slot.querySelector('.btn-doc-upload');
+          if (upOld) {
+            upOld.style.flex = '1';
+            upOld.style.width = '';
+            const row = document.createElement('div');
+            row.className = 'doc-upload-btnrow';
+            row.style.cssText = 'display:flex; gap:6px;';
+            upOld.parentElement.insertBefore(row, upOld);
+            row.appendChild(upOld);
+            const pickOld = document.createElement('button');
+            pickOld.type = 'button';
+            pickOld.className = 'btn-doc-pick';
+            pickOld.style.cssText = 'flex:1; padding:7px 10px; font-size:0.75rem; font-weight:700; background:#fefce8; border:1.5px dashed #facc15; border-radius:8px; cursor:pointer; color:#854d0e;';
+            pickOld.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Pilih dari Drive';
+            row.appendChild(pickOld);
+            pickOld.addEventListener('click', function() { openDocDrivePicker({ kind: 'static', def: def }); });
+          }
+        }
       }
       const list = normFileList((window.__docFiles || {})[def.fileKey]);
       const chipBox = slot.querySelector('.doc-upload-chip');
@@ -9355,7 +9518,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       for (let fi = 0; fi < files.length; fi++) {
         const fileObj = files[fi];
         const ext = (fileObj.name && fileObj.name.includes('.')) ? fileObj.name.slice(fileObj.name.lastIndexOf('.')) : '';
-        const upName = def.prefix + '_' + syarikat + '_' + new Date().toISOString().slice(0, 10) + (files.length > 1 ? '_' + (existing.length + okCount + 1) : '') + ext;
+        const upName = docPrefixFor(def) + '_' + syarikat + '_' + new Date().toISOString().slice(0, 10) + (files.length > 1 ? '_' + (existing.length + okCount + 1) : '') + ext;
         const renamed = new File([fileObj], upName, { type: fileObj.type || 'application/octet-stream' });
         if (txt) txt.textContent = 'Memuat naik ' + (fi + 1) + '/' + files.length + '...';
         const res = await uploadSingleFileWithProgress(renamed, folderId, currentUser.email || '', function(f) {
@@ -9382,7 +9545,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         setDocStatusTick(input);
         refreshDocSlots();
         await playSuccessSound();
-        const syncRes = await syncBorangJsonToSheet();
+        const syncRes = await queueSyncBorangJsonToSheet();
         showToast(def.label + ' dimuat naik & ditanda ✓' + (syncRes === 'ok' ? ' — rekod dikemaskini' : ''), 'success');
         if (syncRes === 'fail') showToast('Auto-simpan ke rekod gagal — sila tekan Simpan', 'warning');
       } else {
@@ -9396,13 +9559,54 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
   }
 
+  // Dialog 3 pilihan untuk padam fail individu: Borang sahaja vs Drive sekali vs Batal
+  function askDeleteDocScope(fileName) {
+    return new Promise(function(resolve) {
+      const overlay = document.getElementById('customModalOverlay');
+      const iconBox = document.getElementById('customModalIconBox');
+      const iconEl = document.getElementById('customModalIcon');
+      const titleEl = document.getElementById('customModalTitle');
+      const messageEl = document.getElementById('customModalMessage');
+      const actionsEl = document.getElementById('customModalActions');
+      if (!overlay || !actionsEl) { resolve(null); return; }
+      try { playSoundEffect('minimal alert.mp3'); } catch (e) {}
+      iconBox.className = 'custom-modal-icon-container icon-warning';
+      iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+      titleEl.innerHTML = 'Padam Fail';
+      messageEl.innerHTML = 'Padam fail "' + escapeHtml(fileName || 'Dokumen') + '"?<br><span style="font-size:0.8rem;"><strong>Borang sahaja</strong> — buang lampiran di borang, fail kekal di Drive.<br><strong>Drive sekali</strong> — buang di borang dan padam fail di Drive.</span>';
+      actionsEl.innerHTML = '';
+      const close = function(result) {
+        overlay.classList.remove('show');
+        setTimeout(function() { overlay.style.display = 'none'; resolve(result); }, 300);
+      };
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'custom-modal-btn custom-modal-btn-cancel';
+      cancelBtn.innerText = 'Batal';
+      cancelBtn.onclick = function() { try { playSoundEffect('ui_click.mp3'); } catch (e) {} close(null); };
+      const borangBtn = document.createElement('button');
+      borangBtn.className = 'custom-modal-btn custom-modal-btn-confirm';
+      borangBtn.innerText = 'Borang sahaja';
+      borangBtn.onclick = function() { try { playSoundEffect('ui_click.mp3'); } catch (e) {} close('borang'); };
+      const driveBtn = document.createElement('button');
+      driveBtn.className = 'custom-modal-btn custom-modal-btn-danger';
+      driveBtn.innerText = 'Drive sekali';
+      driveBtn.onclick = function() { try { playSoundEffect('ui_click.mp3'); } catch (e) {} close('drive'); };
+      actionsEl.appendChild(cancelBtn);
+      actionsEl.appendChild(borangBtn);
+      actionsEl.appendChild(driveBtn);
+      overlay.style.display = 'flex';
+      void overlay.offsetWidth;
+      overlay.classList.add('show');
+    });
+  }
+
   async function deleteStaticDocOne(def, fileId) {
     const list = normFileList((window.__docFiles || {})[def.fileKey]);
     const meta = list.find(function(m) { return String(m.id || '') === String(fileId || ''); }) || list[0];
     if (!meta) { refreshDocSlots(); return; }
-    const ok = await CustomAppModal.confirm('Padam fail "' + (meta.name || def.label) + '"?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Padam Fail', 'warning', 'Ya, Padam', true);
-    if (!ok) return;
-    await deleteDriveFileById(meta.id);
+    const scope = await askDeleteDocScope(meta.name || def.label);
+    if (!scope) return;
+    if (scope === 'drive') await deleteDriveFileById(meta.id);
     window.__docFiles[def.fileKey] = list.filter(function(m) { return String(m.id || '') !== String(meta.id || ''); });
     if (window.__docFiles[def.fileKey].length === 0) delete window.__docFiles[def.fileKey];
     persistDocFiles();
@@ -9413,9 +9617,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     } catch (e) {}
     refreshDocSlots();
-    const syncDel = await syncBorangJsonToSheet();
-    if (syncDel === 'ok') showToast('Fail dipadam — rekod dikemaskini', 'success');
-    else if (syncDel === 'fail') showToast('Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod', 'warning');
+    const syncDel = await queueSyncBorangJsonToSheet();
+    if (syncDel === 'ok') showToast(scope === 'drive' ? 'Fail dipadam dari Drive — rekod dikemaskini' : 'Fail dibuang dari borang sahaja — rekod dikemaskini', 'success');
+    else if (syncDel === 'fail') showToast(scope === 'drive' ? 'Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod' : 'Fail dibuang dari borang — tekan Simpan untuk kemaskini rekod', 'warning');
   }
 
   async function deleteDriveFileById(fileId) {
@@ -9516,6 +9720,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     } catch (e) { return 'fail'; }
   }
 
+  // Baris gilir sync borang_json — elak tulis bertindih bila beberapa dokumen
+  // dimuat naik/dipilih serentak (last-write-wins boleh hilangkan fail).
+  let syncBorangQueue = Promise.resolve();
+  function queueSyncBorangJsonToSheet() {
+    const p = syncBorangQueue.then(function() { return syncBorangJsonToSheet(); });
+    syncBorangQueue = p.catch(function() {});
+    return p;
+  }
+
   async function deleteStaticDocFile(def, slot) {
     const list = normFileList((window.__docFiles || {})[def.fileKey]);
     if (!list.length) { refreshDocSlots(); return; }
@@ -9569,12 +9782,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           slot.dataset.key = key;
           slot.style.cssText = 'margin-top:6px; display:none;';
           slot.innerHTML = '<input type="file" style="display:none;" accept="*/*" multiple>'
-            + '<button type="button" class="btn-doc-upload" style="width:100%; padding:6px 10px; font-size:0.72rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"></button>'
+            + '<div class="doc-upload-btnrow" style="display:flex; gap:6px;">'
+            + '<button type="button" class="btn-doc-upload" style="flex:1; padding:6px 10px; font-size:0.72rem; font-weight:700; background:#eff6ff; border:1.5px dashed #93c5fd; border-radius:8px; cursor:pointer; color:#1d4ed8;"></button>'
+            + '<button type="button" class="btn-doc-pick" style="flex:1; padding:6px 10px; font-size:0.72rem; font-weight:700; background:#fefce8; border:1.5px dashed #facc15; border-radius:8px; cursor:pointer; color:#854d0e;"><i class="fa-solid fa-folder-open fa-ico"></i>Pilih dari Drive</button>'
+            + '</div>'
             + '<div class="doc-upload-prog" style="display:none; margin-top:6px;"><div style="background:#e2e8f0; border-radius:10px; height:5px; overflow:hidden;"><div class="doc-upload-bar" style="background:#2563eb; height:100%; width:0%;"></div></div><p class="doc-upload-txt" style="font-size:0.68rem; color:#64748b; margin:3px 0 0;"></p></div>'
             + '<div class="doc-upload-chip"></div>';
           container.parentElement.appendChild(slot);
           const fi = slot.querySelector('input[type="file"]');
           slot.querySelector('.btn-doc-upload').addEventListener('click', function() { fi.click(); });
+          slot.querySelector('.btn-doc-pick').addEventListener('click', function() {
+            try { ensureCardUid(card); } catch (e) {}
+            openDocDrivePicker({ kind: 'dynamic', cardUid: card.dataset.docUid || '', key: key });
+          });
           fi.addEventListener('change', function() {
             if (fi.files && fi.files.length > 0) handleDynamicDocUpload(card, input, Array.prototype.slice.call(fi.files), slot);
             fi.value = '';
@@ -9583,6 +9803,28 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             const del = e.target.closest ? e.target.closest('.btn-doc-del-one') : null;
             if (del) deleteDynamicDocOne(card, key, del.getAttribute('data-id'));
           });
+        } else if (!slot.querySelector('.btn-doc-pick')) {
+          // Naik taraf slot dinamik lama: balut butang sedia ada sebaris sama saiz
+          const upOld = slot.querySelector('.btn-doc-upload');
+          if (upOld) {
+            upOld.style.flex = '1';
+            upOld.style.width = '';
+            const row = document.createElement('div');
+            row.className = 'doc-upload-btnrow';
+            row.style.cssText = 'display:flex; gap:6px;';
+            upOld.parentElement.insertBefore(row, upOld);
+            row.appendChild(upOld);
+            const pickOld = document.createElement('button');
+            pickOld.type = 'button';
+            pickOld.className = 'btn-doc-pick';
+            pickOld.style.cssText = 'flex:1; padding:6px 10px; font-size:0.72rem; font-weight:700; background:#fefce8; border:1.5px dashed #facc15; border-radius:8px; cursor:pointer; color:#854d0e;';
+            pickOld.innerHTML = '<i class="fa-solid fa-folder-open fa-ico"></i>Pilih dari Drive';
+            row.appendChild(pickOld);
+            pickOld.addEventListener('click', function() {
+              try { ensureCardUid(card); } catch (e) {}
+              openDocDrivePicker({ kind: 'dynamic', cardUid: card.dataset.docUid || '', key: key });
+            });
+          }
         }
         const list = normFileList((card._docFiles || {})[key]);
         const chipBox = slot.querySelector('.doc-upload-chip');
@@ -9647,7 +9889,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         setDocStatusTick(input);
         refreshDynamicDocSlots();
         await playSuccessSound();
-        const syncRes = await syncBorangJsonToSheet();
+        const syncRes = await queueSyncBorangJsonToSheet();
         showToast(lbl + ' dimuat naik & ditanda ✓' + (syncRes === 'ok' ? ' — rekod dikemaskini' : ''), 'success');
         if (syncRes === 'fail') showToast('Auto-simpan ke rekod gagal — sila tekan Simpan', 'warning');
       } else {
@@ -9665,9 +9907,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const list = normFileList((card._docFiles || {})[key]);
     const meta = list.find(function(m) { return String(m.id || '') === String(fileId || ''); }) || list[0];
     if (!meta) { refreshDynamicDocSlots(); return; }
-    const ok = await CustomAppModal.confirm('Padam fail "' + (meta.name || key) + '"?<br><span style="font-size:0.8rem;">Fail akan turut dipadam dari folder Drive.</span>', 'Padam Fail', 'warning', 'Ya, Padam', true);
-    if (!ok) return;
-    await deleteDriveFileById(meta.id);
+    const scope = await askDeleteDocScope(meta.name || key);
+    if (!scope) return;
+    if (scope === 'drive') await deleteDriveFileById(meta.id);
     card._docFiles[key] = list.filter(function(m) { return String(m.id || '') !== String(meta.id || ''); });
     if (card._docFiles[key].length === 0) delete card._docFiles[key];
     // Jika tiada fail tinggal — kosongkan semula status ✓/X/DRIVE bagi input berkaitan
@@ -9682,9 +9924,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     } catch (e) {}
     refreshDynamicDocSlots();
     try { if (typeof saveFormData === 'function') saveFormData(); } catch (e) {}
-    const syncDel = await syncBorangJsonToSheet();
-    if (syncDel === 'ok') showToast('Fail dipadam — rekod dikemaskini', 'success');
-    else if (syncDel === 'fail') showToast('Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod', 'warning');
+    const syncDel = await queueSyncBorangJsonToSheet();
+    if (syncDel === 'ok') showToast(scope === 'drive' ? 'Fail dipadam dari Drive — rekod dikemaskini' : 'Fail dibuang dari borang sahaja — rekod dikemaskini', 'success');
+    else if (syncDel === 'fail') showToast(scope === 'drive' ? 'Fail dipadam dari Drive — tekan Simpan untuk kemaskini rekod' : 'Fail dibuang dari borang — tekan Simpan untuk kemaskini rekod', 'warning');
   }
 
   // Segerakan slot bila tick ditekan / nilai berubah + polling ringan untuk kad dinamik
@@ -9721,12 +9963,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     fileManagerClose.addEventListener('click', () => {
       fileManagerModal.classList.remove('show');
       setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
+      try { closeDocPicker(); } catch (e) {}
     });
 
     fileManagerModal.addEventListener('click', (e) => {
       if (e.target === fileManagerModal) {
         fileManagerModal.classList.remove('show');
         setTimeout(() => { fileManagerModal.style.display = 'none'; }, 300);
+        try { closeDocPicker(); } catch (e) {}
       }
     });
   }
@@ -9806,6 +10050,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const pthumb = pdfThumb.getAttribute('data-thumb') || '';
       if (fid && isPdfFile(pmime, fname)) { openPdfPreviewModal(fid, fname, url, pthumb); return; }
       if (url) window.open(url, '_blank');
+      return;
+    }
+
+    const pickBtn = e.target.closest('.btn-file-pick');
+    if (pickBtn) {
+      e.preventDefault();
+      const fid = pickBtn.getAttribute('data-id');
+      if (!fid || pickBtn.disabled) return;
+      const oldHtml = pickBtn.innerHTML;
+      pickBtn.disabled = true;
+      pickBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Memproses...';
+      try { await handleDocPickSelect(fid); } catch (err) { console.error('Pilih dari Drive gagal:', err); }
+      try { pickBtn.disabled = false; pickBtn.innerHTML = oldHtml; } catch (e2) {}
       return;
     }
 
@@ -10463,12 +10720,21 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const dbSyorSelect = document.getElementById('db_syor');
   const dbSubmitDateContainer = document.getElementById('db_submit_date_container');
   let dbSubmitLockDate = null; // Tarikh kunci (ISO) untuk rekod TELAH DIHANTAR
+  let dbHasDateSubmit = false; // Rekod sedia ada sudah ada Date Submit ke SPI — SIASAT dilumpuhkan
   function toggleSyorSiasatVisibility() {
     const btnSiasat = document.getElementById('btnSyorSiasat');
     const syorVal = dbSyorSelect ? dbSyorSelect.value : '';
     const syorStatusVal = document.getElementById('db_syor_status')?.value || '';
     const isLawatanDone = cbSelesaiLawatan ? cbSelesaiLawatan.checked : false;
     if (!btnSiasat) return;
+    // Rekod sudah ada Date Submit ke SPI: SIASAT disembunyikan (tidak boleh hantar siasat baru).
+    // Nilai SIASAT sedia ada TIDAK dipadam supaya hantar ke sheet (bypass) kekal sah.
+    const hasDateSubmit = dbHasDateSubmit || ((document.getElementById('db_submit_date')?.value || '').trim() !== '');
+    if (hasDateSubmit) {
+      btnSiasat.style.display = 'none';
+      btnSiasat.title = 'Tidak dibenarkan — rekod sudah ada Date Submit ke SPI';
+      return;
+    }
     // Jika Telah Selesai Lawatan ditanda, sembunyi SIASAT – hanya SOKONG/TIDAK DISOKONG
     if (isLawatanDone) {
       btnSiasat.style.display = 'none';
@@ -11886,13 +12152,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
   // Kelabu + disable butang "Simpan & Hantar ke Sheet" selagi syor dipilih
   // tetapi checkbox pengesahan belum ditanda atau Pelulus belum dipilih
+  // (kecuali bypass SIASAT: sudah ada Date Submit ke SPI — terus boleh hantar)
   function updateSendToSheetState() {
     const btn = document.getElementById('btnSendToSheet');
     if (!btn) return;
     const syorStatusVal = document.getElementById('db_syor_status')?.value || '';
     const isConfirmed = document.getElementById('db_sah_syor')?.checked || false;
     const pelulusName = (document.getElementById('db_pelulus_name')?.value || '').trim();
-    const isReady = syorStatusVal === '' || (isConfirmed && pelulusName !== '');
+    const isSiasatBypass = syorStatusVal === 'SIASAT' && (dbHasDateSubmit || ((document.getElementById('db_submit_date')?.value || '').trim() !== ''));
+    const isReady = syorStatusVal === '' || isSiasatBypass || (isConfirmed && pelulusName !== '');
     btn.disabled = !isReady;
     btn.title = btn.disabled ? 'Tandakan checkbox pengesahan dan pilih Pelulus dahulu' : '';
   }
@@ -12224,6 +12492,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // V6.11.2: Bersihkan kunci tarikh basi supaya butang Hari Ini/Kosongkan
     // tidak kekal mati selepas membuka rekod TELAH DIHANTAR
     dbSubmitLockDate = null;
+    dbHasDateSubmit = false;
     toggleDateSubmitSpi();
 
     cleanupStorage();
@@ -13891,6 +14160,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
       if (submitVal) dbSubmitLockDate = submitVal;
     }
+    // Flag Date Submit ke SPI (lumpuh butang SIASAT + bypass hantar tanpa checkbox/pelulus)
+    dbHasDateSubmit = submitVal !== '';
     // Tetapkan db_submit_date SEBELUM toggleDateSubmitSpi supaya tarikh lama
     // tidak dipadam oleh kunci min/max flatpickr (flatpickr menolak tarikh luar julat)
     const dbSubmitDateInput = document.getElementById('db_submit_date');
@@ -15036,24 +15307,23 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
       }
 
-      // BYPASS SIASAT: jika rekod asal sudah SYOR YA + ada date_submit (J) + TELAH DIHANTAR ke SPI,
-      // Hantar ke Sheet hanya simpan ke sheet — tidak hantar semula ke Pelulus, tak perlu checkbox/pelulus.
-      // Hanya TELAH DIHANTAR (bukan DALAM QUEUE).
+      // BYPASS SIASAT: rekod sedia ada sudah ada Date Submit ke SPI —
+      // Hantar ke Sheet hanya simpan ke sheet (kekalkan syor/tarikh_syor asal),
+      // tidak hantar semula ke Pelulus, tak perlu checkbox/pelulus.
+      // Siasat belum selesai, jadi tarikh_syor dikekalkan (tidak ditukar ke hari ini).
       let isSiasatSudahTelahHantar = false;
       let origSiasatItem = null;
       if (targetRow && cachedData) {
         const _o = cachedData.find(d => d.row == targetRow);
         if (_o) {
           origSiasatItem = _o;
-          const _syorYA = (_o.syor_lawatan || '').toString().toUpperCase() === 'YA';
           const _jAda = (_o.date_submit || '').toString().trim() !== '';
-          const _telahHantar = (_o.status_hantar_spi || '').toString().trim().toUpperCase() === 'TELAH DIHANTAR';
-          if (_syorYA && _jAda && _telahHantar) isSiasatSudahTelahHantar = true;
+          if (_jAda) isSiasatSudahTelahHantar = true;
         }
       }
 
       // V6.6.0: Pre-check - Jika syor_status dipilih tapi checkbox pengesahan tidak ditanda
-      // (langkau hanya untuk SIASAT yang sudah TELAH DIHANTAR — butang boleh terus tekan)
+      // (langkau hanya untuk SIASAT yang sudah ada Date Submit ke SPI — butang boleh terus tekan)
       const preSyorVal = document.getElementById('db_syor_status')?.value || '';
       const _preIsSiasatBypass = isSiasatSudahTelahHantar &&
         (document.getElementById('db_syor')?.value === 'YA' && preSyorVal === 'SIASAT');
@@ -15073,7 +15343,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const isConfirmed = dbSahSyor ? dbSahSyor.checked : false;
        
       // V6.6.0: Jika sah syor, pastikan pelulus dipilih
-      // (langkau jika bypass TELAH DIHANTAR — tak perlu pilih pelulus)
+      // (langkau jika bypass Date Submit — tak perlu pilih pelulus)
       let selectedPelulusName = '';
       let selectedPelulusPhone = '';
       const _bypassPelulusCheck = isSiasatSudahTelahHantar &&
@@ -15121,7 +15391,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
       let confirmHantarEmel = false;
       const isSiasatDipilih = (dbSyorValue === 'YA' && dbSyorStatusValue === 'SIASAT');
-      // Jika sudah TELAH DIHANTAR: Hantar ke Sheet hanya simpan — tidak hantar semula ke Pelulus
+      // Jika sudah ada Date Submit: Hantar ke Sheet hanya simpan — tidak hantar semula ke Pelulus
       const isSiasatBypassKePelulus = isSiasatDipilih && isSiasatSudahTelahHantar;
       const isSiasatWorkflow = isSiasatDipilih && !isSiasatBypassKePelulus;
       if (isSiasatBypassKePelulus) {
@@ -15406,7 +15676,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       submitData(payload, "Rekod berjaya disimpan!", async (result) => {
         let message = "";
         if (isSiasatBypassKePelulus) {
-          message = "Rekod berjaya dikemaskini. (Telah dihantar ke SPI — tidak dihantar semula ke Pelulus)";
+          message = "Rekod berjaya dikemaskini. (Sudah ada Date Submit ke SPI — tidak dihantar semula ke Pelulus)";
         } else if (isConfirmed) {
           if (isSiasatWorkflow) message = "Permohonan SIASAT berjaya dihantar ke Pelulus untuk semakan. Sila tunggu pengesahan Pelulus.";
           else message = "Data BERJAYA dihantar ke pangkalan data dan telah dipindahkan ke 'Telah Syor'.";
@@ -15502,6 +15772,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
     });
+    
+    // Reset flag Date Submit (borang kosong — SIASAT dibenarkan semula)
+    try { dbHasDateSubmit = false; } catch (e) {}
+    try { toggleSyorSiasatVisibility(); } catch (e) {}
+    updateValidationCheckboxDisplay();
     
     const statusDisp = document.getElementById('db_status_hantar_display');
     if (statusDisp) statusDisp.style.display = 'none';

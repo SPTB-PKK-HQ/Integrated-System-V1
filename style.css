@@ -2092,7 +2092,7 @@
             pointer-events: none;
         }
         .toast {
-            pointer-events: auto;
+            pointer-events: none;
             background: #1e293b;
             color: #f1f5f9;
             padding: 12px 20px;
