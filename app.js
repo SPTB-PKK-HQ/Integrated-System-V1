@@ -1877,11 +1877,17 @@ async function handleCredentialResponse(response) {
   function simulateLoadingWithSteps(steps, overallMessage = 'Memuatkan data...') {
     const overlay = document.getElementById('loading-overlay');
     const text = document.getElementById('loading-text');
-    
+
     if (!overlay || !text) return;
-    
-    text.textContent = overallMessage;
-    overlay.style.display = 'flex';
+
+    // Lengahkan paparan: kerja pantas (<250ms) tidak memaparkan overlay langsung (elak kelipan)
+    cancelPendingShow();
+    if (loadingProgressInterval) clearInterval(loadingProgressInterval);
+    pendingShowTimer = setTimeout(() => {
+      pendingShowTimer = null;
+      text.textContent = overallMessage;
+      overlay.style.display = 'flex';
+      stampLoadingShown();
     
     const progressBar = document.getElementById('loading-progress-bar');
     const progressPercent = document.getElementById('loading-progress-percent');
@@ -1909,28 +1915,115 @@ async function handleCredentialResponse(response) {
       
       if (currentStep >= totalSteps) {
         clearInterval(loadingProgressInterval);
-        setTimeout(() => { if(overlay) overlay.style.display = 'none'; }, 600);
+        loadingProgressInterval = null;
+        hideLoadingSoon(1000);
       }
     }, 300);
+    }, LOADING_SHOW_DELAY);
   }
 
-  function hideLoading() {
+  // === ANTI-SERABUT: pengawal paparan loading berpusat ===
+  // Masalah: operasi laju menyebabkan overlay berkelip (tunjuk-tutup sesaat),
+  // dan timer tutup lama boleh terbunuh overlay operasi baharu.
+  // Penyelesaian: (1) lengah paparan 250ms — kerja pantas (<250ms) langsung
+  // tidak memaparkan overlay; (2) tempoh paparan minimum 700ms; (3) setiap
+  // paparan dicop generasi; arahan tutup lapuk (generasi lama) diabaikan.
+  var LOADING_SHOW_DELAY = 250;
+  var LOADING_MIN_SHOW = 700;
+  var loadingGen = 0;
+  var pendingShowTimer = null;
+  var hideDeferTimer = null;
+  var loadingWasVisible = false;
+
+  function isLoadingVisible() {
+    return !!(loadingOverlay && loadingOverlay.style.display !== 'none' && loadingOverlay.style.display !== '');
+  }
+
+  function stampLoadingShown() {
+    loadingGen++;
     if (loadingOverlay) {
-      loadingOverlay.style.display = 'none';
+      loadingOverlay.dataset.lgen = String(loadingGen);
+      loadingOverlay.dataset.shownAt = String(Date.now());
     }
+    return loadingGen;
+  }
+
+  function cancelPendingShow() {
+    if (pendingShowTimer) { clearTimeout(pendingShowTimer); pendingShowTimer = null; }
+  }
+
+  // Tutup overlay selepas lengah, tetapi batalkan jika operasi baharu mengambil alih
+  function hideLoadingSoon(ms) {
+    var g = loadingOverlay ? loadingOverlay.dataset.lgen : undefined;
+    setTimeout(function() {
+      if (!loadingOverlay) return;
+      if (g !== undefined && loadingOverlay.dataset.lgen !== undefined && String(loadingOverlay.dataset.lgen) !== String(g)) return;
+      hideLoading();
+    }, ms);
+  }
+
+  function hideLoading(immediate) {
+    cancelPendingShow();
+    if (hideDeferTimer) { clearTimeout(hideDeferTimer); hideDeferTimer = null; }
     if (loadingProgressInterval) {
       clearInterval(loadingProgressInterval);
       loadingProgressInterval = null;
     }
+    if (!loadingOverlay || !isLoadingVisible()) return;
+    if (immediate === true) {
+      loadingOverlay.style.display = 'none';
+      return;
+    }
+    var shownAt = parseInt((loadingOverlay.dataset.shownAt || '0'), 10) || 0;
+    var wait = LOADING_MIN_SHOW - (Date.now() - shownAt);
+    if (wait > 0) {
+      var myGen = loadingOverlay.dataset.lgen;
+      hideDeferTimer = setTimeout(function() {
+        hideDeferTimer = null;
+        if (!loadingOverlay) return;
+        if (myGen !== undefined && loadingOverlay.dataset.lgen !== undefined && String(loadingOverlay.dataset.lgen) !== String(myGen)) return;
+        hideLoading();
+      }, wait);
+      return;
+    }
+    loadingOverlay.style.display = 'none';
+  }
+
+  // Tunjuk 100% + bulatan penuh dahulu (dipaparkan ~1s) barulah tutup overlay.
+  // Guna ini di laluan BERJAYA; laluan ralat kekal hideLoading() serta-merta.
+  // Jika overlay tidak sempat dipapar (kerja pantas), selesai senyap tanpa kelipan.
+  function completeLoadingAndHide(label, holdMs) {
+    cancelPendingShow();
+    if (!isLoadingVisible()) return Promise.resolve();
+    if (loadingProgressInterval) { clearInterval(loadingProgressInterval); loadingProgressInterval = null; }
+    var pPct = document.getElementById('loading-progress-percent');
+    var pLbl = document.getElementById('loading-progress-label');
+    if (pPct) pPct.textContent = '100%';
+    if (pLbl) pLbl.textContent = label || 'Selesai!';
+    try { syncArrow(100, (pLbl && pLbl.textContent) || ''); } catch (e) {}
+    var g = loadingOverlay ? loadingOverlay.dataset.lgen : undefined;
+    return new Promise(function(resolve) {
+      setTimeout(function() {
+        if (loadingOverlay && (g === undefined || String(loadingOverlay.dataset.lgen || '') === String(g))) hideLoading();
+        resolve();
+      }, typeof holdMs === 'number' ? holdMs : 1000);
+    });
   }
 
   // === PROGRESS BAR UNTUK AKSI PENGESAHAN SIASAT / UNDO ===
   // Mula animasi 0% -> 90% semasa proses berjalan
   function startLoadingProgress(message) {
     if (!loadingOverlay) return;
-    loadingOverlay.style.display = 'flex';
-    if (loadingText) loadingText.textContent = message || 'Memproses...';
-    if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
+    // Lengahkan paparan seperti di atas (elak kelipan untuk kerja pantas)
+    cancelPendingShow();
+    if (loadingProgressInterval) { clearInterval(loadingProgressInterval); loadingProgressInterval = null; }
+    const msgCopy = message;
+    pendingShowTimer = setTimeout(() => {
+      pendingShowTimer = null;
+      loadingOverlay.style.display = 'flex';
+      stampLoadingShown();
+      if (loadingText) loadingText.textContent = msgCopy || 'Memproses...';
+      if (loadingSubtext) loadingSubtext.textContent = 'Sila tunggu sebentar';
     const pBar = document.getElementById('loading-progress-bar');
     const pPct = document.getElementById('loading-progress-percent');
     const pLbl = document.getElementById('loading-progress-label');
@@ -1947,6 +2040,7 @@ async function handleCredentialResponse(response) {
         if (pPct) pPct.textContent = `${prog}%`;
       }
     }, 180);
+    }, LOADING_SHOW_DELAY);
   }
 
   // Selesaikan animasi ke 100%, kemudian tutup overlay
@@ -1958,10 +2052,106 @@ async function handleCredentialResponse(response) {
     if (pBar) { pBar.style.width = '100%'; pBar.style.background = success === false ? '#ef4444' : '#10b981'; }
     if (pPct) pPct.textContent = '100%';
     if (pLbl) pLbl.textContent = label || (success === false ? 'Gagal' : 'Selesai!');
+    syncArrow(100, (pLbl && pLbl.textContent) || '');
     return new Promise(function(resolve) {
-      setTimeout(function() { hideLoading(); resolve(); }, typeof delayMs === 'number' ? delayMs : 600);
+      var g = loadingOverlay ? loadingOverlay.dataset.lgen : undefined;
+      setTimeout(function() {
+        if (loadingOverlay && (g === undefined || String(loadingOverlay.dataset.lgen || '') === String(g))) hideLoading();
+        resolve();
+      }, typeof delayMs === 'number' ? delayMs : 1000);
     });
   }
+
+  // === ARROW LOADER: arka bertirus + kepala panah + titik ikut angka % ===
+  // Bar lama (#loading-progress-bar) telah dibuang; semua logik sedia ada menulis
+  // peratus ke #loading-progress-percent — observer ini memantulkan nilai itu ke:
+  //   1) arka bertirus SVG (nipis di ekor 0deg -> tebal di kepala),
+  //   2) kepala panah (putar 0% -> 0deg, 100% -> 360deg bulatan penuh),
+  //   3) titik gelap bila dilalui, pudar bila menanti.
+  var ARROW_TRAVEL_DEG = 360;
+  var ARROW_R = 74;
+  var ARROW_CX = 100;
+  var ARROW_CY = 100;
+  function arrowSweepD(phiDeg) {
+    if (phiDeg <= 0) return '';
+    var steps = Math.max(2, Math.ceil(phiDeg / 5));
+    var outer = [];
+    var inner = [];
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps;
+      var a = (phiDeg * t) * Math.PI / 180;
+      var w = 4 + 12 * t;
+      var Ro = ARROW_R + w / 2;
+      var Ri = ARROW_R - w / 2;
+      var c = Math.cos(a);
+      var s = Math.sin(a);
+      outer.push((ARROW_CX + Ro * c).toFixed(1) + ' ' + (ARROW_CY + Ro * s).toFixed(1));
+      inner.push((ARROW_CX + Ri * c).toFixed(1) + ' ' + (ARROW_CY + Ri * s).toFixed(1));
+    }
+    return 'M ' + outer.join(' L ') + ' L ' + inner.reverse().join(' L ') + ' Z';
+  }
+  function syncArrow(pct, labelText) {
+    var p = parseFloat(pct);
+    if (isNaN(p)) p = 0;
+    p = Math.max(0, Math.min(100, p));
+    var phi = p / 100 * ARROW_TRAVEL_DEG;
+    var sweep = document.getElementById('arrow-sweep');
+    if (sweep) {
+      sweep.setAttribute('d', arrowSweepD(phi));
+      var lbl = (labelText || '').toLowerCase();
+      if (lbl.indexOf('gagal') !== -1 || lbl.indexOf('ralat') !== -1 || lbl.indexOf('error') !== -1) {
+        sweep.style.fill = '#ef4444';
+      } else {
+        sweep.style.fill = '';
+      }
+    }
+    var head = document.getElementById('arrow-head');
+    if (head) {
+      if (p <= 0) {
+        head.style.display = 'none';
+      } else {
+        head.style.display = '';
+        head.style.transform = 'rotate(' + phi.toFixed(1) + 'deg)';
+      }
+    }
+    var dots = document.querySelectorAll('#arrow-dots .arrow-dot');
+    dots.forEach(function(d) {
+      var ang = parseFloat(d.getAttribute('data-angle') || '999');
+      if (phi >= ang) d.classList.add('passed');
+      else d.classList.remove('passed');
+    });
+  }
+  function syncArrowFromDom() {
+    var pctEl = document.getElementById('loading-progress-percent');
+    var lblEl = document.getElementById('loading-progress-label');
+    if (!pctEl) return;
+    var num = parseFloat((pctEl.textContent || '').replace('%', ''));
+    syncArrow(num, lblEl ? lblEl.textContent : '');
+  }
+  try {
+    var arrowPctEl = document.getElementById('loading-progress-percent');
+    var arrowLblEl = document.getElementById('loading-progress-label');
+    if (arrowPctEl && typeof MutationObserver !== 'undefined') {
+      var arrowObs = new MutationObserver(function() { syncArrowFromDom(); });
+      arrowObs.observe(arrowPctEl, { characterData: true, childList: true, subtree: true });
+      if (arrowLblEl) arrowObs.observe(arrowLblEl, { characterData: true, childList: true, subtree: true });
+      syncArrowFromDom();
+    }
+  } catch (e) { console.warn('Arrow observer gagal:', e); }
+
+  // Cop generasi/masa untuk paparan langsung (bukan melalui helper di atas)
+  try {
+    if (loadingOverlay && typeof MutationObserver !== 'undefined') {
+      var loadingShowObs = new MutationObserver(function() {
+        if (!loadingOverlay) return;
+        var vis = loadingOverlay.style.display !== 'none' && loadingOverlay.style.display !== '';
+        if (vis && !loadingWasVisible) stampLoadingShown();
+        loadingWasVisible = vis;
+      });
+      loadingShowObs.observe(loadingOverlay, { attributes: true, attributeFilter: ['style'] });
+      loadingWasVisible = isLoadingVisible();
+    }
+  } catch (e) { console.warn('Loading show observer gagal:', e); }
 
   // =========================================================================
   // FORM PERSISTENCE FUNCTIONS - INSTANT SAVE
@@ -11994,8 +12184,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       const result = await response.json();
       
-      // --- KOD BARU: TUTUP LOADING JIKA BERJAYA ---
-      hideLoading();
+      // --- KOD BARU: TUNJUK 100% DAHULU JIKA BERJAYA ---
+      await completeLoadingAndHide('Selesai!', 1000);
       
       if (result.success) {
         await playSuccessSound();
@@ -13603,11 +13793,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (progressPercent) progressPercent.textContent = '100%';
         if (progressLabel) progressLabel.textContent = 'Selesai!';
 
+        hideLoadingSoon(1000);
         setTimeout(async () => {
-            hideLoading();
             // GUNA CUSTOM APP MODAL BILA SIAP LOADING
             await CustomAppModal.alert(result.message, "Selesai", "success");
-        }, 500);
+        }, 1000);
         // --------------------------------------------------------
         
       } else {
@@ -15336,20 +15526,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (progressBar) progressBar.style.width = '100%';
         if (progressPercent) progressPercent.textContent = '100%';
         if (progressLabel) progressLabel.textContent = 'Selesai!';
-        
-        // V6.11.2: Tutup overlay serta-merta selepas berjaya - elak overlay "Menghantar data..."
-        // kekal dipapar semasa modal/callback dan masuk ke dalam hasil cetakan borang pelulus
-        hideLoading();
-        
-        if(statusEl) { 
-          statusEl.innerText = successMsg; 
-          statusEl.style.color = "green"; 
-          setTimeout(() => statusEl.innerText = "", 3000); 
-        }
-        
-        setTimeout(() => {
+
+        // Tunjuk 100% + bulatan penuh dahulu barulah tutup & teruskan callback
+        // (callback selepas hide supaya overlay tidak masuk hasil cetakan)
+        completeLoadingAndHide('Selesai!', 1000).then(() => {
+          if(statusEl) {
+            statusEl.innerText = successMsg;
+            statusEl.style.color = "green";
+            setTimeout(() => statusEl.innerText = "", 3000);
+          }
+
           if(callback) callback(result);
-        }, 500);
+        });
       })
       .catch(err => { 
         clearTimeout(timeoutId);
@@ -19415,10 +19603,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   if (progressPercent) progressPercent.textContent = '100%';
                   if (progressLabel) progressLabel.textContent = 'Selesai!';
 
+                  hideLoadingSoon(1000);
                   setTimeout(() => {
-                      hideLoading();
                       displayYoutubeResults(cacheData.results);
-                  }, 500);
+                  }, 1000);
                   // -------------------------------------------------------------
                   return; 
               }
@@ -19441,10 +19629,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               if (progressPercent) progressPercent.textContent = '100%';
               if (progressLabel) progressLabel.textContent = 'Selesai!';
 
+              hideLoadingSoon(1000);
               setTimeout(() => {
-                  hideLoading();
                   displayYoutubeResults(result.data);
-              }, 500);
+              }, 1000);
               
               // 4. SIMPAN HASIL KE CACHE INDIVIDU
               if (dbFirestore && result.data && result.data.length > 0) {
@@ -19660,7 +19848,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               
               // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
               document.documentElement.style.setProperty('--theme-color', userColorHex);
-              hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
+              hideLoading(true); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
               window.print();
               document.documentElement.style.setProperty('--theme-color', originalThemeColor);
               
@@ -19677,7 +19865,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               if (!updateDrive) {
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
-                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
+                  hideLoading(true); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
@@ -19693,7 +19881,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               if (!userConfirmed) {
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
-                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
+                  hideLoading(true); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   return;
@@ -19777,14 +19965,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(updatePayload)
                   }, 3, 1000).catch(e => console.error("Gagal simpan flag drive pelulus:", e));
 
-                  hideLoading();
+                  await completeLoadingAndHide('Selesai!', 1000);
                   await playSuccessSound();
                   const pelulusInfo = (result.deleted_count > 0) ? ` Borang lama (${result.deleted_count}) telah dipadam — hanya borang terkini dipaparkan dalam Drive.` : ` Hanya borang terkini dipaparkan dalam Drive.`;
                   await CustomAppModal.alert("Fail PDF berjaya dikemaskini di Drive!" + pelulusInfo + " Pilihan untuk mengemaskini ke Drive bagi rekod ini telah ditutup.", "Berjaya Disimpan", "success");
                   
                   // KOD BARU: Terapkan warna Pengesyor sebelum print dialog
                   document.documentElement.style.setProperty('--theme-color', userColorHex);
-                  hideLoading(); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
+                  hideLoading(true); // V6.11.2: Pastikan overlay "Menghantar data..." tertutup sebelum cetak
                   window.print();
                   document.documentElement.style.setProperty('--theme-color', originalThemeColor);
                   
@@ -19887,7 +20075,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           document.documentElement.style.setProperty('--theme-color', userColorHex);
           
           // --- 4. TERUS CETAK BIASA ---
-          hideLoading(); // V6.11.2: Pastikan overlay tertutup sebelum cetak
+          hideLoading(true); // V6.11.2: Pastikan overlay tertutup sebelum cetak
           window.print();
 
           // KOD BARU: Kembalikan warna tema asal Pelulus selepas cetak

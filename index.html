@@ -29,25 +29,53 @@
 </head>
 <body>
 
-    <!-- LOADING OVERLAY -->
+    <!-- LOADING OVERLAY : Tema Anak Panah Bulat ikut --theme-color pengguna -->
     <div id="loading-overlay">
-        <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-text" id="loading-text">Memuatkan data...</div>
-            <div class="loading-subtext" id="loading-subtext">Sistem Bersepadu SPTB (HQ)</div>
-            <div class="loading-dots"><span></span><span></span><span></span></div>
-            <div class="loading-progress-container">
-                <div class="loading-progress-info">
-                    <div class="loading-progress-label" id="loading-progress-label">Memulakan...</div>
-                    <div class="loading-progress-percent" id="loading-progress-percent">0%</div>
-                </div>
-                <div class="loading-progress-bar-container">
-                    <div class="loading-progress-bar-fill" id="loading-progress-bar"></div>
-                </div>
-                <div class="loading-progress-steps" id="loading-progress-steps">
-                    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        <div class="loading-container snake-theme-container">
+            <div class="snake-loader-stage" role="status" aria-live="polite" aria-label="Memuatkan">
+                <svg class="snake-svg" viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+                    <!-- Trek nipis penuh + arka bertirus (dibina semula oleh JS ikut %) -->
+                    <circle class="arrow-track" cx="100" cy="100" r="74"></circle>
+                    <path class="arrow-sweep" id="arrow-sweep" d=""></path>
+                    <!-- 12 titik hitam di sepanjang laluan (melepasi = gelap, menanti = pudar) -->
+                    <g id="arrow-dots" class="arrow-dots">
+                        <circle class="arrow-dot" data-angle="0" cx="174" cy="100" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="30" cx="164.1" cy="137" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="60" cx="137" cy="164.1" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="90" cx="100" cy="174" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="120" cx="63" cy="164.1" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="150" cx="35.9" cy="137" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="180" cx="26" cy="100" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="210" cx="35.9" cy="63" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="240" cx="63" cy="35.9" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="270" cx="100" cy="26" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="300" cx="137" cy="35.9" r="4.5"></circle>
+                        <circle class="arrow-dot" data-angle="330" cx="164.1" cy="63" r="4.5"></circle>
+                    </g>
+                    <!-- Kilauan berputar berterusan (kesan hidup) -->
+                    <circle class="arc-shine" cx="100" cy="100" r="74"></circle>
+                    <!-- Kepala panah: JS putar ikut % (transform-origin tengah, glide licin) -->
+                    <g id="arrow-head" class="arrow-spin">
+                        <g transform="translate(174 100) rotate(90)">
+                            <g class="arrow-head-pulse">
+                                <path class="arrow-head-shape" d="M -16 -13 L 14 0 L -16 13 Z"></path>
+                                <g class="arrow-motes">
+                                    <circle class="arrow-mote m1" cx="27" cy="0" r="3.4"></circle>
+                                    <circle class="arrow-mote m2" cx="39" cy="-3" r="2.5"></circle>
+                                    <circle class="arrow-mote m3" cx="50" cy="4" r="1.7"></circle>
+                                </g>
+                            </g>
+                        </g>
+                    </g>
+                </svg>
+                <div class="snake-center">
+                    <div class="snake-loading-word">loading<span class="snake-ellipsis"><span>.</span><span>.</span><span>.</span></span></div>
+                    <div class="snake-percent loading-progress-percent" id="loading-progress-percent">0%</div>
+                    <div class="snake-label loading-progress-label" id="loading-progress-label">Memulakan...</div>
                 </div>
             </div>
+            <div class="loading-text" id="loading-text">Memuatkan data...</div>
+            <div class="loading-subtext" id="loading-subtext">Sistem Bersepadu SPTB (HQ)</div>
         </div>
     </div>
 

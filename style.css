@@ -262,26 +262,9 @@
             border: 1px solid rgba(255, 255, 255, 0.8);
         }
 
-        .loading-spinner {
-            width: 80px;
-            height: 80px;
-            border: 6px solid rgba(37, 99, 235, 0.1);
-            border-top: 6px solid var(--theme-color);
-            border-radius: 50%;
-            animation: spin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
-            margin: 0 auto 25px auto;
-            position: relative;
-        }
-
-        .loading-spinner:after {
-            content: '';
-            position: absolute;
-            top: -10px;
-            left: -10px;
-            right: -10px;
-            bottom: -10px;
-            border: 3px solid rgba(37, 99, 235, 0.05);
-            border-radius: 50%;
+        .snake-theme-container {
+            max-width: 400px;
+            padding: 28px 28px 24px 28px;
         }
 
         @keyframes spin {
@@ -289,11 +272,208 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* --- LOADER ANAK PANAH BULAT: arka bertirus + titik, warna ikut --theme-color --- */
+        .snake-loader-stage {
+            position: relative;
+            width: 230px;
+            height: 230px;
+            margin: 0 auto 18px auto;
+        }
+
+        .snake-loader-stage::before {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle, color-mix(in srgb, var(--theme-color) 14%, transparent) 0%, transparent 68%);
+            pointer-events: none;
+        }
+
+        .snake-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            overflow: visible;
+        }
+
+        .arrow-track {
+            fill: none;
+            stroke: color-mix(in srgb, var(--theme-color) 16%, #e2e8f0);
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .arrow-sweep {
+            fill: var(--theme-color);
+            filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--theme-color) 45%, transparent));
+        }
+
+        /* Titik di laluan: melepasi = gelap (rivet), menanti = pudar */
+        .arrow-dot {
+            fill: #e8edf3;
+            stroke: #c3ccd8;
+            stroke-width: 1.5;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: dotTwinkle 2.2s ease-in-out infinite;
+            transition: fill 0.25s ease, stroke 0.25s ease;
+        }
+
+        .arrow-dots .arrow-dot:nth-child(2) { animation-delay: 0.18s; }
+        .arrow-dots .arrow-dot:nth-child(3) { animation-delay: 0.36s; }
+        .arrow-dots .arrow-dot:nth-child(4) { animation-delay: 0.54s; }
+        .arrow-dots .arrow-dot:nth-child(5) { animation-delay: 0.72s; }
+        .arrow-dots .arrow-dot:nth-child(6) { animation-delay: 0.9s; }
+        .arrow-dots .arrow-dot:nth-child(7) { animation-delay: 1.08s; }
+        .arrow-dots .arrow-dot:nth-child(8) { animation-delay: 1.26s; }
+        .arrow-dots .arrow-dot:nth-child(9) { animation-delay: 1.44s; }
+        .arrow-dots .arrow-dot:nth-child(10) { animation-delay: 1.62s; }
+        .arrow-dots .arrow-dot:nth-child(11) { animation-delay: 1.8s; }
+        .arrow-dots .arrow-dot:nth-child(12) { animation-delay: 1.98s; }
+
+        @keyframes dotTwinkle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
+        }
+
+        .arrow-dot.passed {
+            fill: #1c2530;
+            stroke: #1c2530;
+            animation: none;
+            opacity: 1;
+        }
+
+        /* Kilauan putih mengelilingi trek secara berterusan (kesan hidup) */
+        .arc-shine {
+            fill: none;
+            stroke: #ffffff;
+            stroke-width: 10;
+            stroke-linecap: round;
+            stroke-dasharray: 26 438.9;
+            opacity: 0.3;
+            transform-origin: 100px 100px;
+            animation: shineOrbit 3s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes shineOrbit {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Kepala panah: JS putar ikut %, glide licin via transition */
+        .arrow-spin {
+            transform-origin: 100px 100px;
+            transition: transform 0.3s ease-out;
+        }
+
+        .arrow-head-pulse {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: headPulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes headPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+
+        .arrow-head-shape {
+            fill: var(--theme-color);
+            stroke: var(--theme-color);
+            stroke-width: 5;
+            stroke-linejoin: round;
+        }
+
+        /* Zarah halus berapungan di depan kepala panah */
+        .arrow-mote {
+            fill: #1c2530;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: moteFloat 1.8s ease-in-out infinite;
+        }
+
+        .arrow-mote.m1 { opacity: 0.9; }
+        .arrow-mote.m2 { opacity: 0.6; animation-delay: 0.25s; }
+        .arrow-mote.m3 { opacity: 0.4; animation-delay: 0.5s; }
+
+        @keyframes moteFloat {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(3px); }
+        }
+
+        .snake-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            pointer-events: none;
+            padding: 0 44px;
+        }
+
+        .snake-loading-word {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #334155;
+            letter-spacing: 0.3px;
+            line-height: 1.2;
+        }
+
+        .snake-ellipsis span {
+            animation: snakeBlink 1.2s infinite;
+            display: inline-block;
+        }
+
+        .snake-ellipsis span:nth-child(2) { animation-delay: 0.2s; }
+        .snake-ellipsis span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes snakeBlink {
+            0%, 60%, 100% { opacity: 0.2; }
+            30% { opacity: 1; }
+        }
+
+        .snake-percent {
+            font-size: 2.6rem;
+            font-weight: 900;
+            line-height: 1;
+            margin: 2px 0 4px 0;
+            letter-spacing: -1px;
+            color: color-mix(in srgb, var(--theme-color) 78%, black);
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .snake-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.35;
+            max-width: 150px;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        @media (max-width: 480px) {
+            .snake-loader-stage { width: 200px; height: 200px; }
+            .snake-percent { font-size: 2.1rem; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .arrow-head-pulse, .arrow-mote, .arc-shine { animation: none; }
+            .arrow-dot { animation: none; }
+            .arrow-spin { transition: none; }
+        }
+
         .loading-text {
-            font-size: 1.4rem;
+            font-size: 1.15rem;
             font-weight: 700;
             color: #1e40af;
-            margin-bottom: 20px;
+            margin-bottom: 6px;
+            margin-top: 2px;
             background: linear-gradient(90deg, color-mix(in srgb, var(--theme-color) 70%, black), var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, black));
             background-size: 200% auto;
             background-clip: text;
@@ -311,118 +491,8 @@
         .loading-subtext {
             font-size: 0.95rem;
             color: #64748b;
-            margin-bottom: 25px;
+            margin-bottom: 4px;
             line-height: 1.5;
-        }
-
-        .loading-dots {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 15px;
-        }
-
-        .loading-dots span {
-            width: 12px;
-            height: 12px;
-            background: linear-gradient(135deg, color-mix(in srgb, var(--theme-color) 85%, white), var(--theme-color));
-            border-radius: 50%;
-            animation: bounce 1.4s infinite ease-in-out;
-            box-shadow: 0 4px 8px color-mix(in srgb, var(--theme-color) 40%, transparent);
-        }
-
-        .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
-        .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
-
-        @keyframes bounce {
-            0%, 80%, 100% {
-                transform: scale(0);
-                opacity: 0.5;
-            }
-            40% {
-                transform: scale(1.2);
-                opacity: 1;
-            }
-        }
-
-        .loading-progress-container {
-            width: 100%;
-            margin-top: 25px;
-        }
-
-        .loading-progress-info {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: #64748b;
-            font-weight: 600;
-        }
-
-        .loading-progress-label {
-            text-align: left;
-        }
-
-        .loading-progress-percent {
-            text-align: right;
-            color: #1e40af;
-            font-weight: 700;
-        }
-
-        .loading-progress-bar-container {
-            width: 100%;
-            height: 10px;
-            background: rgba(37, 99, 235, 0.1);
-            border-radius: 5px;
-            overflow: hidden;
-            position: relative;
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .loading-progress-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, var(--theme-color), color-mix(in srgb, var(--theme-color) 70%, white));
-            border-radius: 5px;
-            transition: width 0.3s ease-out;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .loading-progress-bar-fill::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background-image: linear-gradient(
-                -45deg,
-                rgba(255, 255, 255, 0.2) 25%,
-                transparent 25%,
-                transparent 50%,
-                rgba(255, 255, 255, 0.2) 50%,
-                rgba(255, 255, 255, 0.2) 75%,
-                transparent 75%,
-                transparent
-            );
-            background-size: 30px 30px;
-            animation: progressStripes 1s linear infinite;
-            border-radius: 5px;
-        }
-
-        @keyframes progressStripes {
-            0% { background-position: 0 0; }
-            100% { background-position: 30px 0; }
-        }
-
-        .loading-progress-steps {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-            font-size: 0.75rem;
-            color: #94a3b8;
-            font-weight: 500;
         }
 
         .dashboard-loading {
@@ -3121,8 +3191,16 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
     background: linear-gradient(90deg, color-mix(in srgb, var(--theme-color) 55%, white), color-mix(in srgb, var(--theme-color) 25%, white));
     -webkit-background-clip: text; background-clip: text;
   }
-  html[data-theme="dark"] .loading-progress-percent, 
+  html[data-theme="dark"] .loading-progress-percent,
   html[data-theme="dark"] .loading-progress-label { color: #cbd5e1; }
+  html[data-theme="dark"] .snake-percent { color: color-mix(in srgb, var(--theme-color) 45%, white); text-shadow: none; }
+  html[data-theme="dark"] .snake-loading-word { color: #e2e8f0; }
+  html[data-theme="dark"] .snake-label { color: #94a3b8; }
+  html[data-theme="dark"] .arrow-track { stroke: color-mix(in srgb, var(--theme-color) 25%, #1e293b); }
+  html[data-theme="dark"] .arrow-dot { fill: #334155; stroke: #475569; }
+  html[data-theme="dark"] .arrow-dot.passed { fill: #e5e7eb; stroke: #e5e7eb; }
+  html[data-theme="dark"] .arrow-mote { fill: #e5e7eb; }
+  html[data-theme="dark"] .arc-shine { opacity: 0.14; }
   html[data-theme="dark"] .loading-subtext { color: #94a3b8; }
   html[data-theme="dark"] .form-checker-loading-spinner { background: rgba(15, 23, 42, 0.95); }
   html[data-theme="dark"] .form-checker-loading-text { color: #93c5fd; }
