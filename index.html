@@ -292,7 +292,6 @@
                     <div><label>Tarikh Mohon</label><input type="date" id="borang_tarikh_mohon"></div>
                     <div><label>Semakan Tatatertib</label><input type="hidden" id="borang_tatatertib" value=""><div class="btn-group" data-target="borang_tatatertib"><button class="btn-option btn-opt-red" data-value="ADA">ADA</button><button class="btn-option btn-opt-green" data-value="TIADA">TIADA</button></div></div>
                 </div>
-                <div style="margin-bottom:10px;"><label>Justifikasi Lawatan</label><input type="text" id="borang_justifikasi" placeholder="Nyatakan justifikasi lawatan jika perlu..."></div>
                 <input type="hidden" id="input_justifikasi"><input type="hidden" id="input_pautan">
                 <input type="text" id="input_ubah_maklumat" class="conditional-input" placeholder="Nyatakan Perubahan Maklumat...">
                 <input type="text" id="input_ubah_gred" class="conditional-input" placeholder="Nyatakan Perubahan Gred...">
@@ -339,6 +338,14 @@
                     <div><label>Tarikh Siasatan</label><input type="date" id="borang_tarikh_siasatan"></div>
                     <div><label>Tarikh Proses</label><input type="date" id="borang_tarikh_proses" readonly style="background: #f1f5f9; cursor: not-allowed;" title="Tarikh ini diisi secara automatik mengikut keputusan syor"></div>
                     <div><label>Keputusan Syor</label><input type="hidden" id="borang_syor_status" value=""><div class="btn-group" data-target="borang_syor_status"><button class="btn-option btn-opt-green" data-value="SOKONG">SOKONG</button><button class="btn-option btn-opt-orange" data-value="SIASAT">SIASAT</button><button class="btn-option btn-opt-red" data-value="TIDAK DISOKONG">TIDAK DISOKONG</button></div></div>
+                </div>
+                <div id="div_borang_justifikasi" style="display:none; margin-top:12px;">
+                    <label>Justifikasi Lawatan</label>
+                    <textarea id="borang_justifikasi" style="min-height:80px;" placeholder="Nyatakan justifikasi lawatan..."></textarea>
+                </div>
+                <div id="div_borang_catatan" style="display:none; margin-top:12px;">
+                    <label>Catatan</label>
+                    <textarea id="borang_catatan" style="min-height:80px;" placeholder="Masukkan catatan..."></textarea>
                 </div>
             </div>
 
@@ -396,10 +403,17 @@
                             <div style="flex:1; min-width:120px;"><label>DATE SUBMIT TO SPTB</label><input type="date" id="db_lawatan_submit_sptb" style="width:100%;"></div>
                             <div style="flex:1; min-width:120px;"><label>SYOR SPI</label><select id="db_lawatan_syor" style="width:100%;"><option value="">- PILIH -</option><option value="SOKONG">SOKONG</option><option value="TIDAK DISOKONG">TIDAK DISOKONG</option></select></div>
                         </div>
-                        <div style="margin-top:10px;"><label>ULASAN SPI</label><textarea id="db_ulasan_spi" style="width:100%;" placeholder="Catatan siasatan..."></textarea></div>
+                        <div style="margin-top:10px;"><label>ULASAN SPI</label><textarea id="db_ulasan_spi" style="width:100%; min-height:80px;" placeholder="Catatan siasatan..."></textarea></div>
                     </div>
                 <div id="pautanDokumenContainer" style="display:none;"><label>Pautan Dokumen</label><div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;"><input type="text" id="db_pautan" style="flex: 1;"><button class="btn btn-blue" id="btnFileManagerFromPautan" style="padding: 8px 12px; font-size: 0.8rem;" title="Urus Fail"><i class="fa-solid fa-folder-open fa-ico"></i>Urus Fail</button></div></div>
-                <label>Justifikasi Lawatan</label><input type="text" id="db_justifikasi">
+                <div id="div_db_justifikasi" style="display:none; margin-top:10px;">
+                    <label>Justifikasi Lawatan</label>
+                    <textarea id="db_justifikasi" style="min-height:80px;" placeholder="Sila nyatakan justifikasi lawatan..."></textarea>
+                </div>
+                <div id="div_db_catatan" style="display:none; margin-top:10px;">
+                    <label>Catatan</label>
+                    <textarea id="db_catatan" style="min-height:80px;" placeholder="Masukkan catatan..."></textarea>
+                </div>
                 <div style="margin-top:15px; border-top: 2px dashed #ccc; padding-top:10px; background:#f8fafc; padding:10px; border-radius:8px;">
                     <label>Nama Pengesyor</label><input type="text" id="db_pengesyor" readonly style="font-weight:bold; color:#2563eb;">
                     <div class="grid-equal"><div><label>Syor</label><input type="hidden" id="db_syor_status" value=""><div class="btn-group" data-target="db_syor_status"><button class="btn-option btn-opt-green" data-value="SOKONG">SOKONG</button><button class="btn-option btn-opt-orange" data-value="SIASAT" id="btnSyorSiasat">SIASAT</button><button class="btn-option btn-opt-red" data-value="TIDAK DISOKONG">TIDAK DISOKONG</button></div></div></div>
@@ -746,8 +760,8 @@
                 <div class="signature-box" style="width:45%;">
                     <div class="ver-title" style="font-weight:900; font-size:14pt; margin-bottom:8px; color:var(--theme-color);">DISEDIAKAN OLEH,</div>
                     <div style="position:relative; height:120px; width:100%; border-bottom:1px solid #000; margin-bottom:5px;">
-                        <img id="lh_pengesyor_cop_img" src="" style="display:none; position:absolute; bottom:0px; left:0; right:0; margin:auto; height:90px; width:auto; z-index:0; opacity:0.85;">
-                        <img id="lh_pengesyor_sign_img" src="" style="display:none; position:absolute; bottom:80px; left:0; right:0; margin:auto; height:55px; width:auto; z-index:1;">
+                        <img id="lh_pengesyor_cop_img" src="" referrerpolicy="no-referrer" style="display:none; position:absolute; bottom:0px; left:0; right:0; margin:auto; height:90px; width:auto; z-index:0; opacity:0.85;">
+                        <img id="lh_pengesyor_sign_img" src="" referrerpolicy="no-referrer" style="display:none; position:absolute; bottom:80px; left:0; right:0; margin:auto; height:55px; width:auto; z-index:1;">
                     </div>
                     <div class="caption" style="font-weight:bold; font-size:13pt; text-align:center;" id="lh_nama_pengesyor"></div>
                     <div class="caption" style="font-size:12pt; text-align:center;">Tarikh: <span id="lh_tarikh_pengesyor"></span></div>
@@ -782,6 +796,9 @@
                 <div class="options-text-center" id="print_syor_container">
                     <span id="print_syor_sokong">SOKONG</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_siasat">SIASAT</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span id="print_syor_tidak_sokong">TIDAK DISOKONG</span>
                 </div>
+                <div id="print_catatan_container" style="display:none; margin-top:6px; font-size:12pt; padding: 0 6px;">
+                    <span style="font-weight:700;">CATATAN:</span> <span id="print_catatan_borang" style="font-weight:bold; white-space:pre-wrap; word-wrap:break-word; overflow-wrap:break-word;"></span>
+                </div>
                 <div class="pengesyor-grid-new">
                     <div class="pengesyor-dates">
                         <div>Tarikh Mohon: <span id="print_tarikh_mohon" style="font-weight:bold; text-decoration: underline;">_____________</span></div>
@@ -791,8 +808,8 @@
                     </div>
                     
                     <div class="pengesyor-sign-box" style="position: relative; height: 110px; width: 50%;">
-                        <img id="print_pengesyor_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
-                        <img id="print_pengesyor_sign" src="" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
+                        <img id="print_pengesyor_cop" src="" referrerpolicy="no-referrer" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
+                        <img id="print_pengesyor_sign" src="" referrerpolicy="no-referrer" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
                     </div>
                 </div>
             </div>
@@ -813,8 +830,8 @@
                 </div>
                 <div style="display:flex; justify-content:center; margin-top:8px;">
                     <div class="pelulus-sign-box" style="position: relative; height: 110px; width: 200px;">
-                        <img id="print_pelulus_cop" src="" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
-                        <img id="print_pelulus_sign" src="" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
+                        <img id="print_pelulus_cop" src="" referrerpolicy="no-referrer" style="display: none; position: absolute; bottom: 0px; left: 0; right: 0; margin: auto; height: 80px; width: auto; z-index: 0; opacity: 0.85;">
+                        <img id="print_pelulus_sign" src="" referrerpolicy="no-referrer" style="display: none; position: absolute; bottom: 75px; left: 0; right: 0; margin: auto; height: 50px; width: auto; z-index: 1;">
                     </div>
                 </div>
             </div>

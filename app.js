@@ -880,7 +880,7 @@ async function handleCredentialResponse(response) {
     const pic = currentUser.picture;
     const jataImg = `<img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.innerHTML = pic
-      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) ${jataImg}`
+      ? `<img class="user-badge-avatar" src="${pic}" alt="" referrerpolicy="no-referrer"> ${currentUser.name} (${currentUser.role}) ${jataImg}`
       : `<i class="fa-solid fa-user fa-ico"></i>${currentUser.name} (${currentUser.role}) ${jataImg}`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
@@ -1783,6 +1783,12 @@ async function handleCredentialResponse(response) {
     dbUlasanSpi.addEventListener('input', function() { autoResizeTextarea(this); });
   }
 
+  // Medan fleksibel Justifikasi/Catatan — auto-membesar ikut kandungan
+  ['borang_justifikasi', 'borang_catatan', 'db_justifikasi', 'db_catatan'].forEach(function(flexId) {
+    const flexEl = document.getElementById(flexId);
+    if (flexEl) flexEl.addEventListener('input', function() { autoResizeTextarea(this); });
+  });
+
   // WhatsApp Notification Elements
   const pelulusWhatsappContainer = document.getElementById('pelulus_whatsapp_container');
 
@@ -2309,6 +2315,7 @@ async function handleCredentialResponse(response) {
             initializeTickButtons();
             setButtonGroupValue('borang_tatatertib', fields.borang_tatatertib);
             setButtonGroupValue('borang_syor_status', fields.borang_syor_status);
+            refreshMedanFleksibelUI();
           }, 100);
           
           console.log('V6.5.2 Form data restored from persistence');
@@ -2353,6 +2360,7 @@ async function handleCredentialResponse(response) {
         setButtonGroupValue('db_tatatertib', fields.db_tatatertib);
         setButtonGroupValue('db_syor', fields.db_syor);
         setButtonGroupValue('db_syor_status', fields.db_syor_status);
+        refreshMedanFleksibelUI();
         
         console.log('V6.5.2 Database form data restored from persistence');
       })
@@ -4404,9 +4412,65 @@ async function handleCredentialResponse(response) {
 
   function autoResizeTextarea(el) {
     if (!el) return;
+    // Elak ukuran 0px bila elemen/container tersorok (display:none) — biar min-height CSS kawal
+    if (!el.offsetParent || el.scrollHeight === 0) {
+      el.style.height = '';
+      el.style.overflowY = '';
+      return;
+    }
+    const minH = parseFloat(window.getComputedStyle(el).minHeight) || 0;
     el.style.height = 'auto';
     el.style.overflowY = 'hidden';
-    el.style.height = el.scrollHeight + 'px';
+    el.style.height = Math.max(el.scrollHeight, minH) + 'px';
+  }
+
+  // =========================================================================
+  // V6.13.0: MEDAN FLEKSIBEL — Justifikasi Lawatan vs Catatan ikut syor
+  // =========================================================================
+  const ID_MEDAN_FLEKSIBEL = ['borang_justifikasi', 'borang_catatan', 'db_justifikasi', 'db_catatan'];
+
+  // Borang Semakan: SIASAT -> Justifikasi Lawatan; SOKONG/TIDAK DISOKONG -> Catatan
+  function toggleMedanBorangSyor() {
+    const syorVal = (document.getElementById('borang_syor_status')?.value || '').toString().trim().toUpperCase();
+    const divJustifikasi = document.getElementById('div_borang_justifikasi');
+    const divCatatan = document.getElementById('div_borang_catatan');
+    const showJustifikasi = (syorVal === 'SIASAT');
+    const showCatatan = (syorVal === 'SOKONG' || syorVal === 'TIDAK DISOKONG');
+    if (divJustifikasi) {
+      divJustifikasi.style.display = showJustifikasi ? 'block' : 'none';
+      if (showJustifikasi) autoResizeTextarea(document.getElementById('borang_justifikasi'));
+    }
+    if (divCatatan) {
+      divCatatan.style.display = showCatatan ? 'block' : 'none';
+      if (showCatatan) autoResizeTextarea(document.getElementById('borang_catatan'));
+    }
+  }
+
+  // Input Database: Syor Lawatan YA/PEMUTIHAN -> Justifikasi Lawatan; selainnya -> Catatan
+  function toggleMedanDbSyor() {
+    const syorVal = (document.getElementById('db_syor')?.value || '').toString().trim().toUpperCase();
+    const divJustifikasi = document.getElementById('div_db_justifikasi');
+    const divCatatan = document.getElementById('div_db_catatan');
+    const showJustifikasi = (syorVal === 'YA' || syorVal === 'PEMUTIHAN');
+    if (divJustifikasi) {
+      divJustifikasi.style.display = showJustifikasi ? 'block' : 'none';
+      if (showJustifikasi) autoResizeTextarea(document.getElementById('db_justifikasi'));
+    }
+    if (divCatatan) {
+      divCatatan.style.display = showJustifikasi ? 'none' : 'block';
+      if (!showJustifikasi) autoResizeTextarea(document.getElementById('db_catatan'));
+    }
+  }
+
+  // Segarkan semula semua medan fleksibel (tinggi + paparan) selepas restore/tukar rekod/reset
+  function refreshMedanFleksibelUI() {
+    ID_MEDAN_FLEKSIBEL.concat(['db_ulasan_spi']).forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) { el.style.height = ''; el.style.overflowY = ''; }
+    });
+    toggleMedanBorangSyor();
+    toggleMedanDbSyor();
+    autoResizeTextarea(document.getElementById('db_ulasan_spi'));
   }
 
   // =========================================================================
@@ -8189,6 +8253,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (ubahMaklumatInput) ubahMaklumatInput.style.display = 'none';
     if (ubahGredInput) ubahGredInput.style.display = 'none';
     ['borang_tatatertib', 'borang_syor_status'].forEach(id => setButtonGroupValue(id, ''));
+    ['borang_justifikasi', 'borang_catatan'].forEach(function(flexId) {
+      const flexEl = document.getElementById(flexId);
+      if (flexEl) { flexEl.style.height = ''; flexEl.style.overflowY = ''; }
+    });
+    toggleMedanBorangSyor();
     const personnelListEl = document.getElementById('personnelList');
     if (personnelListEl) {
       personnelListEl.innerHTML = '';
@@ -8211,11 +8280,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
      'print_doc_carta', 'print_doc_peta', 'print_doc_gambar', 'print_doc_sewa',
      'print_kwsp_1', 'print_kwsp_2', 'print_kwsp_3',
      'print_tarikh_mohon', 'print_tarikh_lengkap', 'print_tarikh_siasatan', 'print_tarikh_proses',
-     'print_tarikh_lulus', 'print_catatan_pelulus', 'print_nama_pelulus'
+     'print_tarikh_lulus', 'print_catatan_pelulus', 'print_nama_pelulus', 'print_catatan_borang'
     ].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerText = '';
     });
+
+    // Sembunyikan baris CATATAN cetakan (dipaparkan semula jika syor SOKONG/TIDAK DISOKONG & ada catatan)
+    const printCatatanContainer = document.getElementById('print_catatan_container');
+    if (printCatatanContainer) printCatatanContainer.style.display = 'none';
 
     // Kemaskini Checkbox untuk PDF
     const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
@@ -8293,6 +8366,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         elSiasat.setAttribute('class', 'syor-selected');
     } else if(syorPilihan === 'TIDAK DISOKONG' && elTidak) {
         elTidak.setAttribute('class', 'syor-selected');
+    }
+
+    // CATATAN (SOKONG / TIDAK DISOKONG) — papar di bawah baris syor dalam BAHAGIAN PENGESYOR
+    const catatanBorangCetak = (document.getElementById('borang_catatan')?.value || '').trim();
+    if (printCatatanContainer) {
+        const showCatatanCetak = (syorPilihan === 'SOKONG' || syorPilihan === 'TIDAK DISOKONG') && catatanBorangCetak !== '';
+        printCatatanContainer.style.display = showCatatanCetak ? 'block' : 'none';
+        if (showCatatanCetak) setTxt('print_catatan_borang', catatanBorangCetak);
     }
 
     const tbody = document.getElementById('print_personnel_page1');
@@ -11040,6 +11121,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (containerLawatan) {
         containerLawatan.style.display = isChecked ? 'block' : 'none';
       }
+      // Ukur semula ULASAN SPI dalam keadaan nampak (elak kotak terpenyek bila kosong)
+      if (isChecked) autoResizeTextarea(dbUlasanSpi);
       
       if (!isChecked) {
         if (dbLawatanTarikh) dbLawatanTarikh.value = '';
@@ -11107,6 +11190,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         syncDatepickers(document.body);
       }
     }
+    toggleMedanDbSyor();
     toggleSyorSiasatVisibility();
   }
   if (dbSyorSelect) {
@@ -11411,7 +11495,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
     const pic = currentUser.picture;
     userBadge.innerHTML = pic
-      ? `<img class="user-badge-avatar" src="${pic}" alt=""> ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`
+      ? `<img class="user-badge-avatar" src="${pic}" alt="" referrerpolicy="no-referrer"> ${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`
       : `<i class="fa-solid fa-user fa-ico"></i>${currentUser.name} (${currentUser.role}) <img class="jata-badge-img" src="jata.svg" alt="Jata Negara">`;
     userBadge.title = "Buka Portal YouTube";
     userBadge.style.cursor = "pointer";
@@ -12459,6 +12543,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     isRestoring = false;
 
     updateValidationCheckboxDisplay();
+    refreshMedanFleksibelUI();
   }
 
   function updateValidationCheckboxDisplay() {
@@ -12508,6 +12593,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const tatatertib = document.getElementById('borang_tatatertib')?.value || '';
       const gred = document.getElementById('borang_gred')?.value || '';
       const justifikasi = document.getElementById('borang_justifikasi')?.value || '';
+      const catatanBorang = document.getElementById('borang_catatan')?.value || '';
       
       const dbSyarikat = document.getElementById('db_syarikat');
       const dbCidb = document.getElementById('db_cidb');
@@ -12515,6 +12601,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const dbTatatertib = document.getElementById('db_tatatertib');
       const dbGred = document.getElementById('db_gred');
       const dbJustifikasi = document.getElementById('db_justifikasi');
+      const dbCatatan = document.getElementById('db_catatan');
       
       if (dbSyarikat) dbSyarikat.value = syarikat;
       if (dbCidb) dbCidb.value = cidb;
@@ -12522,6 +12609,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (dbTatatertib) { dbTatatertib.value = tatatertib; setButtonGroupValue('db_tatatertib', tatatertib); }
       if (dbGred) dbGred.value = gred;
       if (dbJustifikasi) dbJustifikasi.value = justifikasi;
+      if (dbCatatan) dbCatatan.value = catatanBorang;
 
       const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
       if(selectedType) {
@@ -12542,6 +12630,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       saveDatabaseFormData();
       switchTab('db');
+      refreshMedanFleksibelUI();
     });
   }
 
@@ -12675,6 +12764,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
     });
+    refreshMedanFleksibelUI();
 
     const pelBtnGroup = document.getElementById('pelulus_button_group');
     if (pelBtnGroup) {
@@ -12737,7 +12827,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function checkUnsavedData() {
     const borangFields = [
       'borang_syarikat', 'borang_cidb', 'borang_gred', 'borang_tarikh_mohon',
-      'borang_tatatertib', 'borang_justifikasi', 'spkkDuration', 'stbDuration'
+      'borang_tatatertib', 'borang_justifikasi', 'borang_catatan', 'spkkDuration', 'stbDuration'
     ];
 
     const dbFields = ['db_syarikat', 'db_cidb', 'db_gred'];
@@ -12772,14 +12862,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   async function resetFormForEdit() {
     const fieldsToClear = [
       'borang_syarikat', 'borang_cidb', 'borang_gred', 'borang_tarikh_mohon',
-      'borang_tatatertib', 'borang_justifikasi', 'spkkDuration', 'stbDuration', 'ssm_date_input',
+      'borang_tatatertib', 'borang_justifikasi', 'borang_catatan', 'spkkDuration', 'stbDuration', 'ssm_date_input',
       'ssm_status', 'bank_date_input', 'bank_sign_input', 'bank_status_input',
       'doc_carta_status', 'doc_peta_status', 'doc_gambar_status', 'doc_sewa_status',
       'kwsp_date_1', 'kwsp_s1', 'kwsp_date_2', 'kwsp_s2', 'kwsp_date_3', 'kwsp_s3',
       'db_status_hantar_spi',
       'borang_no_telefon',
       'input_ubah_maklumat', 'input_ubah_gred',
-      'db_alamat_perniagaan'
+      'db_alamat_perniagaan',
+      'db_catatan'
     ];
 
     fieldsToClear.forEach(id => {
@@ -12791,6 +12882,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
     });
+    refreshMedanFleksibelUI();
 
     const pelBtnGroup = document.getElementById('pelulus_button_group');
     if (pelBtnGroup) {
@@ -14504,9 +14596,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
-    document.getElementById('db_justifikasi').value = item.justifikasi || '';
+    // Medan fleksibel ikut syor lawatan: YA/PEMUTIHAN -> Justifikasi; selainnya -> Catatan (kolum L sama)
+    (function() {
+      const syorLawatanUp = (item.syor_lawatan || '').toString().trim().toUpperCase();
+      const nilaiL = item.justifikasi || '';
+      const elDbJustifikasi = document.getElementById('db_justifikasi');
+      const elDbCatatan = document.getElementById('db_catatan');
+      const isJustifikasi = (syorLawatanUp === 'YA' || syorLawatanUp === 'PEMUTIHAN');
+      if (elDbJustifikasi) elDbJustifikasi.value = isJustifikasi ? nilaiL : '';
+      if (elDbCatatan) elDbCatatan.value = isJustifikasi ? '' : nilaiL;
+    })();
     document.getElementById('db_syor_status').value = item.syor_status || '';
     setButtonGroupValue('db_syor_status', item.syor_status);
+    refreshMedanFleksibelUI();
 
     // V6.6.0: SEMAK STATUS BEKU
     if (item.cidb) {
@@ -14766,6 +14868,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                 initializeTickButtons();
                 setButtonGroupValue('borang_tatatertib', parsedData.borang_tatatertib);
                 setButtonGroupValue('borang_syor_status', parsedData.borang_syor_status);
+                refreshMedanFleksibelUI();
             }, 100);
 
             // 5. Buka tab Borang Semakan
@@ -14786,6 +14889,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // Jika tiada JSON, buka Input Database (lalai seperti sistem asal)
     switchTab('db');
     syncDatepickers(document.body);
+    refreshMedanFleksibelUI();
     // =====================================================================
   }
 
@@ -14996,6 +15100,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       } catch(e) { statusBadge = `<span class="status-badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;"><i class="fa-solid fa-magnifying-glass"></i> SIASAT</span>`; }
     }
 
+    // Label pintar: JUSTIFIKASI (SIASAT / lawatan YA / PEMUTIHAN) atau CATATAN (selainnya) — kolum L sama
+    const labelJustifikasiPengesyor = (
+      String(i.syor_status || '').trim().toUpperCase() === 'SIASAT' ||
+      ['YA', 'PEMUTIHAN'].includes(String(i.syor_lawatan || '').trim().toUpperCase())
+    ) ? 'JUSTIFIKASI' : 'CATATAN';
+
     const rowStartDate = i.start_date ? `
       <div class="view-row">
         <span class="view-label">TARIKH MULA (START DATE)</span>
@@ -15109,6 +15219,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
         const justBorang = bjRef.borang_justifikasi || bjRef.input_justifikasi || '';
         asasInner += bRow('JUSTIFIKASI (BORANG)', hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
+        const catatanBorangRef = bjRef.borang_catatan || '';
+        asasInner += bRow('CATATAN (BORANG)', hasBorangVal(catatanBorangRef) ? escapeHtml(String(catatanBorangRef)) : '', true);
         if (asasInner) {
           borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-lines fa-ico"></i>MAKLUMAT BORANG SEMAKAN</div><div class="view-grid">${asasInner}</div></div>`;
         }
@@ -15346,7 +15458,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               <span class="view-value">${statusBadge}</span>
             </div>
             <div class="view-row full-width">
-              <span class="view-label">JUSTIFIKASI</span>
+              <span class="view-label">${labelJustifikasiPengesyor}</span>
               <span class="view-value">${safe(i.justifikasi)}</span>
             </div>
           </div>
@@ -15960,7 +16072,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         syor_lawatan: dbSyorValue,
         date_submit: dbSubmitDateValue,
         pautan: document.getElementById('db_pautan_drive')?.value || document.getElementById('db_pautan')?.value || '',
-        justifikasi: document.getElementById('db_justifikasi')?.value || '',
+        justifikasi: (function() {
+          const _syorUp = (dbSyorValue || '').toString().trim().toUpperCase();
+          if (_syorUp === 'YA' || _syorUp === 'PEMUTIHAN') {
+            return document.getElementById('db_justifikasi')?.value || '';
+          }
+          return document.getElementById('db_catatan')?.value || '';
+        })(),
         pengesyor: document.getElementById('db_pengesyor')?.value || '',
         createFolder: document.getElementById('cbCreateDriveFolder')?.checked || false,
         lawatan_tarikh: lawatanTarikh,
@@ -16105,6 +16223,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
       setButtonGroupValue(id, '');
     });
+    refreshMedanFleksibelUI();
     
     // Reset flag Date Submit (borang kosong — SIASAT dibenarkan semula)
     try { dbHasDateSubmit = false; } catch (e) {}
@@ -17898,6 +18017,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   if (borangSyorStatus && borangTarikhProses) {
     borangSyorStatus.addEventListener('change', (e) => {
       const val = e.target.value;
+      // Papar Justifikasi Lawatan (SIASAT) atau Catatan (SOKONG/TIDAK DISOKONG)
+      toggleMedanBorangSyor();
       // Jika pilih SOKONG atau TIDAK DISOKONG sahaja
       if (val === 'SOKONG' || val === 'TIDAK DISOKONG') {
         const now = new Date();
@@ -19825,6 +19946,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   else el.value = backupValues[id];
               }
           });
+          refreshMedanFleksibelUI();
           if (personnelListEl) {
               personnelListEl.innerHTML = '';
               if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
@@ -20091,6 +20213,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                       else el.value = backupValues[id];
                   }
               });
+              refreshMedanFleksibelUI();
               if (personnelListEl) {
                   personnelListEl.innerHTML = '';
                   if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
@@ -20206,6 +20329,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   else el.value = backupValues[id];
               }
           });
+          refreshMedanFleksibelUI();
           if (personnelListEl) {
               personnelListEl.innerHTML = '';
               if (backupPersonnelData.length > 0) backupPersonnelData.forEach(p => addPerson(p));
