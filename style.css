@@ -1392,6 +1392,22 @@
         .radio-group label { font-weight: normal; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 5px; margin: 0; }
         .radio-group input[type="radio"] { width: auto; margin: 0; }
 
+        /* V6.14.0: Butang Jenis Permohonan — segmented moden: kelabu bila tidak dipilih, berwarna bila dipilih */
+        .jenis-app-seg { gap: 8px; padding: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .jenis-app-seg label { flex: 1 1 auto; min-width: 130px; justify-content: center; text-align: center; padding: 10px 16px; border-radius: 10px; border: 2px solid #e2e8f0; background: #f1f5f9; color: #64748b; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.3px; transition: all 0.18s ease; user-select: none; }
+        .jenis-app-seg label:hover { background: #e2e8f0; border-color: #cbd5e1; color: #475569; }
+        .jenis-app-seg input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; pointer-events: none; }
+        .jenis-app-seg label:has(input:focus-visible) { outline: 2px solid #2563eb; outline-offset: 1px; }
+        .jenis-app-seg label:has(input[value="baru"]:checked) { background: linear-gradient(135deg, #3b82f6, #2563eb); border-color: #2563eb; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.35); }
+        .jenis-app-seg label:has(input[value="pembaharuan"]:checked) { background: linear-gradient(135deg, #10b981, #059669); border-color: #059669; color: #fff; box-shadow: 0 4px 12px rgba(5,150,105,0.35); }
+        .jenis-app-seg label:has(input[value="ubah_maklumat"]:checked) { background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #d97706; color: #fff; box-shadow: 0 4px 12px rgba(217,119,6,0.35); }
+        .jenis-app-seg label:has(input[value="ubah_gred"]:checked) { background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-color: #7c3aed; color: #fff; box-shadow: 0 4px 12px rgba(124,58,237,0.35); }
+
+        /* V6.14.0: Butang "Kosongkan" medan Catatan/Justifikasi (Borang Semakan) */
+        .medan-label-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .btn-kosong-medan { background: #fff; border: 1px solid #e2e8f0; color: #64748b; font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s ease; }
+        .btn-kosong-medan:hover { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+
         .view-container { display: flex; flex-direction: column; gap: 15px; font-family: 'Segoe UI', sans-serif; }
         .view-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .view-section-header { background: #f8fafc; padding: 10px 15px; font-weight: 800; color: #334155; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; }
@@ -3419,6 +3435,13 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
   html[data-theme="dark"] .radio-group { background: #16213a; border-color: #334155; }
   html[data-theme="dark"] .radio-group label { color: #cbd5e1; }
   html[data-theme="dark"] .radio-group input[type="radio"] { accent-color: var(--theme-color); }
+
+  /* V6.14.0: Butang Jenis Permohonan (segmented) + butang "Kosongkan" medan */
+  html[data-theme="dark"] .jenis-app-seg { background: #16213a; border-color: #334155; }
+  html[data-theme="dark"] .jenis-app-seg label { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  html[data-theme="dark"] .jenis-app-seg label:has(input:not(:checked)):hover { background: #263449; border-color: #475569; color: #cbd5e1; }
+  html[data-theme="dark"] .btn-kosong-medan { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  html[data-theme="dark"] .btn-kosong-medan:hover { background: rgba(220,38,38,0.15); border-color: #dc2626; color: #f87171; }
 
   /* Input bersyarat (UBAH MAKLUMAT/GRED) & pautan wajib */
   html[data-theme="dark"] .conditional-input,

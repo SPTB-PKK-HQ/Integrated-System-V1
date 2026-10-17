@@ -3567,7 +3567,7 @@ async function handleCredentialResponse(response) {
       data: {
         labels: labels,
         datasets: [{
-          label: 'Jumlah Konsultansi',
+          label: 'Jumlah Konsultasi',
           data: values,
           backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
           borderRadius: 8,          
@@ -3584,7 +3584,7 @@ async function handleCredentialResponse(response) {
         },
         plugins: {
           alive: { enabled: true }, /* KOD BARU: MENGAKTIFKAN NAFAS (ALIVE) */
-          title: { display: true, text: 'Statistik Jenis Konsultansi', font: { size: 14, weight: 'bold' } },
+          title: { display: true, text: 'Statistik Jenis Konsultasi', font: { size: 14, weight: 'bold' } },
           legend: { display: false }
         },
         scales: {
@@ -4429,20 +4429,21 @@ async function handleCredentialResponse(response) {
   // =========================================================================
   const ID_MEDAN_FLEKSIBEL = ['borang_justifikasi', 'borang_catatan', 'db_justifikasi', 'db_catatan'];
 
-  // Borang Semakan: SIASAT -> Justifikasi Lawatan; SOKONG/TIDAK DISOKONG -> Catatan
+  // V6.14.0: Medan tidak hilang — SIASAT -> Justifikasi Lawatan; selainnya/default -> Catatan
+  // Teks tidak dipadam bila tukar syor — guna butang "Kosongkan" untuk padam
   function toggleMedanBorangSyor() {
     const syorVal = (document.getElementById('borang_syor_status')?.value || '').toString().trim().toUpperCase();
     const divJustifikasi = document.getElementById('div_borang_justifikasi');
     const divCatatan = document.getElementById('div_borang_catatan');
     const showJustifikasi = (syorVal === 'SIASAT');
-    const showCatatan = (syorVal === 'SOKONG' || syorVal === 'TIDAK DISOKONG');
     if (divJustifikasi) {
       divJustifikasi.style.display = showJustifikasi ? 'block' : 'none';
       if (showJustifikasi) autoResizeTextarea(document.getElementById('borang_justifikasi'));
     }
     if (divCatatan) {
-      divCatatan.style.display = showCatatan ? 'block' : 'none';
-      if (showCatatan) autoResizeTextarea(document.getElementById('borang_catatan'));
+      // Medan sentiasa kelihatan (tidak hilang) — papar Catatan apabila bukan SIASAT (termasuk belum pilih)
+      divCatatan.style.display = showJustifikasi ? 'none' : 'block';
+      if (!showJustifikasi) autoResizeTextarea(document.getElementById('borang_catatan'));
     }
   }
 
@@ -4472,6 +4473,19 @@ async function handleCredentialResponse(response) {
     toggleMedanDbSyor();
     autoResizeTextarea(document.getElementById('db_ulasan_spi'));
   }
+
+  // V6.14.0: Butang "Kosongkan" medan Catatan/Justifikasi (Borang Semakan)
+  // Padam teks medan berkenaan sahaja mengikut pilihan syor semasa; auto-simpan draf selepas padam
+  [['btnKosongBorangJustifikasi', 'borang_justifikasi'], ['btnKosongBorangCatatan', 'borang_catatan']].forEach(function(pair) {
+    const btn = document.getElementById(pair[0]);
+    const field = document.getElementById(pair[1]);
+    if (!btn || !field) return;
+    btn.addEventListener('click', function() {
+      field.value = '';
+      autoResizeTextarea(field);
+      saveFormData();
+    });
+  });
 
   // =========================================================================
   // V6.8.0: PKA FUNCTIONS
@@ -11094,8 +11108,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
   const radioInputs = document.querySelectorAll('input[name="jenisApp"]');
   radioInputs.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const val = e.target.value;
+    radio.addEventListener('change', () => {
+      // V6.14.0: Ambil nilai dari radio yang benar-benar dipilih (bukan e.target) supaya kes nyahpilih (val='') juga dipaparkan betul
+      const checkedRadio = document.querySelector('input[name="jenisApp"]:checked');
+      const val = checkedRadio ? checkedRadio.value : '';
       const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
       const ubahGredInput = document.getElementById('input_ubah_gred');
       if (ubahMaklumatInput) ubahMaklumatInput.style.display = (val === 'ubah_maklumat') ? 'block' : 'none';
@@ -11104,6 +11120,33 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       saveFormData();
     });
   });
+
+  // V6.14.0: Tekan dua kali butang jenis yang sama -> nyahpilih (kembali kelabu)
+  (function setupToggleOffJenisApp() {
+    const segJenis = document.querySelector('.jenis-app-seg');
+    if (!segJenis) return;
+    let radioSebelumKlik = null; // radio yang dipilih SEBELUM interaksi klik semasa
+    // Snapshot keadaan sebenar DOM pada setiap pointerdown (mouse/sentuh) — elak state basi selepas restore/reset
+    segJenis.addEventListener('pointerdown', () => {
+      radioSebelumKlik = segJenis.querySelector('input[name="jenisApp"]:checked');
+    });
+    radioInputs.forEach(radio => {
+      // Segerakkan snapshot bila pilihan berubah melalui laluan lain (keyboard, restore rekod)
+      radio.addEventListener('change', () => {
+        radioSebelumKlik = document.querySelector('input[name="jenisApp"]:checked');
+      });
+      radio.addEventListener('click', function() {
+        if (radioSebelumKlik === this) {
+          // Sudah dipilih sebelum klik ini -> nyahpilih; hantar 'change' supaya paparan bersyarat & auto-save ikut kemas kini
+          radioSebelumKlik = null;
+          this.checked = false;
+          this.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+          radioSebelumKlik = this; // radio ini baru dipilih (pre-click default action)
+        }
+      });
+    });
+  })();
 
   if (pelulusTukarSyor) {
     pelulusTukarSyor.addEventListener('change', (e) => {
@@ -15428,7 +15471,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               </div>
             </div>` : ''}
             <div class="view-row full-width">
-              <span class="view-label">JENIS KONSULTANSI</span>
+              <span class="view-label">JENIS KONSULTASI</span>
               <span class="view-value">${safe(i.jenis_konsultansi)}</span>
             </div>
             <div class="view-row">
