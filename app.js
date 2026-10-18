@@ -6436,6 +6436,57 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     return '';
   }
 
+  // V7.1: Ekstrak emel daripada MD borang/profail:
+  //  - Bahagian "2. APPLICANT INFORMATION"  -> emel wakil/pemohon
+  //  - Bahagian "3. COMPANY/BUSINESS/..."   -> emel syarikat (tamat di bahagian "DIRECTORS...")
+  //  Fallback: emel ke-1/ke-2 keseluruhan dokumen.
+  function extractEmailsFromMd(md) {
+    const lines = String(md || '').split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean);
+    const emailRe = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g;
+
+    const firstEmailIn = function(arr) {
+      for (let i = 0; i < arr.length; i++) {
+        const m = arr[i].match(emailRe);
+        if (m && m.length > 0) return m[0].replace(/[.,;:]+$/, '');
+      }
+      return '';
+    };
+
+    // Cari sempadan bahagian (nombor seksyen optional)
+    let applicantIdx = -1, companyIdx = -1, directorsIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const u = lines[i].toUpperCase();
+      if (applicantIdx === -1 && /APPLICANT\s+INFORMATION/.test(u)) applicantIdx = i;
+      if (companyIdx === -1 && /COMPANY\s*\/\s*BUSINESS/.test(u)) companyIdx = i;
+      if (companyIdx !== -1 && directorsIdx === -1 && i > companyIdx && /DIRECTORS\s*\/\s*BUSINESS/.test(u)) directorsIdx = i;
+    }
+
+    let emailWakil = '';
+    let emailSyarikat = '';
+    if (applicantIdx !== -1) {
+      const aEnd = (companyIdx !== -1 && companyIdx > applicantIdx) ? companyIdx : applicantIdx + 30;
+      emailWakil = firstEmailIn(lines.slice(applicantIdx + 1, aEnd));
+    }
+    if (companyIdx !== -1) {
+      const cEnd = (directorsIdx !== -1) ? directorsIdx : Math.min(lines.length, companyIdx + 60);
+      emailSyarikat = firstEmailIn(lines.slice(companyIdx + 1, cEnd));
+    }
+
+    // Fallback: senarai unik semua emel dalam dokumen (ikut susunan)
+    const allEmails = [];
+    for (let i = 0; i < lines.length; i++) {
+      const found = lines[i].match(emailRe) || [];
+      for (let j = 0; j < found.length; j++) {
+        const e = found[j].replace(/[.,;:]+$/, '');
+        if (e && !allEmails.some(x => x.toLowerCase() === e.toLowerCase())) allEmails.push(e);
+      }
+    }
+    if (!emailWakil) emailWakil = allEmails[0] || '';
+    if (!emailSyarikat) emailSyarikat = allEmails[1] || allEmails[0] || '';
+
+    return { emailWakil: emailWakil, emailSyarikat: emailSyarikat };
+  }
+
   // V7.0.0: Regex extractor borang - input markdown dari convertPdfToMd
   function extractDataFromPdfMd(md) {
     const extractedData = {
@@ -6451,6 +6502,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       spkkPersons: [],
       chequeSignatories: [],
       phoneNumbers: [],
+      emailSyarikat: '',
+      emailWakil: '',
       alamatPerniagaan: '',
       alamatSuratMenyurat: ''
     };
@@ -6661,6 +6714,11 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     // V7.0.0: Alamat berlabel (berbilang baris) - ALAMAT BERDAFTAR tidak pernah digunakan
     extractedData.alamatPerniagaan = extractAddressBlockFromLines(mdLinesUp, 'ALAMAT\\s+PERNIAGAAN|BUSINESS\\s+ADDRESS|ALAMAT\\s+UTAMA\\s+URUS\\s*NIAGA');
     extractedData.alamatSuratMenyurat = extractAddressBlockFromLines(mdLinesUp, 'ALAMAT\\s+SURAT[-\\s]?MENYURAT|CORRESPONDENCE\\s+ADDRESS|MAILING\\s+ADDRESS');
+
+    // V7.1: Emel syarikat & emel wakil/pemohon (untuk medan Kepada + butang Buka Gmail)
+    const extractedEmails = extractEmailsFromMd(md);
+    extractedData.emailWakil = extractedEmails.emailWakil;
+    extractedData.emailSyarikat = extractedEmails.emailSyarikat;
 
     function sanitizeName(rawName) {
       let name = rawName.trim();
@@ -6892,6 +6950,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       html += `<div class="extracted-item">
         <span class="extracted-label" style="color: #dc2626;">Nombor Telefon:</span>
         <span class="extracted-value" style="color: #dc2626;">Tiada nombor telefon dapat diekstrak</span>
+      </div>`;
+    }
+
+    if (data.emailSyarikat) {
+      html += `<div class="extracted-item">
+        <span class="extracted-label">Emel Syarikat:</span>
+        <span class="extracted-value">${data.emailSyarikat}</span>
+      </div>`;
+    }
+
+    if (data.emailWakil) {
+      html += `<div class="extracted-item">
+        <span class="extracted-label">Emel Wakil:</span>
+        <span class="extracted-value">${data.emailWakil}</span>
       </div>`;
     }
 
@@ -19502,6 +19574,539 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               queueSpiModal.style.display = 'none';
               switchTab('spi-queue');
           }, 300);
+      });
+  }
+
+  // =========================================================================
+  // JANA AYAT EMEL — emel penuh untuk dokumen/personel yang ditanda X
+  // (Butang dalam tab Borang Semakan; templat surat penuh, warna & bold kekal
+  //  bila paste ke emel. Butang Salin aktif selepas nama pegawai & tarikh
+  //  due date diisi.)
+  // =========================================================================
+  const EMAIL_AYAT_BLUE = '#0563C1';
+
+  // Nilai dianggap "X" jika bermula dengan X atau ✗ (selaras warna status-row merah)
+  function emailIsXMark(v) {
+    const s = String(v == null ? '' : v).trim().toUpperCase();
+    return s.startsWith('X') || s.startsWith('✗');
+  }
+
+  function emailBlueText(text) {
+    return '<span style="color:' + EMAIL_AYAT_BLUE + ';">' + text + '</span>';
+  }
+
+  // Merah untuk perkataan "berwarna" dalam frasa Salinan Kad Pengenalan / Salinan Sijil Lahir
+  function emailRedText(text) {
+    return '<span style="color:#FF0000;">' + text + '</span>';
+  }
+
+  // Hitam untuk nama personel
+  function emailBlackText(text) {
+    return '<span style="color:#000000;">' + text + '</span>';
+  }
+
+  // Gabung senarai nama: "A, B dan C" (koma antara nama, "dan" sebelum nama terakhir)
+  function emailJoinNames(names) {
+    const list = (names || []).filter(function(n) { return n; });
+    if (list.length === 0) return '';
+    if (list.length === 1) return list[0];
+    return list.slice(0, -1).join(', ') + ' dan ' + list[list.length - 1];
+  }
+
+  // Nama orang: huruf depan setiap perkataan besar (contoh: "Ali bin Abu");
+  // "bin"/"binti" sentiasa huruf kecil. Huruf selepas - ' / juga dibesarkan.
+  function emailTitleCaseName(name) {
+    const cleaned = String(name == null ? '' : name).replace(/\s+/g, ' ').trim();
+    if (!cleaned) return '';
+    return cleaned.split(' ').map(function(w) {
+      const low = w.toLowerCase();
+      if (low === 'bin' || low === 'binti') return low;
+      return low.replace(/(^|[-'’/])([a-z0-9])/g, function(m, sep, ch) { return sep + ch.toUpperCase(); });
+    }).join(' ');
+  }
+
+  // Bina senarai ayat (<li> HTML) daripada medan yang ditanda X sahaja
+  function buildEmailAyatItems() {
+    const items = [];
+
+    // --- Personel (IC / SB / EPF) — hanya kad bukan Syarikat ---
+    const persons = [];
+    document.querySelectorAll('#personnelList .person-card').forEach(function(card) {
+      const companyCb = card.querySelector('.is-company');
+      if (companyCb && companyCb.checked) return;
+      const nameEl = card.querySelector('.p-name');
+      const rawName = emailTitleCaseName(nameEl ? nameEl.value : '');
+      const icEl = card.querySelector('.status-ic');
+      const sbEl = card.querySelector('.status-sb');
+      const epfEl = card.querySelector('.status-epf');
+      persons.push({
+        name: escapeHtml(rawName || '(NAMA TIDAK DIISI)'),
+        ic: emailIsXMark(icEl ? icEl.value : ''),
+        sb: emailIsXMark(sbEl ? sbEl.value : ''),
+        epf: emailIsXMark(epfEl ? epfEl.value : '')
+      });
+    });
+
+    const bothIcSb = persons.filter(function(p) { return p.ic && p.sb; }).map(function(p) { return p.name; });
+    const icOnly = persons.filter(function(p) { return p.ic && !p.sb; }).map(function(p) { return p.name; });
+    const sbOnly = persons.filter(function(p) { return !p.ic && p.sb; }).map(function(p) { return p.name; });
+    const epfList = persons.filter(function(p) { return p.epf; }).map(function(p) { return p.name; });
+
+    // Frasa IC/SB: nama dokumen (biru) + perkataan "berwarna" (merah)
+    const icPhrase = emailBlueText('Salinan Kad Pengenalan') + ' ' + emailRedText('berwarna');
+    const sbPhrase = emailBlueText('Salinan Sijil Lahir') + ' ' + emailRedText('berwarna');
+
+    if (bothIcSb.length > 0) {
+      items.push('Sila sertakan ' + icPhrase + ' & ' + sbPhrase + ' bagi ' + emailBlackText(emailJoinNames(bothIcSb)));
+    }
+    if (icOnly.length > 0) {
+      items.push('Sila sertakan ' + icPhrase + ' bagi ' + emailBlackText(emailJoinNames(icOnly)));
+    }
+    if (sbOnly.length > 0) {
+      items.push('Sila sertakan ' + sbPhrase + ' bagi ' + emailBlackText(emailJoinNames(sbOnly)));
+    }
+    if (epfList.length > 0) {
+      // Nama penama dalam ayat KWSP diwarnakan biru (beza daripada ayat IC/SB)
+      items.push('Pastikan penama ' + emailBlueText(emailJoinNames(epfList)) + ' mempunyai nama dalam caruman KWSP syarikat.');
+    }
+
+    // --- Dokumen (susunan ikut contoh: Carta → Sewa → Gambar → Peta → SSM) ---
+    const docDefs = [
+      { id: 'doc_carta_status', phrase: 'Carta organisasi syarikat yang terkini' },
+      { id: 'doc_sewa_status', phrase: 'Dokumen pemilikan/ Perjanjian sewa premis yang dimeterai setem' },
+      { id: 'doc_gambar_status', phrase: 'Gambar ruang dalaman dan hadapan beserta papan tanda kekal premis.' },
+      { id: 'doc_peta_status', phrase: 'Peta lakaran lokasi premis bukan daripada Google Maps' },
+      { id: 'ssm_status', phrase: 'e-info SSM cetakan bertarikh 3 bulan terkini' }
+    ];
+    docDefs.forEach(function(d) {
+      const el = document.getElementById(d.id);
+      if (el && emailIsXMark(el.value)) {
+        items.push('Sila sertakan ' + emailBlueText(d.phrase));
+      }
+    });
+
+    // --- Bank — status ikut mod aktif setiap kad (CEK / ONLINE BANKING) ---
+    let bankAdaX = false;
+    document.querySelectorAll('#bankList .bank-card').forEach(function(card) {
+      const modes = [];
+      card.querySelectorAll('.bank-mode-btn.active').forEach(function(b) { modes.push(b.dataset.mode); });
+      const hasCek = modes.indexOf('CEK') !== -1;
+      const hasOnline = modes.indexOf('ONLINE') !== -1;
+      const signEl = card.querySelector('.bank-sign-status');
+      const makerEl = card.querySelector('.bank-online-maker');
+      const checkerEl = card.querySelector('.bank-online-checker');
+      const signX = emailIsXMark(signEl ? signEl.value : '');
+      const makerX = emailIsXMark(makerEl ? makerEl.value : '');
+      const checkerX = emailIsXMark(checkerEl ? checkerEl.value : '');
+      if (hasCek && signX) bankAdaX = true;
+      if (hasOnline && (makerX || checkerX)) bankAdaX = true;
+      if (!hasCek && !hasOnline && (signX || makerX || checkerX)) bankAdaX = true;
+    });
+    // Sandaran rekod lama (medan bank tunggal legasi)
+    if (!bankAdaX && window.__legacyBankData && emailIsXMark(window.__legacyBankData.sign_status)) bankAdaX = true;
+    if (bankAdaX) {
+      items.push('Sila sertakan ' + emailBlueText('Surat pengesahan bank bertarikh terkini'));
+    }
+
+    // --- KWSP 3 bulan (satu ayat jika mana-mana bulan ditanda X) ---
+    const kwspAdaX = ['kwsp_s1', 'kwsp_s2', 'kwsp_s3'].some(function(id) {
+      const el = document.getElementById(id);
+      return el && emailIsXMark(el.value);
+    });
+    if (kwspAdaX) {
+      items.push('Sila sertakan ' + emailBlueText('Penyata/ Borang A & Resit caruman KWSP bagi 3 bulan terkini'));
+    }
+
+    return items;
+  }
+
+  // --- Emel penuh: templat surat + medan berkaitan ---
+  function emailGenNamaInput() { return document.getElementById('emailGenNamaPegawai'); }
+  function emailGenDueInput() { return document.getElementById('emailGenDueDate'); }
+  function emailGenKepadaInput() { return document.getElementById('emailGenKepada'); }
+
+  // Nilai "Kepada" terakhir yang diisi automatik (elak tulis ganti taipan manual pengguna)
+  let emailGenKepadaLastAuto = '';
+
+  // Emel auto (syarikat + wakil, tanpa ulangan) daripada data Auto-Ekstrak PDF
+  function emailGenAutoKepada() {
+    const parts = [];
+    if (extractedPdfData) {
+      [extractedPdfData.emailSyarikat, extractedPdfData.emailWakil].forEach(function(e) {
+        const v = (e || '').trim();
+        if (!v) return;
+        if (parts.some(function(x) { return x.toLowerCase() === v.toLowerCase(); })) return;
+        parts.push(v);
+      });
+    }
+    return parts.join(', ');
+  }
+
+  // Isi medan Kepada jika kosong / masih belum diedit pengguna
+  function emailGenPrefillKepada() {
+    const el = emailGenKepadaInput();
+    if (!el) return;
+    const auto = emailGenAutoKepada();
+    if (!auto) return;
+    const cur = el.value.trim();
+    if (!cur || cur === emailGenKepadaLastAuto) {
+      el.value = auto;
+      emailGenKepadaLastAuto = auto;
+    }
+  }
+
+  // Kunci simpan nama pegawai dalam sesi (sekali sahaja per sesi, per pengguna)
+  function emailGenNamaKey() {
+    const em = (currentUser && currentUser.email) ? currentUser.email.toLowerCase() : 'umum';
+    return 'stb_emailgen_nama_' + em;
+  }
+
+  // Label jenis permohonan untuk subjek emel
+  function emailGenJenisLabel() {
+    const radio = document.querySelector('input[name="jenisApp"]:checked');
+    const v = radio ? radio.value : '';
+    if (v === 'baru') return 'PERMOHONAN BARU';
+    if (v === 'pembaharuan') return 'PEMBAHARUAN';
+    if (v === 'ubah_maklumat') return 'PERUBAHAN MAKLUMAT';
+    if (v === 'ubah_gred') return 'PERUBAHAN GRED';
+    return '(JENIS PERMOHONAN)';
+  }
+
+  // Tarikh format surat: "30 September 2026" daripada nilai input date (YYYY-MM-DD)
+  function emailGenFormatTarikh(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    try {
+      return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch (e) {
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  }
+
+  // Nombor telefon Malaysia: tambah "0" di depan jika hilang
+  // (cth: 388805390 -> 0388805390). Nombor yang bermula "0" atau "+" dibiar.
+  function emailFormatNoTel(raw) {
+    const v = String(raw == null ? '' : raw).trim();
+    if (!v) return '';
+    if (v.charAt(0) === '0' || v.charAt(0) === '+') return v;
+    return '0' + v;
+  }
+
+  // Pautan hyperlink dalam emel — gaya biru + underline supaya jelas boleh diklik
+  function emailLinkText(text, url) {
+    return '<a href="' + url + '" style="color:' + EMAIL_AYAT_BLUE + '; font-weight:bold; text-decoration:underline;">' + text + '</a>';
+  }
+
+  // URL WhatsApp (wa.me) daripada no. telefon: tukar ke format antarabangsa
+  // tanpa "+" (cth: 0388805390 -> https://wa.me/60388805390)
+  function emailWhatsAppUrl(raw) {
+    let v = String(raw == null ? '' : raw).trim().replace(/[^\d+]/g, '');
+    if (!v) return '';
+    if (v.charAt(0) === '+') v = v.slice(1);
+    if (v.slice(0, 2) === '60') {
+      // sudah ada kod negara — kekalkan
+    } else if (v.charAt(0) === '0') {
+      v = '60' + v.slice(1);
+    } else {
+      v = '60' + v;
+    }
+    return 'https://wa.me/' + v;
+  }
+
+  // Subjek emel (teks biasa) — dikongsi oleh badan emel & parameter 'su' Gmail
+  function emailGenSubjectPlain() {
+    const valOrRaw = function(id, placeholder) {
+      const el = document.getElementById(id);
+      const v = el && el.value ? el.value.trim() : '';
+      return v ? v : placeholder;
+    };
+    return 'PERMOHONAN PENGIKTIRAFAN TARAF BUMIPUTERA (' + emailGenJenisLabel() + ') OLEH '
+      + valOrRaw('borang_syarikat', '(NAMA SYARIKAT)') + ' ( ' + valOrRaw('borang_cidb', '(NO. CIDB)') + ' )';
+  }
+
+  // Bina emel penuh (HTML, semua bold) daripada templat surat + nilai dalam borang
+  function buildEmailFullHtml(items) {
+    const bold = function(html) { return '<span style="font-weight:bold;">' + html + '</span>'; };
+    const para = function(inner) { return '<p>' + bold(inner) + '</p>'; };
+    const emelRaw = (currentUser && currentUser.email) ? currentUser.email : '';
+    const emelPengguna = emelRaw ? emailLinkText(escapeHtml(emelRaw), 'mailto:' + emelRaw) : '(EMEL PENGESYOR)';
+    const noTelRaw = (currentUser && currentUser.phone) ? emailFormatNoTel(currentUser.phone) : '';
+    const noTel = noTelRaw ? emailLinkText(escapeHtml(noTelRaw), emailWhatsAppUrl(currentUser.phone)) : '(NO. TELEFON)';
+
+    const namaEl = emailGenNamaInput();
+    const namaRaw = namaEl && namaEl.value ? namaEl.value.trim() : '';
+    const namaPegawai = namaRaw ? escapeHtml(namaRaw) : '(NAMA PEGAWAI)';
+
+    const dueEl = emailGenDueInput();
+    const tarikhRaw = emailGenFormatTarikh(dueEl ? dueEl.value : '');
+    const tarikh = tarikhRaw ? emailRedText(escapeHtml(tarikhRaw)) : '(TARIKH DUE DATE)';
+
+    const bullets = items.map(function(li) {
+      return '<li style="margin-bottom:6px;">' + bold(li) + '</li>';
+    }).join('');
+
+    return [
+      para('Assalamualaikum,'),
+      para('Tuan/Puan,<br>' + escapeHtml(emailGenSubjectPlain())),
+      para('Dengan segala hormatnya merujuk kepada perkara di atas.'),
+      para('2. Hasil daripada semakan pegawai terdapat beberapa maklumat lanjut yang diperlukan oleh pejabat ini sebelum pengesahan diberikan kepada syarikat. Sehubungan dengan itu, dimohon kerjasama pihak tuan/puan untuk mengemukakan dokumen berikut:'),
+      '<ul>' + bullets + '</ul>',
+      para('Pihak tuan/puan boleh layari laman web yang diberikan untuk memuat turun borang atau menyemak senarai semak yang diperlukan bagi ' + emailLinkText('Permohonan STB', 'https://www.kuskop.gov.my/index.php?id=11&amp;page_id=22&amp;articleid=366') + '. Untuk makluman pihak tuan/puan, PKK telah mengeluarkan Panduan Pengiktirafan Sijil Taraf Bumiputera bagi Perolehan Kerja Kerajaan terbaru yang berkuatkuasa 1 Jun 2023.'),
+      para('3. Sehubungan dengan itu, dimohon kerjasama pihak tuan/puan untuk mengemukakan dokumen berikut melalui email ini ' + emelPengguna + ' sebelum atau pada ' + tarikh + '. Sebarang maklumat lanjut boleh hubungi atau mesej pegawai ' + namaPegawai + ' di ' + noTel + '. Kerjasama dan perhatian pihak tuan/puan amatlah diharap bagi memastikan permohonan pengiktirafan taraf Bumiputera syarikat tuan/puan berjalan lancar.'),
+      para('Sekian, terima kasih.')
+    ].join('');
+  }
+
+  // Jana semula pratonton emel penuh + kemas kini keadaan butang Salin
+  function refreshEmailGenPreview() {
+    const previewEl = document.getElementById('emailGenPreview');
+    if (!previewEl) return;
+    previewEl.innerHTML = buildEmailFullHtml(buildEmailAyatItems());
+    updateEmailGenCopyState();
+  }
+
+  // Butang Salin aktif bila nama pegawai & tarikh due date diisi.
+  // Butang Buka Gmail perlu nama + tarikh + emel penerima (Kepada).
+  function updateEmailGenCopyState() {
+    const btn = document.getElementById('emailGenCopyBtn');
+    const gmailBtn = document.getElementById('emailGenGmailBtn');
+    const hint = document.getElementById('emailGenCopyHint');
+    const namaEl = emailGenNamaInput();
+    const dueEl = emailGenDueInput();
+    const kepadaEl = emailGenKepadaInput();
+    const namaOk = !!(namaEl && namaEl.value.trim());
+    const dueOk = !!(dueEl && dueEl.value);
+    const kepadaOk = !!(kepadaEl && kepadaEl.value.trim());
+    const ready = namaOk && dueOk;
+    if (btn) btn.disabled = !ready;
+    if (gmailBtn) gmailBtn.disabled = !(ready && kepadaOk);
+    if (hint) {
+      if (!ready) {
+        hint.style.display = 'block';
+        hint.style.color = '#ef4444';
+        hint.style.fontWeight = 'bold';
+        hint.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-ico"></i> Isi Nama Penuh Pegawai &amp; pilih Tarikh Due Date untuk aktifkan butang Salin.';
+      } else if (!kepadaOk) {
+        hint.style.display = 'block';
+        hint.style.color = '#64748b';
+        hint.style.fontWeight = 'normal';
+        hint.innerHTML = '<i class="fa-solid fa-circle-info fa-ico"></i> Isi Emel Penerima (Kepada) untuk aktifkan butang Buka Gmail.';
+      } else {
+        hint.style.display = 'none';
+      }
+    }
+    return ready;
+  }
+
+  function openEmailGenModal() {
+    const items = buildEmailAyatItems();
+    if (items.length === 0) {
+      CustomAppModal.alert('Tiada medan yang ditanda <strong>X</strong>.<br><br>Tanda X pada dokumen atau personel yang tidak lengkap dahulu, kemudian tekan <strong>Jana Ayat Emel</strong> semula.', 'Tiada Item', 'warning');
+      return;
+    }
+    const previewEl = document.getElementById('emailGenPreview');
+    const overlay = document.getElementById('emailGenModal');
+    if (!previewEl || !overlay) return;
+
+    // Nama pegawai: ingat dalam sesi; kali pertama guna nama profil
+    const namaEl = emailGenNamaInput();
+    if (namaEl) {
+      let saved = null;
+      try { saved = sessionStorage.getItem(emailGenNamaKey()); } catch (e) { saved = null; }
+      if (saved === null) saved = (currentUser && currentUser.name) ? currentUser.name : '';
+      namaEl.value = saved;
+    }
+
+    // Tarikh due date: prefill dari Tarikh Due Date (SLA) jika belum dipilih
+    const dueEl = emailGenDueInput();
+    if (dueEl && !dueEl.value) {
+      const slaEl = document.getElementById('db_due_date');
+      if (slaEl && slaEl.value) dueEl.value = slaEl.value;
+    }
+
+    // Emel penerima (Kepada): auto-isi daripada data Auto-Ekstrak PDF (jika belum diisi/diedit)
+    emailGenPrefillKepada();
+
+    // Info profil yang akan masuk ke dalam emel
+    const infoEl = document.getElementById('emailGenInfoProfil');
+    if (infoEl) {
+      const emV = (currentUser && currentUser.email) ? currentUser.email : '(tiada emel)';
+      const telV = (currentUser && currentUser.phone) ? emailFormatNoTel(currentUser.phone) : '(tiada no. telefon dalam profil)';
+      infoEl.textContent = 'Emel: ' + emV + '   •   No. Telefon: ' + telV;
+    }
+
+    previewEl.innerHTML = buildEmailFullHtml(items);
+    updateEmailGenCopyState();
+
+    overlay.style.display = 'flex';
+    void overlay.offsetWidth;
+    overlay.classList.add('show');
+  }
+
+  function closeEmailGenModal() {
+    const overlay = document.getElementById('emailGenModal');
+    if (!overlay) return;
+    overlay.classList.remove('show');
+    setTimeout(function() { overlay.style.display = 'none'; }, 300);
+  }
+
+  // Teks biasa (clipboard text/plain) daripada kotak pratonton — perenggan + bullet
+  function emailPreviewPlainText(previewEl) {
+    const blocks = [];
+    Array.from(previewEl.childNodes).forEach(function(node) {
+      if (node.nodeType !== 1) return;
+      if (node.tagName === 'UL' || node.tagName === 'OL') {
+        const lis = [];
+        node.querySelectorAll('li').forEach(function(li) {
+          lis.push('• ' + (li.innerText || li.textContent || '').replace(/\s+/g, ' ').trim());
+        });
+        if (lis.length > 0) blocks.push(lis.join('\n'));
+      } else {
+        const t = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t) blocks.push(t);
+      }
+    });
+    if (blocks.length === 0) return (previewEl.innerText || previewEl.textContent || '').trim();
+    return blocks.join('\n\n');
+  }
+
+  // Tulis emel berwarna (rich text) ke clipboard — pulangkan true jika berjaya
+  async function emailWriteRichToClipboard() {
+    const previewEl = document.getElementById('emailGenPreview');
+    if (!previewEl) return false;
+    const htmlOut = '<div>' + previewEl.innerHTML + '</div>';
+    const plainOut = emailPreviewPlainText(previewEl);
+    let ok = false;
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([htmlOut], { type: 'text/html' }),
+          'text/plain': new Blob([plainOut], { type: 'text/plain' })
+        })]);
+        ok = true;
+      }
+    } catch (e) { ok = false; }
+    if (!ok) {
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(previewEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        ok = document.execCommand('copy');
+        sel.removeAllRanges();
+      } catch (e2) { ok = false; }
+    }
+    return ok;
+  }
+
+  // Salin sebagai rich-text (text/html + text/plain) supaya warna biru terbawa ke emel;
+  // fallback execCommand untuk pelayar tanpa Clipboard API penuh. (Butang Salin Emel)
+  async function copyEmailAyatToClipboard() {
+    const copyGuardBtn = document.getElementById('emailGenCopyBtn');
+    if (copyGuardBtn && copyGuardBtn.disabled) return;
+    const ok = await emailWriteRichToClipboard();
+    if (ok) {
+      CustomAppModal.alert('Emel berjaya disalin!<br><br>Buka emel dan paste (<strong>Ctrl+V</strong>) — format &amp; warna akan kekal.', 'Berjaya Disalin', 'success');
+    } else {
+      CustomAppModal.alert('Gagal menyalin secara automatik. Sila klik dalam kotak pratonton, pilih semua teks (Ctrl+A) dan salin (Ctrl+C).', 'Ralat Salin', 'error');
+    }
+  }
+
+  // URL Gmail compose: to = penerima, su = subjek, body = sandaran teks biasa (jika salinan gagal)
+  function buildGmailComposeUrl(to, subject, bodyText) {
+    const params = ['view=cm', 'fs=1'];
+    if (to) params.push('to=' + encodeURIComponent(to));
+    if (subject) params.push('su=' + encodeURIComponent(subject));
+    if (bodyText) params.push('body=' + encodeURIComponent(bodyText));
+    return 'https://mail.google.com/mail/?' + params.join('&');
+  }
+
+  // Buka Gmail: salin emel berwarna dahulu, kemudian buka tetingkap compose
+  // (penerima + subjek auto-isi; badan emel tinggal tekan Ctrl+V)
+  async function openGmailCompose() {
+    const gmailBtn = document.getElementById('emailGenGmailBtn');
+    if (gmailBtn && gmailBtn.disabled) return;
+    const kepadaEl = emailGenKepadaInput();
+    const kepada = kepadaEl ? kepadaEl.value.trim() : '';
+    if (!kepada) {
+      CustomAppModal.alert('Sila isi <strong>Emel Penerima (Kepada)</strong> dahulu.', 'Emel Kosong', 'warning');
+      return;
+    }
+
+    // 1) Salin versi berwarna (mesti selesai sebelum tetingkap Gmail mengambil fokus)
+    const previewEl = document.getElementById('emailGenPreview');
+    const copied = await emailWriteRichToClipboard();
+
+    // 2) Buka Gmail compose — jika salinan gagal, badan diisi teks biasa sebagai sandaran
+    const bodyFallback = copied ? '' : (previewEl ? emailPreviewPlainText(previewEl) : '');
+    const url = buildGmailComposeUrl(kepada, emailGenSubjectPlain(), bodyFallback);
+    let win = null;
+    try { win = window.open(url, '_blank'); } catch (e) { win = null; }
+
+    // 3) Arahan untuk pengguna
+    if (!win) {
+      if (copied) {
+        CustomAppModal.alert('Popup disekat oleh pelayar.<br><br>Emel berwarna sudah <strong>disalin</strong> — buka Gmail anda sendiri, isi penerima/subjek, kemudian tekan <strong>Ctrl+V</strong>.', 'Popup Disekat', 'warning');
+      } else {
+        CustomAppModal.alert('Popup disekat oleh pelayar. Benarkan popup untuk laman ini, atau guna butang <strong>Salin Emel</strong>.', 'Popup Disekat', 'error');
+      }
+      return;
+    }
+    if (copied) {
+      CustomAppModal.alert('Gmail dibuka dengan <strong>penerima</strong> &amp; <strong>subjek</strong> diisi.<br><br>Klik pada badan emel di Gmail, kemudian tekan <strong>Ctrl+V</strong> — kandungan berwarna akan masuk.', 'Gmail Dibuka', 'success');
+    } else {
+      CustomAppModal.alert('Gmail dibuka (kandungan diletak sebagai teks biasa kerana salinan berwarna gagal). Sila semak format sebelum hantar.', 'Gmail Dibuka', 'warning');
+    }
+  }
+
+  // Pendengar klik: butang Jana Ayat Emel + modal
+  const btnJanaAyatEmel = document.getElementById('btnJanaAyatEmel');
+  if (btnJanaAyatEmel) {
+      btnJanaAyatEmel.addEventListener('click', () => {
+          playSoundEffect('ui_click.mp3');
+          openEmailGenModal();
+      });
+  }
+
+  const emailGenModalEl = document.getElementById('emailGenModal');
+  const emailGenClose = document.getElementById('emailGenClose');
+  const emailGenCloseBtn = document.getElementById('emailGenCloseBtn');
+  const emailGenCopyBtn = document.getElementById('emailGenCopyBtn');
+  if (emailGenClose) { emailGenClose.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); closeEmailGenModal(); }); }
+  if (emailGenCloseBtn) { emailGenCloseBtn.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); closeEmailGenModal(); }); }
+  if (emailGenCopyBtn) { emailGenCopyBtn.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); copyEmailAyatToClipboard(); }); }
+  if (emailGenModalEl) {
+      emailGenModalEl.addEventListener('click', (e) => { if (e.target === emailGenModalEl) closeEmailGenModal(); });
+  }
+
+  // Medan dalam modal: Nama Penuh Pegawai (ingat dalam sesi) & Tarikh Due Date
+  const emailGenNamaEl = document.getElementById('emailGenNamaPegawai');
+  if (emailGenNamaEl) {
+      emailGenNamaEl.addEventListener('input', () => {
+          try { sessionStorage.setItem(emailGenNamaKey(), emailGenNamaEl.value); } catch (e) {}
+          refreshEmailGenPreview();
+      });
+  }
+  const emailGenDueEl = document.getElementById('emailGenDueDate');
+  if (emailGenDueEl) {
+      emailGenDueEl.addEventListener('input', () => { refreshEmailGenPreview(); });
+      emailGenDueEl.addEventListener('change', () => { refreshEmailGenPreview(); });
+  }
+
+  // Medan Emel Penerima (Kepada) — kemas kini keadaan butang Buka Gmail
+  const emailGenKepadaEl = document.getElementById('emailGenKepada');
+  if (emailGenKepadaEl) {
+      emailGenKepadaEl.addEventListener('input', () => { updateEmailGenCopyState(); });
+  }
+
+  // Butang Buka Gmail — salin emel berwarna, kemudian buka compose Gmail (penerima + subjek auto)
+  const emailGenGmailBtnEl = document.getElementById('emailGenGmailBtn');
+  if (emailGenGmailBtnEl) {
+      emailGenGmailBtnEl.addEventListener('click', () => {
+          playSoundEffect('ui_click.mp3');
+          openGmailCompose();
       });
   }
 

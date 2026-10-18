@@ -1011,6 +1011,39 @@
         .custom-modal-overlay.show .custom-modal-card {
             transform: scale(1) translateY(0); opacity: 1;
         }
+
+        /* Kotak pratonton Jana Ayat Emel (tab Borang Semakan) — teks biru inline dibawa semasa salin */
+        #emailGenPreview {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 14px 16px;
+            min-height: 120px;
+            max-height: 50vh;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: #0f172a;
+            outline: none;
+            cursor: text;
+        }
+        #emailGenPreview:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        #emailGenPreview ul {
+            margin: 0 0 10px 0;
+            padding-left: 22px;
+        }
+        #emailGenPreview li {
+            margin-bottom: 6px;
+        }
+        #emailGenPreview p {
+            margin: 0 0 10px 0;
+        }
+        #emailGenPreview p:last-child {
+            margin-bottom: 0;
+        }
         
         .custom-modal-icon-container {
             width: 65px; height: 65px; margin: 0 auto 15px auto;

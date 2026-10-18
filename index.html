@@ -332,7 +332,12 @@
                 <div class="kwsp-row"><div style="display:flex; gap:5px; flex-wrap: wrap;"><input type="month" id="kwsp_date_3" style="flex: 2;"><div class="status-input-container" style="flex: 1;"><input type="text" id="kwsp_s3" class="status-input" maxlength="20" placeholder="Status"><div class="tick-buttons"><button type="button" class="tick-btn tick-right" title="Set OK"><i class="fa-solid fa-check"></i></button><button type="button" class="tick-btn tick-wrong" title="Set X"><i class="fa-solid fa-xmark"></i></button></div></div></div></div>
             </div>
             <div class="card">
-                <h2><i class="fa-solid fa-pen-to-square fa-ico"></i>Maklumat Proses & Syor</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(0,0,0,0.05); margin-bottom: 15px; padding-bottom: 8px;">
+                    <h2 style="border: none; margin-bottom: 0; padding-bottom: 0;"><i class="fa-solid fa-pen-to-square fa-ico"></i>Maklumat Proses & Syor</h2>
+                    <button type="button" id="btnJanaAyatEmel" class="btn btn-orange" style="box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3); border: 2px solid white; font-size: 0.85rem; border-radius: 30px; padding: 8px 16px;">
+                        <i class="fa-solid fa-wand-magic-sparkles fa-ico"></i>Jana Ayat Emel
+                    </button>
+                </div>
                 <div class="grid-4" style="margin-bottom:10px;">
                     <div><label>Tarikh Dokumen Lengkap</label><input type="date" id="borang_tarikh_lengkap"></div>
                     <div><label>Tarikh Siasatan</label><input type="date" id="borang_tarikh_siasatan"></div>
@@ -884,6 +889,39 @@
             </div>
         </div>
 
+        <!-- MODAL JANA AYAT EMEL (dokumen/personel yang ditanda X) -->
+        <div class="custom-modal-overlay" id="emailGenModal">
+            <div class="custom-modal-card" style="max-width: 760px; width: 95%; text-align: left; position: relative; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px;">
+                <span class="admin-stats-close" id="emailGenClose" style="top: 15px; right: 20px;">×</span>
+                <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-envelope fa-ico"></i>Jana Ayat Emel
+                </h2>
+                <p style="color: #64748b; font-size: 0.85rem; margin: 10px 0;">Emel penuh dijana daripada medan yang ditanda <strong>X</strong> sahaja. Emel &amp; no. telefon diambil dari profil anda. Boleh edit dalam kotak di bawah sebelum salin — format &amp; warna akan terbawa ke emel. Butang <strong>Buka Gmail</strong> akan isi penerima &amp; subjek automatik — anda cuma tekan <strong>Ctrl+V</strong> pada badan emel.</p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 6px;">
+                    <div style="flex: 2; min-width: 240px;">
+                        <label style="font-weight: bold; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 4px;">Nama Penuh Pegawai <span style="color: #ef4444;">*</span> <span style="font-weight: normal; color: #94a3b8;">(tulis sekali sahaja — diingat sepanjang sesi)</span></label>
+                        <input type="text" id="emailGenNamaPegawai" placeholder="cth: En. Muhamad Zariff Fahmi bin Zainudin" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
+                    </div>
+                    <div style="flex: 1; min-width: 170px;">
+                        <label style="font-weight: bold; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 4px;">Tarikh Due Date <span style="color: #ef4444;">*</span></label>
+                        <input type="date" id="emailGenDueDate" style="width: 100%; padding: 9px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
+                    </div>
+                </div>
+                <div style="margin: 2px 0 8px;">
+                    <label style="font-weight: bold; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 4px;">Emel Penerima (Kepada) <span style="font-weight: normal; color: #94a3b8;">(auto dari Auto-Ekstrak PDF — boleh edit; untuk butang Buka Gmail)</span></label>
+                    <input type="text" id="emailGenKepada" placeholder="cth: syarikat@abc.com, wakil@abc.com" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
+                </div>
+                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px;"><i class="fa-solid fa-circle-info fa-ico"></i> <span id="emailGenInfoProfil"></span></div>
+                <div id="emailGenCopyHint" style="display: none; font-size: 0.8rem; color: #ef4444; font-weight: bold; margin-bottom: 8px;"><i class="fa-solid fa-triangle-exclamation fa-ico"></i> Isi Nama Penuh Pegawai &amp; pilih Tarikh Due Date untuk aktifkan butang Salin.</div>
+                <div id="emailGenPreview" contenteditable="true" spellcheck="false"></div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-white" id="emailGenCloseBtn" style="padding: 10px 22px;">Tutup</button>
+                    <button type="button" class="btn btn-green" id="emailGenCopyBtn" disabled style="padding: 10px 22px; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"><i class="fa-solid fa-copy fa-ico"></i>Salin Emel</button>
+                    <button type="button" class="btn" id="emailGenGmailBtn" disabled style="padding: 10px 22px; background: #ea4335; color: #ffffff; box-shadow: 0 4px 12px rgba(234,67,53,0.3);"><i class="fa-brands fa-google fa-ico"></i>Buka Gmail</button>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-youtube" class="tab-content no-print" style="display: none;">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
@@ -1163,6 +1201,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261017c"></script>
+    <script src="app.js?v=20261018a"></script>
 </body>
 </html>
