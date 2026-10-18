@@ -1019,7 +1019,8 @@
             border-radius: 12px;
             padding: 14px 16px;
             min-height: 120px;
-            max-height: 50vh;
+            max-height: none;
+            flex: 1 1 auto;
             overflow-y: auto;
             font-size: 0.95rem;
             line-height: 1.7;

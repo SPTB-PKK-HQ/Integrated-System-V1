@@ -13024,13 +13024,17 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       'input_ubah_maklumat', 'input_ubah_gred',
       'db_alamat_perniagaan',
       'db_justifikasi',
-      'db_catatan'
+      'db_catatan',
+      'emailGenKepada'
     ];
 
     fieldsToClear.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    // V7.3: Reset memori auto-isi emel penerima
+    emailGenKepadaLastAuto = '';
+    emailGenKepadaLastSaved = '';
     syncDatepickers(document.body);
 
     ['borang_tatatertib','borang_syor_status','db_tatatertib','db_syor','db_syor_status'].forEach(id => {
@@ -14763,6 +14767,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setButtonGroupValue('db_syor_status', item.syor_status);
     refreshMedanFleksibelUI();
 
+    // V7.3: Pulihkan emel penerima yang disimpan dalam borang_json rekod ini
+    (function() {
+      let savedEmelPenerima = '';
+      try {
+        const savedJson = item.borang_json ? JSON.parse(item.borang_json) : null;
+        if (savedJson && savedJson.email_penerima) savedEmelPenerima = savedJson.email_penerima;
+      } catch (e) { /* abaikan JSON rosak */ }
+      const elKepada = document.getElementById('emailGenKepada');
+      if (elKepada) elKepada.value = savedEmelPenerima;
+      emailGenKepadaLastAuto = '';
+      emailGenKepadaLastSaved = savedEmelPenerima;
+    })();
+
     // V6.6.0: SEMAK STATUS BEKU
     if (item.cidb) {
         checkFrozenStatus(item.cidb, item.syarikat);
@@ -16089,6 +16106,17 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       // (fungsi kongsi buildFreshBorangCore — juga diguna sync minima upload/padam dokumen)
       // =====================================================================
       const borangJsonData = buildFreshBorangCore();
+
+      // V7.3: Simpan alamat emel (syarikat/wakil/penerima) dalam borang_json — kolum AC.
+      // Nilai lama dikekalkan jika tiada nilai semasa (cth. rekod dibuka di peranti lain).
+      (function() {
+        let oldEmailJson = '{}';
+        if (targetRow && cachedData) {
+          const itEmail = cachedData.find(function(d) { return d.row == targetRow; });
+          if (itEmail && itEmail.borang_json) oldEmailJson = itEmail.borang_json;
+        }
+        Object.assign(borangJsonData, buildEmailMetaForBorangJson(oldEmailJson));
+      })();
       
       // =====================================================================
       // KOD BARU: KAWALAN TARIKH MASUK SHEET (TERMASUK REKOD SEDIA ADA)
@@ -19765,6 +19793,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
   // Nilai "Kepada" terakhir yang diisi automatik (elak tulis ganti taipan manual pengguna)
   let emailGenKepadaLastAuto = '';
+  // Nilai "Kepada" terakhir yang dipulihkan daripada rekod tersimpan
+  let emailGenKepadaLastSaved = '';
 
   // Emel auto (syarikat + wakil, tanpa ulangan) daripada data Auto-Ekstrak PDF
   function emailGenAutoKepada() {
@@ -19778,6 +19808,22 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       });
     }
     return parts.join(', ');
+  }
+
+  // V7.3: Metadata emel untuk disimpan dalam borang_json (kolum AC sheet).
+  // Nilai semasa diutamakan; nilai lama dikekalkan jika tiada supaya tidak terpadam.
+  function buildEmailMetaForBorangJson(oldJson) {
+    let old = {};
+    try { old = JSON.parse(oldJson || '{}') || {}; } catch (e) { old = {}; }
+    const curSyarikat = (extractedPdfData && extractedPdfData.emailSyarikat) ? extractedPdfData.emailSyarikat.trim() : '';
+    const curWakil = (extractedPdfData && extractedPdfData.emailWakil) ? extractedPdfData.emailWakil.trim() : '';
+    const kepadaEl = document.getElementById('emailGenKepada');
+    const curPenerima = (kepadaEl && kepadaEl.value) ? kepadaEl.value.trim() : '';
+    return {
+      email_syarikat: curSyarikat || old.email_syarikat || '',
+      email_wakil: curWakil || old.email_wakil || '',
+      email_penerima: curPenerima || emailGenAutoKepada() || old.email_penerima || ''
+    };
   }
 
   // Isi medan Kepada jika kosong / masih belum diedit pengguna
