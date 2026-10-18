@@ -4447,6 +4447,24 @@ async function handleCredentialResponse(response) {
     }
   }
 
+  // V7.2: Teks Justifikasi Lawatan & Catatan (Input Database) kongsi SATU teks —
+  // tukar Syor Lawatan hanya tukar NAMA medan; ayat tidak dikosongkan.
+  function syncDbFlexText(preferEl) {
+    const just = document.getElementById('db_justifikasi');
+    const cat = document.getElementById('db_catatan');
+    if (!just || !cat) return;
+    if (just.value === cat.value) return;
+    let source = null;
+    if (preferEl && preferEl.value) source = preferEl;
+    else if (just.value && !cat.value) source = just;
+    else if (cat.value && !just.value) source = cat;
+    else source = preferEl || (just.value ? just : cat);
+    just.value = source.value;
+    cat.value = source.value;
+    // Kemas tinggi medan yang sedang dipaparkan (medan tersorok akan diresize bila ditukar)
+    autoResizeTextarea(preferEl || just);
+  }
+
   // Input Database: Syor Lawatan YA/PEMUTIHAN -> Justifikasi Lawatan; selainnya -> Catatan
   function toggleMedanDbSyor() {
     const syorVal = (document.getElementById('db_syor')?.value || '').toString().trim().toUpperCase();
@@ -4461,6 +4479,8 @@ async function handleCredentialResponse(response) {
       divCatatan.style.display = showJustifikasi ? 'none' : 'block';
       if (!showJustifikasi) autoResizeTextarea(document.getElementById('db_catatan'));
     }
+    // Teks dibawa bersama — medan yang sedang dipaparkan jadi sumber
+    syncDbFlexText(showJustifikasi ? document.getElementById('db_justifikasi') : document.getElementById('db_catatan'));
   }
 
   // Segarkan semula semua medan fleksibel (tinggi + paparan) selepas restore/tukar rekod/reset
@@ -11311,6 +11331,20 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   if (dbSyorSelect) {
     dbSyorSelect.addEventListener('change', toggleDateSubmitSpi);
   }
+
+  // V7.2: Taip dalam salah satu medan (Justifikasi Lawatan / Catatan) —
+  // salin ke medan satu lagi supaya tukar Syor Lawatan tidak mengosongkan ayat
+  (function() {
+    const dbJustEl = document.getElementById('db_justifikasi');
+    const dbCatEl = document.getElementById('db_catatan');
+    if (!dbJustEl || !dbCatEl) return;
+    dbJustEl.addEventListener('input', function() {
+      if (dbCatEl.value !== dbJustEl.value) dbCatEl.value = dbJustEl.value;
+    });
+    dbCatEl.addEventListener('input', function() {
+      if (dbJustEl.value !== dbCatEl.value) dbJustEl.value = dbCatEl.value;
+    });
+  })();
   const dbSyorStatusEl = document.getElementById('db_syor_status');
   if (dbSyorStatusEl) {
     dbSyorStatusEl.addEventListener('change', () => {
@@ -12723,8 +12757,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (dbStartDate) dbStartDate.value = tMohon; 
       if (dbTatatertib) { dbTatatertib.value = tatatertib; setButtonGroupValue('db_tatatertib', tatatertib); }
       if (dbGred) dbGred.value = gred;
-      if (dbJustifikasi) dbJustifikasi.value = justifikasi;
-      if (dbCatatan) dbCatatan.value = catatanBorang;
+      // Teks Justifikasi/Catatan disatukan (ikut syor borang; fallback medan yang ada teks) —
+      // kemudian tukar Syor Lawatan di tab ini hanya tukar nama medan
+      const borangSyorVal = (document.getElementById('borang_syor_status')?.value || '').toString().trim().toUpperCase();
+      const teksFlexDb = (borangSyorVal === 'SIASAT') ? (justifikasi || catatanBorang) : (catatanBorang || justifikasi);
+      if (dbJustifikasi) dbJustifikasi.value = teksFlexDb;
+      if (dbCatatan) dbCatatan.value = teksFlexDb;
 
       const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
       if(selectedType) {
@@ -12985,6 +13023,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       'borang_no_telefon',
       'input_ubah_maklumat', 'input_ubah_gred',
       'db_alamat_perniagaan',
+      'db_justifikasi',
       'db_catatan'
     ];
 
@@ -14711,15 +14750,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     toggleDateSubmitSpi();
     toggleUrusFailButton();
     updateDriveSectionVisibility();
-    // Medan fleksibel ikut syor lawatan: YA/PEMUTIHAN -> Justifikasi; selainnya -> Catatan (kolum L sama)
+    // Medan fleksibel (kolum L): teks SAMA masuk ke KEDUA-DUA medan Justifikasi & Catatan —
+    // tukar Syor Lawatan hanya tukar nama medan, ayat tidak hilang
     (function() {
-      const syorLawatanUp = (item.syor_lawatan || '').toString().trim().toUpperCase();
       const nilaiL = item.justifikasi || '';
       const elDbJustifikasi = document.getElementById('db_justifikasi');
       const elDbCatatan = document.getElementById('db_catatan');
-      const isJustifikasi = (syorLawatanUp === 'YA' || syorLawatanUp === 'PEMUTIHAN');
-      if (elDbJustifikasi) elDbJustifikasi.value = isJustifikasi ? nilaiL : '';
-      if (elDbCatatan) elDbCatatan.value = isJustifikasi ? '' : nilaiL;
+      if (elDbJustifikasi) elDbJustifikasi.value = nilaiL;
+      if (elDbCatatan) elDbCatatan.value = nilaiL;
     })();
     document.getElementById('db_syor_status').value = item.syor_status || '';
     setButtonGroupValue('db_syor_status', item.syor_status);
