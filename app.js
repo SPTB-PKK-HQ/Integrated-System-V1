@@ -8353,6 +8353,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
       });
     }
+    // V7.5: Emel penerima ikut syarikat yang dibuka di Borang Semakan —
+    // kosongkan bila tukar syarikat supaya emel syarikat lama tidak terbawa
+    const emailKepadaElReset = document.getElementById('emailGenKepada');
+    if (emailKepadaElReset) emailKepadaElReset.value = '';
+    emailGenKepadaLastAuto = '';
+    emailGenKepadaLastSaved = '';
     document.querySelectorAll('input[name="jenisApp"]').forEach(r => { r.checked = false; });
     const ubahMaklumatInput = document.getElementById('input_ubah_maklumat');
     const ubahGredInput = document.getElementById('input_ubah_gred');
@@ -19843,12 +19849,34 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   // Isi medan Kepada jika kosong / masih belum diedit pengguna
+  // V7.5: Hanya guna emel PDF jika PDF itu milik syarikat yang sedang dibuka di Borang Semakan
+  function emailExtractionMatchesCheckerCompany() {
+    if (!extractedPdfData) return false;
+    const norm = function(s) {
+      return (s || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
+    const cidbSemasa = norm(document.getElementById('borang_cidb')?.value || '');
+    const cidbPdf = norm(extractedPdfData.cidbNumber || '');
+    if (cidbSemasa && cidbPdf && cidbSemasa === cidbPdf) return true;
+    const syarikatSemasa = norm(document.getElementById('borang_syarikat')?.value || '');
+    const syarikatPdf = norm(extractedPdfData.companyName || '');
+    if (syarikatSemasa && syarikatPdf && syarikatSemasa === syarikatPdf) return true;
+    return false;
+  }
+
   function emailGenPrefillKepada() {
     const el = emailGenKepadaInput();
     if (!el) return;
-    const auto = emailGenAutoKepada();
-    if (!auto) return;
+    const auto = emailExtractionMatchesCheckerCompany() ? emailGenAutoKepada() : '';
     const cur = el.value.trim();
+    if (!auto) {
+      // Tiada padanan syarikat — jangan kekalkan emel auto syarikat lama
+      if (cur && cur === emailGenKepadaLastAuto) {
+        el.value = '';
+        emailGenKepadaLastAuto = '';
+      }
+      return;
+    }
     if (!cur || cur === emailGenKepadaLastAuto) {
       el.value = auto;
       emailGenKepadaLastAuto = auto;
