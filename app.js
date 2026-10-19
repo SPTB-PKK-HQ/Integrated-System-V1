@@ -19691,6 +19691,22 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }).join(' ');
   }
 
+  // V7.4: Auto besarkan HURUF DEPAN sahaja pada medan Nama Penuh Pegawai.
+  // Huruf lain kekal seperti ditaip; "bin"/"binti" dikekalkan huruf kecil.
+  // Kedudukan kursor dikekalkan (panjang teks tidak berubah).
+  function autoFormatNamaPegawai(el) {
+    if (!el) return;
+    const v = el.value;
+    if (!v) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    let out = v.replace(/(^|[\s\-'’\/])([a-z])/g, function(m, sep, ch) { return sep + ch.toUpperCase(); });
+    out = out.replace(/(^|[\s\-])(bin|binti)(?=[\s,.;]|$)/gi, function(m, sep, w) { return sep + w.toLowerCase(); });
+    if (out === v) return;
+    el.value = out;
+    try { el.setSelectionRange(start, end); } catch (e) { /* abaikan */ }
+  }
+
   // Bina senarai ayat (<li> HTML) daripada medan yang ditanda X sahaja
   function buildEmailAyatItems() {
     const items = [];
@@ -20000,6 +20016,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       try { saved = sessionStorage.getItem(emailGenNamaKey()); } catch (e) { saved = null; }
       if (saved === null) saved = (currentUser && currentUser.name) ? currentUser.name : '';
       namaEl.value = saved;
+      autoFormatNamaPegawai(namaEl);
+      try { sessionStorage.setItem(emailGenNamaKey(), namaEl.value); } catch (e) {}
     }
 
     // Tarikh due date: prefill dari Tarikh Due Date (SLA) jika belum dipilih
@@ -20169,6 +20187,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const emailGenNamaEl = document.getElementById('emailGenNamaPegawai');
   if (emailGenNamaEl) {
       emailGenNamaEl.addEventListener('input', () => {
+          autoFormatNamaPegawai(emailGenNamaEl);
+          try { sessionStorage.setItem(emailGenNamaKey(), emailGenNamaEl.value); } catch (e) {}
+          refreshEmailGenPreview();
+      });
+      emailGenNamaEl.addEventListener('blur', () => {
+          autoFormatNamaPegawai(emailGenNamaEl);
           try { sessionStorage.setItem(emailGenNamaKey(), emailGenNamaEl.value); } catch (e) {}
           refreshEmailGenPreview();
       });

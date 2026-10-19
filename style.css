@@ -1012,6 +1012,13 @@
             transform: scale(1) translateY(0); opacity: 1;
         }
 
+        /* V7.4: Modal Jana Ayat Emel — lebih lebar & sentiasa di tengah skrin (tahan zoom) */
+        #emailGenModal.custom-modal-overlay {
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 16px !important;
+        }
+
         /* Kotak pratonton Jana Ayat Emel (tab Borang Semakan) — teks biru inline dibawa semasa salin */
         #emailGenPreview {
             background: #ffffff;
