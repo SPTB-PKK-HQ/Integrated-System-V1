@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261020a">
+    <link rel="stylesheet" href="style.css?v=20261020e">
 </head>
 <body>
 
@@ -120,6 +120,9 @@
                     <div class="carousel-viewport" id="announceViewport">
                         <div class="carousel-track" id="announceTrack">
                             <div class="carousel-slide is-active">
+                                <img src="assets/posters/poster-surat-arahan-sptb.jpg" alt="Poster ciri baharu: Surat Arahan SPTB kini lebih mudah — butang Surat Arahan di sebelah Inbox, carian, preview PDF dan muat turun untuk Pengesyor, Pelulus, KS SPTB dan Pengarah" draggable="false">
+                            </div>
+                            <div class="carousel-slide">
                                 <img src="assets/posters/poster-ciri-baharu-v8.jpg" alt="Poster ciri baharu V7.6: Emel ikut syarikat, badge status SPI dan simpanan emel ke sheet" draggable="false">
                             </div>
                             <div class="carousel-slide">
@@ -1029,6 +1032,31 @@
             </div>
         </div>
 
+        <div class="custom-modal-overlay" id="suratArahanModal" style="display:none; z-index:12400;" role="dialog" aria-modal="true" aria-labelledby="suratArahanTitle">
+            <div class="custom-modal-card sa-modal-card">
+                <div class="sa-modal-head">
+                    <div class="sa-modal-head-icon"><i class="fa-solid fa-file-shield"></i></div>
+                    <div class="sa-modal-head-text">
+                        <h2 id="suratArahanTitle">Surat Arahan &amp; Pindaan SPTB</h2>
+                        <p>Dokumen rujukan rasmi untuk Pengesyor, Pelulus, Ketua Seksyen dan Pengarah.</p>
+                    </div>
+                    <button type="button" class="sa-modal-close" id="suratArahanClose" aria-label="Tutup">&times;</button>
+                </div>
+                <div class="sa-toolbar">
+                    <div class="sa-search-wrap">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="suratArahanSearch" placeholder="Cari nama dokumen atau kategori...">
+                    </div>
+                    <div class="sa-toolbar-actions">
+                        <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Semula</button>
+                        <a class="sa-btn sa-btn-ghost" id="suratArahanOpenFolder" href="#" target="_blank" rel="noopener" style="display:none;"><i class="fa-solid fa-arrow-up-right-from-square"></i>Buka Folder</a>
+                    </div>
+                </div>
+                <div class="sa-meta" id="suratArahanMeta">Memuatkan dokumen...</div>
+                <div class="sa-list" id="suratArahanList" aria-live="polite"></div>
+            </div>
+        </div>
+
         <style>
             @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
             .pka-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
@@ -1204,6 +1232,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261020b"></script>
+    <script src="app.js?v=20261020e"></script>
 </body>
 </html>

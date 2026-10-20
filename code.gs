@@ -37,6 +37,14 @@ const ROLE_KETUA_SEKSYEN = "KETUA_SEKSYEN";
 const ROLE_ADMIN = "ADMIN";
 const ROLE_PKA = "PKA";
 
+const SURAT_ARAHAN_FOLDER_NAME = 'SURAT ARAHAN';
+const SURAT_ARAHAN_FOLDER_ID_PROPERTY = 'SURAT_ARAHAN_FOLDER_ID';
+const SURAT_ARAHAN_ALLOWED_ROLES = [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_KETUA_SEKSYEN, ROLE_PENGARAH];
+const SURAT_ARAHAN_CACHE_KEY = 'STB_SURAT_ARAHAN_V1';
+const SURAT_ARAHAN_CACHE_TTL = 300;
+const SURAT_ARAHAN_MAX_FILES = 200;
+const SURAT_ARAHAN_MAX_DEPTH = 3;
+
 // Jumlah lajur dalam sheet (A hingga AF = 32 lajur)
 const TOTAL_COLUMNS = 32;
 
@@ -495,7 +503,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     
     // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
-    const noLockActions = ['checkAuth', 'searchYoutube', 'cetak_dan_simpan_pdf', 'refreshData', 'listDriveFiles', 'pkaGetPengesyorContact'];
+    const noLockActions = ['checkAuth', 'searchYoutube', 'cetak_dan_simpan_pdf', 'refreshData', 'listDriveFiles', 'getSuratArahanDocs', 'pkaGetPengesyorContact'];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
@@ -567,6 +575,10 @@ function doPost(e) {
     // V6.7.0: Handler untuk listDriveFiles (papar fail dalam folder)
     if (data.action === 'listDriveFiles') {
       return handleListDriveFiles(data);
+    }
+
+    if (data.action === 'getSuratArahanDocs') {
+      return handleGetSuratArahanDocs(data);
     }
     
     // V6.7.0: Handler untuk uploadDriveFile
@@ -3740,6 +3752,197 @@ function handleListDriveFiles(data) {
     var msg = error.toString();
     if (msg.indexOf('No item with the given ID') > -1 || msg.indexOf('permission to access') > -1) {
       msg = "Folder Drive tidak dapat diakses. Mungkin folder ini telah dipadam atau anda tiada kebenaran.";
+    }
+    return createJSONOutput({ success: false, error: msg });
+  }
+}
+
+function getSuratArahanFolder() {
+  const props = PropertiesService.getScriptProperties();
+  const configuredId = props.getProperty(SURAT_ARAHAN_FOLDER_ID_PROPERTY);
+  if (configuredId) {
+    try {
+      return DriveApp.getFolderById(configuredId);
+    } catch (e) {
+      Logger.log('[SURAT ARAHAN] Folder ID dalam Script Property tidak dapat diakses: ' + e.toString());
+    }
+  }
+
+  try {
+    const mainFolder = DriveApp.getFolderById(getMainFolderId());
+    return findSuratArahanFolderInParent(mainFolder);
+  } catch (e) {
+    Logger.log('[SURAT ARAHAN] Gagal membuka STB MAIN FOLDER: ' + e.toString());
+    return null;
+  }
+}
+
+function findSuratArahanFolderInParent(parentFolder) {
+  const acceptedNames = [
+    'SURAT ARAHAN',
+    'SURAT ARAHAN SPTB',
+    'DOKUMEN SURAT ARAHAN',
+    'SURAT ARAHAN & PINDAAN'
+  ];
+  try {
+    const folders = parentFolder.getFolders();
+    while (folders.hasNext()) {
+      const folder = folders.next();
+      const name = String(folder.getName() || '').toUpperCase().replace(/\s+/g, ' ').trim();
+      if (acceptedNames.indexOf(name) !== -1) return folder;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function setupSuratArahanFolder() {
+  const mainFolder = DriveApp.getFolderById(getMainFolderId());
+  let folder = findSuratArahanFolderInParent(mainFolder);
+  if (!folder) folder = mainFolder.createFolder(SURAT_ARAHAN_FOLDER_NAME);
+  PropertiesService.getScriptProperties().setProperty(SURAT_ARAHAN_FOLDER_ID_PROPERTY, folder.getId());
+  Logger.log('[SURAT ARAHAN] Folder: ' + folder.getName() + ' (' + folder.getId() + ')');
+  return folder.getId();
+}
+
+function buildSuratArahanDownloadUrl(file, mimeType) {
+  const id = file.getId();
+  const mime = String(mimeType || '');
+
+  if (mime === 'application/vnd.google-apps.document') {
+    return 'https://docs.google.com/document/d/' + id + '/export?format=pdf';
+  }
+  if (mime === 'application/vnd.google-apps.spreadsheet') {
+    return 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx';
+  }
+  if (mime === 'application/vnd.google-apps.presentation') {
+    return 'https://docs.google.com/presentation/d/' + id + '/export?format=pptx';
+  }
+  if (mime === 'application/vnd.google-apps.drawing') {
+    return 'https://docs.google.com/drawings/d/' + id + '/export/png';
+  }
+  if (mime === 'application/vnd.google-apps.shortcut' || mime.indexOf('application/vnd.google-apps.') === 0) {
+    try { return file.getUrl(); } catch (e) { return ''; }
+  }
+  return 'https://drive.google.com/uc?export=download&id=' + id;
+}
+
+function collectSuratArahanFiles(folder, categoryPath, files, depth) {
+  if (depth > SURAT_ARAHAN_MAX_DEPTH || files.length >= SURAT_ARAHAN_MAX_FILES) return;
+
+  let fileIterator;
+  try { fileIterator = folder.getFiles(); } catch (e) { fileIterator = null; }
+  while (fileIterator && fileIterator.hasNext() && files.length < SURAT_ARAHAN_MAX_FILES) {
+    const file = fileIterator.next();
+    let mimeType = '';
+    let size = 0;
+    let lastUpdated = '';
+    let webViewLink = '';
+    let fileId = '';
+    let fileName = '';
+    let description = '';
+
+    try { fileId = file.getId(); } catch (e) { fileId = ''; }
+    try { fileName = file.getName(); } catch (e) { fileName = ''; }
+    if (!fileId || !fileName) continue;
+    if (fileName.charAt(0) === '.' || fileName.indexOf('~$') === 0 || /^(desktop\.ini|thumbs\.db)$/i.test(fileName)) continue;
+    try { mimeType = file.getMimeType() || ''; } catch (e) { mimeType = ''; }
+    if (mimeType === 'application/vnd.google-apps.folder') continue;
+    try { size = file.getSize() || 0; } catch (e) { size = 0; }
+    try { lastUpdated = file.getLastUpdated().toISOString(); } catch (e) { lastUpdated = ''; }
+    try { webViewLink = file.getUrl(); } catch (e) { webViewLink = ''; }
+    try {
+      description = String(file.getDescription ? (file.getDescription() || '') : '').replace(/\s+/g, ' ').trim();
+      if (description.charAt(0) === '{') {
+        try {
+          const meta = JSON.parse(description);
+          description = String(meta.description || meta.summary || meta.title || '').trim();
+        } catch (e) {
+          description = '';
+        }
+      }
+      if (description.length > 300) description = description.slice(0, 297) + '...';
+    } catch (e) {
+      description = '';
+    }
+
+    files.push({
+      id: fileId,
+      name: fileName,
+      mimeType: mimeType,
+      size: size,
+      lastUpdated: lastUpdated,
+      webViewLink: webViewLink,
+      downloadUrl: buildSuratArahanDownloadUrl(file, mimeType),
+      category: categoryPath || 'Umum',
+      description: description
+    });
+  }
+
+  if (depth >= SURAT_ARAHAN_MAX_DEPTH) return;
+  let folderIterator;
+  try { folderIterator = folder.getFolders(); } catch (e) { folderIterator = null; }
+  while (folderIterator && folderIterator.hasNext() && files.length < SURAT_ARAHAN_MAX_FILES) {
+    const subFolder = folderIterator.next();
+    const nextCategory = categoryPath ? categoryPath + ' / ' + subFolder.getName() : subFolder.getName();
+    collectSuratArahanFiles(subFolder, nextCategory, files, depth + 1);
+  }
+}
+
+function handleGetSuratArahanDocs(data) {
+  try {
+    const accessCheck = verifyUserAccess(data.email, SURAT_ARAHAN_ALLOWED_ROLES);
+    if (!accessCheck.isAuthorized) {
+      return createJSONOutput({ success: false, error: accessCheck.error });
+    }
+
+    const folder = getSuratArahanFolder();
+    if (!folder) {
+      return createJSONOutput({
+        success: false,
+        error: 'Folder SURAT ARAHAN belum disediakan. Sila cipta folder "' + SURAT_ARAHAN_FOLDER_NAME + '" di dalam STB MAIN FOLDER dan muat naik dokumen rujukan.'
+      });
+    }
+
+    const forceRefresh = data.refresh === true || data.refresh === 'true' || data.refresh === 1 || data.refresh === '1';
+    const cache = CacheService.getScriptCache();
+    const cacheKey = SURAT_ARAHAN_CACHE_KEY + '_' + folder.getId();
+
+    if (!forceRefresh) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    const files = [];
+    collectSuratArahanFiles(folder, '', files, 0);
+
+    files.sort(function(a, b) {
+      const categoryCompare = String(a.category || '').localeCompare(String(b.category || ''), undefined, { sensitivity: 'base' });
+      if (categoryCompare !== 0) return categoryCompare;
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    const payload = {
+      success: true,
+      folderName: folder.getName(),
+      folderUrl: folder.getUrl(),
+      files: files,
+      count: files.length,
+      generatedAt: new Date().toISOString(),
+      limited: files.length >= SURAT_ARAHAN_MAX_FILES
+    };
+
+    const json = JSON.stringify(payload);
+    if (json.length <= 95000) cache.put(cacheKey, json, SURAT_ARAHAN_CACHE_TTL);
+    return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    let msg = error.toString();
+    if (msg.indexOf('No item with the given ID') > -1 || msg.indexOf('permission') > -1 || msg.indexOf('Authorization') > -1) {
+      msg = 'Folder SURAT ARAHAN tidak dapat diakses. Sila pastikan folder wujud dan dikongsi dengan akaun sistem.';
     }
     return createJSONOutput({ success: false, error: msg });
   }

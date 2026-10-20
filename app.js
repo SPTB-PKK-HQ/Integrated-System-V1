@@ -48,6 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedExcelDistricts = new Set();
   let bakulUnsubscribe = null;
 
+  const SURAT_ARAHAN_ROLES = ['PENGESYOR', 'PELULUS', 'KETUA_SEKSYEN', 'PENGARAH'];
+  let suratArahanFiles = [];
+  let suratArahanFolderUrl = '';
+  let suratArahanFolderName = 'SURAT ARAHAN';
+  let suratArahanLoading = false;
+
   // URL APPSCRIPT
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzB8-2omeMVZfczcr4iKrrzaEgU5tj092bZe308yqCeA-4pIG2BbiYFERdoF8rS9u1U/exec';
   
@@ -9379,6 +9385,347 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return div.innerHTML;
   }
 
+  function escapeAttr(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function normalizeUiRole(role) {
+    return String(role || '').toUpperCase().trim().replace(/[\s_-]+/g, '');
+  }
+
+  function canAccessSuratArahan() {
+    if (!currentUser) return false;
+    const role = normalizeUiRole(currentUser.role);
+    return SURAT_ARAHAN_ROLES.some(function(allowedRole) {
+      return normalizeUiRole(allowedRole) === role;
+    });
+  }
+
+  function ensureSuratArahanButton() {
+    let btn = document.getElementById('btnSuratArahan');
+    if (btn) return btn;
+
+    const group = document.querySelector('.top-btn-group');
+    if (!group) return null;
+
+    let bell = null;
+    try { bell = ensureInboxBell(); } catch (e) {}
+
+    btn = document.createElement('button');
+    btn.id = 'btnSuratArahan';
+    btn.type = 'button';
+    btn.className = 'exec-link';
+    btn.title = 'Surat Arahan & Pindaan SPTB';
+    btn.innerHTML = '<i class="fa-solid fa-file-shield fa-ico"></i>Surat Arahan';
+
+    if (bell && bell.parentElement === group) {
+      bell.insertAdjacentElement('afterend', btn);
+    } else {
+      group.appendChild(btn);
+    }
+    return btn;
+  }
+
+  function setupSuratArahanUI() {
+    const btn = ensureSuratArahanButton();
+    if (!btn) return;
+
+    const allowed = canAccessSuratArahan();
+    btn.style.display = allowed ? '' : 'none';
+    if (!allowed) {
+      closeSuratArahanModal();
+      return;
+    }
+
+    if (btn.dataset.saBound === '1') return;
+    btn.dataset.saBound = '1';
+
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      openSuratArahanModal();
+    });
+
+    const modal = document.getElementById('suratArahanModal');
+    const closeBtn = document.getElementById('suratArahanClose');
+    const refreshBtn = document.getElementById('suratArahanRefresh');
+    const searchInput = document.getElementById('suratArahanSearch');
+    const listEl = document.getElementById('suratArahanList');
+
+    if (closeBtn) closeBtn.addEventListener('click', closeSuratArahanModal);
+    if (modal) modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeSuratArahanModal();
+    });
+    if (refreshBtn) refreshBtn.addEventListener('click', function() {
+      loadSuratArahanDocs(true);
+    });
+    if (searchInput) searchInput.addEventListener('input', renderSuratArahanDocs);
+    if (listEl) listEl.addEventListener('click', handleSuratArahanListClick);
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape' || !modal || !modal.classList.contains('show')) return;
+      const pdfModal = document.getElementById('pdfPreviewModal');
+      if (pdfModal && (pdfModal.style.display === 'flex' || pdfModal.classList.contains('show'))) return;
+      const appModal = document.getElementById('customModalOverlay');
+      if (appModal && appModal.classList.contains('show')) return;
+      closeSuratArahanModal();
+    });
+  }
+
+  async function openSuratArahanModal() {
+    if (!canAccessSuratArahan()) {
+      await CustomAppModal.alert('Anda tiada akses kepada dokumen Surat Arahan.', 'Akses Ditolak', 'error');
+      return;
+    }
+
+    const modal = document.getElementById('suratArahanModal');
+    if (!modal) return;
+
+    const searchInput = document.getElementById('suratArahanSearch');
+    if (searchInput) searchInput.value = '';
+
+    modal.style.display = 'flex';
+    requestAnimationFrame(function() { modal.classList.add('show'); });
+
+    const closeBtn = document.getElementById('suratArahanClose');
+    if (closeBtn) {
+      try { closeBtn.focus(); } catch (e) {}
+    }
+
+    await loadSuratArahanDocs(false);
+  }
+
+  function closeSuratArahanModal() {
+    const modal = document.getElementById('suratArahanModal');
+    if (!modal) return;
+    modal.classList.remove('show');
+    setTimeout(function() {
+      modal.style.display = 'none';
+    }, 200);
+  }
+
+  function suratArahanLoadingHtml() {
+    return '<div class="sa-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>Memuatkan dokumen Surat Arahan...</span></div>';
+  }
+
+  function suratArahanEmptyHtml(title, message, isError) {
+    return '<div class="sa-empty' + (isError ? ' sa-error' : '') + '">'
+      + '<i class="fa-solid ' + (isError ? 'fa-circle-xmark' : 'fa-folder-open') + '"></i>'
+      + '<strong>' + escapeHtml(title) + '</strong>'
+      + '<span>' + escapeHtml(message) + '</span>'
+      + '</div>';
+  }
+
+  function getSuratArahanFileKind(mimeType, fileName) {
+    const mime = String(mimeType || '').toLowerCase();
+    const name = String(fileName || '').toLowerCase();
+    if (mime === 'application/pdf' || /\.pdf$/.test(name)) return { cls: 'pdf', label: 'PDF', icon: 'fa-file-pdf' };
+    if (mime.indexOf('word') !== -1 || /\.(doc|docx)$/.test(name)) return { cls: 'doc', label: 'DOC', icon: 'fa-file-word' };
+    if (mime.indexOf('spreadsheet') !== -1 || mime.indexOf('excel') !== -1 || /\.(xls|xlsx|csv)$/.test(name)) return { cls: 'xls', label: 'XLS', icon: 'fa-file-excel' };
+    if (mime.indexOf('presentation') !== -1 || mime.indexOf('powerpoint') !== -1 || /\.(ppt|pptx)$/.test(name)) return { cls: 'ppt', label: 'PPT', icon: 'fa-file-powerpoint' };
+    if (mime.indexOf('image/') === 0 || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) return { cls: 'img', label: 'IMG', icon: 'fa-file-image' };
+    return { cls: 'other', label: 'FAIL', icon: 'fa-file-lines' };
+  }
+
+  function formatSuratArahanDate(value) {
+    if (!value) return 'Tarikh tidak diketahui';
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return 'Tarikh tidak diketahui';
+    return date.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function suratArahanMetaBits(file, kind) {
+    const bits = [];
+    if (file.category && String(file.category).toLowerCase() !== 'umum') bits.push(escapeHtml(file.category));
+    bits.push(kind.label);
+    const isGoogleNative = String(file.mimeType || '').indexOf('application/vnd.google-apps.') === 0;
+    if (!isGoogleNative && file.size) bits.push(formatFileSize(file.size));
+    bits.push(formatSuratArahanDate(file.lastUpdated));
+    return bits;
+  }
+
+  async function loadSuratArahanDocs(forceRefresh) {
+    if (suratArahanLoading) return;
+
+    suratArahanLoading = true;
+    const listEl = document.getElementById('suratArahanList');
+    const metaEl = document.getElementById('suratArahanMeta');
+    const refreshBtn = document.getElementById('suratArahanRefresh');
+
+    if (listEl && suratArahanFiles.length === 0) listEl.innerHTML = suratArahanLoadingHtml();
+    if (metaEl) metaEl.textContent = 'Memuatkan dokumen...';
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Memuatkan...';
+    }
+
+    try {
+      const response = await fetchWithRetry(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'getSuratArahanDocs',
+          email: currentUser ? currentUser.email : '',
+          refresh: !!forceRefresh
+        })
+      }, 3, 1000);
+
+      if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Gagal memuatkan dokumen Surat Arahan.');
+
+      suratArahanFiles = Array.isArray(result.files) ? result.files : [];
+      suratArahanFolderUrl = result.folderUrl || '';
+      suratArahanFolderName = result.folderName || 'SURAT ARAHAN';
+
+      const openFolder = document.getElementById('suratArahanOpenFolder');
+      if (openFolder) {
+        openFolder.href = suratArahanFolderUrl || '#';
+        openFolder.style.display = suratArahanFolderUrl ? '' : 'none';
+      }
+
+      renderSuratArahanDocs();
+    } catch (error) {
+      console.error('Surat Arahan load error:', error);
+      if (suratArahanFiles.length > 0) {
+        renderSuratArahanDocs();
+        showToast('Gagal menyegarkan dokumen: ' + escapeHtml(error.message), 'error');
+      } else {
+        if (metaEl) metaEl.textContent = '';
+        if (listEl) listEl.innerHTML = suratArahanEmptyHtml('Gagal memuatkan dokumen', error.message, true);
+      }
+    } finally {
+      suratArahanLoading = false;
+      if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>Segar Semula';
+      }
+    }
+  }
+
+  function renderSuratArahanDocs() {
+    const listEl = document.getElementById('suratArahanList');
+    const metaEl = document.getElementById('suratArahanMeta');
+    if (!listEl) return;
+
+    if (suratArahanFiles.length === 0) {
+      if (metaEl) {
+        metaEl.innerHTML = '<span><i class="fa-solid fa-folder-open"></i> ' + escapeHtml(suratArahanFolderName) + '</span><span>0 dokumen</span>';
+      }
+      listEl.innerHTML = suratArahanEmptyHtml(
+        'Tiada dokumen ditemui',
+        'Sila muat naik dokumen rujukan ke folder ' + suratArahanFolderName + ' di Google Drive.'
+      );
+      return;
+    }
+
+    const searchInput = document.getElementById('suratArahanSearch');
+    const query = String(searchInput ? searchInput.value : '').trim().toLowerCase();
+    const filtered = suratArahanFiles.filter(function(file) {
+      if (!query) return true;
+      const haystack = [file.name, file.category, file.mimeType, file.description].join(' ').toLowerCase();
+      return haystack.indexOf(query) !== -1;
+    });
+
+    const latestTimestamp = filtered.reduce(function(max, file) {
+      const ts = Date.parse(file.lastUpdated || '');
+      return isNaN(ts) ? max : Math.max(max, ts);
+    }, 0);
+
+    if (metaEl) {
+      const countText = query
+        ? filtered.length + ' daripada ' + suratArahanFiles.length + ' dokumen'
+        : suratArahanFiles.length + ' dokumen';
+      const latestText = latestTimestamp
+        ? formatSuratArahanDate(new Date(latestTimestamp).toISOString())
+        : '-';
+      metaEl.innerHTML = '<span><i class="fa-solid fa-folder-open"></i> ' + escapeHtml(suratArahanFolderName) + '</span>'
+        + '<span>' + escapeHtml(countText) + '</span>'
+        + '<span>Kemas kini terakhir: <strong>' + escapeHtml(latestText) + '</strong></span>';
+    }
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = suratArahanEmptyHtml(
+        'Tiada padanan',
+        'Cuba kata kunci lain seperti "pindaan", "surat arahan" atau nama fail.'
+      );
+      return;
+    }
+
+    const groups = {};
+    filtered.forEach(function(file) {
+      const category = String(file.category || 'Umum');
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(file);
+    });
+
+    const categories = Object.keys(groups).sort(function(a, b) {
+      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+    });
+    const showCategory = categories.length > 1 || categories[0] !== 'Umum';
+
+    let html = '';
+    categories.forEach(function(category) {
+      const items = groups[category];
+      if (showCategory) {
+        html += '<div class="sa-category"><i class="fa-solid fa-folder-open"></i><span>' + escapeHtml(category) + '</span>'
+          + '<span class="sa-category-count">' + items.length + '</span></div>';
+      }
+      items.forEach(function(file) {
+        const kind = getSuratArahanFileKind(file.mimeType, file.name);
+        const isPdf = kind.cls === 'pdf';
+        const name = file.name || 'Dokumen';
+        const webViewLink = file.webViewLink || '';
+        const downloadUrl = file.downloadUrl || webViewLink || '#';
+        const metaBits = suratArahanMetaBits(file, kind);
+        html += '<div class="sa-item">'
+          + '<div class="sa-item-icon sa-icon-' + kind.cls + '"><i class="fa-solid ' + kind.icon + '"></i></div>'
+          + '<div class="sa-item-main">'
+          + '<div class="sa-item-title">' + escapeHtml(name) + '</div>'
+          + (file.description ? '<div class="sa-item-desc" title="' + escapeAttr(file.description) + '">' + escapeHtml(file.description) + '</div>' : '')
+          + '<div class="sa-item-sub">' + metaBits.map(function(bit) { return '<span>' + bit + '</span>'; }).join('<span class="sa-dot">•</span>') + '</div>'
+          + '</div>'
+          + '<div class="sa-item-actions">'
+          + '<button type="button" class="sa-btn sa-btn-primary sa-view"'
+          + ' data-id="' + escapeAttr(file.id || '') + '"'
+          + ' data-name="' + escapeAttr(name) + '"'
+          + ' data-mime="' + escapeAttr(file.mimeType || '') + '"'
+          + ' data-url="' + escapeAttr(webViewLink) + '">'
+          + '<i class="fa-solid fa-eye"></i>' + (isPdf ? 'Lihat' : 'Buka') + '</button>'
+          + '<a class="sa-btn sa-btn-ghost" href="' + escapeAttr(downloadUrl) + '" target="_blank" rel="noopener" title="Muat turun">'
+          + '<i class="fa-solid fa-download"></i>Muat Turun</a>'
+          + '<a class="sa-btn sa-btn-icon" href="' + escapeAttr(webViewLink || '#') + '" target="_blank" rel="noopener" title="Buka di Drive">'
+          + '<i class="fa-brands fa-google-drive"></i></a>'
+          + '</div>'
+          + '</div>';
+      });
+    });
+
+    listEl.innerHTML = html;
+  }
+
+  function handleSuratArahanListClick(e) {
+    const viewBtn = e.target.closest('.sa-view');
+    if (!viewBtn) return;
+    e.preventDefault();
+
+    const fileId = viewBtn.getAttribute('data-id');
+    const fileName = viewBtn.getAttribute('data-name') || 'Dokumen';
+    const mimeType = viewBtn.getAttribute('data-mime') || '';
+    const webViewLink = viewBtn.getAttribute('data-url') || '';
+
+    if (fileId && isPdfFile(mimeType, fileName)) {
+      openPdfPreviewModal(fileId, fileName, webViewLink);
+      return;
+    }
+    if (webViewLink) {
+      window.open(webViewLink, '_blank', 'noopener');
+      return;
+    }
+    showToast('Pautan dokumen tidak tersedia.', 'error');
+  }
+
   // Event listeners for file manager
   const btnFileManagerFromDb = document.getElementById('btnFileManagerFromDb');
   const btnFileManagerFromPautan = document.getElementById('btnFileManagerFromPautan');
@@ -11626,6 +11973,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     appContainer.style.display = 'block';
     
     if (anonymousBadge) anonymousBadge.style.display = 'none';
+
+    try { setupSuratArahanUI(); } catch (e) { console.warn('Surat Arahan UI:', e); }
     
     // KEMASKINI: Pastikan fungsi klik YouTube dipasang setiap kali UI dimuatkan (termasuk selepas refresh)
     const pic = currentUser.picture;

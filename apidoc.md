@@ -807,6 +807,58 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 }
 ```
 
+#### F2A. `getSuratArahanDocs` — Senarai dokumen Surat Arahan SPTB
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menyenaraikan dokumen rujukan Surat Arahan SPTB daripada folder `STB MAIN FOLDER > SURAT ARAHAN` (termasuk subfolder sebagai kategori). Peranan: `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`. Baca sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "getSuratArahanDocs",
+  "email": "ali@[DOMAIN_KERAJAAN]",
+  "refresh": false
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "folderName": "SURAT ARAHAN",
+  "folderUrl": "[URL_FOLDER_DRIVE]",
+  "count": 2,
+  "limited": false,
+  "generatedAt": "2026-10-20T10:00:00.000Z",
+  "files": [
+    {
+      "id": "[FILE_ID]",
+      "name": "Pindaan Surat Arahan Bil. 1-2026.pdf",
+      "mimeType": "application/pdf",
+      "size": 245000,
+      "lastUpdated": "2026-10-20T09:30:00.000Z",
+      "webViewLink": "[URL_FAIL]",
+      "downloadUrl": "[URL_MUAT_TURUN]",
+      "category": "Pindaan",
+      "description": "Pindaan syarat kelayakan dan prosedur semakan dokumen berkuat kuasa 1 November 2026."
+    }
+  ]
+}
+```
+
+* **Response Error:**
+
+```json
+{ "success": false, "error": "Folder SURAT ARAHAN belum disediakan. Sila cipta folder \"SURAT ARAHAN\" di dalam STB MAIN FOLDER dan muat naik dokumen rujukan." }
+```
+
+* **Nota Operasi:**
+  * Folder ID boleh ditetapkan melalui Script Property `SURAT_ARAHAN_FOLDER_ID`; jika tiada, sistem mencari subfolder bernama `SURAT ARAHAN` di bawah `STB MAIN FOLDER`.
+  * Hasil senarai di-cache selama 5 minit. `refresh: true` memintas cache.
+  * Had 200 fail dan 3 aras subfolder.
+  * Medan `description` diambil daripada Description fail di Google Drive. Isi Description dengan ringkasan kandungan dokumen supaya butiran dipaparkan di bawah nama fail.
+
 #### F3. `uploadDriveFile` — Muat naik fail (base64)
 
 * **Kaedah & Path:** `POST /exec`

@@ -194,6 +194,7 @@ Statistik saiz: `app.js` terbesar (~852KB), diikuti `jata.svg` (~373KB), `code.g
 | `tab-admin-dashboard` | Statistik admin + pengurusan pengguna | ADMIN |
 | `tab-history` | Sejarah keputusan | Dibenarkan |
 | `tab-pka-dashboard` | Inbox SPI, kemas kini lawatan | PKA |
+| Navbar: `btnSuratArahan` | Modal dokumen rujukan Surat Arahan & Pindaan SPTB (Drive, baca sahaja) | PENGESYOR, PELULUS, KETUA_SEKSYEN, PENGARAH |
 
 ---
 
@@ -238,6 +239,7 @@ flowchart TD
 | Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, slot legasi (AD), ulasan SPI | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti |
 | Firestore (`[PROJEK_FIRESTORE_TAPISAN]`) | SDK Compat 9.21.0 di klien + kod Firebase per pengguna | Peraturan tapisan G4–G7, data bakul | Akses tanpa nama selepas log masuk GIS; kod disuntik dari Script Properties |
 | Google Drive | `DriveApp` | Struktur `STB MAIN FOLDER > [Pengesyor] > [SYARIKAT] > [JENIS - TARIKH]` + PDF berwarna + fail dimuat naik (base64) | Pencarian folder mengabaikan kurungan dan huruf besar/kecil |
+| Google Drive — Surat Arahan | `DriveApp` melalui `getSuratArahanDocs` | Dokumen rujukan pindaan/Surat Arahan SPTB daripada `STB MAIN FOLDER > SURAT ARAHAN` | Baca sahaja; akses 4 peranan; cache 5 minit; subfolder sebagai kategori; ringkasan daripada medan Description fail |
 | Firebase Auth + GIS | `google.accounts.id` + `auth.signInAnonymously()` | `idToken` Google dihurai di klien, emel dihantar ke backend untuk pengesahan domain dan peranan | Domain dibenarkan: `@kuskop.gov.my` |
 | Cuti Umum Putrajaya | `UrlFetchApp` (ICS kalendar awam Google "Holidays in Malaysia") | Senarai tarikh cuti umum yang terpakai untuk Putrajaya (~20 tarikh/tahun) | Di-cache dalam Script Properties (`PUTRAJAYA_HOLIDAYS_<tahun>`) dan di-refresh setiap 30 hari; sandaran senarai cuti tetap Persekutuan |
 | Emel dan Kalendar | `MailApp` + `CalendarApp` + queue berjadual | Emel SPI SIASAT/PEMUTIHAN, acara kalendar lawatan, peringatan backlog | Trigger harian; barisan disimpan dalam Script Properties |
@@ -408,7 +410,7 @@ flowchart TD
 * Pelayar moden dengan JavaScript, IndexedDB, dan capaian HTTPS ke `cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `accounts.google.com`, `www.gstatic.com`, dan endpoint Apps Script.
 * Akaun Google domain `@kuskop.gov.my` yang berdaftar dalam helaian `Users`.
 * Kebenaran OAuth yang diluluskan oleh pentadbir Workspace untuk 7 skop di atas.
-* Script Properties yang lengkap: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`, `PUTRAJAYA_HOLIDAYS_<tahun>` (cache cuti umum; dijana automatik).
+* Script Properties yang lengkap: `MAIN_FOLDER_ID`, `SURAT_ARAHAN_FOLDER_ID` (pilihan; fallback kepada subfolder `SURAT ARAHAN` dalam `STB MAIN FOLDER`), `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`, `PUTRAJAYA_HOLIDAYS_<tahun>` (cache cuti umum; dijana automatik).
 
 > **Nota keselamatan dokumen:** Nilai sebenar kunci, ID folder, alamat emel operasi, dan URL Web App tidak didedahkan dalam dokumen ini. Gantikan dengan placeholder `[URL_STAGING_KERAJAAN]`, `[URL_PRODUKSI_KERAJAAN]`, `[MAIN_FOLDER_ID]`, `[EMAIL_TO_SPI]`, `[KUNCI_API]` semasa pengendalian operasi seperti yang diperincikan dalam `apidoc.md`.
 
