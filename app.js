@@ -1076,48 +1076,28 @@ async function handleCredentialResponse(response) {
     const pauseBtn = document.getElementById('announcePause');
     const pauseIcon = pauseBtn ? pauseBtn.querySelector('i, svg') : null;
 
-    // V6.6.1: Transisi Fade + Zoom — slaid lama pudar keluar manakala
-    // slaid baharu pudar masuk (0.6s), dengan kesan Ken Burns (zoom
-    // perlahan) pada poster aktif melalui CSS. Kurang-gerakan
-    // (prefers-reduced-motion): tukar serta-merta tanpa pudar.
-    let animating = false;
+    // V7.7: Transisi slide kiri/kanan (bukan fade/zoom).
+    // Track bergerak translateX; setiap slaid ialah flex 100% lebar.
+    // Kurang-gerakan (prefers-reduced-motion): tukar serta-merta.
     const reduceMotion = (typeof window !== 'undefined' && window.matchMedia)
       ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
       : false;
+    if (reduceMotion) track.style.transition = 'none';
+    track.style.transform = 'translateX(0%)';
+    slides.forEach(function(s, k) {
+      s.setAttribute('aria-hidden', k === 0 ? 'false' : 'true');
+    });
 
     function go(i) {
       const n = (i + slides.length) % slides.length;
-      if (n === index || animating) return;
-      const out = slides[index];
-      const inn = slides[n];
+      if (n === index) return;
       index = n;
       dots.forEach((d, k) => d.classList.toggle('is-active', k === index));
-      if (reduceMotion) {
-        slides.forEach((s, k) => s.classList.toggle('is-active', k === index));
-        return;
-      }
-      animating = true;
-      // Slaid masuk bermula telus (kelas ditambah dahulu supaya animasi
-      // Ken Burns bermula, kelegapan dikawal inline)
-      inn.classList.add('is-active');
-      inn.style.transition = 'none';
-      inn.style.opacity = '0';
-      inn.style.visibility = 'visible';
-      void inn.offsetWidth; // paksa reflow sebelum pudar masuk
-      // Pudar silang: keluar 1->0, masuk 0->1 serentak
-      out.style.transition = 'opacity 0.6s ease';
-      inn.style.transition = 'opacity 0.6s ease';
-      out.style.opacity = '0';
-      inn.style.opacity = '1';
-      setTimeout(() => {
-        // Kemas: keluar kehilangan aktif, kawalan dipulangkan kepada CSS
-        out.classList.remove('is-active');
-        ['transition', 'opacity', 'visibility'].forEach(p => {
-          out.style[p] = '';
-          inn.style[p] = '';
-        });
-        animating = false;
-      }, 650);
+      slides.forEach(function(s, k) {
+        s.classList.toggle('is-active', k === index);
+        s.setAttribute('aria-hidden', k === index ? 'false' : 'true');
+      });
+      track.style.transform = 'translateX(-' + (index * 100) + '%)';
     }
     function next() { go(index + 1); }
     function prev() { go(index - 1); }
@@ -19020,6 +19000,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     });
   }
 
+  // V7.6: Badge status penghantaran SPI untuk kolum "Status Semasa" di Tapisan Excel
+  function excelSpiStatusBadge(status) {
+      const s = (status || '').toString().trim().toUpperCase();
+      if (s === 'TELAH DIHANTAR') {
+          return '<span style="background:#dcfce7;color:#065f46;border:1px solid #10b981;padding:4px 8px;border-radius:12px;font-size:0.75rem;font-weight:bold;"><i class="fa-solid fa-paper-plane"></i> Dihantar ke SPI</span>';
+      }
+      if (s === 'DALAM QUEUE') {
+          return '<span style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:4px 8px;border-radius:12px;font-size:0.75rem;font-weight:bold;"><i class="fa-solid fa-hourglass-half"></i> Dalam Queue SPI</span>';
+      }
+      return '';
+  }
+
   function renderExcelTable() {
       const tbody = document.getElementById('excelTableBody');
       const filtered = excelRawData.filter(d => selectedExcelDistricts.has(d.district));
@@ -19093,7 +19085,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           let statusBadge = '';
           let disableCheckbox = false;
 
-          if (isProcessed) {
+          // V7.6: Status penghantaran SPI diutamakan (DALAM QUEUE / TELAH DIHANTAR)
+          const spiStatusBadge = matchedRecord ? excelSpiStatusBadge(matchedRecord.status_hantar_spi) : '';
+
+          if (spiStatusBadge) {
+              statusBadge = spiStatusBadge;
+              disableCheckbox = true;
+          } else if (isProcessed) {
               let isSemakanPelulus = false;
               if (matchedRecord && (matchedRecord.syor_status || '').toUpperCase() === 'SIASAT') {
                   try {
