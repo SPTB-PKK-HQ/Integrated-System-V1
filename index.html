@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261021a">
+    <link rel="stylesheet" href="style.css?v=20261023a">
 </head>
 <body>
 
@@ -922,6 +922,13 @@
                 <div id="emailGenWaInfo" style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px;"></div>
                 <div id="emailGenCopyHint" style="display: none; font-size: 0.8rem; color: #ef4444; font-weight: bold; margin-bottom: 8px;"><i class="fa-solid fa-triangle-exclamation fa-ico"></i> Isi Nama Penuh Pegawai &amp; pilih Tarikh Due Date untuk aktifkan butang Salin.</div>
                 <div id="emailGenPreview" contenteditable="true" spellcheck="false"></div>
+                <div id="emailGenWaChooser" class="email-gen-wa-chooser" style="display: none;">
+                    <div class="email-gen-wa-chooser-head">
+                        <div class="email-gen-wa-chooser-title"><i class="fa-brands fa-whatsapp fa-ico"></i> Pilih nombor WhatsApp syarikat</div>
+                        <button type="button" class="email-gen-wa-chooser-close" id="emailGenWaChooserClose" aria-label="Tutup pilihan WhatsApp">&times;</button>
+                    </div>
+                    <div class="email-gen-wa-chooser-list" id="emailGenWaChooserList"></div>
+                </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap;">
                     <button type="button" class="btn btn-white" id="emailGenCloseBtn" style="padding: 10px 22px;">Tutup</button>
                     <button type="button" class="btn" id="emailGenWhatsappBtn" disabled title="Tiada no. individu (01x) untuk WhatsApp" style="padding: 10px 22px; background: #25D366; color: #ffffff; box-shadow: 0 4px 12px rgba(37,211,102,0.3);"><i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp Syarikat</button>
@@ -1243,6 +1250,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261023c"></script>
+    <script src="app.js?v=20261023d"></script>
 </body>
 </html>

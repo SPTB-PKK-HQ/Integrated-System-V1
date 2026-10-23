@@ -20377,22 +20377,63 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return '';
   }
 
+  // Sembunyikan & kosongkan panel pilihan nombor WhatsApp
+  function hideEmailGenWhatsAppChooser() {
+    const chooser = document.getElementById('emailGenWaChooser');
+    const list = document.getElementById('emailGenWaChooserList');
+    if (chooser) chooser.style.display = 'none';
+    if (list) list.innerHTML = '';
+  }
+
+  // Buka nombor WhatsApp yang dipilih; pulangkan true jika berjaya
+  function openEmailGenWhatsAppNumber(url) {
+    const win = window.open(url, '_blank');
+    if (!win) {
+      CustomAppModal.alert('Popup disekat oleh pelayar. Benarkan popup untuk laman ini, kemudian cuba lagi.', 'Popup Disekat', 'warning');
+      return false;
+    }
+    hideEmailGenWhatsAppChooser();
+    return true;
+  }
+
+  // Papar senarai nombor sebagai butang di dalam modal emel
+  function showEmailGenWhatsAppChooser(mobiles) {
+    const chooser = document.getElementById('emailGenWaChooser');
+    const list = document.getElementById('emailGenWaChooserList');
+    if (!chooser || !list || !mobiles || mobiles.length < 2) {
+      hideEmailGenWhatsAppChooser();
+      return;
+    }
+    list.innerHTML = mobiles.map(function(m) {
+      return '<button type="button" class="email-gen-wa-number-btn" data-wa-url="https://wa.me/' + m.intl + '" aria-label="Buka WhatsApp ' + escapeAttr(m.display) + '">' +
+        '<i class="fa-brands fa-whatsapp"></i><span>' + escapeHtml(m.display) + '</span>' +
+      '</button>';
+    }).join('');
+    chooser.style.display = 'block';
+    try { chooser.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { try { chooser.scrollIntoView(); } catch (e2) {} }
+    const first = list.querySelector('button[data-wa-url]');
+    if (first) { try { first.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
   // Kemas kini butang & info WhatsApp syarikat dalam modal emel
   function refreshEmailGenWhatsAppState() {
+    hideEmailGenWhatsAppChooser();
     const btn = document.getElementById('emailGenWhatsappBtn');
     const info = document.getElementById('emailGenWaInfo');
     const raw = emailCompanyPhoneRaw();
     const mobiles = emailMobileNumberList(raw);
     if (btn) {
       btn.disabled = mobiles.length === 0;
-      btn.title = mobiles.length > 0
-        ? 'Buka WhatsApp untuk ' + mobiles.map(function(m) { return m.display; }).join(', ')
-        : 'Tiada no. individu (01x) untuk WhatsApp';
+      btn.title = mobiles.length > 1
+        ? 'Pilih nombor WhatsApp syarikat (' + mobiles.length + ' nombor)'
+        : (mobiles.length === 1
+          ? 'Buka WhatsApp untuk ' + mobiles[0].display
+          : 'Tiada no. individu (01x) untuk WhatsApp');
     }
     if (info) {
       if (mobiles.length > 0) {
         info.style.color = '#16a34a';
-        info.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i> No. WhatsApp syarikat: <strong>' + mobiles.map(function(m) { return escapeHtml(m.display); }).join(', ') + '</strong>';
+        info.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i> No. WhatsApp syarikat: <strong>' + mobiles.map(function(m) { return escapeHtml(m.display); }).join(', ') + '</strong>' + (mobiles.length > 1 ? ' — klik <strong>WhatsApp Syarikat</strong> untuk pilih nombor.' : '');
       } else if (raw) {
         info.style.color = '#d97706';
         info.innerHTML = '<i class="fa-solid fa-circle-info fa-ico"></i> Tiada no. individu (01x) dikesan — no. pejabat tidak menyokong WhatsApp. Masukkan no. individu pada medan <strong>No. Telefon (Pejabat / Individu)</strong>.';
@@ -20404,24 +20445,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return mobiles;
   }
 
-  // Buka WhatsApp syarikat: satu nombor terus, banyak nombor papar pilihan
+  // Buka WhatsApp syarikat: satu nombor terus, banyak nombor papar butang pilihan
   function openEmailGenCompanyWhatsApp() {
     const mobiles = emailMobileNumberList(emailCompanyPhoneRaw());
     if (mobiles.length === 0) {
+      hideEmailGenWhatsAppChooser();
       CustomAppModal.alert('Tiada no. individu (01x) untuk WhatsApp.<br><br>No. pejabat tidak menyokong WhatsApp. Sila masukkan no. individu pada medan <strong>No. Telefon (Pejabat / Individu)</strong>.', 'WhatsApp Tiada', 'warning');
       return;
     }
     if (mobiles.length === 1) {
-      const win = window.open('https://wa.me/' + mobiles[0].intl, '_blank');
-      if (!win) {
-        CustomAppModal.alert('Popup disekat oleh pelayar. Benarkan popup untuk laman ini, kemudian cuba lagi.', 'Popup Disekat', 'warning');
-      }
+      openEmailGenWhatsAppNumber('https://wa.me/' + mobiles[0].intl);
       return;
     }
-    const links = mobiles.map(function(m) {
-      return '<a href="https://wa.me/' + m.intl + '" target="_blank" rel="noopener" style="display:inline-block; margin:4px 0; color:#128C7E; font-weight:bold; text-decoration:underline;">' + escapeHtml(m.display) + '</a>';
-    }).join('<br>');
-    CustomAppModal.alert('Pilih no. WhatsApp syarikat:<br><br>' + links, 'WhatsApp Syarikat', 'info');
+    showEmailGenWhatsAppChooser(mobiles);
   }
 
   function emailGenPrefillKepada() {
@@ -20679,6 +20715,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   function closeEmailGenModal() {
+    hideEmailGenWhatsAppChooser();
     const overlay = document.getElementById('emailGenModal');
     if (!overlay) return;
     overlay.classList.remove('show');
@@ -20816,6 +20853,22 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       emailGenWhatsappBtn.addEventListener('click', () => {
           playSoundEffect('ui_click.mp3');
           openEmailGenCompanyWhatsApp();
+      });
+  }
+  const emailGenWaChooserList = document.getElementById('emailGenWaChooserList');
+  if (emailGenWaChooserList) {
+      emailGenWaChooserList.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-wa-url]');
+          if (!btn) return;
+          playSoundEffect('ui_click.mp3');
+          openEmailGenWhatsAppNumber(btn.getAttribute('data-wa-url'));
+      });
+  }
+  const emailGenWaChooserClose = document.getElementById('emailGenWaChooserClose');
+  if (emailGenWaChooserClose) {
+      emailGenWaChooserClose.addEventListener('click', () => {
+          playSoundEffect('ui_click.mp3');
+          hideEmailGenWhatsAppChooser();
       });
   }
   if (emailGenModalEl) {
