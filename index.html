@@ -652,6 +652,7 @@
                     <div id="adminArchiveSection" style="margin-top: 20px;"><h3 style="color: #0891b2;"><i class="fa-solid fa-box-archive fa-ico"></i>Arkib Data Tahunan</h3><div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;"><button class="btn" id="btnArchiveYear" style="background-color:#0891b2; color:white;"><i class="fa-solid fa-box-archive fa-ico"></i>Arkib Data Tahun Ini</button><span id="archiveStatus" style="color:#64748b; font-size:0.9rem;"></span></div></div>
                     
                     <div id="adminFirebaseCleanupSection" style="margin-top: 20px;"><h3 style="color: #dc2626;"><i class="fa-solid fa-fire fa-ico"></i>Pembersihan Firebase Code</h3><div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;"><button class="btn" id="btnCleanupFirebase" style="background-color:#dc2626; color:white;"><i class="fa-solid fa-broom fa-ico"></i>Bersihkan Firebase Code Orphan</button><span id="cleanupStatus" style="color:#64748b; font-size:0.9rem;"></span></div></div>
+                    <div id="adminSpiCleanupSection" style="margin-top: 20px;"><h3 style="color: #0f766e;"><i class="fa-solid fa-paper-plane fa-ico"></i>Pembersihan Status SPI</h3><div style="font-size:0.82rem; color:#64748b; margin-bottom:10px;">Membuang status <b>DALAM QUEUE</b> yang tidak lagi berada dalam queue sebenar dan tiada tarikh. Status <b>TELAH DIHANTAR</b> yang mempunyai tarikh lengkap tidak disentuh.</div><div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;"><button class="btn" id="btnCleanupSpiStatus" style="background-color:#0f766e; color:white;"><i class="fa-solid fa-broom fa-ico"></i>Bersihkan Status SPI Tersangkut</button><span id="spiCleanupStatus" style="color:#64748b; font-size:0.9rem;"></span></div></div>
                 </div>
             </div>
         </div>
@@ -902,7 +903,7 @@
                 <h2 style="color: #1e40af; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 8px;">
                     <i class="fa-solid fa-envelope fa-ico"></i>Jana Ayat Emel
                 </h2>
-                <p style="color: #64748b; font-size: 0.85rem; margin: 10px 0;">Emel penuh dijana daripada medan yang ditanda <strong>X</strong> sahaja. Emel &amp; no. telefon diambil dari profil anda. Boleh edit dalam kotak di bawah sebelum salin — format &amp; warna akan terbawa ke emel. Butang <strong>Buka Gmail</strong> akan isi penerima &amp; subjek automatik — anda cuma tekan <strong>Ctrl+V</strong> pada badan emel.</p>
+                <p style="color: #64748b; font-size: 0.85rem; margin: 10px 0;">Emel penuh dijana daripada medan yang ditanda <strong>X</strong> sahaja. Emel &amp; no. telefon diambil dari profil anda. Boleh edit dalam kotak di bawah sebelum salin — format &amp; warna akan terbawa ke emel. Butang <strong>Buka Gmail</strong> akan isi penerima &amp; subjek automatik — anda cuma tekan <strong>Ctrl+V</strong> pada badan emel. Butang <strong>WhatsApp Syarikat</strong> hanya menggunakan no. individu (01x) — no. pejabat tidak menyokong WhatsApp.</p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 6px;">
                     <div style="flex: 2; min-width: 240px;">
                         <label style="font-weight: bold; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 4px;">Nama Penuh Pegawai <span style="color: #ef4444;">*</span> <span style="font-weight: normal; color: #94a3b8;">(tulis sekali sahaja — diingat sepanjang sesi)</span></label>
@@ -918,10 +919,12 @@
                     <input type="text" id="emailGenKepada" placeholder="cth: syarikat@abc.com, wakil@abc.com" style="width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;">
                 </div>
                 <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px;"><i class="fa-solid fa-circle-info fa-ico"></i> <span id="emailGenInfoProfil"></span></div>
+                <div id="emailGenWaInfo" style="font-size: 0.78rem; color: #64748b; margin-bottom: 8px;"></div>
                 <div id="emailGenCopyHint" style="display: none; font-size: 0.8rem; color: #ef4444; font-weight: bold; margin-bottom: 8px;"><i class="fa-solid fa-triangle-exclamation fa-ico"></i> Isi Nama Penuh Pegawai &amp; pilih Tarikh Due Date untuk aktifkan butang Salin.</div>
                 <div id="emailGenPreview" contenteditable="true" spellcheck="false"></div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap;">
                     <button type="button" class="btn btn-white" id="emailGenCloseBtn" style="padding: 10px 22px;">Tutup</button>
+                    <button type="button" class="btn" id="emailGenWhatsappBtn" disabled title="Tiada no. individu (01x) untuk WhatsApp" style="padding: 10px 22px; background: #25D366; color: #ffffff; box-shadow: 0 4px 12px rgba(37,211,102,0.3);"><i class="fa-brands fa-whatsapp fa-ico"></i>WhatsApp Syarikat</button>
                     <button type="button" class="btn btn-green" id="emailGenCopyBtn" disabled style="padding: 10px 22px; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"><i class="fa-solid fa-copy fa-ico"></i>Salin Emel</button>
                     <button type="button" class="btn" id="emailGenGmailBtn" disabled style="padding: 10px 22px; background: #ea4335; color: #ffffff; box-shadow: 0 4px 12px rgba(234,67,53,0.3);"><i class="fa-brands fa-google fa-ico"></i>Buka Gmail</button>
                 </div>
@@ -1240,6 +1243,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261020e"></script>
+    <script src="app.js?v=20261023c"></script>
 </body>
 </html>

@@ -2191,7 +2191,8 @@ async function handleCredentialResponse(response) {
         s_sb: card.querySelector('.status-sb')?.value || '',
         s_epf: card.querySelector('.status-epf')?.value || '',
         c_date: card.querySelector('.comp-date')?.value || '',
-        c_status: card.querySelector('.status-comp')?.value || ''
+        c_status: card.querySelector('.status-comp')?.value || '',
+        c_doc_type: card.querySelector('.comp-doc-type')?.value || ''
       });
     });
     
@@ -4641,7 +4642,7 @@ async function handleCredentialResponse(response) {
     // V6.6.1: Guna struktur row sama seperti tab Belum Syor (app-item-wrapper) supaya konsisten
     list.innerHTML = data.map((d, i) => {
       const jenisBadge = pkaGetJenisBadge(d.jenis);
-      const spiDate = d.date_submit ? formatDateDisplay(d.date_submit) : '';
+      const spiDate = getSpiDisplayDate(d);
       const startDate = d.start_date ? formatDateDisplay(d.start_date) : '';
       const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '';
       const failBtn = d.pautan
@@ -4750,7 +4751,7 @@ async function handleCredentialResponse(response) {
     }
 
     const row = item.row;
-    const spiDate = item.date_submit ? formatDateDisplay(item.date_submit) : '-';
+    const spiDate = getSpiDisplayDate(item) || '-';
     const curSyor = (item.lawatan_syor || '').toString();
     let curLaporanUrl = '';
     try {
@@ -4804,7 +4805,7 @@ async function handleCredentialResponse(response) {
       const jenisBadge = pkaGetJenisBadge(d.jenis);
       const lawatanDate = d.lawatan_tarikh ? formatDateDisplay(d.lawatan_tarikh) : '-';
       const sptbDate = d.lawatan_submit_sptb ? formatDateDisplay(d.lawatan_submit_sptb) : '-';
-      const spiDate = d.date_submit ? formatDateDisplay(d.date_submit) : '';
+      const spiDate = getSpiDisplayDate(d);
       let viewCls = 'btn-sm btn-view-pending';
       const kel = (d.kelulusan || '').toString().toUpperCase();
       if (kel.includes('LULUS')) viewCls = 'btn-sm btn-view-approved';
@@ -5129,7 +5130,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     
     // Seksyen pengurusan sistem hanya untuk ADMIN (disembunyi dari KETUA SEKSYEN/PENGARAH)
     const isFullAdmin = currentUser && currentUser.role === 'ADMIN';
-    ['adminDeletedRecordsSection', 'adminUsersSection', 'adminArchiveSection', 'adminFirebaseCleanupSection'].forEach(id => {
+    ['adminDeletedRecordsSection', 'adminUsersSection', 'adminArchiveSection', 'adminFirebaseCleanupSection', 'adminSpiCleanupSection'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = isFullAdmin ? '' : 'none';
     });
@@ -8509,8 +8510,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (isCompany) {
         const cDate = card.querySelector('.comp-date')?.value || '';
         const cStatus = card.querySelector('.status-comp')?.value.toUpperCase() || '';
+        const cType = (card.querySelector('.comp-doc-type')?.value || '').toUpperCase();
         const displayDate = cDate ? formatDateDisplay(cDate) : '';
-        const combinedText = `Tarikh: ${displayDate} | Status: ${cStatus}`;
+        const dateLabel = cType === 'BCPLC'
+          ? 'Tarikh Tamat BCPLC'
+          : (cType === 'SSM' ? 'Tarikh e-Info SSM' : 'Tarikh');
+        const combinedText = `${dateLabel}: ${displayDate} | Status: ${cStatus}`;
         
         rowsHtml += `<tr>
           <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${baruBadge}</div></td>
@@ -10518,6 +10523,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         s_epf: card.querySelector('.status-epf')?.value || '',
         c_date: card.querySelector('.comp-date')?.value || '',
         c_status: card.querySelector('.status-comp')?.value || '',
+        c_doc_type: card.querySelector('.comp-doc-type')?.value || '',
         ic_file: pg(pdf.ic_file),
         sb_file: pg(pdf.sb_file),
         epf_file: pg(pdf.epf_file),
@@ -12994,7 +13000,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         s_sb: card.querySelector('.status-sb')?.value.toUpperCase() || '',
         s_epf: card.querySelector('.status-epf')?.value.toUpperCase() || '',
         c_date: card.querySelector('.comp-date')?.value || '',
-        c_status: card.querySelector('.status-comp')?.value.toUpperCase() || ''
+        c_status: card.querySelector('.status-comp')?.value.toUpperCase() || '',
+        c_doc_type: card.querySelector('.comp-doc-type')?.value || ''
       });
     });
     formData.personnel = personnel;
@@ -14597,7 +14604,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           } catch(e) {}
           let extraInfo = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">Pengesyor: ${item.pengesyor || '-'}</div>`;
           let dateInfo = item.start_date ? `<div style="font-size:0.75rem; color:#047857; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> TARIKH MULA (START DATE): ${formatDateDisplay(item.start_date)}</div>` : '';
-          let spiDateInfo = item.date_submit ? `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${formatDateDisplay(item.date_submit)}</div>` : '';
+          let spiDateInfo = getSpiDisplayDate(item) ? `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${getSpiDisplayDate(item)}</div>` : '';
           let sptbDateInfo = item.lawatan_submit_sptb ? `<div style="font-size:0.75rem; color:#059669; font-weight:600; margin-top:2px;"><i class="fa-solid fa-clipboard-list"></i> Date Submit to SPTB: ${formatDateDisplay(item.lawatan_submit_sptb)}</div>` : '';
           div.innerHTML = `
             <div class="app-info" style="flex: 1; padding-right: 15px; overflow: hidden;">
@@ -14976,9 +14983,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
 
       let spiDateInfo = '';
-      if (item.date_submit) {
-        const spiDate = formatDateDisplay(item.date_submit);
-        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${spiDate}</div>`;
+      const spiDisplayDate = getSpiDisplayDate(item);
+      if (spiDisplayDate) {
+        spiDateInfo = `<div style="font-size:0.75rem; color:#1d4ed8; font-weight:600; margin-top:2px;"><i class="fa-solid fa-calendar-days"></i> Tarikh Hantar SPI: ${spiDisplayDate}</div>`;
       }
 
       let sptbDateInfo = '';
@@ -15067,16 +15074,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // Kunci Tarikh Hantar ke SPI kepada tarikh yang DIPAPARKAN (date_submit asal;
     // fallback: tarikh sebenar penghantaran) supaya paparan tidak hilang dan tidak boleh diubah
     dbSubmitLockDate = null;
-    let submitVal = '';
-    if (item.date_submit) {
-      try { submitVal = new Date(item.date_submit).toISOString().split('T')[0]; } catch (e) { /* abaikan */ }
-    }
+    let submitVal = parseDateToIso(item.date_submit);
     if (item.status_hantar_spi === 'TELAH DIHANTAR') {
       if (!submitVal && item.tarikh_hantar_spi) {
-        try {
-          const parts = String(item.tarikh_hantar_spi).split(' ')[0].split('/'); // dd/MM/yyyy
-          if (parts.length === 3) submitVal = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        } catch (e) { /* abaikan format tidak sah */ }
+        submitVal = parseDateToIso(String(item.tarikh_hantar_spi).split(' ')[0]); // Q: dd/MM/yyyy
       }
       if (submitVal) dbSubmitLockDate = submitVal;
     }
@@ -15801,7 +15802,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             if (p.isCompany) {
               const cd = hasBorangVal(p.c_date) ? escapeHtml(fmtBorangDate(p.c_date)) : '-';
               const csHide = (isTidakBerkaitanVal(p.c_status) && !hasDocFiles(p.comp_file)) ? '' : lengkapBadge(p.c_status, hasDocFiles(p.comp_file));
-              extra = ` <span style="font-size:0.72rem; color:#64748b;">(Syarikat: ${cd} ${csHide})</span>`;
+              const hasType = Object.prototype.hasOwnProperty.call(p, 'c_doc_type');
+              const cType = hasType ? String(p.c_doc_type || '').toUpperCase() : 'SSM';
+              let extraLabel = 'Syarikat:';
+              if (cType === 'BCPLC') extraLabel = 'Syarikat BCPLC tamat:';
+              else if (cType === 'SSM') extraLabel = 'Syarikat SSM e-Info:';
+              extra = ` <span style="font-size:0.72rem; color:#64748b;">(${extraLabel} ${cd} ${csHide})</span>`;
             } else if (hasBorangVal(p.c_date) || hasBorangVal(p.c_status)) {
               const csHide2 = (isTidakBerkaitanVal(p.c_status)) ? '' : lengkapBadge(p.c_status, false);
               extra = ` <span style="font-size:0.72rem; color:#64748b;">(${escapeHtml(fmtBorangDate(p.c_date) || '-')} ${csHide2})</span>`;
@@ -15874,7 +15880,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const hasLawatanData = hasLawatanFields || laporanUrl !== '' || lawatanFolderId !== '';
       if (hasLawatanData) {
         let lawatanInner = '';
-        if (hasBorangVal(i.date_submit)) lawatanInner += `<div class="view-row"><span class="view-label">BILA SPI TERIMA</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.date_submit))}</span></div>`;
+        const _bilaSpiTerima = hasBorangVal(i.date_submit)
+          ? i.date_submit
+          : (hasBorangVal(i.tarikh_hantar_spi) ? String(i.tarikh_hantar_spi).split(' ')[0] : '');
+        if (hasBorangVal(_bilaSpiTerima)) lawatanInner += `<div class="view-row"><span class="view-label">BILA SPI TERIMA</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(_bilaSpiTerima))}</span></div>`;
         if (hasBorangVal(i.lawatan_tarikh)) lawatanInner += `<div class="view-row"><span class="view-label">BILA SPI SIASAT SYARIKAT</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.lawatan_tarikh))}</span></div>`;
         if (hasBorangVal(i.lawatan_submit_sptb)) lawatanInner += `<div class="view-row"><span class="view-label">BILA LAPORAN DISAHKAN</span><span class="view-value" style="font-weight:700;">${escapeHtml(formatDate(i.lawatan_submit_sptb))}</span></div>`;
         if (hasBorangVal(i.lawatan_syor)) {
@@ -16332,7 +16341,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           const currentSyorYA = dbSyorValue === 'YA';
           const currentDateSubmitAda = dbSubmitDateValue && dbSubmitDateValue.trim() !== '';
           const syorUnchanged = dbSyorValue === (origItem.syor_lawatan || '');
-          const dateUnchanged = dbSubmitDateValue === (origItem.date_submit || '');
+          // Bandingkan dalam format ISO supaya "20/10/2026" dan "2026-10-20"
+          // tidak dianggap sebagai perubahan tarikh.
+          const origDateCompare = origItem.date_submit
+            || (origItem.status_hantar_spi === 'TELAH DIHANTAR'
+              ? String(origItem.tarikh_hantar_spi || '').split(' ')[0]
+              : '');
+          const dateUnchanged = parseDateToIso(dbSubmitDateValue) === parseDateToIso(origDateCompare);
           // Hanya skip modal jika data asal sudah dihantar DAN tiada perubahan pada syor/date_submit
           if (origSudahDihantar && origSyorYA && origDateSubmitAda && syorUnchanged && dateUnchanged) {
             isTelahDihantarOriginal = true;
@@ -16618,8 +16633,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           payload.syor_status = origSiasatItem.syor_status || dbSyorStatusValue || 'SIASAT';
           payload.tarikh_syor = origSiasatItem.tarikh_syor || localToday;
           payload.pelulus = origSiasatItem.pelulus || '';
-          if ((!payload.date_submit || payload.date_submit.toString().trim() === '') && origSiasatItem.date_submit) {
-            payload.date_submit = origSiasatItem.date_submit;
+          if (!payload.date_submit || payload.date_submit.toString().trim() === '') {
+            const _origDate = parseDateToIso(origSiasatItem.date_submit)
+              || (origSiasatItem.status_hantar_spi === 'TELAH DIHANTAR'
+                ? parseDateToIso(String(origSiasatItem.tarikh_hantar_spi || '').split(' ')[0])
+                : '');
+            if (_origDate) payload.date_submit = _origDate;
           }
         } else {
           payload.syor_status = dbSyorStatusValue || 'SIASAT';
@@ -17307,6 +17326,24 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     cardEl.classList.toggle('baru-tambah-card', cb.checked);
   }
 
+  // Selaraskan label tarikh & hint pada kad syarikat mengikut pilihan SSM/BCPLC
+  function syncCompanyDocUI(cardEl) {
+    if (!cardEl) return;
+    const typeEl = cardEl.querySelector('.comp-doc-type');
+    const labelEl = cardEl.querySelector('.comp-date-label');
+    const hintEl = cardEl.querySelector('.comp-type-hint');
+    const companyCb = cardEl.querySelector('.is-company');
+    const type = typeEl ? typeEl.value : '';
+    if (labelEl) {
+      labelEl.textContent = type === 'BCPLC'
+        ? 'Tarikh Tamat Tempoh BCPLC'
+        : (type === 'SSM' ? 'Tarikh e-Info SSM' : 'Tarikh');
+    }
+    if (hintEl) {
+      hintEl.style.display = (companyCb && companyCb.checked && !type) ? 'block' : 'none';
+    }
+  }
+
   function addPerson(data=null) {
     if (!personnelList) return;
 
@@ -17355,9 +17392,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             </div>
           </div>
         </div>
-        <div class="company-fields grid-equal" style="display:none;">
+        <div class="company-fields grid-3" style="display:none;">
           <div>
-            <label>Tarikh Semakan</label>
+            <label>Jenis Dokumen Syarikat</label>
+            <select class="comp-doc-type" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.95rem;">
+              <option value="">- Pilih SSM / BCPLC -</option>
+              <option value="SSM">SSM (e-Info)</option>
+              <option value="BCPLC">BCPLC</option>
+            </select>
+            <div class="comp-type-hint" style="display:none; color:#dc2626; font-size:0.72rem; font-weight:700; margin-top:4px;">Pilih SSM atau BCPLC.</div>
+          </div>
+          <div>
+            <label class="comp-date-label">Tarikh</label>
             <input type="date" class="comp-date" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.95rem; text-transform:uppercase;">
           </div>
           <div>
@@ -17452,6 +17498,25 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           if (pFields) pFields.style.display = 'grid';
           if (cFields) cFields.style.display = 'none';
         }
+        syncCompanyDocUI(div);
+      });
+    }
+
+    // Pilih SSM / BCPLC: label tarikh bertukar & tarikh lama dikosongkan
+    // (tarikh e-Info SSM tidak boleh tersalah guna sebagai tarikh tamat BCPLC)
+    const compTypeInput = div.querySelector('.comp-doc-type');
+    if (compTypeInput) {
+      compTypeInput.addEventListener('change', () => {
+        const dateEl = div.querySelector('.comp-date');
+        if (dateEl) {
+          if (dateEl._flatpickr && typeof dateEl._flatpickr.clear === 'function') {
+            dateEl._flatpickr.clear();
+          } else {
+            dateEl.value = '';
+          }
+        }
+        syncCompanyDocUI(div);
+        saveFormData();
       });
     }
     
@@ -17470,10 +17535,31 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if(personFields) personFields.style.display = 'none';
         if(companyFields) companyFields.style.display = 'grid';
       }
+
+      // Rekod lama tiada c_doc_type: anggap SSM jika kad syarikat.
+      // Rekod baharu yang disimpan dengan pilihan kosong dibiarkan kosong
+      // supaya pengesyor wajib memilih SSM/BCPLC sebelum jana emel.
+      const compType = div.querySelector('.comp-doc-type');
+      if (compType) {
+        const hasSavedType = Object.prototype.hasOwnProperty.call(data, 'c_doc_type');
+        const savedType = hasSavedType ? String(data.c_doc_type || '').toUpperCase() : '';
+        compType.value = (savedType === 'SSM' || savedType === 'BCPLC')
+          ? savedType
+          : (!hasSavedType && data.isCompany ? 'SSM' : '');
+      }
+      syncCompanyDocUI(div);
       
       const compDate = div.querySelector('.comp-date');
       const statusComp = div.querySelector('.status-comp');
-      if (compDate && data.c_date) compDate.value = data.c_date;
+      if (compDate && data.c_date) {
+        // flatpickr menyembunyikan input asal; set melalui instance supaya
+        // tarikh kelihatan pada medan alt (d/m/Y)
+        if (compDate._flatpickr && typeof compDate._flatpickr.setDate === 'function') {
+          compDate._flatpickr.setDate(data.c_date, false);
+        } else {
+          compDate.value = data.c_date;
+        }
+      }
       if (statusComp && data.c_status) {
         statusComp.value = data.c_status;
         if (data.c_status === '✓') {
@@ -18032,6 +18118,37 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const d = new Date(isoStr);
     if(isNaN(d)) return isoStr;
     return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+  }
+
+  // Tarikh SPI untuk paparan: utamakan date_submit (J), fallback tarikh_hantar_spi (Q).
+  // Q diperlukan untuk rekod PEMUTIHAN yang dihantar melalui queue tanpa date_submit.
+  function getSpiDisplayDate(item) {
+    if (!item) return '';
+    const j = (item.date_submit || '').toString().trim();
+    if (j) return formatDateDisplay(j);
+    const q = (item.tarikh_hantar_spi || '').toString().trim();
+    if (q) return formatDateDisplay(q.split(' ')[0]);
+    return '';
+  }
+
+  // Normalisasi tarikh kepada yyyy-MM-dd. Sheet boleh pulangkan
+  // "2026-10-20" atau "20/10/2026" bergantung format sel.
+  function parseDateToIso(v) {
+    if (!v) return '';
+    const pad = n => String(n).padStart(2, '0');
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      return v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
+    }
+    const s = String(v).trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return m[3] + '-' + pad(m[2]) + '-' + pad(m[1]);
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+    return '';
   }
 
   if (btnPrintAdminStats) {
@@ -20064,11 +20181,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function buildEmailAyatItems() {
     const items = [];
 
-    // --- Personel (IC / SB / EPF) — hanya kad bukan Syarikat ---
+    // --- Personel (IC / SB / EPF) — kad bukan Syarikat; kad Syarikat dikumpul berasingan ---
     const persons = [];
+    const companyCards = [];
     document.querySelectorAll('#personnelList .person-card').forEach(function(card) {
       const companyCb = card.querySelector('.is-company');
-      if (companyCb && companyCb.checked) return;
+      if (companyCb && companyCb.checked) {
+        companyCards.push(card);
+        return;
+      }
       const nameEl = card.querySelector('.p-name');
       const rawName = emailTitleCaseName(nameEl ? nameEl.value : '');
       const icEl = card.querySelector('.status-ic');
@@ -20105,6 +20226,37 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       items.push('Pastikan penama ' + emailBlueText(emailJoinNames(epfList)) + ' mempunyai nama dalam caruman KWSP syarikat.');
     }
 
+    // --- Dokumen syarikat pada kad personel (SSM / BCPLC) ---
+    // Hanya kad Syarikat yang Status Semakan = X; nama syarikat diambil dari
+    // kad itu, fallback ke Nama Syarikat di Maklumat Asas.
+    const applicantName = (document.getElementById('borang_syarikat')?.value || '').trim();
+    const normCompanyName = function(s) {
+      return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
+    const applicantNorm = normCompanyName(applicantName);
+    const seenCompanyDoc = {};
+    let companyDocCoversApplicant = false;
+
+    companyCards.forEach(function(card) {
+      const statusEl = card.querySelector('.status-comp');
+      if (!emailIsXMark(statusEl ? statusEl.value : '')) return;
+      const typeEl = card.querySelector('.comp-doc-type');
+      const type = (typeEl ? typeEl.value : '').toUpperCase();
+      if (type !== 'SSM' && type !== 'BCPLC') return;
+      const nameEl = card.querySelector('.p-name');
+      const companyName = (nameEl ? nameEl.value : '').trim() || applicantName;
+      const key = normCompanyName(companyName) + '|' + type;
+      if (seenCompanyDoc[key]) return;
+      seenCompanyDoc[key] = true;
+      if (applicantNorm && normCompanyName(companyName) === applicantNorm) {
+        companyDocCoversApplicant = true;
+      }
+      const phrase = type === 'BCPLC'
+        ? 'Surat Bumiputera Public Listed Company (BCPLC) dari Kementerian MITI'
+        : 'e-info SSM bertarikh 3 bulan terkini';
+      items.push('Sila sertakan ' + emailBlueText(phrase) + ' bagi syarikat ' + emailBlackText(escapeHtml(companyName || '(NAMA SYARIKAT)')));
+    });
+
     // --- Dokumen (susunan ikut contoh: Carta → Sewa → Gambar → Peta → SSM) ---
     const docDefs = [
       { id: 'doc_carta_status', phrase: 'Carta organisasi syarikat yang terkini' },
@@ -20114,6 +20266,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       { id: 'ssm_status', phrase: 'e-info SSM cetakan bertarikh 3 bulan terkini' }
     ];
     docDefs.forEach(function(d) {
+      // Elak ayat SSM generik berulang jika kad syarikat yang sama sudah
+      // menghasilkan ayat SSM/BCPLC khusus dengan nama syarikat.
+      if (d.id === 'ssm_status' && companyDocCoversApplicant) return;
       const el = document.getElementById(d.id);
       if (el && emailIsXMark(el.value)) {
         items.push('Sila sertakan ' + emailBlueText(d.phrase));
@@ -20211,6 +20366,64 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return false;
   }
 
+  // Nombor telefon syarikat: medan borang dahulu; fallback data PDF jika padan
+  function emailCompanyPhoneRaw() {
+    const el = document.getElementById('borang_no_telefon');
+    const v = el && el.value ? el.value.trim() : '';
+    if (v) return v;
+    if (emailExtractionMatchesCheckerCompany() && extractedPdfData && Array.isArray(extractedPdfData.phoneNumbers)) {
+      return extractedPdfData.phoneNumbers.join(', ');
+    }
+    return '';
+  }
+
+  // Kemas kini butang & info WhatsApp syarikat dalam modal emel
+  function refreshEmailGenWhatsAppState() {
+    const btn = document.getElementById('emailGenWhatsappBtn');
+    const info = document.getElementById('emailGenWaInfo');
+    const raw = emailCompanyPhoneRaw();
+    const mobiles = emailMobileNumberList(raw);
+    if (btn) {
+      btn.disabled = mobiles.length === 0;
+      btn.title = mobiles.length > 0
+        ? 'Buka WhatsApp untuk ' + mobiles.map(function(m) { return m.display; }).join(', ')
+        : 'Tiada no. individu (01x) untuk WhatsApp';
+    }
+    if (info) {
+      if (mobiles.length > 0) {
+        info.style.color = '#16a34a';
+        info.innerHTML = '<i class="fa-brands fa-whatsapp fa-ico"></i> No. WhatsApp syarikat: <strong>' + mobiles.map(function(m) { return escapeHtml(m.display); }).join(', ') + '</strong>';
+      } else if (raw) {
+        info.style.color = '#d97706';
+        info.innerHTML = '<i class="fa-solid fa-circle-info fa-ico"></i> Tiada no. individu (01x) dikesan — no. pejabat tidak menyokong WhatsApp. Masukkan no. individu pada medan <strong>No. Telefon (Pejabat / Individu)</strong>.';
+      } else {
+        info.style.color = '#64748b';
+        info.innerHTML = '<i class="fa-solid fa-circle-info fa-ico"></i> Tiada no. telefon syarikat untuk WhatsApp. Isi medan <strong>No. Telefon (Pejabat / Individu)</strong>.';
+      }
+    }
+    return mobiles;
+  }
+
+  // Buka WhatsApp syarikat: satu nombor terus, banyak nombor papar pilihan
+  function openEmailGenCompanyWhatsApp() {
+    const mobiles = emailMobileNumberList(emailCompanyPhoneRaw());
+    if (mobiles.length === 0) {
+      CustomAppModal.alert('Tiada no. individu (01x) untuk WhatsApp.<br><br>No. pejabat tidak menyokong WhatsApp. Sila masukkan no. individu pada medan <strong>No. Telefon (Pejabat / Individu)</strong>.', 'WhatsApp Tiada', 'warning');
+      return;
+    }
+    if (mobiles.length === 1) {
+      const win = window.open('https://wa.me/' + mobiles[0].intl, '_blank');
+      if (!win) {
+        CustomAppModal.alert('Popup disekat oleh pelayar. Benarkan popup untuk laman ini, kemudian cuba lagi.', 'Popup Disekat', 'warning');
+      }
+      return;
+    }
+    const links = mobiles.map(function(m) {
+      return '<a href="https://wa.me/' + m.intl + '" target="_blank" rel="noopener" style="display:inline-block; margin:4px 0; color:#128C7E; font-weight:bold; text-decoration:underline;">' + escapeHtml(m.display) + '</a>';
+    }).join('<br>');
+    CustomAppModal.alert('Pilih no. WhatsApp syarikat:<br><br>' + links, 'WhatsApp Syarikat', 'info');
+  }
+
   function emailGenPrefillKepada() {
     const el = emailGenKepadaInput();
     if (!el) return;
@@ -20273,20 +20486,44 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return '<a href="' + url + '" style="color:' + EMAIL_AYAT_BLUE + '; font-weight:bold; text-decoration:underline;">' + text + '</a>';
   }
 
-  // URL WhatsApp (wa.me) daripada no. telefon: tukar ke format antarabangsa
-  // tanpa "+" (cth: 0388805390 -> https://wa.me/60388805390)
-  function emailWhatsAppUrl(raw) {
-    let v = String(raw == null ? '' : raw).trim().replace(/[^\d+]/g, '');
-    if (!v) return '';
-    if (v.charAt(0) === '+') v = v.slice(1);
-    if (v.slice(0, 2) === '60') {
-      // sudah ada kod negara — kekalkan
-    } else if (v.charAt(0) === '0') {
-      v = '60' + v.slice(1);
-    } else {
-      v = '60' + v;
+  // Kesan no. individu/bimbit Malaysia (01x) dalam teks bebas.
+  // No. pejabat (03/04/05/06/07/08/09), 1300 dan 1800 diabaikan.
+  function emailMobileNumberList(raw) {
+    const text = String(raw == null ? '' : raw);
+    const re = /(?<![\d])(?:\+?60[\s.-]?|0)1[0-9](?:[\s.-]?\d){7,8}(?![\d])/g;
+    const out = [];
+    const seen = {};
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const digits = m[0].replace(/\D/g, '');
+      if (!digits) continue;
+      let intl = digits;
+      if (digits.slice(0, 2) !== '60') {
+        intl = digits.charAt(0) === '0' ? ('60' + digits.slice(1)) : ('60' + digits);
+      }
+      // Tolak 1-300 / 1-800 yang tersalah tangkap sebagai 01x
+      if (intl.slice(0, 6) === '601300' || intl.slice(0, 6) === '601800') continue;
+      if (!/^601[0-9]{8,9}$/.test(intl)) continue;
+      if (seen[intl]) continue;
+      seen[intl] = true;
+      out.push({ intl: intl, display: m[0].replace(/\s+/g, ' ').trim() });
     }
-    return 'https://wa.me/' + v;
+    return out;
+  }
+
+  // Pautan telefon dalam emel: no. individu -> WhatsApp, no. pejabat -> tel:
+  function emailPhoneLinkText(raw, text) {
+    const mobiles = emailMobileNumberList(raw);
+    if (mobiles.length > 0) {
+      return emailLinkText(text, 'https://wa.me/' + mobiles[0].intl);
+    }
+    let digits = String(raw == null ? '' : raw).replace(/[^\d+]/g, '');
+    if (!digits) return text;
+    if (digits.charAt(0) === '+') digits = digits.slice(1);
+    if (digits.slice(0, 2) !== '60') {
+      digits = digits.charAt(0) === '0' ? ('60' + digits.slice(1)) : ('60' + digits);
+    }
+    return emailLinkText(text, 'tel:+' + digits);
   }
 
   // Subjek emel (teks biasa) — dikongsi oleh badan emel & parameter 'su' Gmail
@@ -20307,7 +20544,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const emelRaw = (currentUser && currentUser.email) ? currentUser.email : '';
     const emelPengguna = emelRaw ? emailLinkText(escapeHtml(emelRaw), 'mailto:' + emelRaw) : '(EMEL PENGESYOR)';
     const noTelRaw = (currentUser && currentUser.phone) ? emailFormatNoTel(currentUser.phone) : '';
-    const noTel = noTelRaw ? emailLinkText(escapeHtml(noTelRaw), emailWhatsAppUrl(currentUser.phone)) : '(NO. TELEFON)';
+    const noTel = noTelRaw ? emailPhoneLinkText(currentUser.phone, escapeHtml(noTelRaw)) : '(NO. TELEFON)';
 
     const namaEl = emailGenNamaInput();
     const namaRaw = namaEl && namaEl.value ? namaEl.value.trim() : '';
@@ -20375,6 +20612,23 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   function openEmailGenModal() {
+    // Wajib pilih SSM/BCPLC pada setiap kad personel yang ditanda Syarikat
+    const missingCompanyTypes = [];
+    document.querySelectorAll('#personnelList .person-card').forEach(function(card) {
+      const cb = card.querySelector('.is-company');
+      if (!cb || !cb.checked) return;
+      const typeEl = card.querySelector('.comp-doc-type');
+      if (!typeEl || !typeEl.value) {
+        const nameEl = card.querySelector('.p-name');
+        const nm = (nameEl ? nameEl.value : '').trim() || '(tanpa nama)';
+        missingCompanyTypes.push(escapeHtml(nm));
+      }
+    });
+    if (missingCompanyTypes.length > 0) {
+      CustomAppModal.alert('Sila pilih <strong>SSM</strong> atau <strong>BCPLC</strong> pada kad personel syarikat berikut sebelum jana emel:<br><br><strong>' + missingCompanyTypes.join('<br>') + '</strong>', 'Pilihan Dokumen Syarikat', 'warning');
+      return;
+    }
+
     const items = buildEmailAyatItems();
     if (items.length === 0) {
       CustomAppModal.alert('Tiada medan yang ditanda <strong>X</strong>.<br><br>Tanda X pada dokumen atau personel yang tidak lengkap dahulu, kemudian tekan <strong>Jana Ayat Emel</strong> semula.', 'Tiada Item', 'warning');
@@ -20412,6 +20666,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const telV = (currentUser && currentUser.phone) ? emailFormatNoTel(currentUser.phone) : '(tiada no. telefon dalam profil)';
       infoEl.textContent = 'Emel: ' + emV + '   •   No. Telefon: ' + telV;
     }
+
+    // Butang WhatsApp syarikat — guna no. individu (01x) sahaja
+    refreshEmailGenWhatsAppState();
 
     previewEl.innerHTML = buildEmailFullHtml(items);
     updateEmailGenCopyState();
@@ -20551,9 +20808,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const emailGenClose = document.getElementById('emailGenClose');
   const emailGenCloseBtn = document.getElementById('emailGenCloseBtn');
   const emailGenCopyBtn = document.getElementById('emailGenCopyBtn');
+  const emailGenWhatsappBtn = document.getElementById('emailGenWhatsappBtn');
   if (emailGenClose) { emailGenClose.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); closeEmailGenModal(); }); }
   if (emailGenCloseBtn) { emailGenCloseBtn.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); closeEmailGenModal(); }); }
   if (emailGenCopyBtn) { emailGenCopyBtn.addEventListener('click', () => { playSoundEffect('ui_click.mp3'); copyEmailAyatToClipboard(); }); }
+  if (emailGenWhatsappBtn) {
+      emailGenWhatsappBtn.addEventListener('click', () => {
+          playSoundEffect('ui_click.mp3');
+          openEmailGenCompanyWhatsApp();
+      });
+  }
   if (emailGenModalEl) {
       emailGenModalEl.addEventListener('click', (e) => { if (e.target === emailGenModalEl) closeEmailGenModal(); });
   }
@@ -21018,9 +21282,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   name: card.querySelector('.p-name')?.value || '',
                   isCompany: card.querySelector('.is-company')?.checked || false,
                   roles: roles,
+                  baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
                   s_ic: card.querySelector('.status-ic')?.value || '',
                   s_sb: card.querySelector('.status-sb')?.value || '',
-                  s_epf: card.querySelector('.status-epf')?.value || ''
+                  s_epf: card.querySelector('.status-epf')?.value || '',
+                  c_date: card.querySelector('.comp-date')?.value || '',
+                  c_status: card.querySelector('.status-comp')?.value || '',
+                  c_doc_type: card.querySelector('.comp-doc-type')?.value || ''
               });
           });
           const oldActiveItem = pelulusActiveItem;
@@ -21261,9 +21529,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   name: card.querySelector('.p-name')?.value || '',
                   isCompany: card.querySelector('.is-company')?.checked || false,
                   roles: roles,
+                  baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
                   s_ic: card.querySelector('.status-ic')?.value || '',
                   s_sb: card.querySelector('.status-sb')?.value || '',
-                  s_epf: card.querySelector('.status-epf')?.value || ''
+                  s_epf: card.querySelector('.status-epf')?.value || '',
+                  c_date: card.querySelector('.comp-date')?.value || '',
+                  c_status: card.querySelector('.status-comp')?.value || '',
+                  c_doc_type: card.querySelector('.comp-doc-type')?.value || ''
               });
           });
           const oldActiveItem = pelulusActiveItem;
@@ -21386,9 +21658,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   name: card.querySelector('.p-name')?.value || '',
                   isCompany: card.querySelector('.is-company')?.checked || false,
                   roles: roles,
+                  baruTambah: card.querySelector('.baru-tambah-cb')?.checked || false,
                   s_ic: card.querySelector('.status-ic')?.value || '',
                   s_sb: card.querySelector('.status-sb')?.value || '',
-                  s_epf: card.querySelector('.status-epf')?.value || ''
+                  s_epf: card.querySelector('.status-epf')?.value || '',
+                  c_date: card.querySelector('.comp-date')?.value || '',
+                  c_status: card.querySelector('.status-comp')?.value || '',
+                  c_doc_type: card.querySelector('.comp-doc-type')?.value || ''
               });
           });
           const oldActiveItem = pelulusActiveItem;
@@ -23158,6 +23434,48 @@ async function handleCleanupFirebaseCodes() {
 }
 
 // =========================================================================
+// V7.8: CLEANUP STATUS SPI TERSANGKUT
+// =========================================================================
+
+async function handleCleanupSpiStatus() {
+  const confirmed = await CustomAppModal.confirm(
+    'Bersihkan status <b>DALAM QUEUE</b> yang tidak lagi berada dalam queue sebenar dan tiada tarikh?<br><br>' +
+    'Status <b>TELAH DIHANTAR</b> yang sudah mempunyai tarikh tidak akan disentuh.',
+    'Pembersihan Status SPI',
+    'warning',
+    'Ya, Bersihkan'
+  );
+  if (!confirmed) return;
+
+  const statusEl = document.getElementById('spiCleanupStatus');
+  if (statusEl) statusEl.textContent = 'Memproses...';
+
+  try {
+    const res = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'cleanupSpiStatus',
+        email: currentUser.email
+      })
+    }, 3, 1000);
+    const result = await res.json();
+
+    if (result.status === 'success') {
+      if (statusEl) statusEl.textContent = result.message;
+      await CustomAppModal.alert(result.message + '<br><br>Muat semula halaman (F5) untuk lihat status terkini.', 'Berjaya', 'success');
+      if (typeof triggerAutoRefresh === 'function') triggerAutoRefresh();
+    } else {
+      if (statusEl) statusEl.textContent = result.message || 'Ralat';
+      await CustomAppModal.alert(result.message || 'Ralat', 'Ralat', 'error');
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Ralat rangkaian';
+    await CustomAppModal.alert('Ralat rangkaian: ' + e.message, 'Ralat', 'error');
+  }
+}
+
+// =========================================================================
 // V6.8.0: INIT EVENT LISTENERS UNTUK ADMIN USER MANAGEMENT
 // =========================================================================
 
@@ -23230,6 +23548,10 @@ function initAdminUserManagement() {
   // Butang cleanup firebase codes
   const btnCleanup = document.getElementById('btnCleanupFirebase');
   if (btnCleanup) btnCleanup.addEventListener('click', handleCleanupFirebaseCodes);
+
+  // Butang cleanup status SPI tersangkut
+  const btnCleanupSpi = document.getElementById('btnCleanupSpiStatus');
+  if (btnCleanupSpi) btnCleanupSpi.addEventListener('click', handleCleanupSpiStatus);
   
   // Load users
   loadUsers();

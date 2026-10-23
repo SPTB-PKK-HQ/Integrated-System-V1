@@ -710,6 +710,18 @@ function doPost(e) {
       }
       return handleCleanupFirebaseCodes(data);
     }
+
+    // V7.8: Bersihkan status SPI tersangkut (DALAM QUEUE tanpa queue/tarikh)
+    if (data.action === 'cleanupSpiStatus') {
+      if (!data.email) {
+        return createJSONOutput({ status: "error", message: "Email diperlukan." });
+      }
+      const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+      if (!accessCheck.isAuthorized) {
+        return createJSONOutput({ status: "error", message: accessCheck.error });
+      }
+      return handleCleanupSpiStatus(data);
+    }
     
     // V6.8.0: Handler untuk PKA update lawatan
     if (data.action === 'pkaUpdateLawatan') {
@@ -1230,6 +1242,7 @@ function handleUpdateRecord(data, sheet) {
           justifikasi: data.justifikasi_baru !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi_baru) : (data.justifikasi !== undefined ? formatJenisJustifikasi(jenisForJustifikasi, data.justifikasi) : existingData[11]),
           pautan: (data.pautan && data.pautan.toString().trim() !== "") ? data.pautan : existingData[10],
           date_submit: dateSubmitValue,
+          tarikh_lulus: tarikhLulusValue,
           syor_lawatan: syorLawatanValue
         };
         addToPemutihanQueue(emailDataPemutihan);
@@ -1242,20 +1255,36 @@ function handleUpdateRecord(data, sheet) {
       const stateSiasat = syorLawatanYA && dateSubmitExists;
       const statePemutihan = syorLawatanPemutihan && tarikhLulusExists;
 
+      // V7.8: Status queue hanya ditulis jika rekod BENAR-BENAR dimasukkan ke queue.
+      // Bug lama: PEMUTIHAN ditanda "DALAM QUEUE" walaupun Pelulus tekan Batal
+      // (hantar_emel_spi_pemutihan = false), menyebabkan status SPI tanpa tarikh.
+      const currentSpiRange = sheet.getRange(rowNum, 16, 1, 2);
+      const currentSpiValues = currentSpiRange.getValues()[0];
+      const currentSpiStatus = (currentSpiValues[0] || '').toString().trim().toUpperCase();
+      const pemutihanChoiceProvided = data.hantar_emel_spi_pemutihan !== undefined;
+
       if (!stateSiasat) {
         removeFromQueue(existingData[0], 'SIASAT_QUEUE');
       }
       if (!statePemutihan) {
         removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
+      } else if (pemutihanChoiceProvided && !hantarEmelSPIPemutihan) {
+        // Pelulus pilih Batal: pastikan tiada sisa status queue yang tersangkut.
+        removeFromQueue(existingData[0], 'PEMUTIHAN_QUEUE');
+        if (currentSpiStatus === 'DALAM QUEUE') {
+          currentSpiRange.clearContent();
+        }
       }
 
       if (stateSiasat && hantarEmelSPI) {
-        sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
-      } else if (statePemutihan) {
-        sheet.getRange(rowNum, 16, 1, 1).setValue("DALAM QUEUE");
+        sheet.getRange(rowNum, 16, 1, 2).setValues([["DALAM QUEUE", ""]]);
+      } else if (statePemutihan && hantarEmelSPIPemutihan) {
+        sheet.getRange(rowNum, 16, 1, 2).setValues([["DALAM QUEUE", ""]]);
       } else if (!stateSiasat && !statePemutihan) {
         sheet.getRange(rowNum, 16, 1, 2).clearContent();
       }
+      // Jika state masih aktif tetapi tiada penghantaran baharu, JANGAN turunkan
+      // status TELAH DIHANTAR kembali menjadi DALAM QUEUE.
 
       // Diagnostik: log keadaan queue (semak di LOG sheet)
       try {
@@ -1853,6 +1882,121 @@ function handleDeleteUser(data) {
     invalidateUserCache(email);
     return createJSONOutput({ status: "success", message: "Pengguna berjaya dipadam", deletedUser: { name: userName, email: email } });
     
+  } catch (error) {
+    return createJSONOutput({ status: "error", message: error.toString() });
+  }
+}
+
+// V7.8: Bersihkan status SPI yang tersangkut.
+// Kes sasaran: P = DALAM QUEUE tetapi rekod tidak berada dalam mana-mana queue
+// dan tiada date_submit/tarikh_hantar_spi (bug Pelulus tekan Batal pada PEMUTIHAN).
+function handleCleanupSpiStatus(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return createJSONOutput({ status: "error", message: "Sheet utama tidak dijumpai" });
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return createJSONOutput({ status: "success", message: "Tiada rekod untuk diperiksa.", cleaned: 0 });
+    }
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, 17).getDisplayValues();
+    const props = PropertiesService.getScriptProperties();
+    const norm = v => (v === undefined || v === null) ? '' : v.toString().trim();
+    const upper = v => norm(v).toUpperCase();
+
+    const queueItems = [];
+    ['SIASAT_QUEUE', 'PEMUTIHAN_QUEUE'].forEach(key => {
+      try {
+        const arr = JSON.parse(props.getProperty(key) || '[]');
+        if (Array.isArray(arr)) arr.forEach(it => queueItems.push(it));
+      } catch (e) {
+        console.error(`[SPI Cleanup] Gagal baca ${key}: ${e.toString()}`);
+      }
+    });
+    const queueNames = new Set();
+    const queueKeys = new Set();
+    queueItems.forEach(it => {
+      const name = upper(it && it.syarikat);
+      if (!name) return;
+      queueNames.add(name);
+      queueKeys.add(name + '|' + upper(it.cidb));
+    });
+
+    const dateOnly = v => {
+      const s = norm(v);
+      if (!s) return '';
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+      const m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m2) return m2[1] + '-' + m2[2].padStart(2, '0') + '-' + m2[3].padStart(2, '0');
+      return '';
+    };
+
+    let cleaned = 0;
+    let backfilled = 0;
+    const clearedRows = [];
+    const backfilledRows = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const name = upper(r[0]);
+      if (!name) continue;
+      const cidb = upper(r[1]);
+      const syor = upper(r[8]);
+      const dateSubmit = norm(r[9]);
+      const status = upper(r[15]);
+      const dateSent = norm(r[16]);
+      const isQueued = queueNames.has(name) || queueKeys.has(name + '|' + cidb);
+
+      // 1) DALAM QUEUE yang tidak berada dalam queue sebenar dan tiada sebarang tarikh.
+      const queueWithoutQueue = status === 'DALAM QUEUE' && !isQueued && !dateSubmit && !dateSent;
+
+      // 2) TELAH DIHANTAR tanpa tarikh langsung.
+      const sentWithoutAnyDate = status === 'TELAH DIHANTAR' && !dateSubmit && !dateSent;
+
+      // 3) TELAH DIHANTAR tanpa date_submit (J) tetapi ada timestamp Q:
+      //    - PEMUTIHAN: backfill J daripada tarikh Q (rekod sah).
+      //    - Selain PEMUTIHAN: kemungkinan besar status tertulis pada baris yang
+      //      salah akibat baris bergeser sebelum fix V7.8 -> bersihkan.
+      const sentWithoutSubmit = status === 'TELAH DIHANTAR' && !dateSubmit && !!dateSent;
+
+      // 4) Nilai status lama/asing (cth "YA") yang tidak digunakan oleh sistem
+      //    dan tiada sebarang tarikh -> bersihkan supaya tidak mengelirukan.
+      const knownStatus = status === '' || status === 'DALAM QUEUE' || status === 'TELAH DIHANTAR';
+      const unknownWithoutDates = !knownStatus && !dateSubmit && !dateSent;
+
+      if (sentWithoutSubmit && syor === 'PEMUTIHAN') {
+        const qDate = dateOnly(dateSent);
+        if (qDate) {
+          sheet.getRange(i + 2, 10).setValue(qDate);
+          backfilled++;
+          if (backfilledRows.length < 20) backfilledRows.push(`${i + 2}: ${r[0]}`);
+          continue;
+        }
+      }
+
+      if (queueWithoutQueue || sentWithoutAnyDate || unknownWithoutDates || (sentWithoutSubmit && syor !== 'PEMUTIHAN')) {
+        sheet.getRange(i + 2, 16, 1, 2).clearContent();
+        cleaned++;
+        if (clearedRows.length < 20) clearedRows.push(`${i + 2}: ${r[0]}`);
+      }
+    }
+
+    if (cleaned > 0 || backfilled > 0) {
+      logActivity('System', 'SPI_STATUS_CLEANUP',
+        `Bersihkan ${cleaned} status SPI tersangkut; backfill ${backfilled} tarikh PEMUTIHAN. ` +
+        `Dibersihkan: ${clearedRows.join(', ') || '-'}. Backfill: ${backfilledRows.join(', ') || '-'}`, '');
+    }
+
+    return createJSONOutput({
+      status: "success",
+      message: `Selesai. ${cleaned} status SPI tersangkut dibersihkan, ${backfilled} tarikh PEMUTIHAN diisi semula.` +
+        (clearedRows.length ? ` Dibersihkan: ${clearedRows.join(', ')}.` : '') +
+        (backfilledRows.length ? ` Backfill: ${backfilledRows.join(', ')}.` : ''),
+      cleaned: cleaned,
+      backfilled: backfilled
+    });
   } catch (error) {
     return createJSONOutput({ status: "error", message: error.toString() });
   }
@@ -3624,16 +3768,127 @@ function lihatSenaraiQueue() {
 function updateSPIStatusInSheet(queueItems) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet || !queueItems || queueItems.length === 0) return;
+
   const timestamp = Utilities.formatDate(new Date(), "Asia/Kuala_Lumpur", "dd/MM/yyyy HH:mm:ss");
-  
+  const today = Utilities.formatDate(new Date(), "Asia/Kuala_Lumpur", "yyyy-MM-dd");
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  // Baca A-Q sekali sahaja. Kolum: A syarikat, B cidb, J date_submit,
+  // P status_hantar_spi, Q tarikh_hantar_spi, Y tarikh_lulus.
+  let rows = [];
+  try {
+    rows = sheet.getRange(2, 1, lastRow - 1, 17).getDisplayValues();
+  } catch (e) {
+    console.error(`[SPI Status] Gagal baca A-Q: ${e.toString()}`);
+    logActivity('System', 'SPI_STATUS_SKIP', `Gagal baca sheet untuk kemas kini status SPI: ${e.toString()}`, '');
+    return;
+  }
+  let lulusRows = [];
+  try {
+    lulusRows = sheet.getRange(2, 25, lastRow - 1, 1).getDisplayValues(); // Y
+  } catch (e) {
+    lulusRows = rows.map(() => ['']);
+  }
+  const usedRows = {};
+
+  const norm = v => (v === undefined || v === null) ? '' : v.toString().trim();
+  const upper = v => norm(v).toUpperCase();
+  const pad2 = n => (n < 10 ? '0' : '') + n;
+  const dateKey = v => {
+    if (v === undefined || v === null || v === '') return '';
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
+    }
+    const s = v.toString().trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + pad2(parseInt(m[2], 10)) + '-' + pad2(parseInt(m[3], 10));
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return m[3] + '-' + pad2(parseInt(m[2], 10)) + '-' + pad2(parseInt(m[1], 10));
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    return '';
+  };
+
+  const rowMatches = (idx, item, requireDate) => {
+    if (idx < 0 || idx >= rows.length || usedRows[idx]) return false;
+    const r = rows[idx];
+    if (item.syarikat && upper(r[0]) !== upper(item.syarikat)) return false;
+    if (item.cidb && upper(r[1]) !== upper(item.cidb)) return false;
+    if (requireDate) {
+      const rowSubmit = dateKey(r[9]);
+      const wantedSubmit = dateKey(item.date_submit);
+      if (wantedSubmit && rowSubmit && wantedSubmit !== rowSubmit) return false;
+      const rowLulus = dateKey(lulusRows[idx] ? lulusRows[idx][0] : '');
+      const wantedLulus = dateKey(item.tarikh_lulus);
+      if (wantedLulus && rowLulus && wantedLulus !== rowLulus) return false;
+    }
+    return true;
+  };
+
   queueItems.forEach(item => {
-    if (item.row) {
-      try {
-         // Update kolum P (16) & Q (17)
-         sheet.getRange(item.row, 16, 1, 2).setValues([["TELAH DIHANTAR", timestamp]]);
-      } catch(e) {
-         console.error("Gagal update status sheet untuk baris: " + item.row);
+    if (!item || !item.syarikat) return;
+    try {
+      let idx = -1;
+      const originalIdx = parseInt(item.row, 10) - 2;
+
+      // 1) Baris asal jika identiti (syarikat + CIDB + tarikh bila ada) masih sama.
+      if (Number.isFinite(originalIdx) && rowMatches(originalIdx, item, false)) {
+        const originalDateOk = (function() {
+          const rowSubmit = dateKey(rows[originalIdx][9]);
+          const wantedSubmit = dateKey(item.date_submit);
+          const rowLulus = dateKey(lulusRows[originalIdx] ? lulusRows[originalIdx][0] : '');
+          const wantedLulus = dateKey(item.tarikh_lulus);
+          return (!wantedSubmit || !rowSubmit || wantedSubmit === rowSubmit)
+            && (!wantedLulus || !rowLulus || wantedLulus === rowLulus);
+        })();
+        if (originalDateOk) idx = originalIdx;
       }
+
+      // 2) Cari semula mengikut identiti + tarikh (baris mungkin bergeser
+      //    disebabkan rekod lain dipadam/ditambah sebelum emel dihantar).
+      if (idx === -1) {
+        for (let i = 0; i < rows.length; i++) {
+          if (upper(rows[i][15]) === 'TELAH DIHANTAR') continue;
+          if (rowMatches(i, item, true)) { idx = i; break; }
+        }
+      }
+
+      // 3) Fallback: identiti sahaja, selagi belum TELAH DIHANTAR.
+      if (idx === -1) {
+        for (let i = 0; i < rows.length; i++) {
+          if (upper(rows[i][15]) === 'TELAH DIHANTAR') continue;
+          if (rowMatches(i, item, false)) { idx = i; break; }
+        }
+      }
+
+      if (idx === -1) {
+        // Jangan tulis pada baris yang salah. Emel tetap dihantar, tetapi status
+        // dibiarkan untuk semakan manual jika rekod asal sudah tiada.
+        console.error(`[SPI Status] Padanan baris tidak ditemui untuk ${item.syarikat} (asal row ${item.row}). Status tidak dikemas kini.`);
+        logActivity('System', 'SPI_STATUS_SKIP', `Padanan baris tidak ditemui untuk ${item.syarikat} (asal row ${item.row}) - status TIDAK dikemas kini`, '');
+        return;
+      }
+
+      usedRows[idx] = true;
+      const rowNum = idx + 2;
+      const existingSubmit = norm(rows[idx][9]);
+      const submitDate = existingSubmit || norm(item.date_submit) || today;
+
+      // Pastikan Date Submit to SPI tidak kekal kosong selepas status dihantar.
+      if (!existingSubmit) {
+        sheet.getRange(rowNum, 10).setValue(submitDate);
+      }
+      sheet.getRange(rowNum, 16, 1, 2).setValues([["TELAH DIHANTAR", timestamp]]);
+
+      rows[idx][9] = submitDate;
+      rows[idx][15] = 'TELAH DIHANTAR';
+      rows[idx][16] = timestamp;
+      console.log(`[SPI Status] Row ${rowNum} (${item.syarikat}) ditanda TELAH DIHANTAR.`);
+      logActivity('System', 'SPI_STATUS_SENT', `Row ${rowNum} (${item.syarikat}) ditanda TELAH DIHANTAR pada ${timestamp}`, '');
+    } catch(e) {
+      console.error(`Gagal update status sheet untuk ${item.syarikat || '?'}: ${e.toString()}`);
     }
   });
 }
