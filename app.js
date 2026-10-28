@@ -48,11 +48,19 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedExcelDistricts = new Set();
   let bakulUnsubscribe = null;
 
-  const SURAT_ARAHAN_ROLES = ['PENGESYOR', 'PELULUS', 'KETUA_SEKSYEN', 'PENGARAH'];
+  const SURAT_ARAHAN_ROLES = ['PENGESYOR', 'PELULUS', 'KETUA_SEKSYEN', 'PENGARAH', 'ADMIN'];
   let suratArahanFiles = [];
   let suratArahanFolderUrl = '';
   let suratArahanFolderName = 'SURAT ARAHAN';
   let suratArahanLoading = false;
+  let suratArahanActiveTab = 'tanya';
+  let suratArahanChatBusy = false;
+  let suratArahanReindexing = false;
+  let suratArahanRagStatus = null;
+  let suratArahanFaqCache = [];
+  let suratArahanRagInitialised = false;
+  let suratArahanChatOwnerEmail = '';
+  let suratArahanSelectedIndexIds = new Set();
 
   // URL APPSCRIPT
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzB8-2omeMVZfczcr4iKrrzaEgU5tj092bZe308yqCeA-4pIG2BbiYFERdoF8rS9u1U/exec';
@@ -8512,10 +8520,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const cStatus = card.querySelector('.status-comp')?.value.toUpperCase() || '';
         const cType = (card.querySelector('.comp-doc-type')?.value || '').toUpperCase();
         const displayDate = cDate ? formatDateDisplay(cDate) : '';
-        const dateLabel = cType === 'BCPLC'
-          ? 'Tarikh Tamat BCPLC'
-          : (cType === 'SSM' ? 'Tarikh e-Info SSM' : 'Tarikh');
-        const combinedText = `${dateLabel}: ${displayDate} | Status: ${cStatus}`;
+        let combinedText;
+        if (cType === 'BADAN_BERKANUN') {
+          combinedText = `Badan Berkanun | Status: ${cStatus}`;
+        } else {
+          const dateLabel = cType === 'BCPLC'
+            ? 'Tarikh Tamat BCPLC'
+            : (cType === 'SSM' ? 'Tarikh e-Info SSM' : 'Tarikh');
+          combinedText = `${dateLabel}: ${displayDate} | Status: ${cStatus}`;
+        }
         
         rowsHtml += `<tr>
           <td style="padding:2px;"><div style="font-weight:bold; font-size:12pt; text-transform:uppercase;">${name}${baruBadge}</div></td>
@@ -9444,6 +9457,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return;
     }
 
+    updateSuratArahanAdminVisibility();
+    setupSuratArahanRagUI();
+
     if (btn.dataset.saBound === '1') return;
     btn.dataset.saBound = '1';
 
@@ -9478,6 +9494,851 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     });
   }
 
+  const SURAT_ARAHAN_DEFAULT_SUGGESTIONS = [
+    'Apakah syarat utama permohonan Sijil Taraf Bumiputera (STB)?',
+    'Dokumen apa yang perlu disediakan untuk permohonan STB?',
+    'Berapa lama tempoh proses kelulusan permohonan?',
+    'Bagaimana cara memohon pindaan Surat Arahan?'
+  ];
+
+  function isSuratArahanAdmin() {
+    if (!currentUser) return false;
+    return normalizeUiRole(currentUser.role) === normalizeUiRole('ADMIN');
+  }
+
+  function updateSuratArahanAdminVisibility() {
+    const adminTab = document.getElementById('suratArahanAdminTabBtn');
+    const admin = isSuratArahanAdmin();
+    if (adminTab) adminTab.style.display = admin ? '' : 'none';
+    if (!admin && suratArahanActiveTab === 'urus') {
+      suratArahanActiveTab = 'tanya';
+      const modal = document.getElementById('suratArahanModal');
+      if (modal) {
+        modal.querySelectorAll('.sa-tab').forEach(function(tab) {
+          const active = tab.getAttribute('data-sa-tab') === 'tanya';
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        modal.querySelectorAll('.sa-panel').forEach(function(panel) {
+          panel.classList.toggle('active', panel.getAttribute('data-sa-panel') === 'tanya');
+        });
+      }
+    }
+  }
+
+  function switchSuratArahanTab(tabName) {
+    if (tabName === 'urus' && !isSuratArahanAdmin()) return;
+    suratArahanActiveTab = tabName || 'tanya';
+    const modal = document.getElementById('suratArahanModal');
+    if (!modal) return;
+    modal.querySelectorAll('.sa-tab').forEach(function(tab) {
+      const active = tab.getAttribute('data-sa-tab') === suratArahanActiveTab;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    modal.querySelectorAll('.sa-panel').forEach(function(panel) {
+      panel.classList.toggle('active', panel.getAttribute('data-sa-panel') === suratArahanActiveTab);
+    });
+
+    if (suratArahanActiveTab === 'faq' && !suratArahanFaqCache.length) loadSuratArahanFaq();
+    if (suratArahanActiveTab === 'urus') {
+      if (!suratArahanFiles.length) loadSuratArahanDocs();
+      renderSuratArahanAdminDocPicker();
+      loadSuratArahanRagStatus();
+      loadSuratArahanFaq();
+    }
+    if (suratArahanActiveTab === 'dokumen') renderSuratArahanDocs();
+  }
+
+  function setupSuratArahanRagUI() {
+    if (suratArahanRagInitialised) return;
+    const modal = document.getElementById('suratArahanModal');
+    if (!modal) return;
+    suratArahanRagInitialised = true;
+
+    modal.querySelectorAll('.sa-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        switchSuratArahanTab(tab.getAttribute('data-sa-tab'));
+      });
+    });
+
+    const form = document.getElementById('suratArahanChatForm');
+    const input = document.getElementById('suratArahanChatInput');
+    const suggestions = document.getElementById('suratArahanSuggestions');
+    const chatLog = document.getElementById('suratArahanChatLog');
+    const faqList = document.getElementById('suratArahanFaqList');
+    const adminQaList = document.getElementById('suratArahanAdminQaList');
+
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const question = input ? input.value.trim() : '';
+        if (!question) return;
+        if (input) {
+          input.value = '';
+          input.style.height = '';
+        }
+        askSuratArahanQuestion(question);
+      });
+    }
+    if (input) {
+      input.addEventListener('input', function() {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      });
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      });
+    }
+
+    if (suggestions) {
+      suggestions.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-sa-ask-text]');
+        if (!btn) return;
+        e.preventDefault();
+        askSuratArahanQuestion(btn.getAttribute('data-sa-ask-text') || '');
+      });
+    }
+    if (faqList) {
+      faqList.addEventListener('click', function(e) {
+        const source = e.target.closest('[data-sa-source-file]');
+        if (source) {
+          e.preventDefault();
+          openSuratArahanSource(source);
+          return;
+        }
+        const btn = e.target.closest('[data-sa-ask-text]');
+        if (!btn) return;
+        e.preventDefault();
+        switchSuratArahanTab('tanya');
+        askSuratArahanQuestion(btn.getAttribute('data-sa-ask-text') || '');
+      });
+    }
+    if (chatLog) {
+      chatLog.addEventListener('click', function(e) {
+        const source = e.target.closest('[data-sa-source-file]');
+        if (!source) return;
+        e.preventDefault();
+        openSuratArahanSource(source);
+      });
+    }
+    if (adminQaList) {
+      adminQaList.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-sa-delete-id]');
+        if (!btn) return;
+        e.preventDefault();
+        deleteSuratArahanQa(btn.getAttribute('data-sa-delete-id'), btn.getAttribute('data-sa-question') || '');
+      });
+    }
+
+    const faqRefresh = document.getElementById('suratArahanFaqRefresh');
+    if (faqRefresh) faqRefresh.addEventListener('click', function() { loadSuratArahanFaq(true); });
+    const adminRefresh = document.getElementById('suratArahanAdminRefresh');
+    if (adminRefresh) adminRefresh.addEventListener('click', function() { loadSuratArahanRagStatus(true); });
+    const adminQaRefresh = document.getElementById('suratArahanAdminQaRefresh');
+    if (adminQaRefresh) adminQaRefresh.addEventListener('click', function() { loadSuratArahanFaq(true); });
+    const reindexBtn = document.getElementById('suratArahanReindexBtn');
+    if (reindexBtn) reindexBtn.addEventListener('click', function() { startSuratArahanReindex(); });
+    const reindexSelectedBtn = document.getElementById('suratArahanReindexSelectedBtn');
+    if (reindexSelectedBtn) reindexSelectedBtn.addEventListener('click', function() {
+      startSuratArahanReindex(Array.from(suratArahanSelectedIndexIds));
+    });
+    const pickMissing = document.getElementById('suratArahanPickMissing');
+    if (pickMissing) pickMissing.addEventListener('click', function() { selectSuratArahanIndexFiles('missing'); });
+    const pickAll = document.getElementById('suratArahanPickAll');
+    if (pickAll) pickAll.addEventListener('click', function() { selectSuratArahanIndexFiles('all'); });
+    const pickNone = document.getElementById('suratArahanPickNone');
+    if (pickNone) pickNone.addEventListener('click', function() { selectSuratArahanIndexFiles('none'); });
+    const adminDocPicker = document.getElementById('suratArahanAdminDocPicker');
+    if (adminDocPicker) {
+      adminDocPicker.addEventListener('change', function(e) {
+        const checkbox = e.target.closest('input[data-sa-index-id]');
+        if (!checkbox) return;
+        const id = String(checkbox.getAttribute('data-sa-index-id') || '');
+        if (checkbox.checked) suratArahanSelectedIndexIds.add(id);
+        else suratArahanSelectedIndexIds.delete(id);
+        suratArahanUpdateSelectedCount();
+      });
+    }
+    const testBtn = document.getElementById('suratArahanTestBtn');
+    if (testBtn) testBtn.addEventListener('click', testSuratArahanConnection);
+    renderSuratArahanSuggestions();
+  }
+
+  async function suratArahanApi(action, payload) {
+    const body = Object.assign({
+      action: action,
+      email: currentUser ? currentUser.email : ''
+    }, payload || {});
+    const response = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }, 1, 1000);
+    if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+    return await response.json();
+  }
+
+  function suratArahanSetIndexBadge(el, status, error) {
+    if (!el) return;
+    if (error) {
+      el.className = 'sa-index-badge sa-index-error';
+      el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>Status tidak tersedia';
+      el.title = String(error);
+      return;
+    }
+    if (!status) {
+      el.className = 'sa-index-badge sa-index-loading';
+      el.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>Menyemak indeks';
+      return;
+    }
+    if (status.firebaseConfigured === false) {
+      el.className = 'sa-index-badge sa-index-error';
+      el.innerHTML = '<i class="fa-solid fa-plug-circle-xmark"></i>Firebase belum sedia';
+      el.title = status.firebaseError || '';
+      return;
+    }
+    if (!status.index || !status.index.exists) {
+      el.className = 'sa-index-badge sa-index-warning';
+      el.innerHTML = '<i class="fa-solid fa-database"></i>Indeks belum dibina';
+      el.title = 'Pentadbir perlu membina indeks dokumen.';
+      return;
+    }
+    if (status.stale) {
+      el.className = 'sa-index-badge sa-index-warning';
+      el.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i>Indeks perlu dikemas kini';
+      el.title = 'Terdapat dokumen baharu, berubah atau dipadam.';
+      return;
+    }
+    el.className = 'sa-index-badge sa-index-ready';
+    el.innerHTML = '<i class="fa-solid fa-circle-check"></i>Indeks sedia • ' + (status.index.documentCount || 0) + ' dokumen';
+    el.title = 'Dibina: ' + (status.index.builtAt ? formatSuratArahanDate(status.index.builtAt) : '-');
+  }
+
+  function updateSuratArahanAdminStats(status) {
+    const docCount = document.getElementById('saAdminDocCount');
+    const chunkCount = document.getElementById('saAdminChunkCount');
+    const pdfCount = document.getElementById('saAdminPdfCount');
+    const staleStatus = document.getElementById('saAdminStaleStatus');
+    if (!status) {
+      if (docCount) docCount.textContent = '-';
+      if (chunkCount) chunkCount.textContent = '-';
+      if (pdfCount) pdfCount.textContent = '-';
+      if (staleStatus) staleStatus.textContent = '-';
+      return;
+    }
+    if (docCount) docCount.textContent = status.index ? status.index.documentCount || 0 : 0;
+    if (chunkCount) chunkCount.textContent = status.index ? (status.index.chunkCount || 0).toLocaleString('ms-MY') : 0;
+    if (pdfCount) pdfCount.textContent = status.currentPdfCount || 0;
+    if (staleStatus) {
+      staleStatus.textContent = status.stale ? 'Perlu kemas kini' : 'Sedia';
+      staleStatus.className = status.stale ? 'sa-status-warning' : 'sa-status-ready';
+    }
+  }
+
+  function suratArahanAdminPdfFiles() {
+    return (suratArahanFiles || []).filter(function(file) {
+      return file.id && isPdfFile(file.mimeType, file.name);
+    }).sort(function(a, b) {
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ms', { sensitivity: 'base' });
+    });
+  }
+
+  function suratArahanUpdateSelectedCount() {
+    const countEl = document.getElementById('suratArahanSelectedCount');
+    const btn = document.getElementById('suratArahanReindexSelectedBtn');
+    const count = suratArahanSelectedIndexIds.size;
+    if (countEl) countEl.textContent = count + ' dipilih';
+    if (btn) btn.disabled = count === 0 || suratArahanReindexing;
+  }
+
+  function renderSuratArahanAdminDocPicker() {
+    const picker = document.getElementById('suratArahanAdminDocPicker');
+    if (!picker) return;
+    const pdfs = suratArahanAdminPdfFiles();
+    if (!pdfs.length) {
+      picker.innerHTML = '<div class="sa-admin-empty">'
+        + (suratArahanLoading ? 'Memuatkan dokumen...' : 'Tiada PDF ditemui dalam folder Surat Arahan.')
+        + '</div>';
+      suratArahanUpdateSelectedCount();
+      return;
+    }
+
+    const status = suratArahanRagStatus || {};
+    const indexedIds = new Set(((status.index && status.index.indexedFileIds) || []).map(String));
+    const addedNames = new Set((status.addedFiles || []).map(String));
+    const changedNames = new Set((status.changedFiles || []).map(String));
+    const validIds = new Set(pdfs.map(function(file) { return String(file.id || ''); }));
+    Array.from(suratArahanSelectedIndexIds).forEach(function(id) {
+      if (!validIds.has(String(id))) suratArahanSelectedIndexIds.delete(id);
+    });
+
+    picker.innerHTML = pdfs.map(function(file) {
+      const id = String(file.id || '');
+      const name = String(file.name || 'Dokumen');
+      const isIndexed = indexedIds.has(id);
+      const isChanged = addedNames.has(name) || changedNames.has(name);
+      const badge = isChanged
+        ? '<span class="sa-admin-doc-badge sa-admin-doc-badge-changed">Baru/berubah</span>'
+        : isIndexed
+          ? '<span class="sa-admin-doc-badge sa-admin-doc-badge-ready">Diindeks</span>'
+          : '<span class="sa-admin-doc-badge sa-admin-doc-badge-missing">Belum diindeks</span>';
+      const checked = suratArahanSelectedIndexIds.has(id) ? ' checked' : '';
+      return '<label class="sa-admin-doc-row">'
+        + '<input type="checkbox" data-sa-index-id="' + escapeAttr(id) + '"' + checked + '>'
+        + '<span class="sa-admin-doc-main"><span class="sa-admin-doc-name">' + escapeHtml(name) + '</span>'
+        + '<span class="sa-admin-doc-meta">' + escapeHtml(file.category || 'Umum') + badge + '</span></span>'
+        + '</label>';
+    }).join('');
+    suratArahanUpdateSelectedCount();
+  }
+
+  function selectSuratArahanIndexFiles(mode) {
+    const pdfs = suratArahanAdminPdfFiles();
+    if (mode === 'missing' && !suratArahanRagStatus) {
+      showToast('Status indeks belum tersedia. Sila klik Segar Status dahulu.', 'warning');
+      renderSuratArahanAdminDocPicker();
+      return;
+    }
+    suratArahanSelectedIndexIds.clear();
+    if (mode === 'all') {
+      pdfs.forEach(function(file) { suratArahanSelectedIndexIds.add(String(file.id || '')); });
+    } else if (mode === 'missing') {
+      const status = suratArahanRagStatus || {};
+      const indexedIds = new Set(((status.index && status.index.indexedFileIds) || []).map(String));
+      pdfs.forEach(function(file) {
+        const id = String(file.id || '');
+        if (!indexedIds.has(id)) suratArahanSelectedIndexIds.add(id);
+      });
+    }
+    renderSuratArahanAdminDocPicker();
+  }
+
+  async function loadSuratArahanRagStatus(showError) {
+    const badge = document.getElementById('suratArahanIndexBadge');
+    const adminBadge = document.getElementById('suratArahanAdminIndexBadge');
+    suratArahanSetIndexBadge(badge, null);
+    suratArahanSetIndexBadge(adminBadge, null);
+    try {
+      const result = await suratArahanApi('getSuratArahanStatus');
+      if (!result.success) throw new Error(result.error || 'Gagal menyemak status indeks.');
+      suratArahanRagStatus = result;
+      suratArahanSetIndexBadge(badge, result);
+      suratArahanSetIndexBadge(adminBadge, result);
+      updateSuratArahanAdminStats(result);
+      updateSuratArahanAdminVisibility();
+      renderSuratArahanAdminDocPicker();
+    } catch (error) {
+      console.error('Surat Arahan status error:', error);
+      suratArahanRagStatus = null;
+      suratArahanSetIndexBadge(badge, null, error.message);
+      suratArahanSetIndexBadge(adminBadge, null, error.message);
+      updateSuratArahanAdminStats(null);
+      if (showError) showToast('Status indeks: ' + escapeHtml(error.message), 'error');
+    }
+  }
+
+  function suratArahanFormatText(text) {
+    const safe = escapeHtml(String(text || ''));
+    return safe
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .split('\n')
+      .map(function(line) {
+        return /^\s*[-*•]\s+/.test(line)
+          ? '<span class="sa-bullet">•</span> ' + line.replace(/^\s*[-*•]\s+/, '')
+          : line;
+      })
+      .join('<br>');
+  }
+
+  function suratArahanSourceButtons(sources) {
+    if (!Array.isArray(sources) || !sources.length) return '';
+    return '<div class="sa-sources">' + sources.map(function(source, index) {
+      const fileId = source.fileId || '';
+      const name = source.name || 'Dokumen';
+      const page = source.page ? ' • Hlm ' + source.page : '';
+      const ref = source.ref || ('S' + (index + 1));
+      return '<button type="button" class="sa-source-chip" data-sa-source-file="' + escapeAttr(fileId) + '" data-sa-source-name="' + escapeAttr(name) + '" title="' + escapeAttr(source.preview || name) + '">'
+        + '<span class="sa-source-ref">' + escapeHtml(ref) + '</span><i class="fa-solid fa-file-pdf"></i>' + escapeHtml(name) + escapeHtml(page) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function openSuratArahanSource(el) {
+    if (!el) return;
+    const fileId = el.getAttribute('data-sa-source-file');
+    const name = el.getAttribute('data-sa-source-name') || 'Dokumen';
+    if (fileId) openPdfPreviewModal(fileId, name, '');
+  }
+
+  function appendSuratArahanMessage(role, content, options) {
+    const log = document.getElementById('suratArahanChatLog');
+    if (!log) return null;
+    const opts = options || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'sa-msg sa-msg-' + role + (opts.typing ? ' sa-typing' : '');
+    if (opts.id) wrap.id = opts.id;
+
+    if (role === 'user') {
+      wrap.innerHTML = '<div class="sa-msg-body"><div class="sa-msg-bubble">' + suratArahanFormatText(content) + '</div></div>';
+    } else if (role === 'error') {
+      wrap.innerHTML = '<div class="sa-msg-avatar sa-msg-avatar-error"><i class="fa-solid fa-triangle-exclamation"></i></div>'
+        + '<div class="sa-msg-body"><div class="sa-msg-bubble sa-msg-bubble-error">' + suratArahanFormatText(content) + '</div></div>';
+    } else {
+      const mode = opts.mode || 'ai';
+      const badge = mode === 'cache'
+        ? '<span class="sa-mode-badge sa-mode-cache"><i class="fa-solid fa-bolt"></i>Cache</span>'
+        : mode === 'no_match'
+          ? '<span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-magnifying-glass"></i>Tiada padanan</span>'
+          : '<span class="sa-mode-badge sa-mode-ai"><i class="fa-solid fa-wand-magic-sparkles"></i>AI</span>';
+      const matched = opts.matchedQuestion && opts.mode === 'cache'
+        ? '<span class="sa-match-note">Padanan: ' + escapeHtml(opts.matchedQuestion) + '</span>'
+        : '';
+      wrap.innerHTML = '<div class="sa-msg-avatar"><i class="fa-solid fa-file-shield"></i></div>'
+        + '<div class="sa-msg-body"><div class="sa-msg-bubble">' + (opts.typing ? '<span class="sa-typing-dots"><span></span><span></span><span></span></span>' : suratArahanFormatText(content)) + '</div>'
+        + '<div class="sa-msg-meta">' + badge + matched + '</div>'
+        + (opts.typing ? '' : suratArahanSourceButtons(opts.sources)) + '</div>';
+    }
+
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+    return wrap;
+  }
+
+  async function askSuratArahanQuestion(question) {
+    const clean = String(question || '').trim();
+    if (!clean || suratArahanChatBusy) return;
+
+    suratArahanChatBusy = true;
+    const sendBtn = document.getElementById('suratArahanChatSend');
+    const input = document.getElementById('suratArahanChatInput');
+    if (sendBtn) sendBtn.disabled = true;
+    if (input) input.disabled = true;
+
+    appendSuratArahanMessage('user', clean);
+    const typing = appendSuratArahanMessage('ai', '', { typing: true, id: 'saTypingBubble' });
+
+    try {
+      const result = await suratArahanApi('askSuratArahan', { question: clean });
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      if (!result.success) {
+        appendSuratArahanMessage('error', result.error || 'Gagal mendapatkan jawapan.');
+        if (result.needsIndex) loadSuratArahanRagStatus();
+        return;
+      }
+      appendSuratArahanMessage('ai', result.answer || '', {
+        mode: result.mode || 'ai',
+        sources: result.sources || [],
+        matchedQuestion: result.matchedQuestion || ''
+      });
+      if (result.mode === 'ai' || result.mode === 'cache') {
+        loadSuratArahanFaq();
+      }
+    } catch (error) {
+      if (typing && typing.parentNode) typing.parentNode.removeChild(typing);
+      appendSuratArahanMessage('error', 'Ralat sistem: ' + error.message);
+      showToast('Soalan gagal diproses: ' + escapeHtml(error.message), 'error');
+    } finally {
+      suratArahanChatBusy = false;
+      if (sendBtn) sendBtn.disabled = false;
+      if (input) input.disabled = false;
+    }
+  }
+
+  function renderSuratArahanSuggestions() {
+    const el = document.getElementById('suratArahanSuggestions');
+    if (!el) return;
+    const questions = [];
+    (suratArahanFaqCache || []).forEach(function(faq) {
+      if (faq.question && questions.length < 4) questions.push(faq.question);
+    });
+    SURAT_ARAHAN_DEFAULT_SUGGESTIONS.forEach(function(question) {
+      if (questions.length < 4 && questions.indexOf(question) === -1) questions.push(question);
+    });
+    el.innerHTML = questions.map(function(question) {
+      return '<button type="button" class="sa-suggestion" data-sa-ask-text="' + escapeAttr(question) + '"><i class="fa-solid fa-arrow-up-right"></i>' + escapeHtml(question) + '</button>';
+    }).join('');
+  }
+
+  function renderSuratArahanFaq() {
+    const el = document.getElementById('suratArahanFaqList');
+    if (!el) return;
+    if (!suratArahanFaqCache.length) {
+      el.innerHTML = '<div class="sa-empty"><i class="fa-solid fa-circle-question"></i><strong>Belum ada soalan lazim</strong><span>Soalan yang dijawab akan muncul di sini selepas disimpan dalam cache.</span></div>';
+      return;
+    }
+    el.innerHTML = suratArahanFaqCache.map(function(faq, index) {
+      const answer = faq.answer
+        ? '<div class="sa-faq-answer">' + suratArahanFormatText(faq.answer) + '</div>'
+        : '<div class="sa-faq-answer sa-faq-answer-empty">Klik butang di bawah untuk bertanya kepada AI.</div>';
+      return '<details class="sa-faq-item' + (faq.stale ? ' sa-faq-stale-item' : '') + '">'
+        + '<summary><span class="sa-faq-q">' + escapeHtml(faq.question || '') + '</span>'
+        + (faq.stale ? '<span class="sa-faq-stale">Basi</span>' : '')
+        + '<span class="sa-faq-hits">' + (faq.hitCount || 0) + ' rujukan</span></summary>'
+        + answer
+        + (faq.sources && faq.sources.length ? '<div class="sa-faq-sources">' + suratArahanSourceButtons(faq.sources) + '</div>' : '')
+        + '<div class="sa-faq-actions"><button type="button" class="sa-btn sa-btn-primary sa-btn-small" data-sa-ask-text="' + escapeAttr(faq.question || '') + '"><i class="fa-solid fa-comments"></i>Tanya soalan ini</button></div>'
+        + '</details>';
+    }).join('');
+  }
+
+  function renderSuratArahanAdminQa() {
+    const el = document.getElementById('suratArahanAdminQaList');
+    if (!el) return;
+    const rows = (suratArahanFaqCache || []).filter(function(faq) {
+      return faq.id && String(faq.id).indexOf('q_') === 0;
+    });
+    if (!rows.length) {
+      el.innerHTML = '<div class="sa-admin-empty">Belum ada jawapan cache. Jawapan akan disimpan secara automatik selepas soalan pertama dijawab oleh AI.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(function(faq) {
+      return '<div class="sa-admin-qa-row">'
+        + '<div class="sa-admin-qa-main"><strong>' + escapeHtml(faq.question || '') + '</strong>'
+        + '<span>' + (faq.hitCount || 0) + ' rujukan' + (faq.askedByName ? ' • ' + escapeHtml(faq.askedByName) : '') + (faq.stale ? ' • <strong class="sa-admin-stale">Cache basi</strong>' : '') + '</span></div>'
+        + '<button type="button" class="sa-btn sa-btn-danger sa-btn-small" data-sa-delete-id="' + escapeAttr(faq.id) + '" data-sa-question="' + escapeAttr(faq.question || '') + '"><i class="fa-solid fa-trash-can"></i>Padam</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  async function loadSuratArahanFaq(showError) {
+    const el = document.getElementById('suratArahanFaqList');
+    if (el && !suratArahanFaqCache.length) {
+      el.innerHTML = '<div class="sa-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>Memuatkan soalan lazim...</span></div>';
+    }
+    try {
+      const result = await suratArahanApi('listSuratArahanFaq');
+      if (!result.success) throw new Error(result.error || 'Gagal memuatkan soalan lazim.');
+      suratArahanFaqCache = Array.isArray(result.faqs) ? result.faqs : [];
+      renderSuratArahanFaq();
+      renderSuratArahanAdminQa();
+      renderSuratArahanSuggestions();
+    } catch (error) {
+      console.error('Surat Arahan FAQ error:', error);
+      if (el) el.innerHTML = '<div class="sa-empty sa-error"><i class="fa-solid fa-triangle-exclamation"></i><strong>Gagal memuatkan soalan lazim</strong><span>' + escapeHtml(error.message) + '</span></div>';
+      if (showError) showToast('Soalan lazim: ' + escapeHtml(error.message), 'error');
+    }
+  }
+
+  async function deleteSuratArahanQa(id, question) {
+    if (!isSuratArahanAdmin() || !id) return;
+    const ok = await CustomAppModal.confirm(
+      'Padam jawapan cache ini?<br><br><strong>' + escapeHtml(question || id) + '</strong><br><br>Soalan yang sama akan menjana jawapan AI semula pada masa hadapan.',
+      'Padam Cache Jawapan',
+      'warning',
+      'Ya, Padam',
+      true
+    );
+    if (!ok) return;
+    try {
+      const result = await suratArahanApi('deleteSuratArahanQa', { id: id });
+      if (!result.success) throw new Error(result.error || 'Gagal memadam cache.');
+      showToast('Cache jawapan berjaya dipadam.', 'success');
+      await loadSuratArahanFaq();
+    } catch (error) {
+      showToast('Gagal memadam cache: ' + escapeHtml(error.message), 'error');
+    }
+  }
+
+  async function testSuratArahanConnection() {
+    if (!isSuratArahanAdmin()) return;
+    try {
+      const result = await suratArahanApi('testSuratArahanFirebase');
+      if (!result.success) throw new Error(result.error || 'Ujian sambungan gagal.');
+      const test = result.test || {};
+      await CustomAppModal.alert(
+        'Firebase: <strong>OK</strong><br>Projek: <strong>' + escapeHtml(test.projectId || '-') + '</strong><br>'
+        + 'DeepSeek API: <strong>' + (test.deepseekConfigured ? 'Ditetapkan' : 'Belum ditetapkan') + '</strong><br>'
+        + 'Model: <strong>' + escapeHtml(test.deepseekModel || '-') + '</strong>',
+        'Ujian Sambungan',
+        test.deepseekConfigured ? 'success' : 'warning'
+      );
+    } catch (error) {
+      await CustomAppModal.alert('Ujian sambungan gagal:<br><br>' + escapeHtml(error.message), 'Ralat Sambungan', 'error');
+    }
+  }
+
+  function suratArahanLog(message, type) {
+    const el = document.getElementById('suratArahanAdminLog');
+    if (!el) return;
+    const row = document.createElement('div');
+    row.className = 'sa-admin-log-row' + (type ? ' sa-admin-log-' + type : '');
+    const time = new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    row.textContent = time + ' — ' + message;
+    el.appendChild(row);
+    el.scrollTop = el.scrollHeight;
+    while (el.children.length > 120) el.removeChild(el.firstChild);
+  }
+
+  function suratArahanSetAdminProgress(percent, text) {
+    const wrap = document.getElementById('suratArahanAdminProgress');
+    const bar = document.getElementById('suratArahanAdminProgressBar');
+    const label = document.getElementById('suratArahanAdminProgressText');
+    if (wrap) wrap.style.display = 'block';
+    if (bar) bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    if (label) label.textContent = text || '';
+  }
+
+  function resetSuratArahanChat() {
+    const log = document.getElementById('suratArahanChatLog');
+    if (!log) return;
+    log.innerHTML = '<div class="sa-msg sa-msg-ai">'
+      + '<div class="sa-msg-avatar"><i class="fa-solid fa-file-shield"></i></div>'
+      + '<div class="sa-msg-body"><div class="sa-msg-bubble">Selamat datang. Saya akan menjawab berdasarkan dokumen rasmi <strong>Surat Arahan &amp; Pindaan SPTB</strong>. Tanya soalan seperti “Apakah dokumen yang perlu disediakan untuk permohonan STB?”</div>'
+      + '<div class="sa-msg-meta"><span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-book-open"></i>Berasaskan dokumen</span></div></div></div>';
+    suratArahanFaqCache = [];
+    suratArahanRagStatus = null;
+    renderSuratArahanSuggestions();
+  }
+
+  function suratArahanBase64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  async function suratArahanPdfPageText(page) {
+    const textContent = await page.getTextContent();
+    const lines = [];
+    let currentLine = '';
+    textContent.items.forEach(function(item) {
+      currentLine += item.str + ' ';
+      if (item.hasEOL) {
+        lines.push(currentLine.replace(/[ \t]+/g, ' ').trim());
+        currentLine = '';
+      }
+    });
+    if (currentLine.trim()) lines.push(currentLine.replace(/[ \t]+/g, ' ').trim());
+    return lines.filter(Boolean).join('\n');
+  }
+
+  async function suratArahanRenderPageJpeg(page) {
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(2, Math.max(1.25, 1800 / Math.max(1, baseViewport.width)));
+    const viewport = page.getViewport({ scale: scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas tidak tersedia untuk OCR.');
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+    if (dataUrl.length > 3200000) dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+    if (dataUrl.length > 4500000) dataUrl = canvas.toDataURL('image/jpeg', 0.4);
+    canvas.width = 0;
+    canvas.height = 0;
+    return dataUrl;
+  }
+
+  async function extractSuratArahanPdfPages(arrayBuffer, fileName, onProgress) {
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('PDF.js tidak dimuatkan. Sila muat semula halaman.');
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    if (pdf.numPages > 500) {
+      throw new Error('PDF mempunyai ' + pdf.numPages + ' halaman, melebihi had 500 halaman.');
+    }
+    const pages = [];
+    const ocrJobs = [];
+    const ocrErrors = [];
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      let text = '';
+      try { text = await suratArahanPdfPageText(page); } catch (e) { text = ''; }
+      const compact = text.replace(/\s+/g, '');
+      const pageInfo = { page: pageNum, text: text, ocr: false };
+      pages.push(pageInfo);
+      if (compact.length < 40) {
+        try {
+          const dataUrl = await suratArahanRenderPageJpeg(page);
+          if (dataUrl) ocrJobs.push({ page: pageNum, dataUrl: dataUrl });
+        } catch (e) {
+          const message = 'Render halaman ' + pageNum + ': ' + (e && e.message ? e.message : e);
+          console.warn('OCR render gagal: ' + fileName + ' hlm ' + pageNum, e);
+          ocrErrors.push(message);
+        }
+      }
+      if (onProgress) onProgress(pageNum, pdf.numPages, 'extract');
+    }
+
+    async function runOcr(batch) {
+      const result = await suratArahanApi('ocrSuratArahanPages', { images: batch });
+      if (!result.success) throw new Error(result.error || 'OCR gagal.');
+      const applied = {};
+      (result.pages || []).forEach(function(ocrPage, index) {
+        const pageNumber = parseInt(ocrPage.page, 10);
+        let target = pages.find(function(p) { return p.page === pageNumber; });
+        if (!target && batch[index]) target = pages.find(function(p) { return p.page === batch[index].page; });
+        if (!target && batch.length === 1) target = pages.find(function(p) { return p.page === batch[0].page; });
+        if (target) {
+          const text = String(ocrPage.text || '').trim();
+          if (text) {
+            target.text = text;
+            target.ocr = true;
+            applied[target.page] = true;
+          }
+        }
+      });
+      return applied;
+    }
+
+    for (let i = 0; i < ocrJobs.length; i += 3) {
+      const batch = ocrJobs.slice(i, i + 3);
+      if (onProgress) onProgress(Math.min(pdf.numPages, i + 1), pdf.numPages, 'ocr');
+      let applied = {};
+      try {
+        applied = await runOcr(batch);
+      } catch (e) {
+        console.warn('OCR batch gagal: ' + fileName, e);
+        suratArahanLog('OCR gagal untuk ' + fileName + ' (halaman ' + batch.map(function(x) { return x.page; }).join(', ') + '): ' + e.message, 'error');
+        ocrErrors.push('Halaman ' + batch.map(function(x) { return x.page; }).join(', ') + ': ' + e.message);
+      }
+
+      const missing = batch.filter(function(job) { return !applied[job.page]; });
+      for (let j = 0; j < missing.length; j++) {
+        const single = [missing[j]];
+        if (onProgress) onProgress(missing[j].page, pdf.numPages, 'ocr');
+        try {
+          await runOcr(single);
+        } catch (e2) {
+          console.warn('OCR halaman gagal: ' + fileName + ' hlm ' + missing[j].page, e2);
+          suratArahanLog('OCR gagal untuk ' + fileName + ' (halaman ' + missing[j].page + '): ' + e2.message, 'error');
+          ocrErrors.push('Halaman ' + missing[j].page + ': ' + e2.message);
+        }
+      }
+    }
+
+    pages.ocrErrors = ocrErrors;
+    return pages;
+  }
+
+  async function startSuratArahanReindex(fileIds) {
+    if (!isSuratArahanAdmin() || suratArahanReindexing) return;
+    const requestedIds = Array.isArray(fileIds) ? fileIds.map(String) : null;
+    const selectedMode = !!requestedIds;
+    await loadSuratArahanDocs(true);
+    const allPdfs = (suratArahanFiles || []).filter(function(file) {
+      return isPdfFile(file.mimeType, file.name);
+    });
+    const pdfs = selectedMode
+      ? allPdfs.filter(function(file) { return requestedIds.indexOf(String(file.id || '')) !== -1; })
+      : allPdfs;
+    if (!pdfs.length) {
+      await CustomAppModal.alert(
+        selectedMode
+          ? 'Tiada fail PDF yang dipilih ditemui dalam folder Surat Arahan.'
+          : 'Tiada fail PDF dalam folder Surat Arahan untuk diindeks.',
+        'Tiada Dokumen',
+        'warning'
+      );
+      return;
+    }
+
+    const ok = await CustomAppModal.confirm(
+      selectedMode
+        ? 'Bina indeks AI untuk <strong>' + pdfs.length + ' fail PDF dipilih</strong>?<br><br>Hanya dokumen dipilih akan diproses. Indeks dokumen lain yang sedia ada akan dikekalkan. Jangan tutup modal semasa proses berjalan.'
+        : 'Bina semula indeks AI untuk <strong>' + pdfs.length + ' fail PDF</strong>?<br><br>Proses ini membaca setiap halaman, melakukan OCR pada dokumen imbas, dan mungkin mengambil masa yang lama. Jangan tutup modal semasa proses berjalan.',
+      selectedMode ? 'Indeks Pilihan' : 'Bina Semula Indeks',
+      'warning',
+      selectedMode ? 'Ya, Indeks' : 'Ya, Mula',
+      false,
+      true
+    );
+    if (!ok) return;
+
+    suratArahanReindexing = true;
+    const reindexBtn = document.getElementById('suratArahanReindexBtn');
+    const testBtn = document.getElementById('suratArahanTestBtn');
+    if (reindexBtn) reindexBtn.disabled = true;
+    if (testBtn) testBtn.disabled = true;
+    suratArahanUpdateSelectedCount();
+    const logEl = document.getElementById('suratArahanAdminLog');
+    if (logEl) logEl.innerHTML = '';
+    suratArahanSetAdminProgress(0, 'Menyediakan proses indeks...');
+    suratArahanLog('Mula membina indeks untuk ' + pdfs.length + ' PDF' + (selectedMode ? ' dipilih' : '') + '.', 'info');
+
+    const indexedIds = [];
+    let failed = 0;
+
+    try {
+      for (let i = 0; i < pdfs.length; i++) {
+        const file = pdfs[i];
+        const basePercent = (i / pdfs.length) * 95;
+        suratArahanLog('Membaca ' + file.name + ' (' + (i + 1) + '/' + pdfs.length + ')...', 'info');
+        suratArahanSetAdminProgress(basePercent, 'Membaca ' + file.name + '...');
+        try {
+          const fileData = await suratArahanApi('getSuratArahanFileData', { fileId: file.id });
+          if (!fileData.success) throw new Error(fileData.error || 'Gagal memuat turun PDF.');
+          const arrayBuffer = suratArahanBase64ToArrayBuffer(fileData.base64 || '');
+          const pages = await extractSuratArahanPdfPages(arrayBuffer, file.name, function(pageNum, totalPages, phase) {
+            const within = totalPages ? pageNum / totalPages : 0;
+            const pct = basePercent + (within * (95 / pdfs.length));
+            suratArahanSetAdminProgress(
+              pct,
+              (phase === 'ocr' ? 'OCR ' : 'Ekstrak ') + file.name + ' — halaman ' + pageNum + '/' + totalPages
+            );
+          });
+
+          const nonEmpty = pages.filter(function(page) { return String(page.text || '').trim().length > 0; });
+          if (!nonEmpty.length) {
+            const ocrErrors = Array.isArray(pages.ocrErrors) ? pages.ocrErrors : [];
+            throw new Error('Tiada teks ditemui selepas ekstrak/OCR.'
+              + (ocrErrors.length ? ' ' + ocrErrors.slice(0, 3).join(' | ') : ' Tiada OCR dijalankan atau imej halaman kosong.'));
+          }
+          const saved = await suratArahanApi('saveSuratArahanDocText', {
+            fileId: file.id,
+            category: file.category || 'Umum',
+            pages: pages
+          });
+          if (!saved.success) throw new Error(saved.error || 'Gagal menyimpan teks dokumen.');
+          indexedIds.push(file.id);
+          suratArahanLog('Selesai ' + file.name + ' — ' + saved.chunks + ' chunk.', 'success');
+        } catch (fileError) {
+          failed++;
+          suratArahanLog('Gagal ' + file.name + ': ' + fileError.message, 'error');
+          console.error('Reindex file failed:', file.name, fileError);
+        }
+      }
+
+      if (!indexedIds.length) throw new Error('Tiada dokumen berjaya diproses.');
+      suratArahanSetAdminProgress(96, 'Membina indeks BM25...');
+      suratArahanLog('Membina indeks akhir daripada ' + indexedIds.length + ' dokumen' + (selectedMode ? ' dipilih' : '') + '...', 'info');
+      const finalize = await suratArahanApi('finalizeSuratArahanIndex', { fileIds: indexedIds, merge: selectedMode });
+      if (!finalize.success) throw new Error(finalize.error || 'Gagal membina indeks.');
+      suratArahanSetAdminProgress(100, 'Indeks selesai dibina.');
+      suratArahanLog('Indeks siap: ' + finalize.documentCount + ' dokumen, ' + finalize.chunkCount + ' chunk.', 'success');
+      if (failed) suratArahanLog(failed + ' dokumen gagal dan tidak dimasukkan ke dalam indeks.', 'error');
+      await loadSuratArahanFaq();
+      await loadSuratArahanRagStatus();
+      await CustomAppModal.alert(
+        'Indeks AI berjaya dibina.<br><br>Dokumen: <strong>' + finalize.documentCount + '</strong><br>Chunk: <strong>' + finalize.chunkCount + '</strong>'
+        + (selectedMode ? '<br><br>Hanya dokumen yang dipilih diproses; indeks dokumen lain dikekalkan.' : '')
+        + (failed ? '<br>Gagal: <strong>' + failed + '</strong> dokumen (lihat log).' : ''),
+        'Indeks Selesai',
+        failed ? 'warning' : 'success'
+      );
+    } catch (error) {
+      suratArahanSetAdminProgress(0, 'Proses indeks gagal.');
+      suratArahanLog('Indeks gagal: ' + error.message, 'error');
+      await CustomAppModal.alert('Proses indeks gagal:<br><br>' + escapeHtml(error.message), 'Ralat Indeks', 'error');
+    } finally {
+      suratArahanReindexing = false;
+      if (reindexBtn) reindexBtn.disabled = false;
+      if (testBtn) testBtn.disabled = false;
+      suratArahanUpdateSelectedCount();
+      renderSuratArahanAdminDocPicker();
+      setTimeout(function() {
+        const progress = document.getElementById('suratArahanAdminProgress');
+        if (progress) progress.style.display = 'none';
+      }, 5000);
+    }
+  }
+
   async function openSuratArahanModal() {
     if (!canAccessSuratArahan()) {
       await CustomAppModal.alert('Anda tiada akses kepada dokumen Surat Arahan.', 'Akses Ditolak', 'error');
@@ -9490,6 +10351,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const searchInput = document.getElementById('suratArahanSearch');
     if (searchInput) searchInput.value = '';
 
+    const ownerEmail = currentUser ? String(currentUser.email || '').toLowerCase() : '';
+    if (ownerEmail && suratArahanChatOwnerEmail && ownerEmail !== suratArahanChatOwnerEmail) {
+      resetSuratArahanChat();
+    }
+    suratArahanChatOwnerEmail = ownerEmail;
+
+    updateSuratArahanAdminVisibility();
+    setupSuratArahanRagUI();
     modal.style.display = 'flex';
     requestAnimationFrame(function() { modal.classList.add('show'); });
 
@@ -9498,6 +10367,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       try { closeBtn.focus(); } catch (e) {}
     }
 
+    loadSuratArahanRagStatus();
+    loadSuratArahanFaq();
     await loadSuratArahanDocs(false);
   }
 
@@ -9557,6 +10428,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const listEl = document.getElementById('suratArahanList');
     const metaEl = document.getElementById('suratArahanMeta');
     const refreshBtn = document.getElementById('suratArahanRefresh');
+    renderSuratArahanAdminDocPicker();
 
     if (listEl && suratArahanFiles.length === 0) listEl.innerHTML = suratArahanLoadingHtml();
     if (metaEl) metaEl.textContent = 'Memuatkan dokumen...';
@@ -9591,10 +10463,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
 
       renderSuratArahanDocs();
+      renderSuratArahanAdminDocPicker();
     } catch (error) {
       console.error('Surat Arahan load error:', error);
       if (suratArahanFiles.length > 0) {
         renderSuratArahanDocs();
+        renderSuratArahanAdminDocPicker();
         showToast('Gagal menyegarkan dokumen: ' + escapeHtml(error.message), 'error');
       } else {
         if (metaEl) metaEl.textContent = '';
@@ -9602,6 +10476,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     } finally {
       suratArahanLoading = false;
+      renderSuratArahanAdminDocPicker();
       if (refreshBtn) {
         refreshBtn.disabled = false;
         refreshBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>Segar Semula';
@@ -9658,7 +10533,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return;
     }
 
-    const groups = {};
+    const groups = Object.create(null);
     filtered.forEach(function(file) {
       const category = String(file.category || 'Umum');
       if (!groups[category]) groups[category] = [];
@@ -15807,7 +16682,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               let extraLabel = 'Syarikat:';
               if (cType === 'BCPLC') extraLabel = 'Syarikat BCPLC tamat:';
               else if (cType === 'SSM') extraLabel = 'Syarikat SSM e-Info:';
-              extra = ` <span style="font-size:0.72rem; color:#64748b;">(${extraLabel} ${cd} ${csHide})</span>`;
+              if (cType === 'BADAN_BERKANUN') {
+                extra = ` <span style="font-size:0.72rem; color:#64748b;">(Badan Berkanun ${csHide})</span>`;
+              } else {
+                extra = ` <span style="font-size:0.72rem; color:#64748b;">(${extraLabel} ${cd} ${csHide})</span>`;
+              }
             } else if (hasBorangVal(p.c_date) || hasBorangVal(p.c_status)) {
               const csHide2 = (isTidakBerkaitanVal(p.c_status)) ? '' : lengkapBadge(p.c_status, false);
               extra = ` <span style="font-size:0.72rem; color:#64748b;">(${escapeHtml(fmtBorangDate(p.c_date) || '-')} ${csHide2})</span>`;
@@ -17326,11 +18205,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     cardEl.classList.toggle('baru-tambah-card', cb.checked);
   }
 
-  // Selaraskan label tarikh & hint pada kad syarikat mengikut pilihan SSM/BCPLC
+  // Selaraskan label tarikh & hint pada kad syarikat mengikut pilihan SSM/BCPLC/Badan Berkanun
   function syncCompanyDocUI(cardEl) {
     if (!cardEl) return;
     const typeEl = cardEl.querySelector('.comp-doc-type');
     const labelEl = cardEl.querySelector('.comp-date-label');
+    const dateWrapEl = cardEl.querySelector('.comp-date-wrap');
     const hintEl = cardEl.querySelector('.comp-type-hint');
     const companyCb = cardEl.querySelector('.is-company');
     const type = typeEl ? typeEl.value : '';
@@ -17339,6 +18219,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         ? 'Tarikh Tamat Tempoh BCPLC'
         : (type === 'SSM' ? 'Tarikh e-Info SSM' : 'Tarikh');
     }
+    // Badan Berkanun tidak memerlukan tarikh — sembunyikan medan tarikh
+    if (dateWrapEl) dateWrapEl.style.display = type === 'BADAN_BERKANUN' ? 'none' : '';
     if (hintEl) {
       hintEl.style.display = (companyCb && companyCb.checked && !type) ? 'block' : 'none';
     }
@@ -17396,13 +18278,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           <div>
             <label>Jenis Dokumen Syarikat</label>
             <select class="comp-doc-type" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.95rem;">
-              <option value="">- Pilih SSM / BCPLC -</option>
+              <option value="">- Pilih SSM / BCPLC / Badan Berkanun -</option>
               <option value="SSM">SSM (e-Info)</option>
               <option value="BCPLC">BCPLC</option>
+              <option value="BADAN_BERKANUN">Badan Berkanun</option>
             </select>
-            <div class="comp-type-hint" style="display:none; color:#dc2626; font-size:0.72rem; font-weight:700; margin-top:4px;">Pilih SSM atau BCPLC.</div>
+            <div class="comp-type-hint" style="display:none; color:#dc2626; font-size:0.72rem; font-weight:700; margin-top:4px;">Pilih SSM, BCPLC atau Badan Berkanun.</div>
           </div>
-          <div>
+          <div class="comp-date-wrap">
             <label class="comp-date-label">Tarikh</label>
             <input type="date" class="comp-date" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:0.95rem; text-transform:uppercase;">
           </div>
@@ -17538,12 +18421,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       // Rekod lama tiada c_doc_type: anggap SSM jika kad syarikat.
       // Rekod baharu yang disimpan dengan pilihan kosong dibiarkan kosong
-      // supaya pengesyor wajib memilih SSM/BCPLC sebelum jana emel.
+      // supaya pengesyor wajib memilih jenis dokumen sebelum jana emel.
       const compType = div.querySelector('.comp-doc-type');
       if (compType) {
         const hasSavedType = Object.prototype.hasOwnProperty.call(data, 'c_doc_type');
         const savedType = hasSavedType ? String(data.c_doc_type || '').toUpperCase() : '';
-        compType.value = (savedType === 'SSM' || savedType === 'BCPLC')
+        compType.value = (savedType === 'SSM' || savedType === 'BCPLC' || savedType === 'BADAN_BERKANUN')
           ? savedType
           : (!hasSavedType && data.isCompany ? 'SSM' : '');
       }
@@ -20226,15 +21109,17 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       items.push('Pastikan penama ' + emailBlueText(emailJoinNames(epfList)) + ' mempunyai nama dalam caruman KWSP syarikat.');
     }
 
-    // --- Dokumen syarikat pada kad personel (SSM / BCPLC) ---
+    // --- Dokumen syarikat pada kad personel (SSM / BCPLC / Badan Berkanun) ---
     // Hanya kad Syarikat yang Status Semakan = X; nama syarikat diambil dari
     // kad itu, fallback ke Nama Syarikat di Maklumat Asas.
+    // Badan Berkanun tidak memerlukan e-info SSM/BCPLC — tiada ayat dijana.
     const applicantName = (document.getElementById('borang_syarikat')?.value || '').trim();
     const normCompanyName = function(s) {
       return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
     };
     const applicantNorm = normCompanyName(applicantName);
     const seenCompanyDoc = {};
+    const companyNamesByType = { SSM: [], BCPLC: [] };
     let companyDocCoversApplicant = false;
 
     companyCards.forEach(function(card) {
@@ -20251,10 +21136,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (applicantNorm && normCompanyName(companyName) === applicantNorm) {
         companyDocCoversApplicant = true;
       }
-      const phrase = type === 'BCPLC'
-        ? 'Surat Bumiputera Public Listed Company (BCPLC) dari Kementerian MITI'
-        : 'e-info SSM bertarikh 3 bulan terkini';
-      items.push('Sila sertakan ' + emailBlueText(phrase) + ' bagi syarikat ' + emailBlackText(escapeHtml(companyName || '(NAMA SYARIKAT)')));
+      companyNamesByType[type].push(escapeHtml(companyName || '(NAMA SYARIKAT)'));
+    });
+
+    // Gabungkan semua syarikat bagi jenis dokumen yang sama dalam satu ayat
+    // (contoh: "Sila sertakan e-info SSM ... bagi syarikat A, B dan C").
+    [
+      { type: 'SSM', phrase: 'e-info SSM bertarikh 3 bulan terkini' },
+      { type: 'BCPLC', phrase: 'Surat Bumiputera Public Listed Company (BCPLC) dari Kementerian MITI' }
+    ].forEach(function(def) {
+      const names = companyNamesByType[def.type];
+      if (names.length === 0) return;
+      items.push('Sila sertakan ' + emailBlueText(def.phrase) + ' bagi syarikat ' + emailBlackText(emailJoinNames(names)));
     });
 
     // --- Dokumen (susunan ikut contoh: Carta → Sewa → Gambar → Peta → SSM) ---
@@ -20648,7 +21541,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   function openEmailGenModal() {
-    // Wajib pilih SSM/BCPLC pada setiap kad personel yang ditanda Syarikat
+    // Wajib pilih jenis dokumen pada setiap kad personel yang ditanda Syarikat
     const missingCompanyTypes = [];
     document.querySelectorAll('#personnelList .person-card').forEach(function(card) {
       const cb = card.querySelector('.is-company');
@@ -20661,7 +21554,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     });
     if (missingCompanyTypes.length > 0) {
-      CustomAppModal.alert('Sila pilih <strong>SSM</strong> atau <strong>BCPLC</strong> pada kad personel syarikat berikut sebelum jana emel:<br><br><strong>' + missingCompanyTypes.join('<br>') + '</strong>', 'Pilihan Dokumen Syarikat', 'warning');
+      CustomAppModal.alert('Sila pilih <strong>SSM</strong>, <strong>BCPLC</strong> atau <strong>Badan Berkanun</strong> pada kad personel syarikat berikut sebelum jana emel:<br><br><strong>' + missingCompanyTypes.join('<br>') + '</strong>', 'Pilihan Dokumen Syarikat', 'warning');
       return;
     }
 

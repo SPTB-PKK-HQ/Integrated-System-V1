@@ -4,11 +4,11 @@
 >
 > | Perkara | Butiran |
 > |---|---|
-> | Nama Sistem | Sistem Bersepadu V1 SPTB-PKK (SPTB (HQ) V6.5.2 / Enjin v610) |
+> | Nama Sistem | Sistem Bersepadu V1 SPTB-PKK (SPTB (HQ) V6.5.2 / Enjin v610 / RAG Surat Arahan V7.9.0) |
 > | Pemilik | HQ — Pusat Khidmat Kontraktor (PKK), KUSKOP |
-> | Versi Dokumen | 1.0 |
-> | Tarikh | 26 September 2026 |
-> | Skop | Semua `action` backend Web App sedia ada (GET dan POST). Fokus Web sahaja. |
+> | Versi Dokumen | 1.2 |
+> | Tarikh | 28 Oktober 2026 |
+> | Skop | Semua `action` backend Web App sedia ada (GET dan POST), termasuk endpoint RAG Surat Arahan. Fokus Web sahaja. |
 > | Klasifikasi | Terhad — Untuk kegunaan rasmi sahaja. Nilai rahsia disorokkan. |
 
 ---
@@ -22,7 +22,7 @@ Sistem menggunakan **API gaya REST melalui HTTPS dengan corak RPC tindakan tungg
 * Kaedah HTTP: `GET` untuk bacaan, `POST` untuk tulisan dan operasi berstatus.
 * Format data: `JSON` untuk permintaan dan respons. Respons sentiasa dibalut melalui `ContentService` dengan jenis MIME `application/json`.
 * Pengekodan: `UTF-8`.
-* Kunci konkurensi: Operasi tulis dikunci di pelayan (`LockService`, maksimum 28 saat). Operasi baca tidak dikunci bagi prestasi.
+* Kunci konkurensi: Operasi tulis ke Google Sheet dikunci di pelayan (`LockService`, maksimum 28 saat); tindakan RAG Surat Arahan dikecualikan kerana menulis ke Firestore/Drive. Operasi baca tidak dikunci bagi prestasi.
 * Mekanisme ketahanan klien: `fetchWithRetry` — bacaan dicuba semula 2 kali (lengah 3 saat + backoff), tulisan kekal 1 cubaan bagi mengelakkan penduaan rekod.
 
 ### 1.2 Format Data Am
@@ -106,6 +106,8 @@ Matriks peranan ringkas:
 | PKA lawatan | `PKA` sahaja |
 | Pengurusan pengguna / arkib / pembersihan | `ADMIN` sahaja |
 | Cetak PDF / Drive tulis | `PENGESYOR`, `ADMIN`, `PELULUS` (butiran mengikut endpoint) |
+| RAG Surat Arahan: dokumen, tanya, soalan lazim, status | `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN` |
+| RAG Surat Arahan: indeks, OCR, muat turun PDF, padam cache, ujian Firebase | `ADMIN` sahaja |
 
 ### 2.2 Header dan Token Rujukan
 
@@ -143,7 +145,28 @@ google.accounts.id.initialize({
 
 ### 2.3 Pengurusan Rahsia
 
-Semua rahsia disimpan dalam **Script Properties** dan tidak dikomit ke repositori: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`. Cache cuti umum (`PUTRAJAYA_HOLIDAYS_<tahun>`) dijana automatik oleh sistem. Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`.
+Semua rahsia disimpan dalam **Script Properties** dan tidak dikomit ke repositori: `MAIN_FOLDER_ID`, `EMAIL_TO_SPI`, `EMAIL_CC_SPTB`, `YOUTUBE_API_KEY`, `FIREBASE_CODE_MAP_<emel>`, `SIASAT_QUEUE`, `PEMUTIHAN_QUEUE`, `STB_APP_DATA_VERSION`. Cache cuti umum (`PUTRAJAYA_HOLIDAYS_<tahun>`) dijana automatik oleh sistem.
+
+RAG Surat Arahan menggunakan properti tambahan:
+
+| Properti | Wajib | Kegunaan |
+|---|---|---|
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Ya | JSON akaun perkhidmatan Firestore (mentah atau base64). |
+| `FIREBASE_PROJECT_ID` | Tidak | Override projek; fallback `project_id` akaun perkhidmatan, kemudian `tapisan-stb-g4-g7`. |
+| `DEEPSEEK_API_KEY` | Ya untuk AI/OCR | Kunci DeepSeek, disimpan di pelayan sahaja. |
+| `DEEPSEEK_MODEL` | Tidak | Model DeepSeek; lalai `deepseek-flash`. |
+| `DEEPSEEK_BASE_URL` | Tidak | Endpoint penuh; lalai `https://api.deepseek.com/chat/completions`. |
+| `SURAT_ARAHAN_QA_THRESHOLD` | Tidak | Ambang fuzzy cache; lalai `0.84`. |
+| `SURAT_ARAHAN_DAILY_LIMIT` | Tidak | Had AI/user/hari; lalai `30`. |
+| `SURAT_ARAHAN_GLOBAL_LIMIT` | Tidak | Had AI/global/hari; lalai `300`. |
+| `SURAT_ARAHAN_INDEX_FOLDER_ID` | Auto | Folder khas `_SURAT_ARAHAN_INDEX`. |
+| `SURAT_ARAHAN_INDEX_FILE_ID` | Auto | Fail indeks agregat terkini. |
+| `SURAT_ARAHAN_INDEX_VERSION` | Auto | Versi indeks aktif. |
+| `SURAT_ARAHAN_INDEX_SUMMARY` | Auto | Ringkasan dokumen/chunk semasa. |
+
+Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`; jangan simpan akaun perkhidmatan atau kunci DeepSeek dalam repositori.
+
+> **Nota keselamatan RAG:** endpoint RAG menggunakan model prinsipal `email` yang sama seperti endpoint lain (bukan pengesahan ID token). Jawapan cache boleh dibaca oleh semua peranan Surat Arahan yang dibenarkan. Laksanakan pengesahan token pelayan dan peraturan Firestore yang ketat sebelum penggunaan production penuh.
 
 ---
 
@@ -810,7 +833,7 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 #### F2A. `getSuratArahanDocs` — Senarai dokumen Surat Arahan SPTB
 
 * **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
-* **Deskripsi:** Menyenaraikan dokumen rujukan Surat Arahan SPTB daripada folder `STB MAIN FOLDER > SURAT ARAHAN` (termasuk subfolder sebagai kategori). Peranan: `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`. Baca sahaja.
+* **Deskripsi:** Menyenaraikan dokumen rujukan Surat Arahan SPTB daripada folder `STB MAIN FOLDER > SURAT ARAHAN` (termasuk subfolder sebagai kategori). Peranan: `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN`. Baca sahaja.
 * **Request Body:**
 
 ```json
@@ -858,6 +881,436 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
   * Hasil senarai di-cache selama 5 minit. `refresh: true` memintas cache.
   * Had 200 fail dan 3 aras subfolder.
   * Medan `description` diambil daripada Description fail di Google Drive. Isi Description dengan ringkasan kandungan dokumen supaya butiran dipaparkan di bawah nama fail.
+
+#### F2B. `askSuratArahan` — Tanya chatbot RAG Surat Arahan
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menjawab soalan pengguna berdasarkan indeks dokumen Surat Arahan. Sistem menyemak cache Firestore dahulu, kemudian melakukan carian BM25 (6 chunk teratas) dan memanggil DeepSeek. Jawapan AI yang berjaya disimpan semula ke cache secara automatik.
+* **Kawalan akses:** `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN`.
+* **Request Body:**
+
+```json
+{
+  "action": "askSuratArahan",
+  "email": "ali@[DOMAIN_KERAJAAN]",
+  "question": "Apakah dokumen yang perlu disediakan untuk permohonan STB?"
+}
+```
+
+* **Response — cache hit:**
+
+```json
+{
+  "success": true,
+  "mode": "cache",
+  "cached": true,
+  "answer": "Dokumen yang perlu disediakan ialah borang permohonan, salinan SSM, dan salinan kad pengenalan [S1].",
+  "sources": [
+    {
+      "fileId": "[FILE_ID]",
+      "name": "Surat Arahan Bil. 2-2026.pdf",
+      "category": "Umum",
+      "page": 3,
+      "chunkId": "[FILE_ID]_p3_c0",
+      "score": 8.42,
+      "preview": "Dokumen yang perlu disediakan untuk permohonan STB ialah...",
+      "ref": "S1"
+    }
+  ],
+  "matchedQuestion": "Apakah dokumen yang perlu disediakan untuk permohonan STB?",
+  "matchScore": 0.96
+}
+```
+
+* **Response — jawapan AI baharu:**
+
+```json
+{
+  "success": true,
+  "mode": "ai",
+  "cached": false,
+  "answer": "Dokumen yang perlu disediakan ialah borang permohonan, salinan SSM, dan salinan kad pengenalan [S1].",
+  "sources": [
+    {
+      "fileId": "[FILE_ID]",
+      "name": "Surat Arahan Bil. 2-2026.pdf",
+      "category": "Umum",
+      "page": 3,
+      "chunkId": "[FILE_ID]_p3_c0",
+      "score": 8.42,
+      "preview": "Dokumen yang perlu disediakan untuk permohonan STB ialah...",
+      "ref": "S1"
+    }
+  ],
+  "matchedQuestion": "Apakah dokumen yang perlu disediakan untuk permohonan STB?",
+  "confidence": 0.88,
+  "note": "",
+  "model": "deepseek-flash",
+  "qaId": "q_0123456789abcdef0123456789abcdef01234567"
+}
+```
+
+* **Response — tiada padanan:**
+
+```json
+{
+  "success": true,
+  "mode": "no_match",
+  "cached": false,
+  "answer": "Maaf, saya tidak menemui maklumat yang berkaitan dalam dokumen Surat Arahan yang telah diindeks. Sila cuba kata kunci lain atau rujuk dokumen penuh di tab Dokumen.",
+  "sources": []
+}
+```
+
+* **Response — indeks belum dibina:**
+
+```json
+{
+  "success": false,
+  "code": "SA_RAG_INDEX_MISSING",
+  "needsIndex": true,
+  "error": "Indeks dokumen Surat Arahan belum dibina. Sila hubungi Pentadbir untuk menjalankan proses indeks di tab Urus."
+}
+```
+
+* **Response — had kadar:**
+
+```json
+{
+  "success": false,
+  "code": "SA_RAG_RATE_LIMIT",
+  "error": "Had harian anda telah mencapai 30 soalan AI. Sila cuba lagi esok."
+}
+```
+
+* **Nota Operasi:**
+  * Soalan minimum 3 aksara dan maksimum 600 aksara selepas normalisasi ruang.
+  * Cache menggunakan SHA-256 soalan ternormal, alias keys, dan fuzzy similarity (ambang lalai `0.84`). Cache yang merujuk versi dokumen lama akan diabaikan.
+  * Cache hit tidak menggunakan kuota AI. Hanya panggilan AI baharu direkod dalam `surat_arahan_usage`.
+  * Jawapan AI tetap dipulangkan walaupun penyimpanan cache gagal; dalam kes ini `qaId` boleh kosong.
+  * Setiap permintaan adalah **single-turn** — tiada sejarah perbualan dihantar ke DeepSeek.
+  * `confidence` ialah nombor 0–1 (lalai 0.6 jika model tidak memulangkan nilai), bukan label teks.
+
+#### F2C. `listSuratArahanFaq` — Senarai soalan lazim / cache
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menyenaraikan jawapan cache yang paling kerap digunakan. Pengguna biasa menerima maksimum 20 entri; `ADMIN` menerima maksimum 100 entri. Jawapan cache yang merujuk versi dokumen lama ditanda `stale` dan ditapis keluar untuk pengguna bukan admin.
+* **Kawalan akses:** `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN`.
+* **Request Body:**
+
+```json
+{
+  "action": "listSuratArahanFaq",
+  "email": "ali@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "isAdmin": false,
+  "faqs": [
+    {
+      "id": "q_0123456789abcdef0123456789abcdef01234567",
+      "question": "Apakah dokumen yang perlu disediakan untuk permohonan STB?",
+      "answer": "Dokumen yang perlu disediakan ialah borang permohonan, salinan SSM, dan salinan kad pengenalan [S1].",
+      "hitCount": 12,
+      "lastUsedAt": "2026-10-28T03:00:00.000Z",
+      "sources": [
+        {
+          "fileId": "[FILE_ID]",
+          "name": "Surat Arahan Bil. 2-2026.pdf",
+          "category": "Umum",
+          "page": 3,
+          "chunkId": "[FILE_ID]_p3_c0",
+          "score": 8.42,
+          "preview": "Dokumen yang perlu disediakan untuk permohonan STB ialah...",
+          "ref": "S1"
+        }
+      ],
+      "stale": false
+    }
+  ]
+}
+```
+
+* **Nota Operasi:**
+  * Jika tiada cache langsung, respons mengandungi soalan lalai dengan `isDefault: true` dan `answer` kosong.
+  * Untuk `ADMIN`, medan tambahan `askedBy` dan `askedByName` disertakan; entri `stale: true` turut dipulangkan supaya admin boleh memadamnya.
+  * Sumber cache disimpan bersama `ref` (`S1`, `S2`, ...) untuk dipadankan dengan sitasi dalam jawapan.
+
+#### F2D. `deleteSuratArahanQa` — Padam jawapan cache
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Memadam satu dokumen cache `surat_arahan_qa`. Soalan yang sama akan menjana jawapan AI baharu pada masa hadapan.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "deleteSuratArahanQa",
+  "email": "admin@[DOMAIN_KERAJAAN]",
+  "id": "q_0123456789abcdef0123456789abcdef01234567"
+}
+```
+
+* **Response Success:**
+
+```json
+{ "success": true, "id": "q_0123456789abcdef0123456789abcdef01234567" }
+```
+
+* **Response Error:**
+
+```json
+{ "success": false, "error": "ID jawapan tidak sah." }
+```
+
+* **Nota Operasi:** ID mesti bermula dengan `q_` diikuti 8–64 aksara heksadesimal. Padam dokumen yang tidak wujud tetap dikira berjaya.
+
+#### F2E. `getSuratArahanStatus` — Status indeks dan kesegaran dokumen
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Memulangkan status indeks RAG, kiraan PDF semasa, dan senarai fail yang ditambah/diubah/dibuang berbanding metadata indeks. Digunakan oleh tab Urus dan lencana status dalam modal.
+* **Kawalan akses:** `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN`.
+* **Request Body:**
+
+```json
+{
+  "action": "getSuratArahanStatus",
+  "email": "ali@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "isAdmin": false,
+  "firebaseConfigured": true,
+  "firebaseError": "",
+  "index": {
+    "exists": true,
+    "version": "20261028120000_a1b2c3",
+    "builtAt": "2026-10-28T04:00:00.000Z",
+    "documentCount": 24,
+    "chunkCount": 318,
+    "indexedFileCount": 24,
+    "indexedFileIds": ["[FILE_ID_1]", "[FILE_ID_2]"]
+  },
+  "currentPdfCount": 25,
+  "stale": true,
+  "addedFiles": ["Surat Arahan Bil. 3-2026.pdf"],
+  "changedFiles": [],
+  "removedFiles": [],
+  "folderUrl": "[URL_FOLDER_DRIVE]"
+}
+```
+
+* **Nota Operasi:**
+  * `firebaseConfigured` adalah `false` jika metadata Firestore gagal dibaca; `firebaseError` memuatkan mesej teknikal.
+  * `stale` bernilai `true` jika indeks belum wujud atau terdapat fail PDF baharu/diubah/dipadam.
+  * `indexedFileIds` digunakan oleh pemilih dokumen admin untuk mengenal pasti fail yang belum diindeks (baharu atau gagal); array ini kosong untuk pengguna bukan admin.
+  * Senarai `addedFiles`, `changedFiles`, dan `removedFiles` dihadkan kepada 30 nama setiap satu.
+
+#### F2F. `getSuratArahanFileData` — Muat turun PDF untuk indeks (base64)
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Memulangkan kandungan fail PDF dalam folder Surat Arahan sebagai base64 untuk diekstrak oleh PDF.js di pelayar. Hanya fail PDF dalam folder Surat Arahan diterima.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "getSuratArahanFileData",
+  "email": "admin@[DOMAIN_KERAJAAN]",
+  "fileId": "[FILE_ID]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "fileId": "[FILE_ID]",
+  "name": "Surat Arahan Bil. 2-2026.pdf",
+  "mimeType": "application/pdf",
+  "size": 245000,
+  "lastUpdated": "2026-10-20T09:30:00.000Z",
+  "base64": "[BASE64_PDF]"
+}
+```
+
+* **Response Error:**
+
+```json
+{ "success": false, "error": "Hanya fail PDF boleh diproses untuk indeks AI." }
+```
+
+* **Nota Operasi:**
+  * Had saiz fail ialah 20MB.
+  * Fail mesti berada dalam folder Surat Arahan (termasuk subfolder).
+  * Endpoint ini hanya untuk aliran indeks admin; paparan PDF biasa menggunakan pratonton Drive/PDF.js sedia ada.
+
+#### F2G. `saveSuratArahanDocText` — Simpan teks halaman dokumen
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menerima teks per halaman hasil PDF.js/OCR, memecahkannya kepada chunk, dan menyimpan fail bahagian `part_<fileId>.json` dalam folder indeks khas.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "saveSuratArahanDocText",
+  "email": "admin@[DOMAIN_KERAJAAN]",
+  "fileId": "[FILE_ID]",
+  "category": "Umum",
+  "pages": [
+    { "page": 1, "text": "Teks penuh halaman 1...", "ocr": false },
+    { "page": 2, "text": "Teks penuh halaman 2...", "ocr": true }
+  ]
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "fileId": "[FILE_ID]",
+  "chunks": 6,
+  "pages": 2,
+  "extractedAt": "2026-10-28T04:10:00.000Z"
+}
+```
+
+* **Nota Operasi:**
+  * Maksimum 500 halaman; setiap halaman dipotong pada 30,000 aksara; jumlah teks maksimum 3,000,000 aksara.
+  * Fail mesti PDF dan masih berada dalam folder Surat Arahan pada masa simpan.
+  * Chunk menggunakan saiz ~1,100 aksara dengan ~180 aksara pertindihan.
+
+#### F2H. `ocrSuratArahanPages` — OCR halaman imbas melalui DeepSeek
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menghantar sehingga 3 imej halaman (data URL) kepada DeepSeek untuk transkripsi teks. Digunakan hanya apabila PDF.js tidak menemui teks yang mencukupi.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "ocrSuratArahanPages",
+  "email": "admin@[DOMAIN_KERAJAAN]",
+  "images": [
+    { "page": 1, "dataUrl": "data:image/jpeg;base64,[BASE64_IMEJ]" }
+  ]
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "pages": [
+    { "page": 1, "text": "Teks yang diekstrak daripada imej..." }
+  ],
+  "model": "deepseek-flash"
+}
+```
+
+* **Response Error:**
+
+```json
+{ "success": false, "error": "Maksimum 3 imej setiap permintaan." }
+```
+
+* **Nota Operasi:**
+  * Format data URL yang diterima: `image/jpeg`, `image/jpg`, `image/png`, `image/webp`.
+  * Had panjang data URL ialah 4,500,000 aksara setiap imej.
+  * `DEEPSEEK_API_KEY` wajib; tanpa kunci, OCR gagal tetapi indeks teks PDF biasa masih boleh dibina.
+  * Imej dihantar kepada DeepSeek — pastikan dokumen tidak mengandungi data terhad yang tidak dibenarkan keluar dari persekitaran yang diluluskan.
+
+#### F2I. `finalizeSuratArahanIndex` — Bina dan simpan indeks BM25
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menggabungkan fail bahagian dokumen menjadi indeks BM25 tunggal, menyimpannya sebagai `index_<versi>.json.gz` dalam folder `_SURAT_ARAHAN_INDEX`, dan mengemas kini metadata Firestore `surat_arahan_meta/current`. Sokong indeks penuh atau indeks pilihan tanpa membuang dokumen sedia ada.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "finalizeSuratArahanIndex",
+  "email": "admin@[DOMAIN_KERAJAAN]",
+  "fileIds": ["[FILE_ID_1]", "[FILE_ID_2]"],
+  "merge": true
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "version": "20261028120000_a1b2c3",
+  "builtAt": "2026-10-28T04:15:00.000Z",
+  "documentCount": 2,
+  "chunkCount": 14,
+  "indexedFileIds": ["[FILE_ID_1]", "[FILE_ID_2]"]
+}
+```
+
+* **Nota Operasi:**
+  * Jika `fileIds` kosong atau tiada, semua fail `part_*.json` dalam folder indeks digunakan. Frontend menghantar hanya fail yang berjaya diproses supaya dokumen yang dipadam tidak kekal dalam indeks.
+  * `merge:true` mengekalkan ID fail yang sudah ada dalam `surat_arahan_meta/current.fileMap`; gunakan ini untuk **Indeks Pilihan** supaya dokumen lain tidak hilang daripada indeks. Jika fail telah dipadam dari Drive, gunakan **Bina Semula Indeks** untuk membersihkan entri lama.
+  * Tanpa `merge` (atau `merge:false`), indeks dibina semula hanya daripada `fileIds` yang dihantar; ini ialah tingkah laku **Bina Semula Indeks** penuh.
+  * Hanya 3 fail indeks terbaharu dikekalkan; indeks lama dipindahkan ke tong sampah selepas indeks baharu disimpan.
+  * Indeks disimpan di bawah `MAIN_FOLDER_ID`, bukan di dalam folder `SURAT ARAHAN`, supaya tidak tersenarai sebagai dokumen rujukan.
+  * Jika saiz indeks melebihi had cache, sistem membacanya terus dari Drive.
+
+#### F2J. `testSuratArahanFirebase` — Ujian sambungan Firestore
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Menulis dokumen ujian `surat_arahan_meta/connection` untuk mengesahkan akaun perkhidmatan Firestore dan konfigurasi DeepSeek.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "testSuratArahanFirebase",
+  "email": "admin@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "test": {
+    "projectId": "[PROJEK_FIRESTORE]",
+    "deepseekConfigured": true,
+    "deepseekModel": "deepseek-flash",
+    "metaExists": true,
+    "testedAt": "2026-10-28T04:20:00.000Z",
+    "testedBy": "admin@[DOMAIN_KERAJAAN]"
+  }
+}
+```
+
+* **Nota Operasi:** Kejayaan endpoint ini mengesahkan kebenaran tulis Firestore, bukan kualiti jawapan atau ketersediaan model DeepSeek.
+
+#### Nota Keseluruhan RAG Surat Arahan
+
+* **Koleksi Firestore:** `surat_arahan_qa` (cache jawapan), `surat_arahan_meta` (metadata indeks; dokumen `current` dan `connection`), `surat_arahan_usage` (kuota harian per pengguna/global).
+* **Storan indeks:** folder Drive khas `_SURAT_ARAHAN_INDEX` di bawah `MAIN_FOLDER_ID`; fail bahagian `part_<fileId>.json`; indeks agregat `index_<versi>.json.gz`.
+* **Model:** DeepSeek Chat Completions (lalai `deepseek-flash`), JSON mode dengan cubaan semula tanpa `response_format` jika API menolak JSON mode.
+* **Kesegaran cache:** jawapan cache yang sumbernya telah berubah atau dipadam tidak digunakan semula dan tidak dipaparkan kepada pengguna bukan admin.
+* **Belum dilaksanakan:** maklum balas/rating jawapan, perbualan berbilang giliran, dan penomboran penuh senarai cache admin (had 100).
+* **Keselamatan:** endpoint mempercayai `email` yang dihantar klien; pengesahan ID token Google di pelayan dan peraturan Firestore yang ketat masih menjadi prasyarat production.
 
 #### F3. `uploadDriveFile` — Muat naik fail (base64)
 
@@ -1114,6 +1567,11 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 | `404 Not Found (logik)` | `success:false` | Folder/fail Drive tiada atau tiada kebenaran; helaian tiada. Mesej mesra: `Folder Drive tidak dapat diakses...`. | Minta pengguna semak pautan atau hubungi pentadbir. |
 | `500 Server Error` | `status:error`, `success:false` | Ralat dalaman: pengecualian GAS, kegagalan API luaran, kegagalan Drive. Mesej mengandungi `error.toString()`. | Log ke konsol, papar modal ralat, benarkan cubaan manual. |
 | `503 Service Unavailable` | `status:error`, `code:503` | Had masa kunci (`timeout/timed out`) — pelayan sibuk memproses tulis lain. | Tunggu dan cuba semula dengan backoff (baca sahaja). Jangan duplikasi tulis. |
+| `200 OK` | `success:false`, `code:SA_RAG_INDEX_MISSING` | Indeks RAG belum dibina. | Papar mesej kepada pengguna; admin perlu jalankan indeks di tab Urus. |
+| `200 OK` | `success:false`, `code:SA_RAG_RATE_LIMIT` | Kuota AI per pengguna atau global telah habis. | Papar mesej had; cuba esok. Cache hit masih dibenarkan. |
+| `200 OK` | `success:false`, `code` bermula `SA_RAG_` | Ralat konfigurasi Firestore/DeepSeek, OCR kosong, atau ralat dalaman RAG. | Log kod dan mesej; semak Script Properties, indeks, dan kuota API. |
+| `200 OK` | `success:false`, `code:SA_RAG_FIRESTORE_AUTH` | Akaun perkhidmatan Firestore gagal mendapatkan token. | Semak `FIREBASE_SERVICE_ACCOUNT_JSON`, private key, dan kebenaran projek. |
+| `200 OK` | `success:false`, `code:SA_RAG_DEEPSEEK_CONFIG` | `DEEPSEEK_API_KEY` tiada. | Tetapkan kunci dalam Script Properties; OCR/AI tidak boleh berjalan tanpanya. |
 
 ### 4.2 Contoh Respons Ralat Standard
 
@@ -1155,6 +1613,27 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 }
 ```
 
+**RAG — indeks belum dibina:**
+
+```json
+{
+  "success": false,
+  "code": "SA_RAG_INDEX_MISSING",
+  "needsIndex": true,
+  "error": "Indeks dokumen Surat Arahan belum dibina. Sila hubungi Pentadbir untuk menjalankan proses indeks di tab Urus."
+}
+```
+
+**RAG — konfigurasi DeepSeek tiada:**
+
+```json
+{
+  "success": false,
+  "code": "SA_RAG_DEEPSEEK_CONFIG",
+  "error": "DeepSeek API key belum ditetapkan. Sila tetapkan DEEPSEEK_API_KEY dalam Script Properties."
+}
+```
+
 ### 4.3 Amalan Terbaik Pengendalian di Klien
 
 1. **Bezakan baca dan tulis:** Baca (`GET`) selamat dicuba semula; tulis (`POST` sisipan/kemas kini) tidak boleh dicuba semula secara automatik bagi mengelakkan penduaan.
@@ -1162,6 +1641,7 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 3. **Paparan dwibahasa ralat:** Mesej pelayan dalam Bahasa Melayu dipaparkan terus dalam modal; ralat teknikal (`error.toString()`) direkodkan ke konsol dan helaian `Logs`.
 4. **Jejak audit:** Semua tulis yang berjaya dan gagal merekodkan `logActivity` dengan pengguna, tindakan, dan ID folder berkaitan untuk semakan forensik.
 5. **Kiraan hari bekerja:** Deadline SPI ialah 14 hari bekerja (Isnin–Jumaat) tidak termasuk cuti umum Putrajaya. Senarai cuti dimuatkan dan dicache automatik oleh backend (`PUTRAJAYA_HOLIDAYS_<tahun>`, refresh 30 hari) daripada kalendar awam Google "Holidays in Malaysia" — utama ICS dengan cubaan semula, sandaran `CalendarApp`, dan override manual `PUTRAJAYA_HOLIDAYS_MANUAL`; hujung minggu dan cuti umum tidak dikira dan penghantaran emel queue hanya berlaku pada hari bekerja.
+6. **RAG Surat Arahan:** Hormati `needsIndex:true` dengan memaparkan arahan kepada admin. Jangan ulang `askSuratArahan` secara automatik apabila menerima `SA_RAG_RATE_LIMIT` atau ralat konfigurasi. Untuk reindex penuh, hadkan `saveSuratArahanDocText` kepada fail yang berjaya diproses dan hantar `fileIds` semasa `finalizeSuratArahanIndex`. Untuk **Indeks Pilihan**, hantar hanya ID yang dipilih bersama `merge:true` supaya dokumen lain kekal dalam indeks; pemilih admin menggunakan `indexedFileIds` daripada `getSuratArahanStatus` untuk mengenal pasti fail belum diindeks/gagal.
 
 ---
 
@@ -1176,6 +1656,21 @@ curl -X POST "[URL_PRODUKSI_KERAJAAN]/exec" -H "Content-Type: text/plain;charset
 
 # 3. Senarai pengguna
 curl -G "[URL_PRODUKSI_KERAJAAN]/exec" --data-urlencode "action=getUsers" --data-urlencode "t=$(date +%s)000"
+
+# 4. Status indeks RAG Surat Arahan
+curl -X POST "[URL_PRODUKSI_KERAJAAN]/exec" \
+  -H "Content-Type: text/plain;charset=utf-8" \
+  -d '{"action":"getSuratArahanStatus","email":"admin@[DOMAIN_KERAJAAN]"}'
+
+# 5. Tanya chatbot RAG Surat Arahan
+curl -X POST "[URL_PRODUKSI_KERAJAAN]/exec" \
+  -H "Content-Type: text/plain;charset=utf-8" \
+  -d '{"action":"askSuratArahan","email":"ali@[DOMAIN_KERAJAAN]","question":"Apakah dokumen yang perlu disediakan untuk permohonan STB?"}'
+
+# 6. Ujian sambungan Firestore (admin)
+curl -X POST "[URL_PRODUKSI_KERAJAAN]/exec" \
+  -H "Content-Type: text/plain;charset=utf-8" \
+  -d '{"action":"testSuratArahanFirebase","email":"admin@[DOMAIN_KERAJAAN]"}'
 ```
 
 *— Tamat `apidoc.md` —*

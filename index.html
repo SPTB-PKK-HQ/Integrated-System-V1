@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261023a">
+    <link rel="stylesheet" href="style.css?v=20261028d">
 </head>
 <body>
 
@@ -1048,30 +1048,123 @@
                     <div class="sa-modal-head-icon"><i class="fa-solid fa-file-shield"></i></div>
                     <div class="sa-modal-head-text">
                         <h2 id="suratArahanTitle">Surat Arahan &amp; Pindaan SPTB</h2>
-                        <p>Dokumen rujukan rasmi untuk Pengesyor, Pelulus, Ketua Seksyen dan Pengarah.</p>
+                        <p>Dokumen rujukan rasmi untuk Pengesyor, Pelulus, Ketua Seksyen, Pengarah dan Pentadbir.</p>
                     </div>
                     <button type="button" class="sa-modal-close" id="suratArahanClose" aria-label="Tutup">&times;</button>
                 </div>
-                <div class="sa-toolbar">
-                    <div class="sa-search-wrap">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="suratArahanSearch" placeholder="Cari nama dokumen atau kategori...">
-                    </div>
-                    <div class="sa-toolbar-actions">
-                        <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Semula</button>
-                        <a class="sa-btn sa-btn-ghost" id="suratArahanOpenFolder" href="#" target="_blank" rel="noopener" style="display:none;"><i class="fa-solid fa-arrow-up-right-from-square"></i>Buka Folder</a>
-                    </div>
+                <div class="sa-tabs" role="tablist" aria-label="Paparan Surat Arahan">
+                    <button type="button" class="sa-tab active" id="suratArahanTabTanya" data-sa-tab="tanya" role="tab" aria-selected="true"><i class="fa-solid fa-comments"></i>Tanya AI</button>
+                    <button type="button" class="sa-tab" id="suratArahanTabDokumen" data-sa-tab="dokumen" role="tab" aria-selected="false"><i class="fa-solid fa-folder-open"></i>Dokumen</button>
+                    <button type="button" class="sa-tab" id="suratArahanTabFaq" data-sa-tab="faq" role="tab" aria-selected="false"><i class="fa-solid fa-circle-question"></i>Soalan Lazim</button>
+                    <button type="button" class="sa-tab" id="suratArahanAdminTabBtn" data-sa-tab="urus" role="tab" aria-selected="false" style="display:none;"><i class="fa-solid fa-sliders"></i>Urus</button>
                 </div>
-                <div class="sa-gemini-callout">
-                    <div class="sa-gemini-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-                    <div class="sa-gemini-text">
-                        <strong>Ada soalan berkaitan STB?</strong>
-                        <span>Tanya Gemini Gems untuk panduan dan penjelasan dokumen.</span>
+
+                <section class="sa-panel active" id="saPanelTanya" data-sa-panel="tanya">
+                    <div class="sa-chat-top">
+                        <div class="sa-chat-intro">
+                            <strong><i class="fa-solid fa-sparkles"></i>Pembantu Surat Arahan</strong>
+                            <span>Tanya soalan khusus tentang syarat, dokumen, pindaan atau prosedur STB.</span>
+                        </div>
+                        <span class="sa-index-badge sa-index-loading" id="suratArahanIndexBadge"><i class="fa-solid fa-circle-notch fa-spin"></i>Menyemak indeks</span>
                     </div>
-                    <a class="sa-gemini-btn" href="https://gemini.google.com/gem/1aib6oeJeWj-cTIf3TQSf4DwYi8jXRB_c?usp=sharing" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i>Tanya Gemini Gems</a>
-                </div>
-                <div class="sa-meta" id="suratArahanMeta">Memuatkan dokumen...</div>
-                <div class="sa-list" id="suratArahanList" aria-live="polite"></div>
+                    <div class="sa-chat-log" id="suratArahanChatLog" aria-live="polite">
+                        <div class="sa-msg sa-msg-ai">
+                            <div class="sa-msg-avatar"><i class="fa-solid fa-file-shield"></i></div>
+                            <div class="sa-msg-body">
+                                <div class="sa-msg-bubble">Selamat datang. Saya akan menjawab berdasarkan dokumen rasmi <strong>Surat Arahan &amp; Pindaan SPTB</strong>. Tanya soalan seperti “Apakah dokumen yang perlu disediakan untuk permohonan STB?”</div>
+                                <div class="sa-msg-meta"><span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-book-open"></i>Berasaskan dokumen</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sa-suggestions" id="suratArahanSuggestions"></div>
+                    <form class="sa-chat-form" id="suratArahanChatForm">
+                        <textarea id="suratArahanChatInput" rows="1" maxlength="600" placeholder="Taip soalan anda tentang Surat Arahan..." aria-label="Soalan Surat Arahan"></textarea>
+                        <button type="submit" class="sa-chat-send" id="suratArahanChatSend" aria-label="Hantar soalan"><i class="fa-solid fa-paper-plane"></i><span>Hantar</span></button>
+                    </form>
+                    <div class="sa-chat-note"><i class="fa-solid fa-circle-info"></i> Jawapan dijana berdasarkan dokumen yang diindeks. Semak semula dokumen asal untuk keputusan rasmi.</div>
+                </section>
+
+                <section class="sa-panel" id="saPanelDokumen" data-sa-panel="dokumen">
+                    <div class="sa-toolbar">
+                        <div class="sa-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="suratArahanSearch" placeholder="Cari nama dokumen atau kategori...">
+                        </div>
+                        <div class="sa-toolbar-actions">
+                            <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Semula</button>
+                            <a class="sa-btn sa-btn-ghost" id="suratArahanOpenFolder" href="#" target="_blank" rel="noopener" style="display:none;"><i class="fa-solid fa-arrow-up-right-from-square"></i>Buka Folder</a>
+                        </div>
+                    </div>
+                    <div class="sa-gemini-callout">
+                        <div class="sa-gemini-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                        <div class="sa-gemini-text">
+                            <strong>Ada soalan berkaitan STB?</strong>
+                            <span>Tanya Gemini Gems untuk panduan dan penjelasan dokumen.</span>
+                        </div>
+                        <a class="sa-gemini-btn" href="https://gemini.google.com/gem/1aib6oeJeWj-cTIf3TQSf4DwYi8jXRB_c?usp=sharing" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i>Tanya Gemini Gems</a>
+                    </div>
+                    <div class="sa-meta" id="suratArahanMeta">Memuatkan dokumen...</div>
+                    <div class="sa-list" id="suratArahanList" aria-live="polite"></div>
+                </section>
+
+                <section class="sa-panel" id="saPanelFaq" data-sa-panel="faq">
+                    <div class="sa-faq-head">
+                        <div>
+                            <strong>Soalan Lazim</strong>
+                            <span>Soalan popular yang telah dijawab dan disimpan dalam cache sistem.</span>
+                        </div>
+                        <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanFaqRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Semula</button>
+                    </div>
+                    <div class="sa-faq-list" id="suratArahanFaqList">
+                        <div class="sa-loading"><i class="fa-solid fa-circle-notch fa-spin"></i><span>Memuatkan soalan lazim...</span></div>
+                    </div>
+                </section>
+
+                <section class="sa-panel" id="saPanelUrus" data-sa-panel="urus">
+                    <div class="sa-admin-scroll">
+                        <div class="sa-admin-head">
+                            <div>
+                                <strong><i class="fa-solid fa-sliders"></i> Pengurusan Indeks &amp; Cache</strong>
+                                <span>Hanya Pentadbir boleh membina semula indeks dan memadam jawapan cache.</span>
+                            </div>
+                            <span class="sa-index-badge sa-index-loading" id="suratArahanAdminIndexBadge"><i class="fa-solid fa-circle-notch fa-spin"></i>Menyemak</span>
+                        </div>
+                        <div class="sa-admin-stats" id="suratArahanAdminStats">
+                            <div class="sa-admin-stat"><span>Dokumen diindeks</span><strong id="saAdminDocCount">-</strong></div>
+                            <div class="sa-admin-stat"><span>Jumlah chunk</span><strong id="saAdminChunkCount">-</strong></div>
+                            <div class="sa-admin-stat"><span>PDF semasa</span><strong id="saAdminPdfCount">-</strong></div>
+                            <div class="sa-admin-stat"><span>Status</span><strong id="saAdminStaleStatus">-</strong></div>
+                        </div>
+                        <div class="sa-admin-actions">
+                            <button type="button" class="sa-btn sa-btn-primary" id="suratArahanReindexBtn"><i class="fa-solid fa-arrows-rotate"></i>Bina Semula Indeks</button>
+                            <button type="button" class="sa-btn sa-btn-primary" id="suratArahanReindexSelectedBtn" disabled><i class="fa-solid fa-list-check"></i>Indeks Pilihan</button>
+                            <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanTestBtn"><i class="fa-solid fa-plug-circle-check"></i>Uji Sambungan</button>
+                            <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanAdminRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Status</button>
+                        </div>
+                        <div class="sa-admin-section-head">
+                            <strong>Pilih Dokumen untuk Diindeks</strong>
+                            <span class="sa-admin-picker-count" id="suratArahanSelectedCount">0 dipilih</span>
+                        </div>
+                        <div class="sa-admin-picker-actions">
+                            <button type="button" class="sa-btn sa-btn-ghost sa-btn-small" id="suratArahanPickMissing" title="Pilih fail baharu atau yang gagal diindeks"><i class="fa-solid fa-triangle-exclamation"></i>Pilih Belum Diindeks</button>
+                            <button type="button" class="sa-btn sa-btn-ghost sa-btn-small" id="suratArahanPickAll" title="Pilih semua fail PDF"><i class="fa-solid fa-check-double"></i>Pilih Semua</button>
+                            <button type="button" class="sa-btn sa-btn-ghost sa-btn-small" id="suratArahanPickNone" title="Kosongkan semua pilihan"><i class="fa-solid fa-xmark"></i>Kosongkan</button>
+                        </div>
+                        <div class="sa-admin-doc-picker" id="suratArahanAdminDocPicker">
+                            <div class="sa-admin-empty">Memuatkan dokumen...</div>
+                        </div>
+                        <div class="sa-admin-progress" id="suratArahanAdminProgress" style="display:none;">
+                            <div class="sa-admin-progress-track"><div class="sa-admin-progress-bar" id="suratArahanAdminProgressBar"></div></div>
+                            <div class="sa-admin-progress-text" id="suratArahanAdminProgressText"></div>
+                        </div>
+                        <div class="sa-admin-log" id="suratArahanAdminLog" aria-live="polite"></div>
+                        <div class="sa-admin-section-head">
+                            <strong>Cache Jawapan</strong>
+                            <button type="button" class="sa-btn sa-btn-ghost sa-btn-small" id="suratArahanAdminQaRefresh"><i class="fa-solid fa-rotate-right"></i>Muat Semula</button>
+                        </div>
+                        <div class="sa-admin-qa-list" id="suratArahanAdminQaList"></div>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -1250,6 +1343,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261023d"></script>
+    <script src="app.js?v=20261028d"></script>
 </body>
 </html>
