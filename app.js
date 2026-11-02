@@ -23212,14 +23212,124 @@ function inboxSignature(item) {
   ].join('|');
 }
 
-// Tarikh gaya premium: DD/MM/YYYY (skop modul — diguna oleh build & render)
+// Timestamp (ms) daripada pelbagai format tarikh/masa sheet.
+function inboxDateTimeMs(value) {
+  if (value == null || value === '') return 0;
+  if (value instanceof Date) return isNaN(value.getTime()) ? 0 : value.getTime();
+  if (typeof value === 'number') return isFinite(value) ? value : 0;
+  const s = String(value).trim();
+  if (!s) return 0;
+  // ISO dengan timezone (cth ...Z / +08:00) — biar Date handle.
+  if (/^\d{4}-\d{1,2}-\d{1,2}[T ]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const zd = new Date(s);
+    if (!isNaN(zd.getTime())) return zd.getTime();
+  }
+  let m = s.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    const d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+// Tarikh paparan: DD/MM/YYYY, tambah HH:mm jika data ada masa.
 function inboxDateFmt(iso) {
   if (!iso) return '';
   const s = String(iso).trim();
-  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return m[3].padStart(2, '0') + '/' + m[2].padStart(2, '0') + '/' + m[1];
-  if (s.includes('/')) return s;
-  return s;
+  const ms = inboxDateTimeMs(s);
+  if (!ms) return s;
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  const out = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+  const hasTime = /[T ]\d{1,2}:\d{2}/.test(s);
+  return hasTime ? out + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : out;
+}
+
+function inboxTodayIso() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// Tarikh tamat SPKK daripada borang_json.spkkDuration (ambil tarikh terakhir).
+function inboxSpkkEndIso(item) {
+  if (!item) return '';
+  let pj = {};
+  try { pj = item.borang_json ? JSON.parse(item.borang_json) : {}; } catch (e) { pj = {}; }
+  const raw = (pj && (pj.spkkDuration || pj.spkk_end_date || pj.spkkEndDate)) ||
+    item.spkkDuration || item.spkk_end_date || item.spkk_end || '';
+  if (!raw) return '';
+  const tokens = String(raw).match(/\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}/g) || [];
+  if (!tokens.length) return '';
+  const ms = inboxDateTimeMs(tokens[tokens.length - 1]);
+  if (!ms) return '';
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// Info reminder SPKK: mula 20 hari sebelum cutoff 180 hari,
+// berulang sehingga sehari sebelum cutoff (200 -> 181 hari sebelum tamat).
+function inboxSpkkReminderInfo(item, nowMs) {
+  const endIso = inboxSpkkEndIso(item);
+  if (!endIso) return null;
+  const endMs = inboxDateTimeMs(endIso);
+  if (!endMs) return null;
+  const now = new Date(nowMs || Date.now());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysUntil = Math.round((endMs - today.getTime()) / 86400000);
+  const daysToCutoff = daysUntil - 180;
+  if (daysToCutoff < 1 || daysToCutoff > 20) return null;
+  const cutoff = new Date(endMs);
+  cutoff.setDate(cutoff.getDate() - 180);
+  const cp = n => String(n).padStart(2, '0');
+  const cutoffIso = cutoff.getFullYear() + '-' + cp(cutoff.getMonth() + 1) + '-' + cp(cutoff.getDate());
+  return {
+    endIso: endIso,
+    endDisplay: inboxDateFmt(endIso),
+    cutoffDisplay: inboxDateFmt(cutoffIso),
+    daysUntil: daysUntil,
+    daysToCutoff: daysToCutoff
+  };
+}
+
+// Peringkat semasa untuk reminder SPKK: PENGESYOR / PELULUS / SELESAI.
+// Rekod yang sudah ada kelulusan atau sudah masuk queue/dihantar tidak diingatkan.
+function inboxWorkflowStage(item) {
+  if (!item) return 'SELESAI';
+  const spi = String(item.status_hantar_spi || '').toUpperCase().trim();
+  if (spi) return 'SELESAI';
+  const syor = String(item.syor_status || '').toUpperCase().trim();
+  const stage = String(inboxStageOf(item) || '').toUpperCase().trim();
+  if (syor === 'SIASAT') {
+    if (stage === 'DITOLAK_PELULUS') return 'PENGESYOR';
+    if (stage === 'MENUNGGU_PELULUS') return 'PELULUS';
+    if (stage === 'SAHKAN_KE_SPI') return 'SELESAI';
+  }
+  if (item.tarikh_lulus && String(item.tarikh_lulus).trim() !== '') return 'SELESAI';
+  if (String(item.kelulusan || '').trim() !== '') return 'SELESAI';
+  if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '' &&
+      item.pelulus && String(item.pelulus).trim() !== '') return 'PELULUS';
+  return 'PENGESYOR';
+}
+
+// Susunan inbox: belum dibaca dulu, kemudian tarikh/masa terbaru.
+function inboxSortItems(items) {
+  return (items || []).slice().sort(function(a, b) {
+    const ar = inboxStateCache.read[a.sigKey] ? 1 : 0;
+    const br = inboxStateCache.read[b.sigKey] ? 1 : 0;
+    if (ar !== br) return ar - br;
+    const at = Number(a.sortMs) || 0;
+    const bt = Number(b.sortMs) || 0;
+    if (bt !== at) return bt - at;
+    return (b.row || 0) - (a.row || 0);
+  });
 }
 
 function inboxStateKey() {
@@ -23270,7 +23380,8 @@ const INBOX_CAT_META = {
   'keputusan': { ikon: '<i class="fa-solid fa-envelope-open-text"></i>', label: 'Keputusan Pelulus', warna: '#6366f1' },
   'lawatan-selesai': { ikon: '<i class="fa-solid fa-check"></i>', label: 'Lawatan Selesai (PKA)', warna: '#059669' },
   'pka-baru': { ikon: '<i class="fa-solid fa-inbox"></i>', label: 'Kes Baru Di SPI', warna: '#0ea5e9' },
-  'pka-dalam': { ikon: '<i class="fa-solid fa-car"></i>', label: 'Dalam Lawatan', warna: '#f59e0b' }
+  'pka-dalam': { ikon: '<i class="fa-solid fa-car"></i>', label: 'Dalam Lawatan', warna: '#f59e0b' },
+  'spkk-reminder': { ikon: '<i class="fa-solid fa-triangle-exclamation"></i>', label: 'Peringatan SPKK', warna: '#dc2626' }
 };
 
 function buildInboxItems() {
@@ -23280,11 +23391,35 @@ function buildInboxItems() {
   if (!me) return [];
   const out = [];
   const push = (cat, item, tajuk, sub, sortKey, meta) => {
-    const id = cat + ':' + item.row;
-    if (inboxStateCache.dismissed[id]) return;
-    const sig = inboxSignature(item);
     const m = meta || {};
-    out.push({ id: id, sigKey: id + '|' + sig, cat: cat, row: item.row, tajuk: tajuk, sub: sub, sortKey: sortKey || '', masuk: sortKey || '', tone: inboxToneOf(cat, item), bucket: inboxBucketOf(cat, item), badge: m.badge || '', badgeTone: m.badgeTone || '', approver: m.approver || '', item: item });
+    const id = cat + ':' + item.row + (m.idSuffix ? ':' + m.idSuffix : '');
+    if (inboxStateCache.dismissed[id]) return;
+    const sig = inboxSignature(item) + (m.sigSuffix ? '|' + m.sigSuffix : '');
+    const sortMs = (typeof m.sortMs === 'number' && isFinite(m.sortMs)) ? m.sortMs : inboxDateTimeMs(sortKey);
+    out.push({ id: id, sigKey: id + '|' + sig, cat: cat, row: item.row, tajuk: tajuk, sub: sub, sortKey: sortKey || '', masuk: sortKey || '', sortMs: sortMs, tone: inboxToneOf(cat, item), bucket: inboxBucketOf(cat, item), badge: m.badge || '', badgeTone: m.badgeTone || '', approver: m.approver || '', item: item });
+  };
+  const pushSpkkReminderIfDue = (item, expectedStage) => {
+    if (!item || !item.syarikat) return;
+    const stage = inboxWorkflowStage(item);
+    if (stage !== expectedStage) return;
+    const info = inboxSpkkReminderInfo(item);
+    if (!info) return;
+    const dayKey = inboxTodayIso();
+    const stageLabel = stage === 'PELULUS' ? 'Peringkat Pelulus' : 'Peringkat Pengesyor';
+    const action = stage === 'PELULUS'
+      ? 'Sila buat kelulusan segera sebelum rekod hilang dari CIMS CIDB'
+      : 'Sila lengkapkan dan hantar permohonan segera sebelum rekod hilang dari CIMS CIDB';
+    const sub = 'SPKK tamat ' + info.endDisplay +
+      ' • Baki ' + info.daysToCutoff + ' hari sebelum tarikh 180 hari (' + info.cutoffDisplay + ')' +
+      ' • ' + action;
+    push('spkk-reminder', item, item.syarikat, sub, inboxTodayIso(), {
+      badge: 'SEGERA',
+      badgeTone: 'red',
+      approver: stageLabel,
+      idSuffix: dayKey + ':' + stage,
+      sigSuffix: info.endIso,
+      sortMs: Date.now()
+    });
   };
   const isSiasat = (it) => (it.syor_status || '').toString().toUpperCase() === 'SIASAT';
 
@@ -23293,6 +23428,7 @@ function buildInboxItems() {
       if (!item.syarikat || !item.tarikh_syor) return;
       if ((item.pelulus || '').toString().toUpperCase().trim() !== me) return;
       if (item.tarikh_lulus && item.tarikh_lulus.toString().trim() !== '') return;
+      pushSpkkReminderIfDue(item, 'PELULUS');
       const stage = inboxStageOf(item);
       const spi = (item.status_hantar_spi || '').toString().toUpperCase();
       if (isSiasat(item)) {
@@ -23311,6 +23447,7 @@ function buildInboxItems() {
     cachedData.forEach(item => {
       if (!item.syarikat) return;
       if ((item.pengesyor || '').toString().toUpperCase().trim() !== me) return;
+      pushSpkkReminderIfDue(item, 'PENGESYOR');
       const stage = inboxStageOf(item);
       if (isSiasat(item) && stage === 'DITOLAK_PELULUS') {
         let alasan = '';
@@ -23356,11 +23493,7 @@ function buildInboxItems() {
     return [];
   }
 
-  out.sort((a, b) => {
-    if (b.sortKey && a.sortKey && b.sortKey !== a.sortKey) return b.sortKey < a.sortKey ? -1 : 1;
-    return (b.row || 0) - (a.row || 0);
-  });
-  return out.slice(0, 30);
+  return inboxSortItems(out).slice(0, 30);
 }
 
 // Warna row ikut status keputusan / selesai siasat PKA
@@ -23375,10 +23508,11 @@ function inboxToneOf(cat, item) {
   return '';
 }
 
-// Bakul tapisan: SEMUA | MENUNGGU | SIASAT | LULUS | TOLAK | TOLAK_SIASAT | LAWATAN
+// Bakul tapisan: SEMUA | MENUNGGU | SPKK | SIASAT | LULUS | TOLAK | TOLAK_SIASAT | LAWATAN
 const INBOX_BUCKETS = [
   { key: 'ALL', label: 'Semua' },
   { key: 'MENUNGGU', label: 'Menunggu' },
+  { key: 'SPKK', label: '<i class="fa-solid fa-triangle-exclamation"></i> SPKK' },
   { key: 'SIASAT', label: '<i class="fa-solid fa-magnifying-glass"></i> Siasat' },
   { key: 'LULUS', label: '<i class="fa-solid fa-check"></i> Lulus' },
   { key: 'TOLAK', label: '<i class="fa-solid fa-xmark"></i> Tolak' },
@@ -23387,6 +23521,7 @@ const INBOX_BUCKETS = [
 ];
 
 function inboxBucketOf(cat, item) {
+  if (cat === 'spkk-reminder') return 'SPKK';
   if (cat === 'ditolak') return 'TOLAK_SIASAT';
   if (cat === 'keputusan') {
     const k = (item.kelulusan || '').toString().toUpperCase();
@@ -23432,7 +23567,8 @@ function ensureInboxBell() {
       #stbInboxPanel .stb-inbox-item.read .stb-t { font-weight:600; color:#64748b; }
       #stbInboxPanel .stb-inbox-item .stb-s { font-size:0.78rem; color:#64748b; margin-top:3px; }
       #stbInboxPanel .stb-inbox-item.read .stb-s { opacity:0.75; }
-      #stbInboxPanel .stb-inbox-item .stb-meta { display:flex; align-items:center; gap:8px; margin-top:8px; }
+      #stbInboxPanel .stb-inbox-item .stb-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; }
+      #stbInboxPanel .stb-cat-tag { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#f1f5f9; border:1px solid #e2e8f0; font-size:0.68rem; font-weight:800; line-height:1.4; white-space:nowrap; }
       #stbInboxPanel .stb-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:0.7rem; font-weight:800; }
       #stbInboxPanel .stb-badge.green { background:#dcfce7; color:#166534; }
       #stbInboxPanel .stb-badge.red { background:#fee2e2; color:#991b1b; }
@@ -23852,7 +23988,9 @@ function renderInboxPanel() {
   INBOX_BUCKETS.forEach(b => { if (b.key !== 'ALL') bucketCount[b.key] = items.filter(it => it.bucket === b.key).length; });
   const visibleBuckets = INBOX_BUCKETS.filter(b => b.key === 'ALL' || (bucketCount[b.key] || 0) > 0);
   if (inboxFilter !== 'ALL' && !(bucketCount[inboxFilter] > 0)) inboxFilter = 'ALL';
-  const shown = inboxFilter === 'ALL' ? items : items.filter(it => it.bucket === inboxFilter);
+  const shown = inboxSortItems(inboxFilter === 'ALL' ? items : items.filter(it => it.bucket === inboxFilter));
+  const shownUnread = shown.filter(it => !inboxStateCache.read[it.sigKey]).length;
+  const shownRead = shown.length - shownUnread;
   const selCount = inboxSelected.size;
   const allShownSelected = shown.length > 0 && shown.every(it => inboxSelected.has(it.id));
 
@@ -23877,28 +24015,30 @@ function renderInboxPanel() {
     html += '<div class="stb-inbox-sections">';
     html += '<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; font-weight:700; color:#475569; padding:4px 8px; cursor:pointer;">'
       + '<input type="checkbox" class="stb-pick" data-inbox-select-all="1"' + (allShownSelected ? ' checked' : '') + '> Pilih semua yang dipapar (' + shown.length + ')</label>';
-    let lastCat = '';
+    let lastReadState = null;
     // Cari indeks asal dalam inboxLastItems supaya tindakan tepat walaupun bertapis
     shown.forEach((it) => {
       const idx = inboxLastItems.indexOf(it);
       const meta = INBOX_CAT_META[it.cat] || { ikon: '•', label: it.cat, warna: '#64748b' };
-      if (it.cat !== lastCat) {
-        html += '<div class="stb-inbox-cat"><span style="color:' + meta.warna + ';">' + meta.ikon + '</span> ' + meta.label + '</div>';
-        lastCat = it.cat;
-      }
       const isUnread = !inboxStateCache.read[it.sigKey];
+      if (isUnread !== lastReadState) {
+        html += '<div class="stb-inbox-cat"' + (isUnread ? ' style="color:#dc2626;"' : '') + '>' +
+          (isUnread ? 'Belum Dibaca (' + shownUnread + ')' : 'Telah Dibaca (' + shownRead + ')') +
+          '</div>';
+        lastReadState = isUnread;
+      }
       const checked = inboxSelected.has(it.id) ? ' checked' : '';
       const masukTxt = it.masuk ? inboxDateFmt(it.masuk) : '';
       const esc = (s) => String(s || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const toneMap = { green: 'green', red: 'red', warn: 'amber', info: 'blue', neutral: 'slate' };
       const badgeCls = toneMap[it.badgeTone] || 'slate';
-      const metaHtml = (it.badge || it.approver || masukTxt)
-        ? '<div class="stb-meta">'
-          + (it.badge ? '<span class="stb-badge ' + badgeCls + '">' + esc(it.badge) + '</span>' : '')
-          + (it.approver ? '<span class="stb-approver">' + esc(it.approver) + '</span>' : '')
-          + (masukTxt ? '<span class="stb-date"><i class="fa-solid fa-calendar-days"></i> ' + esc(masukTxt) + '</span>' : '')
-          + '</div>'
-        : '';
+      const catTag = '<span class="stb-cat-tag" style="color:' + meta.warna + ';">' + meta.ikon + ' ' + esc(meta.label) + '</span>';
+      const metaHtml = '<div class="stb-meta">'
+        + catTag
+        + (it.badge ? '<span class="stb-badge ' + badgeCls + '">' + esc(it.badge) + '</span>' : '')
+        + (it.approver ? '<span class="stb-approver">' + esc(it.approver) + '</span>' : '')
+        + (masukTxt ? '<span class="stb-date"><i class="fa-solid fa-calendar-days"></i> ' + esc(masukTxt) + '</span>' : '')
+        + '</div>';
       html += '<div class="stb-inbox-item' + (isUnread ? ' unread' : ' read') + '" data-inbox-idx="' + idx + '">'
         + '<input type="checkbox" class="stb-pick" data-inbox-pick="' + idx + '"' + checked + ' title="Pilih">'
         + (isUnread ? '<span class="stb-dot"></span>' : '')
@@ -24030,7 +24170,18 @@ async function inboxJumpIdx(idx) {
   refreshInboxBell();
   const item = it.item;
   try {
-    if (it.cat === 'pelulus-biasa') {
+    if (it.cat === 'spkk-reminder') {
+      const stage = inboxWorkflowStage(item);
+      if (currentUser && currentUser.role === 'PELULUS' && stage === 'PELULUS') {
+        const isSiasatRec = (item.syor_status || '').toString().toUpperCase() === 'SIASAT';
+        if (isSiasatRec && typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
+        else loadRecordToPelulus(item);
+      } else if (currentUser && currentUser.role === 'PENGESYOR' && stage === 'PENGESYOR') {
+        loadRecordToDbOnly(item);
+      } else {
+        switchTab(currentUser && currentUser.role === 'PENGESYOR' ? 'drafts' : 'inbox');
+      }
+    } else if (it.cat === 'pelulus-biasa') {
       loadRecordToPelulus(item);
     } else if (it.cat === 'pelulus-siasat') {
       if (typeof loadSiasatToPelulus === 'function') loadSiasatToPelulus(item);
@@ -24052,6 +24203,20 @@ async function inboxJumpIdx(idx) {
 // Cangkuk kira semula: dipanggil di hujung renderFilteredList + selepas PKA simpan lawatan.
 // Pencetus awal: pastikan loceng wujud sejurus DOM siap (badge dikira semula bila senarai render).
 setTimeout(() => { try { refreshInboxBell(); } catch (e) {} }, 2000);
+
+// Semak pertukaran tarikh (tengah malam) + kembali ke tab supaya reminder SPKK
+// harian dan susunan unread/read sentiasa segar.
+let inboxDayWatchKey = inboxTodayIso();
+setInterval(function() {
+  const today = inboxTodayIso();
+  if (today === inboxDayWatchKey) return;
+  inboxDayWatchKey = today;
+  try { refreshInboxBell(); } catch (e) {}
+}, 60000);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  try { refreshInboxBell(); } catch (e) {}
+});
 
 // V6.9.3: Auto refresh dashboard & inbox tab
 // Inbox: refresh setiap 60 saat (dahulu 5 saat tanpa cache - elak beban)
