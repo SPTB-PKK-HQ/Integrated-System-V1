@@ -911,6 +911,9 @@ async function handleCredentialResponse(response) {
         hideLoading();
         // V6.5.2: Papar greeting harian sebelum masuk sistem
         await playSuccessSound();
+        // Poster aluan 10 saat untuk Pn Noorain — muncul serta-merta selepas loading;
+        // modal greeting di bawahnya akan kelihatan selepas poster tertutup.
+        try { showNoorainWelcomePoster(currentUser); } catch (e) { console.warn('Poster aluan gagal:', e); }
         const pic = currentUser.picture;
         const greetingMsg = pic
           ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
@@ -1176,6 +1179,77 @@ async function handleCredentialResponse(response) {
 
     go(0);
     start();
+  }
+
+  // =========================================================================
+  // POSTER ALUAN — Pn Noorain binti Baharin (auto-tutup 10 saat)
+  // Dipanggil hanya selepas login baharu berjaya; bukan setiap refresh sesi.
+  // =========================================================================
+  const WELCOME_POSTER_DURATION_MS = 10000;
+  let welcomePosterHideTimer = null;
+  let welcomePosterCountdownTimer = null;
+
+  function isNoorainUser(user) {
+    if (!user) return false;
+    const name = String(user.name || user.userName || '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    return name.includes('NOORAIN');
+  }
+
+  function closeWelcomePoster() {
+    const overlay = document.getElementById('welcomePosterOverlay');
+    if (!overlay || !overlay.classList.contains('show')) return;
+    if (welcomePosterHideTimer) { clearTimeout(welcomePosterHideTimer); welcomePosterHideTimer = null; }
+    if (welcomePosterCountdownTimer) { clearInterval(welcomePosterCountdownTimer); welcomePosterCountdownTimer = null; }
+    overlay.classList.remove('show');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function showNoorainWelcomePoster(user) {
+    if (!isNoorainUser(user)) return false;
+    const overlay = document.getElementById('welcomePosterOverlay');
+    if (!overlay) return false;
+
+    if (overlay.classList.contains('show')) closeWelcomePoster();
+
+    const countEl = document.getElementById('welcomePosterCount');
+    const closeBtn = document.getElementById('welcomePosterClose');
+
+    if (closeBtn && closeBtn.dataset.bound !== '1') {
+      closeBtn.dataset.bound = '1';
+      closeBtn.addEventListener('click', closeWelcomePoster);
+    }
+
+    // Klik latar atau kekunci Escape untuk tutup awal
+    if (overlay.dataset.bound !== '1') {
+      overlay.dataset.bound = '1';
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeWelcomePoster();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && overlay.classList.contains('show')) closeWelcomePoster();
+      });
+    }
+
+    let remaining = Math.round(WELCOME_POSTER_DURATION_MS / 1000);
+    if (countEl) countEl.textContent = String(remaining);
+    document.body.style.overflow = 'hidden';
+    overlay.setAttribute('aria-hidden', 'false');
+    void overlay.offsetWidth; // trigger reflow supaya animasi bermula semula
+    overlay.classList.add('show');
+    if (closeBtn) {
+      try { closeBtn.focus({ preventScroll: true }); } catch (e) { closeBtn.focus(); }
+    }
+
+    welcomePosterCountdownTimer = setInterval(function () {
+      remaining -= 1;
+      if (countEl) countEl.textContent = String(Math.max(remaining, 0));
+    }, 1000);
+    welcomePosterHideTimer = setTimeout(closeWelcomePoster, WELCOME_POSTER_DURATION_MS);
+    return true;
   }
 
   // --- Helper function to get user color in HEX ---

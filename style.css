@@ -999,6 +999,92 @@
         }
         .custom-modal-overlay.show { display: flex; opacity: 1; }
         #customModalOverlay { z-index: 13000 !important; }
+
+        /* =========================================================================
+           POSTER ALUAN Pn NOORAIN — auto-tutup 10 saat selepas login
+           ========================================================================= */
+        .welcome-poster-overlay {
+            position: fixed; inset: 0; z-index: 14000;
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+            background: radial-gradient(circle at 50% 18%, rgba(29, 78, 216, 0.38), rgba(3, 10, 28, 0.93) 70%);
+            backdrop-filter: blur(7px);
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+        .welcome-poster-overlay.show { opacity: 1; visibility: visible; pointer-events: auto; }
+        .welcome-poster-card {
+            position: relative;
+            width: min(92vw, 760px);
+            max-height: 86vh;
+            display: flex; flex-direction: column; align-items: center; gap: 14px;
+        }
+        .welcome-poster-overlay.show .welcome-poster-card {
+            animation: welcomePosterIn 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        }
+        @keyframes welcomePosterIn {
+            from { opacity: 0; transform: translateY(16px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .welcome-poster-card img {
+            display: block;
+            width: auto; height: auto;
+            max-width: 100%;
+            max-height: calc(86vh - 72px);
+            object-fit: contain;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.14);
+            user-select: none;
+        }
+        .welcome-poster-close {
+            position: absolute; top: -14px; right: -14px; z-index: 2;
+            width: 42px; height: 42px; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.75);
+            background: rgba(11, 30, 75, 0.92);
+            color: #fff; font-size: 1.05rem; cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .welcome-poster-close:hover { background: #dc2626; transform: scale(1.08); }
+        .welcome-poster-close:focus-visible { outline: 3px solid #fde047; outline-offset: 3px; }
+        .welcome-poster-footer { width: min(100%, 560px); text-align: center; }
+        .welcome-poster-progress {
+            height: 6px; border-radius: 999px; overflow: hidden;
+            background: rgba(255, 255, 255, 0.22);
+        }
+        .welcome-poster-progress span {
+            display: block; height: 100%; width: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #facc15, #22c55e, #38bdf8);
+            transform-origin: left center;
+            transform: scaleX(1);
+        }
+        .welcome-poster-overlay.show .welcome-poster-progress span {
+            animation: welcomePosterCountdown 10s linear forwards;
+        }
+        @keyframes welcomePosterCountdown {
+            from { transform: scaleX(1); }
+            to { transform: scaleX(0); }
+        }
+        .welcome-poster-hint {
+            margin: 8px 0 0; color: #dbeafe;
+            font-size: 0.82rem; font-weight: 600; letter-spacing: 0.01em;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+        .welcome-poster-hint strong { color: #fde047; }
+        @media (max-width: 640px) {
+            .welcome-poster-overlay { padding: 12px; }
+            .welcome-poster-card { width: 96vw; max-height: 90vh; gap: 10px; }
+            .welcome-poster-card img { max-height: calc(90vh - 62px); border-radius: 12px; }
+            .welcome-poster-close { top: -8px; right: -2px; width: 36px; height: 36px; font-size: 0.95rem; }
+            .welcome-poster-hint { font-size: 0.74rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .welcome-poster-overlay { transition: none; }
+            .welcome-poster-overlay.show .welcome-poster-card { animation: none; }
+        }
         
         .custom-modal-card {
             background: white; border-radius: 24px; padding: 25px 20px;
@@ -2623,7 +2709,7 @@
         @media print {
             body { background: white !important; padding: 0; margin: 0; font-size: 14pt; font-family: 'Arial Narrow', 'Arial', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: black !important; animation: none !important; }
             @page { margin: 0.5cm; size: A4; }
-            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay, #loading-overlay, .pka-loading-overlay, .form-checker-loading-spinner, .custom-modal-overlay, #toastContainer { display: none !important; }
+            .app-header, .tabs, .actions, .delete-btn, .btn-add, #personnelList, .doc-row input[type="text"], .no-print, .search-box, .app-list, #login-screen, .user-badge, .card, .filter-section, .pdf-upload-section, .dashboard-loading, .admin-stats-modal, .btn-top-fullview, #audio-control-panel, .top-controls, .mobile-header, .menu-overlay, #loading-overlay, .pka-loading-overlay, .form-checker-loading-spinner, .custom-modal-overlay, .welcome-poster-overlay, #toastContainer { display: none !important; }
             /* Warna frontend (kad BARU TAMBAH & kotak status) tidak dibawa ke cetakan/PDF */
             .person-card.baru-tambah-card { background: transparent !important; border-color: #e5e7eb !important; box-shadow: none !important; }
             .status-input.status-row-ok, .status-input.status-row-x, .status-input.status-row-empty { background-color: transparent !important; border-color: #d1d5db !important; color: #000 !important; }

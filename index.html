@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261028d">
+    <link rel="stylesheet" href="style.css?v=20261102a">
 </head>
 <body>
 
@@ -120,6 +120,9 @@
                     <div class="carousel-viewport" id="announceViewport">
                         <div class="carousel-track" id="announceTrack">
                             <div class="carousel-slide is-active">
+                                <img src="assets/posters/poster-selamat-kembali-noorain.jpg" alt="Selamat Kembali Bertugas — Pn Noorain binti Baharin, Seksyen Penarafan Taraf Bumiputera, Pusat Khidmat Kontraktor" draggable="false">
+                            </div>
+                            <div class="carousel-slide">
                                 <img src="assets/posters/poster-surat-arahan-sptb.jpg" alt="Poster ciri baharu: Surat Arahan SPTB kini lebih mudah — butang Surat Arahan di sebelah Inbox, carian, preview PDF dan muat turun untuk Pengesyor, Pelulus, KS SPTB dan Pengarah" draggable="false">
                             </div>
                             <div class="carousel-slide">
@@ -232,7 +235,18 @@
                 </div>
         </div>
     </div>
-        
+
+        <!-- POSTER ALUAN Pn NOORAIN (auto-tutup 10 saat) -->
+        <div id="welcomePosterOverlay" class="welcome-poster-overlay" role="dialog" aria-modal="true" aria-label="Poster Selamat Kembali Bertugas" aria-hidden="true">
+            <div class="welcome-poster-card">
+                <button type="button" class="welcome-poster-close" id="welcomePosterClose" aria-label="Tutup poster"><i class="fa-solid fa-xmark"></i></button>
+                <img id="welcomePosterImg" src="assets/posters/poster-selamat-kembali-noorain.jpg" alt="Selamat Kembali Bertugas — Pn Noorain binti Baharin" draggable="false">
+                <div class="welcome-poster-footer">
+                    <div class="welcome-poster-progress" aria-hidden="true"><span id="welcomePosterBar"></span></div>
+                    <p class="welcome-poster-hint">Poster akan tertutup automatik dalam <strong id="welcomePosterCount">10</strong> saat</p>
+                </div>
+            </div>
+        </div>
 
         <!-- NAVIGATION TABS -->
         <div class="tabs no-print" id="tabs-container">
@@ -1343,6 +1357,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261028d"></script>
+    <script src="app.js?v=20261102a"></script>
 </body>
 </html>
