@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/plugins/monthSelect/style.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20261102b">
+    <link rel="stylesheet" href="style.css?v=20261102c">
 </head>
 <body>
 
@@ -315,7 +315,10 @@
                 <input type="hidden" id="input_justifikasi"><input type="hidden" id="input_pautan">
                 <input type="text" id="input_ubah_maklumat" class="conditional-input" placeholder="Nyatakan Perubahan Maklumat...">
                 <input type="text" id="input_ubah_gred" class="conditional-input" placeholder="Nyatakan Perubahan Gred...">
-                <div style="margin-bottom:10px;"><label>No. Telefon (Pejabat / Individu)</label><input type="text" id="borang_no_telefon" placeholder="Contoh: 03-1234567, 012-3456789"></div>
+                <div class="grid-equal" style="margin-bottom:10px;">
+                    <div><label>No. Telefon (Pejabat / Individu)</label><input type="text" id="borang_no_telefon" placeholder="Contoh: 03-1234567, 012-3456789"></div>
+                    <div id="div_borang_emel_syarikat"><label>Emel Syarikat</label><input type="text" id="borang_emel_syarikat" placeholder="cth: syarikat@abc.com, wakil@abc.com"><small style="display:block; margin-top:4px; color:#64748b;">Emel syarikat &amp; wakil — asingkan dengan koma.</small></div>
+                </div>
                 <div class="grid-2"><div><label>Nama Syarikat</label><input type="text" id="borang_syarikat"></div><div><label>No. CIDB</label><input type="text" id="borang_cidb"></div></div>
                 <div style="margin-top:10px; margin-bottom:10px;"><label>Gred Permohonan</label><select id="borang_gred"><option value="">- Pilih Gred -</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="G4">G4</option><option value="G5">G5</option><option value="G6">G6</option><option value="G7">G7</option></select></div>
                 <div class="grid-equal"><div><label>Tempoh SPKK</label><input type="text" id="spkkDuration"></div><div><label>Tempoh STB</label><input type="text" id="stbDuration"></div></div>
@@ -363,11 +366,6 @@
                     <div><label>Tarikh Siasatan</label><input type="date" id="borang_tarikh_siasatan"></div>
                     <div><label>Tarikh Proses</label><input type="date" id="borang_tarikh_proses" readonly style="background: #f1f5f9; cursor: not-allowed;" title="Tarikh ini diisi secara automatik mengikut keputusan syor"></div>
                     <div><label>Keputusan Syor</label><input type="hidden" id="borang_syor_status" value=""><div class="btn-group" data-target="borang_syor_status"><button class="btn-option btn-opt-green" data-value="SOKONG">SOKONG</button><button class="btn-option btn-opt-orange" data-value="SIASAT">SIASAT</button><button class="btn-option btn-opt-red" data-value="TIDAK DISOKONG">TIDAK DISOKONG</button></div></div>
-                </div>
-                <div id="div_borang_emel_syarikat" style="margin-top:12px;">
-                    <label>Emel Syarikat</label>
-                    <input type="text" id="borang_emel_syarikat" placeholder="cth: syarikat@abc.com, wakil@abc.com">
-                    <small style="display:block; margin-top:4px; color:#64748b;">Emel syarikat &amp; wakil — asingkan dengan koma.</small>
                 </div>
                 <div id="div_borang_justifikasi" style="margin-top:12px;">
                     <div class="medan-label-row"><label id="label_borang_justifikasi_catatan">Catatan</label><button type="button" id="btnKosongBorangJustifikasi" class="btn-kosong-medan" title="Kosongkan teks Catatan"><i class="fa-solid fa-eraser fa-ico"></i>Kosongkan</button></div>
@@ -808,7 +806,7 @@
         <!-- PRINT LAYOUTS -->
         <div id="printLayout" class="print-only-container" style="text-transform:uppercase;">
             <div class="print-header-strip"></div>
-            <div class="jenis-permohonan-bar"><div class="jenis-permohonan-row-1"><span style="margin-right:10px;">PERMOHONAN:</span><span><input type="checkbox" id="print_type_baru" class="checkbox-large">BARU</span><span><input type="checkbox" id="print_type_pembaharuan" class="checkbox-large">PEMBAHARUAN</span><span><input type="checkbox" id="print_type_ubah_maklumat" class="checkbox-large">UBAH MAKLUMAT</span><span><input type="checkbox" id="print_type_ubah_gred" class="checkbox-large">UBAH GRED</span></div><div class="jenis-permohonan-row-2"><span>NYATAKAN PERUBAHAN:</span><span id="print_text_ubah_maklumat" class="print-fill-text"></span><span id="print_text_ubah_gred" class="print-fill-text"></span></div><div class="jenis-permohonan-row-3" style="flex-direction: column; gap: 2px;"><div class="info-field"><span class="info-label">SEMAKAN TATATERTIB:</span><span id="print_tatatertib" class="print-fill-text"></span></div><div class="info-field" id="print_justifikasi_container"><span class="info-label">JUSTIFIKASI LAWATAN:</span><span id="print_justifikasi" class="print-fill-text"></span></div><div class="info-field"><span class="info-label">NO. TELEFON:</span><span id="print_no_telefon" class="print-fill-text"></span></div></div></div>
+            <div class="jenis-permohonan-bar"><div class="jenis-permohonan-row-1"><span style="margin-right:10px;">PERMOHONAN:</span><span><input type="checkbox" id="print_type_baru" class="checkbox-large">BARU</span><span><input type="checkbox" id="print_type_pembaharuan" class="checkbox-large">PEMBAHARUAN</span><span><input type="checkbox" id="print_type_ubah_maklumat" class="checkbox-large">UBAH MAKLUMAT</span><span><input type="checkbox" id="print_type_ubah_gred" class="checkbox-large">UBAH GRED</span></div><div class="jenis-permohonan-row-2"><span>NYATAKAN PERUBAHAN:</span><span id="print_text_ubah_maklumat" class="print-fill-text"></span><span id="print_text_ubah_gred" class="print-fill-text"></span></div><div class="jenis-permohonan-row-3" style="flex-direction: column; gap: 2px;"><div class="info-field"><span class="info-label">SEMAKAN TATATERTIB:</span><span id="print_tatatertib" class="print-fill-text"></span></div><div class="info-field" id="print_justifikasi_container"><span class="info-label">JUSTIFIKASI LAWATAN:</span><span id="print_justifikasi" class="print-fill-text"></span></div><div class="info-field" style="gap:8px; flex-wrap:wrap;"><span class="info-label">NO. TELEFON:</span><span id="print_no_telefon" class="print-fill-text" style="flex:1 1 120px;"></span><span class="info-label" style="margin-left:6px;">EMEL SYARIKAT:</span><span id="print_emel_syarikat" class="print-fill-text" style="flex:1 1 180px; word-break:break-all;"></span></div></div></div>
             <div class="border-box themed-box" style="margin-bottom:5px; padding: 4px;"><span style="font-size:12pt; color:white; display:block;">Nama Syarikat & No CIDB:</span><span id="print_companyDetails" class="font-large-nobold" style="color:white;"></span></div>
             <div class="grade-bar"><span style="margin-right: 10px;">GRED SYARIKAT:</span><span id="print_grade_display" style="font-weight:900; font-size:16pt;"></span></div>
             <table class="print-table layout-table" style="margin-bottom: 5px; border: none;"><tr><td width="33%"><div class="border-box"><span style="font-size:12pt; color:#666; font-weight:600;">Tempoh SPKK:</span><br><span id="print_spkkDuration"></span></div></td><td width="33%"><div class="border-box"><span style="font-size:12pt; color:#666; font-weight:600;">Tempoh STB:</span><br><span id="print_stbDuration"></span></div></td><td width="33%"><div class="border-box"><span style="font-size:12pt; font-weight:600;">Tarikh e-Info SSM:</span><br><div style="display:flex; justify-content:space-between; align-items:center;"><span id="print_ssm_date" style="font-weight:bold; font-size:12pt;"></span><span id="print_ssm_status_display" style="font-weight:900; font-size:12pt; border:1px solid #000; padding:2px 5px;"></span></div></div></td></tr></table>
@@ -1358,6 +1356,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/plugins/monthSelect/index.js"></script>
     <script src="banks.js?v=20260714"></script>
-    <script src="app.js?v=20261102b"></script>
+    <script src="app.js?v=20261102c"></script>
 </body>
 </html>

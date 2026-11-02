@@ -8548,7 +8548,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     // RESET PENTING: Kosongkan span cetakan dahulu supaya tiada data rekod lama bertahan
     ['print_companyDetails', 'print_spkkDuration', 'print_stbDuration',
      'print_text_ubah_maklumat', 'print_text_ubah_gred', 'print_grade_display',
-     'print_tatatertib', 'print_justifikasi', 'print_no_telefon',
+     'print_tatatertib', 'print_justifikasi', 'print_no_telefon', 'print_emel_syarikat',
      'print_ssm_date', 'print_ssm_status_display', 'print_bank_date',
      'print_bank_sign', 'print_bank_status',
      'print_doc_carta', 'print_doc_peta', 'print_doc_gambar', 'print_doc_sewa',
@@ -8609,6 +8609,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setTxt('print_justifikasi', syorPilihan === 'SIASAT' ? teksFlexCetak : '');
     
     setTxt('print_no_telefon', val('borang_no_telefon'));
+    setTxt('print_emel_syarikat', val('borang_emel_syarikat'));
     
     setTxt('print_ssm_date', formatDateDisplay(val('ssm_date_input')));
     setTxt('print_ssm_status_display', val('ssm_status'));
