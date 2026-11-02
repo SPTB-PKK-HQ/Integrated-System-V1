@@ -1852,7 +1852,7 @@ async function handleCredentialResponse(response) {
   }
 
   // Medan fleksibel Justifikasi/Catatan — auto-membesar ikut kandungan
-  ['borang_justifikasi', 'borang_catatan', 'db_justifikasi', 'db_catatan'].forEach(function(flexId) {
+  ['borang_justifikasi', 'db_justifikasi', 'db_catatan'].forEach(function(flexId) {
     const flexEl = document.getElementById(flexId);
     if (flexEl) flexEl.addEventListener('input', function() { autoResizeTextarea(this); });
   });
@@ -4494,62 +4494,62 @@ async function handleCredentialResponse(response) {
   }
 
   // =========================================================================
-  // V6.13.0: MEDAN FLEKSIBEL — Justifikasi Lawatan vs Catatan ikut syor
+  // MEDAN FLEKSIBEL — Borang Semakan: satu ruangan, label ikut syor
+  // Input Database: kekal dua ruangan yang berkongsi teks
   // =========================================================================
-  const ID_MEDAN_FLEKSIBEL = ['borang_justifikasi', 'borang_catatan', 'db_justifikasi', 'db_catatan'];
+  const ID_MEDAN_FLEKSIBEL = ['borang_justifikasi', 'db_justifikasi', 'db_catatan'];
 
-  // V6.14.0: Medan tidak hilang — SIASAT -> Justifikasi Lawatan; selainnya/default -> Catatan
-  // Teks tidak dipadam bila tukar syor — guna butang "Kosongkan" untuk padam
+  // Borang Semakan: satu ruangan sentiasa kelihatan.
+  // SIASAT -> Justifikasi Lawatan; selainnya/default -> Catatan.
+  // Teks tidak dipadam bila tukar syor — guna butang "Kosongkan" untuk padam.
   function toggleMedanBorangSyor() {
     const syorVal = (document.getElementById('borang_syor_status')?.value || '').toString().trim().toUpperCase();
+    const isSiasat = syorVal === 'SIASAT';
     const divJustifikasi = document.getElementById('div_borang_justifikasi');
-    const divCatatan = document.getElementById('div_borang_catatan');
-    const showJustifikasi = (syorVal === 'SIASAT');
-    if (divJustifikasi) {
-      divJustifikasi.style.display = showJustifikasi ? 'block' : 'none';
-      if (showJustifikasi) autoResizeTextarea(document.getElementById('borang_justifikasi'));
+    const field = document.getElementById('borang_justifikasi');
+    const label = document.getElementById('label_borang_justifikasi_catatan');
+    const btnKosong = document.getElementById('btnKosongBorangJustifikasi');
+    const labelText = isSiasat ? 'Justifikasi Lawatan' : 'Catatan';
+
+    if (divJustifikasi) divJustifikasi.style.display = 'block';
+    if (label) label.textContent = labelText;
+    if (field) {
+      field.placeholder = isSiasat ? 'Nyatakan justifikasi lawatan...' : 'Masukkan catatan...';
+      autoResizeTextarea(field);
     }
-    if (divCatatan) {
-      // Medan sentiasa kelihatan (tidak hilang) — papar Catatan apabila bukan SIASAT (termasuk belum pilih)
-      divCatatan.style.display = showJustifikasi ? 'none' : 'block';
-      if (!showJustifikasi) autoResizeTextarea(document.getElementById('borang_catatan'));
-    }
+    if (btnKosong) btnKosong.title = 'Kosongkan teks ' + labelText;
   }
 
-  // V7.2: Teks Justifikasi Lawatan & Catatan (Input Database) kongsi SATU teks —
-  // tukar Syor Lawatan hanya tukar NAMA medan; ayat tidak dikosongkan.
-  function syncDbFlexText(preferEl) {
-    const just = document.getElementById('db_justifikasi');
-    const cat = document.getElementById('db_catatan');
-    if (!just || !cat) return;
-    if (just.value === cat.value) return;
-    let source = null;
-    if (preferEl && preferEl.value) source = preferEl;
-    else if (just.value && !cat.value) source = just;
-    else if (cat.value && !just.value) source = cat;
-    else source = preferEl || (just.value ? just : cat);
-    just.value = source.value;
-    cat.value = source.value;
-    // Kemas tinggi medan yang sedang dipaparkan (medan tersorok akan diresize bila ditukar)
-    autoResizeTextarea(preferEl || just);
-  }
-
-  // Input Database: Syor Lawatan YA/PEMUTIHAN -> Justifikasi Lawatan; selainnya -> Catatan
+  // Input Database: Syor Lawatan YA/PEMUTIHAN -> Justifikasi Lawatan; selainnya -> Catatan.
+  // Kekal dua ruangan, tetapi teks yang sedang dipaparkan disalin ke kedua-duanya
+  // SEBELUM paparan ditukar supaya tukar syor tidak mengosongkan ayat.
   function toggleMedanDbSyor() {
     const syorVal = (document.getElementById('db_syor')?.value || '').toString().trim().toUpperCase();
     const divJustifikasi = document.getElementById('div_db_justifikasi');
     const divCatatan = document.getElementById('div_db_catatan');
+    const just = document.getElementById('db_justifikasi');
+    const cat = document.getElementById('db_catatan');
     const showJustifikasi = (syorVal === 'YA' || syorVal === 'PEMUTIHAN');
+
+    // Sumber teks: ruangan yang sedang kelihatan dahulu; jika kosong, ruangan satu lagi.
+    let source = null;
+    if (divJustifikasi && divJustifikasi.style.display !== 'none' && just && just.value.trim()) source = just;
+    else if (divCatatan && divCatatan.style.display !== 'none' && cat && cat.value.trim()) source = cat;
+    else if (just && just.value.trim()) source = just;
+    else if (cat && cat.value.trim()) source = cat;
+    if (source) {
+      if (just && just.value !== source.value) just.value = source.value;
+      if (cat && cat.value !== source.value) cat.value = source.value;
+    }
+
     if (divJustifikasi) {
       divJustifikasi.style.display = showJustifikasi ? 'block' : 'none';
-      if (showJustifikasi) autoResizeTextarea(document.getElementById('db_justifikasi'));
+      if (showJustifikasi && just) autoResizeTextarea(just);
     }
     if (divCatatan) {
       divCatatan.style.display = showJustifikasi ? 'none' : 'block';
-      if (!showJustifikasi) autoResizeTextarea(document.getElementById('db_catatan'));
+      if (!showJustifikasi && cat) autoResizeTextarea(cat);
     }
-    // Teks dibawa bersama — medan yang sedang dipaparkan jadi sumber
-    syncDbFlexText(showJustifikasi ? document.getElementById('db_justifikasi') : document.getElementById('db_catatan'));
   }
 
   // Segarkan semula semua medan fleksibel (tinggi + paparan) selepas restore/tukar rekod/reset
@@ -4563,18 +4563,72 @@ async function handleCredentialResponse(response) {
     autoResizeTextarea(document.getElementById('db_ulasan_spi'));
   }
 
-  // V6.14.0: Butang "Kosongkan" medan Catatan/Justifikasi (Borang Semakan)
-  // Padam teks medan berkenaan sahaja mengikut pilihan syor semasa; auto-simpan draf selepas padam
-  [['btnKosongBorangJustifikasi', 'borang_justifikasi'], ['btnKosongBorangCatatan', 'borang_catatan']].forEach(function(pair) {
-    const btn = document.getElementById(pair[0]);
-    const field = document.getElementById(pair[1]);
+  // Fallback rekod lama: isi ruangan fleksibel & medan emel daripada JSON lama.
+  // - SIASAT: utamakan borang_justifikasi
+  // - selainnya: utamakan borang_catatan
+  // - emel: fallback metadata email_penerima / email_syarikat / email_wakil
+  function applyLegacyBorangFlexFields(parsedData, fallbackSyor) {
+    if (!parsedData || typeof parsedData !== 'object') return;
+    const savedSyorRaw = String(parsedData.borang_syor_status || '').trim();
+    const syorLama = String(savedSyorRaw || fallbackSyor || '').trim().toUpperCase();
+    // Selaraskan status; rekod lama yang tiada borang_syor_status guna syor
+    // dari sheet supaya label cetakan/preview betul.
+    if (syorLama) {
+      const syorEl = document.getElementById('borang_syor_status');
+      if (syorEl) syorEl.value = syorLama;
+    }
+    const sharedJustEl = document.getElementById('borang_justifikasi');
+    if (sharedJustEl) {
+      // Penanda rekod baharu: medan borang_emel_syarikat sentiasa wujud dalam
+      // borang_json baharu (walaupun kosong). Rekod lama tidak mempunyai medan ini.
+      const isNewShared = Object.prototype.hasOwnProperty.call(parsedData, 'borang_emel_syarikat');
+      if (isNewShared) {
+        // Rekod baharu: satu ruangan sahaja — jangan guna borang_catatan lama.
+        sharedJustEl.value = parsedData.borang_justifikasi || '';
+      } else {
+        const teksCatatanLama = parsedData.borang_catatan || '';
+        const teksJustLama = parsedData.borang_justifikasi || parsedData.input_justifikasi || '';
+        if (syorLama === 'SIASAT') {
+          if (teksJustLama || teksCatatanLama) sharedJustEl.value = teksJustLama || teksCatatanLama;
+        } else if (String(teksCatatanLama).trim()) {
+          sharedJustEl.value = teksCatatanLama;
+        } else if (!sharedJustEl.value.trim() && teksJustLama) {
+          sharedJustEl.value = teksJustLama;
+        }
+      }
+    }
+    const sharedEmelEl = document.getElementById('borang_emel_syarikat');
+    if (sharedEmelEl && !sharedEmelEl.value.trim()) {
+      const emelLama = emailUniqueList([
+        parsedData.email_penerima,
+        parsedData.email_syarikat,
+        parsedData.email_wakil
+      ].filter(Boolean).join(', ')).join(', ');
+      if (emelLama) sharedEmelEl.value = emelLama;
+    }
+  }
+
+  // Butang "Kosongkan" untuk satu ruangan Borang Semakan.
+  // Padam teks secara manual sahaja; tukar syor tidak memadam.
+  (function() {
+    const btn = document.getElementById('btnKosongBorangJustifikasi');
+    const field = document.getElementById('borang_justifikasi');
     if (!btn || !field) return;
     btn.addEventListener('click', function() {
       field.value = '';
+      // Buang juga fallback legasi supaya teks tidak muncul semula semasa cetak.
+      const legacy = document.getElementById('input_justifikasi');
+      if (legacy) legacy.value = '';
       autoResizeTextarea(field);
       saveFormData();
     });
-  });
+    // Jika pengguna padam teks secara manual (bukan butang), buang juga fallback legasi.
+    field.addEventListener('input', function() {
+      if (field.value.trim()) return;
+      const legacy = document.getElementById('input_justifikasi');
+      if (legacy) legacy.value = '';
+    });
+  })();
 
   // =========================================================================
   // V6.8.0: PKA FUNCTIONS
@@ -6471,6 +6525,8 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
 
       updateProgress(60, "Regex menganalisis dokumen...");
       extractedPdfData = extractDataFromPdfMd(md);
+      // Isi medan Emel Syarikat jika masih kosong (jangan timpa suntingan pengguna)
+      fillBorangEmelFromExtracted(true);
 
       updateProgress(100, "Selesai!");
       await playSuccessSound();
@@ -6574,6 +6630,40 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (!emailSyarikat) emailSyarikat = allEmails[1] || allEmails[0] || '';
 
     return { emailWakil: emailWakil, emailSyarikat: emailSyarikat };
+  }
+
+  // Pecahkan senarai emel daripada medan (koma / semicolon / baris baru).
+  function emailSplitList(raw) {
+    return String(raw == null ? '' : raw)
+      .split(/[,;\n]+/)
+      .map(function(s) { return s.trim(); })
+      .filter(Boolean);
+  }
+
+  // Buang emel duplikasi tanpa mengubah susunan asal.
+  function emailUniqueList(emails) {
+    const out = [];
+    (Array.isArray(emails) ? emails : emailSplitList(emails)).forEach(function(e) {
+      const v = String(e == null ? '' : e).trim();
+      if (!v) return;
+      if (out.some(function(x) { return x.toLowerCase() === v.toLowerCase(); })) return;
+      out.push(v);
+    });
+    return out;
+  }
+
+  // Isi medan Emel Syarikat (Borang Semakan) dengan emel syarikat + wakil
+  // daripada Auto-Ekstrak PDF. onlyIfEmpty=true tidak menimpa suntingan pengguna.
+  function fillBorangEmelFromExtracted(onlyIfEmpty) {
+    if (!extractedPdfData) return;
+    const el = document.getElementById('borang_emel_syarikat');
+    if (!el) return;
+    if (onlyIfEmpty && el.value.trim()) return;
+    const emails = emailUniqueList([extractedPdfData.emailSyarikat, extractedPdfData.emailWakil]);
+    if (emails.length === 0) return;
+    el.value = emails.join(', ');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   // V7.0.0: Regex extractor borang - input markdown dari convertPdfToMd
@@ -7161,6 +7251,9 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
     if (extractedPdfData.phoneNumbers && extractedPdfData.phoneNumbers.length > 0) {
       setValueAndTrigger('borang_no_telefon', extractedPdfData.phoneNumbers.join(', '));
     }
+
+    // Emel syarikat + wakil dalam satu medan, dipisahkan koma.
+    fillBorangEmelFromExtracted(false);
 
     const alamatToUse = extractedPdfData.alamatPerniagaan || extractedPdfData.alamatSuratMenyurat || '';
     if (alamatToUse) {
@@ -8434,7 +8527,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (ubahMaklumatInput) ubahMaklumatInput.style.display = 'none';
     if (ubahGredInput) ubahGredInput.style.display = 'none';
     ['borang_tatatertib', 'borang_syor_status'].forEach(id => setButtonGroupValue(id, ''));
-    ['borang_justifikasi', 'borang_catatan'].forEach(function(flexId) {
+    ['borang_justifikasi'].forEach(function(flexId) {
       const flexEl = document.getElementById(flexId);
       if (flexEl) { flexEl.style.height = ''; flexEl.style.overflowY = ''; }
     });
@@ -8502,7 +8595,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setTxt('print_text_ubah_gred', val('input_ubah_gred'));
     setTxt('print_grade_display', val('borang_gred'));
     setTxt('print_tatatertib', val('borang_tatatertib'));
-    setTxt('print_justifikasi', val('borang_justifikasi') || val('input_justifikasi') || val('db_justifikasi'));
+    // Satu ruangan fleksibel: SIASAT -> Justifikasi Lawatan; selainnya -> Catatan.
+    // Justifikasi dikekalkan HURUF BESAR seperti cetakan asal; Catatan kekal asal.
+    const syorPilihan = val('borang_syor_status');
+    const teksFlexCetakRaw = (
+      document.getElementById('borang_justifikasi')?.value ||
+      document.getElementById('input_justifikasi')?.value ||
+      document.getElementById('db_justifikasi')?.value || ''
+    ).trim();
+    const teksFlexCetak = syorPilihan === 'SIASAT' ? teksFlexCetakRaw.toUpperCase() : teksFlexCetakRaw;
+    const printJustContainer = document.getElementById('print_justifikasi_container');
+    if (printJustContainer) printJustContainer.style.display = syorPilihan === 'SIASAT' ? '' : 'none';
+    setTxt('print_justifikasi', syorPilihan === 'SIASAT' ? teksFlexCetak : '');
     
     setTxt('print_no_telefon', val('borang_no_telefon'));
     
@@ -8530,7 +8634,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setTxt('print_tarikh_proses', val('borang_tarikh_proses') ? formatDateDisplay(val('borang_tarikh_proses')) : '_____________');
 
     // Kemaskini Highlight Syor untuk PDF
-    const syorPilihan = val('borang_syor_status');
     const elSokong = document.getElementById('print_syor_sokong');
     const elSiasat = document.getElementById('print_syor_siasat');
     const elTidak = document.getElementById('print_syor_tidak_sokong');
@@ -8549,12 +8652,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         elTidak.setAttribute('class', 'syor-selected');
     }
 
-    // CATATAN (SOKONG / TIDAK DISOKONG) — papar di bawah baris syor dalam BAHAGIAN PENGESYOR
-    const catatanBorangCetak = (document.getElementById('borang_catatan')?.value || '').trim();
+    // CATATAN — selain SIASAT, teks ruangan fleksibel dipaparkan di bawah baris syor.
     if (printCatatanContainer) {
-        const showCatatanCetak = (syorPilihan === 'SOKONG' || syorPilihan === 'TIDAK DISOKONG') && catatanBorangCetak !== '';
+        const showCatatanCetak = syorPilihan !== 'SIASAT' && teksFlexCetak !== '';
         printCatatanContainer.style.display = showCatatanCetak ? 'block' : 'none';
-        if (showCatatanCetak) setTxt('print_catatan_borang', catatanBorangCetak);
+        if (showCatatanCetak) setTxt('print_catatan_borang', teksFlexCetak);
     }
 
     const tbody = document.getElementById('print_personnel_page1');
@@ -14033,7 +14135,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const tatatertib = document.getElementById('borang_tatatertib')?.value || '';
       const gred = document.getElementById('borang_gred')?.value || '';
       const justifikasi = document.getElementById('borang_justifikasi')?.value || '';
-      const catatanBorang = document.getElementById('borang_catatan')?.value || '';
       
       const dbSyarikat = document.getElementById('db_syarikat');
       const dbCidb = document.getElementById('db_cidb');
@@ -14048,12 +14149,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (dbStartDate) dbStartDate.value = tMohon; 
       if (dbTatatertib) { dbTatatertib.value = tatatertib; setButtonGroupValue('db_tatatertib', tatatertib); }
       if (dbGred) dbGred.value = gred;
-      // Teks Justifikasi/Catatan disatukan (ikut syor borang; fallback medan yang ada teks) —
-      // kemudian tukar Syor Lawatan di tab ini hanya tukar nama medan
-      const borangSyorVal = (document.getElementById('borang_syor_status')?.value || '').toString().trim().toUpperCase();
-      const teksFlexDb = (borangSyorVal === 'SIASAT') ? (justifikasi || catatanBorang) : (catatanBorang || justifikasi);
-      if (dbJustifikasi) dbJustifikasi.value = teksFlexDb;
-      if (dbCatatan) dbCatatan.value = teksFlexDb;
+      // Satu ruangan fleksibel di Borang Semakan disalin ke KEDUA-DUA ruangan DB
+      // supaya tukar Syor Lawatan di tab ini hanya tukar nama medan, bukan teks.
+      if (dbJustifikasi) dbJustifikasi.value = justifikasi;
+      if (dbCatatan) dbCatatan.value = justifikasi;
 
       const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
       if(selectedType) {
@@ -14271,7 +14370,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function checkUnsavedData() {
     const borangFields = [
       'borang_syarikat', 'borang_cidb', 'borang_gred', 'borang_tarikh_mohon',
-      'borang_tatatertib', 'borang_justifikasi', 'borang_catatan', 'spkkDuration', 'stbDuration'
+      'borang_tatatertib', 'borang_justifikasi', 'borang_emel_syarikat', 'spkkDuration', 'stbDuration'
     ];
 
     const dbFields = ['db_syarikat', 'db_cidb', 'db_gred'];
@@ -14306,7 +14405,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   async function resetFormForEdit() {
     const fieldsToClear = [
       'borang_syarikat', 'borang_cidb', 'borang_gred', 'borang_tarikh_mohon',
-      'borang_tatatertib', 'borang_justifikasi', 'borang_catatan', 'spkkDuration', 'stbDuration', 'ssm_date_input',
+      'borang_tatatertib', 'borang_justifikasi', 'input_justifikasi', 'borang_emel_syarikat', 'spkkDuration', 'stbDuration', 'ssm_date_input',
       'ssm_status', 'bank_date_input', 'bank_sign_input', 'bank_status_input',
       'doc_carta_status', 'doc_peta_status', 'doc_gambar_status', 'doc_sewa_status',
       'kwsp_date_1', 'kwsp_s1', 'kwsp_date_2', 'kwsp_s2', 'kwsp_date_3', 'kwsp_s3',
@@ -16052,18 +16151,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setButtonGroupValue('db_syor_status', item.syor_status);
     refreshMedanFleksibelUI();
 
-    // V7.3: Pulihkan emel penerima yang disimpan dalam borang_json rekod ini
-    (function() {
-      let savedEmelPenerima = '';
-      try {
-        const savedJson = item.borang_json ? JSON.parse(item.borang_json) : null;
-        if (savedJson && savedJson.email_penerima) savedEmelPenerima = savedJson.email_penerima;
-      } catch (e) { /* abaikan JSON rosak */ }
-      const elKepada = document.getElementById('emailGenKepada');
-      if (elKepada) elKepada.value = savedEmelPenerima;
-      emailGenKepadaLastAuto = '';
-      emailGenKepadaLastSaved = savedEmelPenerima;
-    })();
+    // Emel penerima/medan emel dipulihkan selepas reset/JSON load di bahagian bawah
+    // (lihat applyLegacyBorangFlexFields).
 
     // V6.6.0: SEMAK STATUS BEKU
     if (item.cidb) {
@@ -16264,6 +16353,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                 }
             });
 
+            // Fallback rekod lama: Catatan/Justifikasi & emel.
+            applyLegacyBorangFlexFields(parsedData, item.syor_status);
+
+            // Pulihkan emel penerima yang disimpan dalam borang_json (jika ada).
+            const savedEmelPenerima = String(parsedData.email_penerima || '').trim();
+            const elKepada = document.getElementById('emailGenKepada');
+            if (elKepada) elKepada.value = savedEmelPenerima;
+            emailGenKepadaLastAuto = '';
+            emailGenKepadaLastSaved = savedEmelPenerima;
+
             // 2. Set Radio Button jenisApp
             if (parsedData.jenisApp) {
                 const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
@@ -16322,7 +16421,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             setTimeout(() => {
                 initializeTickButtons();
                 setButtonGroupValue('borang_tatatertib', parsedData.borang_tatatertib);
-                setButtonGroupValue('borang_syor_status', parsedData.borang_syor_status);
+                setButtonGroupValue('borang_syor_status', String(parsedData.borang_syor_status || item.syor_status || '').trim().toUpperCase());
                 refreshMedanFleksibelUI();
             }, 100);
 
@@ -16664,6 +16763,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         asasInner += bRow('TARIKH MOHON (BORANG)', hasBorangVal(bjRef.borang_tarikh_mohon) ? escapeHtml(fmtBorangDate(bjRef.borang_tarikh_mohon)) : '');
         asasInner += bRow('TATATERTIB (BORANG)', hasBorangVal(bjRef.borang_tatatertib) ? escapeHtml(String(bjRef.borang_tatatertib).toUpperCase()) : '');
         asasInner += bRow('NO. TELEFON', hasBorangVal(bjRef.borang_no_telefon) ? escapeHtml(String(bjRef.borang_no_telefon)) : '');
+        const emelBorang = bjRef.borang_emel_syarikat ||
+          emailUniqueList([bjRef.email_penerima, bjRef.email_syarikat, bjRef.email_wakil].filter(Boolean).join(', ')).join(', ');
+        if (hasBorangVal(emelBorang)) asasInner += bRow('EMEL SYARIKAT / WAKIL', escapeHtml(String(emelBorang)));
         asasInner += bRow('TEMPOH SPKK', hasBorangVal(bjRef.spkkDuration) ? escapeHtml(String(bjRef.spkkDuration)) : '');
         asasInner += bRow('TEMPOH STB', hasBorangVal(bjRef.stbDuration) ? escapeHtml(String(bjRef.stbDuration)) : '');
         const ubahMak = bjRef.input_ubah_maklumat || bjRef.ubah_maklumat || '';
@@ -16672,10 +16774,20 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         else if (hasBorangVal(ubahMak) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
         if (String(jenisAppVal) === 'UBAH GRED' && hasBorangVal(ubahGred)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
         else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
-        const justBorang = bjRef.borang_justifikasi || bjRef.input_justifikasi || '';
-        asasInner += bRow('JUSTIFIKASI (BORANG)', hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
-        const catatanBorangRef = bjRef.borang_catatan || '';
-        asasInner += bRow('CATATAN (BORANG)', hasBorangVal(catatanBorangRef) ? escapeHtml(String(catatanBorangRef)) : '', true);
+        const syorBorangRef = String(bjRef.borang_syor_status || i.syor_status || '').trim().toUpperCase();
+        // Rekod baharu guna satu ruangan (borang_justifikasi) dan mempunyai
+        // borang_emel_syarikat. Rekod lama mungkin ada borang_catatan berasingan.
+        const isNewSharedBorang = Object.prototype.hasOwnProperty.call(bjRef, 'borang_emel_syarikat');
+        const justBorang = isNewSharedBorang
+          ? (bjRef.borang_justifikasi || bjRef.input_justifikasi || '')
+          : ((syorBorangRef === 'SIASAT')
+            ? (bjRef.borang_justifikasi || bjRef.borang_catatan || bjRef.input_justifikasi || '')
+            : (bjRef.borang_catatan || bjRef.borang_justifikasi || bjRef.input_justifikasi || ''));
+        // Label ikut syor: SIASAT -> Justifikasi Lawatan; selainnya/default -> Catatan.
+        const labelJustBorang = (syorBorangRef === 'SIASAT')
+          ? 'JUSTIFIKASI LAWATAN (BORANG)'
+          : 'CATATAN (BORANG)';
+        asasInner += bRow(labelJustBorang, hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
         if (asasInner) {
           borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-lines fa-ico"></i>MAKLUMAT BORANG SEMAKAN</div><div class="view-grid">${asasInner}</div></div>`;
         }
@@ -17324,7 +17436,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           return;
         }
         // Justifikasi lawatan wajib untuk SIASAT
-        const justifikasiVal = document.getElementById('db_justifikasi')?.value || '';
+        const justifikasiVal = document.getElementById('db_justifikasi')?.value || document.getElementById('db_catatan')?.value || '';
         if (!justifikasiVal.trim()) {
           await CustomAppModal.alert("Sila isi Justifikasi Lawatan sebelum hantar SIASAT ke Pelulus.", "Justifikasi Diperlukan", "warning");
           return;
@@ -17474,7 +17586,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
              } catch(e) {}
            }
          }
-         const justifikasiVal = document.getElementById('db_justifikasi')?.value || '';
+         const justifikasiVal = document.getElementById('db_justifikasi')?.value || document.getElementById('db_catatan')?.value || '';
          const hist = (existingWorkflow && Array.isArray(existingWorkflow.history)) ? [...existingWorkflow.history] : [];
          // jika sebelumnya ditolak, simpan rekod tolak ke history
          if (existingWorkflow && existingWorkflow.stage === 'DITOLAK_PELULUS') {
@@ -17559,9 +17671,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         justifikasi: (function() {
           const _syorUp = (dbSyorValue || '').toString().trim().toUpperCase();
           if (_syorUp === 'YA' || _syorUp === 'PEMUTIHAN') {
-            return document.getElementById('db_justifikasi')?.value || '';
+            return document.getElementById('db_justifikasi')?.value || document.getElementById('db_catatan')?.value || '';
           }
-          return document.getElementById('db_catatan')?.value || '';
+          return document.getElementById('db_catatan')?.value || document.getElementById('db_justifikasi')?.value || '';
         })(),
         pengesyor: document.getElementById('db_pengesyor')?.value || '',
         createFolder: document.getElementById('cbCreateDriveFolder')?.checked || false,
@@ -21106,6 +21218,38 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return list.slice(0, -1).join(', ') + ' dan ' + list[list.length - 1];
   }
 
+  // Nama bulan Melayu untuk ayat KWSP.
+  const EMAIL_BULAN_MS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+  // Bina teks bulan KWSP daripada baris yang ditanda X sahaja.
+  // Contoh: "Januari, Mac dan April 2026".
+  function emailGenKwspMonthsText() {
+    const rows = [];
+    const seen = {};
+    [1, 2, 3].forEach(function(i) {
+      const status = document.getElementById('kwsp_s' + i)?.value || '';
+      if (!emailIsXMark(status)) return;
+      const raw = (document.getElementById('kwsp_date_' + i)?.value || '').trim();
+      if (!raw) return;
+      const parts = raw.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (!year || !month || month < 1 || month > 12) return;
+      const key = year + '-' + month;
+      if (seen[key]) return;
+      seen[key] = true;
+      rows.push({ year: year, month: month, name: EMAIL_BULAN_MS[month - 1] });
+    });
+    if (rows.length === 0) return '';
+    rows.sort(function(a, b) { return (a.year - b.year) || (a.month - b.month); });
+    const years = Array.from(new Set(rows.map(function(r) { return r.year; })));
+    if (years.length === 1) {
+      return emailJoinNames(rows.map(function(r) { return r.name; })) + ' ' + years[0];
+    }
+    // Tahun berbeza: letak tahun pada setiap bulan supaya ayat kekal jelas.
+    return emailJoinNames(rows.map(function(r) { return r.name + ' ' + r.year; }));
+  }
+
   // Nama orang: huruf depan setiap perkataan besar (contoh: "Ali bin Abu");
   // "bin"/"binti" sentiasa huruf kecil. Huruf selepas - ' / juga dibesarkan.
   function emailTitleCaseName(name) {
@@ -21271,7 +21415,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return el && emailIsXMark(el.value);
     });
     if (kwspAdaX) {
-      items.push('Sila sertakan ' + emailBlueText('Penyata/ Borang A & Resit caruman KWSP bagi 3 bulan terkini'));
+      const bulanKwsp = emailGenKwspMonthsText();
+      items.push('Sila sertakan ' + emailBlueText('Penyata/ Borang A & Resit caruman KWSP bagi ' + (bulanKwsp || '3 bulan terkini')));
     }
 
     return items;
@@ -21287,18 +21432,16 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   // Nilai "Kepada" terakhir yang dipulihkan daripada rekod tersimpan
   let emailGenKepadaLastSaved = '';
 
-  // Emel auto (syarikat + wakil, tanpa ulangan) daripada data Auto-Ekstrak PDF
+  // Emel auto (syarikat + wakil, tanpa ulangan).
+  // Keutamaan: medan Emel Syarikat (boleh diedit) -> data Auto-Ekstrak PDF.
   function emailGenAutoKepada() {
-    const parts = [];
+    const fieldEl = document.getElementById('borang_emel_syarikat');
+    const fieldEmails = emailUniqueList(fieldEl ? fieldEl.value : '');
+    if (fieldEmails.length > 0) return fieldEmails.join(', ');
     if (extractedPdfData) {
-      [extractedPdfData.emailSyarikat, extractedPdfData.emailWakil].forEach(function(e) {
-        const v = (e || '').trim();
-        if (!v) return;
-        if (parts.some(function(x) { return x.toLowerCase() === v.toLowerCase(); })) return;
-        parts.push(v);
-      });
+      return emailUniqueList([extractedPdfData.emailSyarikat, extractedPdfData.emailWakil]).join(', ');
     }
-    return parts.join(', ');
+    return '';
   }
 
   // V7.3: Metadata emel untuk disimpan dalam borang_json (kolum AC sheet).
@@ -21306,14 +21449,20 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function buildEmailMetaForBorangJson(oldJson) {
     let old = {};
     try { old = JSON.parse(oldJson || '{}') || {}; } catch (e) { old = {}; }
-    const curSyarikat = (extractedPdfData && extractedPdfData.emailSyarikat) ? extractedPdfData.emailSyarikat.trim() : '';
-    const curWakil = (extractedPdfData && extractedPdfData.emailWakil) ? extractedPdfData.emailWakil.trim() : '';
+    const fieldEl = document.getElementById('borang_emel_syarikat');
+    const fieldVal = (fieldEl && fieldEl.value) ? fieldEl.value.trim() : '';
+    const fieldEmails = emailUniqueList(fieldVal);
+    const fieldPenerima = fieldEmails.join(', ');
+    const pdfSyarikat = (extractedPdfData && extractedPdfData.emailSyarikat) ? extractedPdfData.emailSyarikat.trim() : '';
+    const pdfWakil = (extractedPdfData && extractedPdfData.emailWakil) ? extractedPdfData.emailWakil.trim() : '';
+    const curSyarikat = fieldEmails[0] || pdfSyarikat;
+    const curWakil = fieldEmails.length > 1 ? fieldEmails.slice(1).join(', ') : pdfWakil;
     const kepadaEl = document.getElementById('emailGenKepada');
     const curPenerima = (kepadaEl && kepadaEl.value) ? kepadaEl.value.trim() : '';
     return {
       email_syarikat: curSyarikat || old.email_syarikat || '',
       email_wakil: curWakil || old.email_wakil || '',
-      email_penerima: curPenerima || emailGenAutoKepada() || old.email_penerima || ''
+      email_penerima: curPenerima || fieldPenerima || emailGenAutoKepada() || old.email_penerima || ''
     };
   }
 
@@ -21430,7 +21579,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   function emailGenPrefillKepada() {
     const el = emailGenKepadaInput();
     if (!el) return;
-    const auto = emailExtractionMatchesCheckerCompany() ? emailGenAutoKepada() : '';
+    const fieldEmails = emailUniqueList(document.getElementById('borang_emel_syarikat')?.value || '');
+    const auto = fieldEmails.length > 0
+      ? fieldEmails.join(', ')
+      : (emailExtractionMatchesCheckerCompany() ? emailGenAutoKepada() : '');
     const cur = el.value.trim();
     if (!auto) {
       // Tiada padanan syarikat — jangan kekalkan emel auto syarikat lama
@@ -21440,7 +21592,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
       return;
     }
-    if (!cur || cur === emailGenKepadaLastAuto) {
+    // Jangan tulis ganti taipan manual pengguna; nilai auto/simpan lama boleh diganti
+    // dengan medan Emel Syarikat yang terkini.
+    if (!cur || cur === emailGenKepadaLastAuto || cur === emailGenKepadaLastSaved) {
       el.value = auto;
       emailGenKepadaLastAuto = auto;
     }
@@ -22325,6 +22479,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   else el.value = parsedData[key];
               }
           });
+          // Fallback rekod lama untuk cetakan: satu ruangan fleksibel + emel.
+          applyLegacyBorangFlexFields(parsedData, item.syor_status);
           if (parsedData.jenisApp) {
               const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
               if (radio) radio.checked = true;
@@ -22572,6 +22728,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   else el.value = parsedData[key];
               }
           });
+          // Fallback rekod lama untuk cetakan: satu ruangan fleksibel + emel.
+          applyLegacyBorangFlexFields(parsedData, item.syor_status);
           if (parsedData.jenisApp) {
               const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
               if (radio) radio.checked = true;
@@ -22701,6 +22859,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   else el.value = parsedData[key];
               }
           });
+          // Fallback rekod lama untuk cetakan/preview: satu ruangan fleksibel + emel.
+          applyLegacyBorangFlexFields(parsedData, item.syor_status);
           if (parsedData.jenisApp) {
               const radio = document.querySelector(`input[name="jenisApp"][value="${parsedData.jenisApp}"]`);
               if (radio) radio.checked = true;
