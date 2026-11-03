@@ -1089,6 +1089,10 @@
                             </div>
                         </div>
                     </div>
+                    <div class="sa-menu" id="suratArahanMenu" style="display:none;">
+                        <div class="sa-menu-breadcrumb" id="suratArahanMenuBreadcrumb"></div>
+                        <div class="sa-menu-options" id="suratArahanMenuOptions"></div>
+                    </div>
                     <div class="sa-suggestions" id="suratArahanSuggestions"></div>
                     <form class="sa-chat-form" id="suratArahanChatForm">
                         <textarea id="suratArahanChatInput" rows="1" maxlength="600" placeholder="Taip soalan anda tentang Surat Arahan..." aria-label="Soalan Surat Arahan"></textarea>
@@ -1154,6 +1158,16 @@
                             <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanTestBtn"><i class="fa-solid fa-plug-circle-check"></i>Uji Sambungan</button>
                             <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanAdminRefresh"><i class="fa-solid fa-rotate-right"></i>Segar Status</button>
                         </div>
+                        <div class="sa-admin-section-head">
+                            <strong>Menu Soalan Bantuan</strong>
+                            <span class="sa-admin-picker-count" id="suratArahanMenuAdminStatus">Menyemak...</span>
+                        </div>
+                        <div class="sa-admin-actions">
+                            <a class="sa-btn sa-btn-ghost" id="suratArahanMenuOpenSheet" href="#" target="_blank" rel="noopener" style="display:none;"><i class="fa-solid fa-table-list"></i>Buka Sheet Menu</a>
+                            <button type="button" class="sa-btn sa-btn-ghost" id="suratArahanMenuRefresh"><i class="fa-solid fa-rotate-right"></i>Muat Semula Menu</button>
+                            <button type="button" class="sa-btn sa-btn-primary" id="suratArahanMenuSetup" style="display:none;"><i class="fa-solid fa-table-list"></i>Cipta Templat Menu</button>
+                        </div>
+                        <div class="sa-admin-empty" id="suratArahanMenuAdminHelp">Edit tab <strong>MENU_SOALAN</strong>: isi <strong>JAWAPAN</strong> untuk ringkasan manual, <strong>SOALAN</strong> untuk jawapan AI. Klik Muat Semula Menu selepas edit.</div>
                         <div class="sa-admin-section-head">
                             <strong>Pilih Dokumen untuk Diindeks</strong>
                             <span class="sa-admin-picker-count" id="suratArahanSelectedCount">0 dipilih</span>

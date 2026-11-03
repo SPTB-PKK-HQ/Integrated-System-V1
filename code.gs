@@ -44,6 +44,12 @@ const SURAT_ARAHAN_CACHE_KEY = 'STB_SURAT_ARAHAN_V1';
 const SURAT_ARAHAN_CACHE_TTL = 300;
 const SURAT_ARAHAN_MAX_FILES = 200;
 const SURAT_ARAHAN_MAX_DEPTH = 3;
+const SURAT_ARAHAN_MENU_SHEET_NAME = 'MENU_SOALAN';
+const SURAT_ARAHAN_MENU_CACHE_KEY = 'STB_SURAT_ARAHAN_MENU_V1';
+const SURAT_ARAHAN_MENU_CACHE_TTL = 300;
+const SURAT_ARAHAN_MENU_MAX_DEPTH = 3;
+const SURAT_ARAHAN_MENU_MAX_NODES = 100;
+const SURAT_ARAHAN_MENU_HEADERS = ['ID', 'INDUK', 'TAJUK', 'SOALAN', 'JAWAPAN', 'SUMBER', 'SUSUNAN', 'AKTIF'];
 
 // Jumlah lajur dalam sheet (A hingga AF = 32 lajur)
 const TOTAL_COLUMNS = 32;
@@ -509,7 +515,8 @@ function doPost(e) {
       'askSuratArahan', 'listSuratArahanFaq', 'deleteSuratArahanQa',
       'getSuratArahanStatus', 'getSuratArahanFileData',
       'saveSuratArahanDocText', 'ocrSuratArahanPages',
-      'finalizeSuratArahanIndex', 'testSuratArahanFirebase'
+      'finalizeSuratArahanIndex', 'testSuratArahanFirebase',
+      'getSuratArahanMenu', 'refreshSuratArahanMenu'
     ];
     
     // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
@@ -598,7 +605,10 @@ function doPost(e) {
       saveSuratArahanDocText: handleSaveSuratArahanDocText,
       ocrSuratArahanPages: handleOcrSuratArahanPages,
       finalizeSuratArahanIndex: handleFinalizeSuratArahanIndex,
-      testSuratArahanFirebase: handleTestSuratArahanFirebase
+      testSuratArahanFirebase: handleTestSuratArahanFirebase,
+      getSuratArahanMenu: handleGetSuratArahanMenu,
+      refreshSuratArahanMenu: handleRefreshSuratArahanMenu,
+      setupSuratArahanMenuSheet: handleSetupSuratArahanMenuSheet
     };
     if (saRagActionHandlers[data.action]) {
       return saRagActionHandlers[data.action](data);
@@ -6723,4 +6733,375 @@ function testSuratArahanFirebase() {
   const result = handleTestSuratArahanFirebase({ email: email });
   Logger.log(result.getContent());
   return result;
+}
+
+function saMenuSheetUrl_(sheet) {
+  if (!sheet) return '';
+  try {
+    return sheet.getParent().getUrl() + '#gid=' + sheet.getSheetId();
+  } catch (e) {
+    return '';
+  }
+}
+
+function saMenuParseSources_(value) {
+  const refs = [];
+  String(value || '').split(/[;\n]+/).forEach(function(part) {
+    const clean = part.trim();
+    if (!clean) return;
+    const bits = clean.split('|');
+    const fileId = String(bits[0] || '').trim();
+    const page = Math.max(0, parseInt(bits[1], 10) || 0);
+    if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return;
+    refs.push({ fileId: fileId, page: page });
+  });
+  return refs.slice(0, 5);
+}
+
+function saMenuResolveSources_(refs, folder) {
+  const out = [];
+  const seen = Object.create(null);
+  if (!folder) return out;
+  (refs || []).forEach(function(ref) {
+    if (!ref || !ref.fileId || seen[ref.fileId]) return;
+    const file = saRagFileById_(ref.fileId);
+    if (!file) return;
+    if (!saRagFileBelongsToFolder_(file, folder)) return;
+    const mime = String(file.getMimeType() || '');
+    if (mime !== 'application/pdf' && !/\.pdf$/i.test(file.getName())) return;
+    seen[ref.fileId] = 1;
+    out.push({
+      fileId: ref.fileId,
+      name: file.getName(),
+      page: ref.page || 0,
+      ref: 'S' + (out.length + 1)
+    });
+  });
+  return out;
+}
+
+function saMenuReadRows_(sheet) {
+  const empty = { rows: [], error: '' };
+  if (!sheet) return empty;
+  const lastRow = sheet.getLastRow();
+  const lastCol = Math.max(sheet.getLastColumn(), SURAT_ARAHAN_MENU_HEADERS.length);
+  if (lastRow < 1) return empty;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(value) {
+    return String(value || '').trim().toUpperCase();
+  });
+  const col = {};
+  SURAT_ARAHAN_MENU_HEADERS.forEach(function(header) {
+    col[header] = headers.indexOf(header);
+  });
+  if (col.ID === -1 || col.TAJUK === -1) {
+    return { rows: [], error: 'Header MENU_SOALAN tidak lengkap. Pastikan lajur ID dan TAJUK wujud.' };
+  }
+  if (lastRow < 2) return empty;
+  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const rows = [];
+  values.forEach(function(row, index) {
+    const id = String(row[col.ID] || '').trim();
+    const label = String(row[col.TAJUK] || '').trim();
+    if (!id && !label) return;
+    const activeValue = col.AKTIF === -1 ? '' : String(row[col.AKTIF] || '').trim().toUpperCase();
+    const active = !(activeValue === 'TIDAK' || activeValue === 'TIDAK AKTIF' || activeValue === 'NO' || activeValue === 'FALSE' || activeValue === '0');
+    const parsedOrder = col.SUSUNAN === -1 ? NaN : parseInt(row[col.SUSUNAN], 10);
+    rows.push({
+      id: id,
+      parentId: col.INDUK === -1 ? '' : String(row[col.INDUK] || '').trim(),
+      label: label,
+      question: col.SOALAN === -1 ? '' : String(row[col.SOALAN] || '').trim(),
+      answer: col.JAWAPAN === -1 ? '' : String(row[col.JAWAPAN] || '').trim(),
+      sourceRefs: col.SUMBER === -1 ? [] : saMenuParseSources_(row[col.SUMBER]),
+      order: isNaN(parsedOrder) ? 9999 : parsedOrder,
+      active: active,
+      rowIndex: index + 2
+    });
+  });
+  return { rows: rows, error: '' };
+}
+
+function saMenuDepth_(node, nodeMap) {
+  let depth = 1;
+  let current = node;
+  const seen = Object.create(null);
+  while (current && current.parentId) {
+    if (seen[current.id]) return 999;
+    seen[current.id] = 1;
+    current = nodeMap[current.parentId];
+    if (!current) break;
+    depth++;
+    if (depth > SURAT_ARAHAN_MENU_MAX_DEPTH + 3) return 999;
+  }
+  return depth;
+}
+
+function saMenuNodeEnabled_(node, nodeMap) {
+  let current = node;
+  const seen = Object.create(null);
+  while (current) {
+    if (seen[current.id]) return false;
+    seen[current.id] = 1;
+    if (!current.active) return false;
+    current = current.parentId ? nodeMap[current.parentId] : null;
+  }
+  return true;
+}
+
+function saMenuBuildTree_(rows, folder) {
+  const warnings = [];
+  const nodeMap = Object.create(null);
+  const nodeList = [];
+  (rows || []).slice(0, SURAT_ARAHAN_MENU_MAX_NODES + 20).forEach(function(row) {
+    const id = String(row.id || '').trim();
+    if (!id) {
+      warnings.push('Baris ' + row.rowIndex + ': ID kosong.');
+      return;
+    }
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) {
+      warnings.push('Baris ' + row.rowIndex + ': ID tidak sah (' + id + ').');
+      return;
+    }
+    if (nodeMap[id]) {
+      warnings.push('Baris ' + row.rowIndex + ': ID berulang (' + id + ').');
+      return;
+    }
+    const label = String(row.label || '').trim();
+    if (!label) {
+      warnings.push('Baris ' + row.rowIndex + ': TAJUK kosong untuk ' + id + '.');
+      return;
+    }
+    const node = {
+      id: id,
+      parentId: String(row.parentId || '').trim(),
+      label: label.slice(0, 120),
+      question: String(row.question || '').trim().slice(0, 600),
+      answer: String(row.answer || '').trim().slice(0, 4000),
+      sourceRefs: row.sourceRefs || [],
+      order: isNaN(parseInt(row.order, 10)) ? 9999 : parseInt(row.order, 10),
+      active: row.active !== false,
+      children: []
+    };
+    nodeMap[id] = node;
+    nodeList.push(node);
+  });
+
+  if ((rows || []).length > SURAT_ARAHAN_MENU_MAX_NODES) {
+    warnings.push('Menu melebihi ' + SURAT_ARAHAN_MENU_MAX_NODES + ' pilihan; selebihnya diabaikan.');
+  }
+
+  const valid = Object.create(null);
+  nodeList.forEach(function(node) {
+    if (!saMenuNodeEnabled_(node, nodeMap)) return;
+    const depth = saMenuDepth_(node, nodeMap);
+    if (depth > SURAT_ARAHAN_MENU_MAX_DEPTH) {
+      warnings.push('Pilihan ' + node.id + ' melebihi ' + SURAT_ARAHAN_MENU_MAX_DEPTH + ' peringkat dan diabaikan.');
+      return;
+    }
+    valid[node.id] = true;
+  });
+
+  const roots = [];
+  nodeList.forEach(function(node) {
+    if (!valid[node.id]) return;
+    let parent = node.parentId ? nodeMap[node.parentId] : null;
+    if (node.parentId && !parent) {
+      warnings.push('INDUK tidak dijumpai untuk ' + node.id + ' (' + node.parentId + '); dijadikan menu utama.');
+      parent = null;
+    }
+    if (parent && !valid[parent.id]) return;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  });
+
+  function sortNodes(list) {
+    list.sort(function(a, b) {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.label.localeCompare(b.label, 'ms', { sensitivity: 'base' });
+    });
+    list.forEach(function(node) { sortNodes(node.children); });
+  }
+  sortNodes(roots);
+
+  function pruneNodes(list) {
+    return list.filter(function(node) {
+      node.children = pruneNodes(node.children);
+      if (node.children.length) return true;
+      return !!(node.question || node.answer);
+    });
+  }
+  const prunedRoots = pruneNodes(roots);
+
+  let nodeCount = 0;
+  let maxDepth = 0;
+  function resolveNodes(list, depth) {
+    list.forEach(function(node) {
+      nodeCount++;
+      if (depth > maxDepth) maxDepth = depth;
+      node.sources = saMenuResolveSources_(node.sourceRefs, folder);
+      delete node.sourceRefs;
+      delete node.parentId;
+      delete node.order;
+      delete node.active;
+      resolveNodes(node.children, depth + 1);
+    });
+  }
+  resolveNodes(prunedRoots, 1);
+
+  return {
+    roots: prunedRoots,
+    warnings: warnings,
+    counts: {
+      nodes: nodeCount,
+      roots: prunedRoots.length,
+      maxDepth: maxDepth
+    }
+  };
+}
+
+function saMenuLoad_(force) {
+  const cache = CacheService.getScriptCache();
+  if (!force) {
+    const cached = cache.get(SURAT_ARAHAN_MENU_CACHE_KEY);
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
+    }
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const empty = {
+    success: true,
+    configured: false,
+    roots: [],
+    counts: { nodes: 0, roots: 0, maxDepth: 0 },
+    warnings: [],
+    sheetUrl: '',
+    generatedAt: new Date().toISOString()
+  };
+  if (!ss) {
+    empty.error = 'Spreadsheet tidak dijumpai.';
+    return empty;
+  }
+  const sheet = ss.getSheetByName(SURAT_ARAHAN_MENU_SHEET_NAME);
+  if (!sheet) return empty;
+
+  empty.sheetUrl = saMenuSheetUrl_(sheet);
+  const parsed = saMenuReadRows_(sheet);
+  if (parsed.error) {
+    empty.error = parsed.error;
+    return empty;
+  }
+
+  const built = saMenuBuildTree_(parsed.rows, getSuratArahanFolder());
+  const payload = {
+    success: true,
+    configured: built.counts.nodes > 0,
+    sheetUrl: empty.sheetUrl,
+    counts: built.counts,
+    roots: built.roots,
+    warnings: built.warnings.slice(0, 20),
+    generatedAt: new Date().toISOString()
+  };
+  if (payload.configured) {
+    const json = JSON.stringify(payload);
+    if (json.length <= 95000) cache.put(SURAT_ARAHAN_MENU_CACHE_KEY, json, SURAT_ARAHAN_MENU_CACHE_TTL);
+  }
+  return payload;
+}
+
+function handleGetSuratArahanMenu(data) {
+  try {
+    const accessCheck = verifyUserAccess(data.email, SURAT_ARAHAN_ALLOWED_ROLES);
+    if (!accessCheck.isAuthorized) return createJSONOutput({ success: false, error: accessCheck.error });
+    const menu = saMenuLoad_(false);
+    const isAdmin = normalizeRoleKey(accessCheck.userProfile.role) === normalizeRoleKey(ROLE_ADMIN);
+    const response = {
+      success: true,
+      configured: !!menu.configured,
+      counts: menu.counts || { nodes: 0, roots: 0, maxDepth: 0 },
+      roots: menu.roots || [],
+      generatedAt: menu.generatedAt || ''
+    };
+    if (menu.error) response.error = menu.error;
+    if (isAdmin) {
+      response.sheetUrl = menu.sheetUrl || '';
+      response.warnings = menu.warnings || [];
+    }
+    return createJSONOutput(response);
+  } catch (error) {
+    return saRagErrorOutput_(error);
+  }
+}
+
+function handleRefreshSuratArahanMenu(data) {
+  try {
+    const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+    if (!accessCheck.isAuthorized) return createJSONOutput({ success: false, error: accessCheck.error });
+    CacheService.getScriptCache().remove(SURAT_ARAHAN_MENU_CACHE_KEY);
+    const menu = saMenuLoad_(true);
+    return createJSONOutput({
+      success: true,
+      configured: !!menu.configured,
+      counts: menu.counts || { nodes: 0, roots: 0, maxDepth: 0 },
+      sheetUrl: menu.sheetUrl || '',
+      warnings: menu.warnings || [],
+      generatedAt: menu.generatedAt || '',
+      error: menu.error || ''
+    });
+  } catch (error) {
+    return saRagErrorOutput_(error);
+  }
+}
+
+function handleSetupSuratArahanMenuSheet(data) {
+  try {
+    const accessCheck = verifyUserAccess(data.email, [ROLE_ADMIN]);
+    if (!accessCheck.isAuthorized) return createJSONOutput({ success: false, error: accessCheck.error });
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return createJSONOutput({ success: false, error: 'Spreadsheet tidak dijumpai.' });
+
+    let sheet = ss.getSheetByName(SURAT_ARAHAN_MENU_SHEET_NAME);
+    let created = false;
+    if (!sheet) {
+      sheet = ss.insertSheet(SURAT_ARAHAN_MENU_SHEET_NAME);
+      created = true;
+    }
+    if (sheet.getLastRow() === 0) {
+      const width = SURAT_ARAHAN_MENU_HEADERS.length;
+      sheet.getRange(1, 1, 1, width).setValues([SURAT_ARAHAN_MENU_HEADERS]);
+      sheet.getRange(2, 1, 2, width).setValues([
+        ['contoh_kategori', '', 'Contoh Kategori', '', '', '', 1, 'TIDAK'],
+        ['contoh_soalan', 'contoh_kategori', 'Contoh Soalan', 'Apakah syarat utama permohonan STB?', '', '', 1, 'TIDAK']
+      ]);
+      sheet.getRange(1, 1, 1, width)
+        .setFontWeight('bold')
+        .setBackground('#1e3a8a')
+        .setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+      sheet.setColumnWidth(1, 150);
+      sheet.setColumnWidth(2, 150);
+      sheet.setColumnWidth(3, 220);
+      sheet.setColumnWidth(4, 360);
+      sheet.setColumnWidth(5, 360);
+      sheet.setColumnWidth(6, 220);
+      sheet.setColumnWidth(7, 90);
+      sheet.setColumnWidth(8, 80);
+      try {
+        const rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(['YA', 'TIDAK'], true)
+          .build();
+        sheet.getRange(2, 8, Math.max(sheet.getMaxRows() - 1, 1), 1).setDataValidation(rule);
+      } catch (e) {}
+    }
+
+    CacheService.getScriptCache().remove(SURAT_ARAHAN_MENU_CACHE_KEY);
+    return createJSONOutput({
+      success: true,
+      created: created,
+      sheetUrl: saMenuSheetUrl_(sheet),
+      rowCount: Math.max(0, sheet.getLastRow() - 1)
+    });
+  } catch (error) {
+    return saRagErrorOutput_(error);
+  }
 }

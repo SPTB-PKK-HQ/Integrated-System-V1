@@ -106,8 +106,8 @@ Matriks peranan ringkas:
 | PKA lawatan | `PKA` sahaja |
 | Pengurusan pengguna / arkib / pembersihan | `ADMIN` sahaja |
 | Cetak PDF / Drive tulis | `PENGESYOR`, `ADMIN`, `PELULUS` (butiran mengikut endpoint) |
-| RAG Surat Arahan: dokumen, tanya, soalan lazim, status | `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN` |
-| RAG Surat Arahan: indeks, OCR, muat turun PDF, padam cache, ujian Firebase | `ADMIN` sahaja |
+| RAG Surat Arahan: dokumen, tanya, soalan lazim, status, menu bantuan | `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN` |
+| RAG Surat Arahan: indeks, OCR, muat turun PDF, padam cache, ujian Firebase, cipta/muat semula menu | `ADMIN` sahaja |
 
 ### 2.2 Header dan Token Rujukan
 
@@ -1303,10 +1303,102 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 
 * **Nota Operasi:** Kejayaan endpoint ini mengesahkan kebenaran tulis Firestore, bukan kualiti jawapan atau ketersediaan model DeepSeek.
 
+#### F2K. `getSuratArahanMenu` — Menu soalan bantuan berperingkat
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Membaca tab `MENU_SOALAN` dalam spreadsheet sistem dan memulangkan menu bersarang (maksimum 3 peringkat) untuk dipaparkan sebagai butang pilihan dalam tab Tanya AI. Menu dicache selama 300 saat.
+* **Kawalan akses:** `PENGESYOR`, `PELULUS`, `KETUA_SEKSYEN`, `PENGARAH`, `ADMIN`.
+* **Request Body:**
+
+```json
+{
+  "action": "getSuratArahanMenu",
+  "email": "pengguna@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "configured": true,
+  "counts": { "nodes": 12, "roots": 3, "maxDepth": 2 },
+  "roots": [
+    {
+      "id": "stb",
+      "label": "Permohonan STB",
+      "question": "",
+      "answer": "",
+      "sources": [],
+      "children": [
+        {
+          "id": "stb_dokumen",
+          "label": "Dokumen diperlukan",
+          "question": "Apakah dokumen yang diperlukan untuk permohonan STB?",
+          "answer": "",
+          "sources": [
+            { "fileId": "[FILE_ID]", "name": "Surat Arahan STB.pdf", "page": 3, "ref": "S1" }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+* **Nota:** `sheetUrl` dan `warnings` hanya dikembalikan kepada `ADMIN`. Jika `configured:false`, klien memaparkan cadangan soalan dan input teks sedia ada.
+
+#### F2L. `refreshSuratArahanMenu` — Kosongkan cache menu
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Membuang cache menu dan membina semula menu daripada tab `MENU_SOALAN`. Digunakan selepas Pentadbir mengedit Sheet.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "refreshSuratArahanMenu",
+  "email": "admin@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:** `success:true`, `configured`, `counts`, `sheetUrl`, `warnings`, `generatedAt`.
+
+#### F2M. `setupSuratArahanMenuSheet` — Cipta templat tab `MENU_SOALAN`
+
+* **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
+* **Deskripsi:** Mencipta tab `MENU_SOALAN` jika belum wujud, menulis header lajur, dua baris contoh tidak aktif, dan format asas. Jika tab sudah wujud, tiada data sedia ada diubah.
+* **Kawalan akses:** `ADMIN` sahaja.
+* **Request Body:**
+
+```json
+{
+  "action": "setupSuratArahanMenuSheet",
+  "email": "admin@[DOMAIN_KERAJAAN]"
+}
+```
+
+* **Response Success:**
+
+```json
+{
+  "success": true,
+  "created": true,
+  "sheetUrl": "https://docs.google.com/spreadsheets/d/[ID]/edit#gid=[GID]",
+  "rowCount": 2
+}
+```
+
+* **Format lajur:** `ID`, `INDUK`, `TAJUK`, `SOALAN`, `JAWAPAN`, `SUMBER`, `SUSUNAN`, `AKTIF`. `SUMBER` menggunakan format `fileId|halaman;fileId|halaman` dan hanya menerima PDF dalam folder `SURAT ARAHAN`.
+* **Nota:** `AKTIF` bernilai `TIDAK` menyembunyikan rekod itu dan semua anaknya. Had: 100 pilihan, 3 peringkat, 600 aksara soalan, 4,000 aksara jawapan, 5 sumber setiap pilihan.
+
 #### Nota Keseluruhan RAG Surat Arahan
 
 * **Koleksi Firestore:** `surat_arahan_qa` (cache jawapan), `surat_arahan_meta` (metadata indeks; dokumen `current` dan `connection`), `surat_arahan_usage` (kuota harian per pengguna/global).
 * **Storan indeks:** folder Drive khas `_SURAT_ARAHAN_INDEX` di bawah `MAIN_FOLDER_ID`; fail bahagian `part_<fileId>.json`; indeks agregat `index_<versi>.json.gz`.
+* **Menu bantuan:** tab `MENU_SOALAN` dalam spreadsheet sistem; cache ScriptCache `STB_SURAT_ARAHAN_MENU_V1` selama 300 saat.
 * **Model:** DeepSeek Chat Completions (lalai `deepseek-flash`), JSON mode dengan cubaan semula tanpa `response_format` jika API menolak JSON mode.
 * **Kesegaran cache:** jawapan cache yang sumbernya telah berubah atau dipadam tidak digunakan semula dan tidak dipaparkan kepada pengguna bukan admin.
 * **Belum dilaksanakan:** maklum balas/rating jawapan, perbualan berbilang giliran, dan penomboran penuh senarai cache admin (had 100).
@@ -1642,6 +1734,7 @@ Semua endpoint kumpulan ini memerlukan peranan `ADMIN`. Medan `email` ialah emel
 4. **Jejak audit:** Semua tulis yang berjaya dan gagal merekodkan `logActivity` dengan pengguna, tindakan, dan ID folder berkaitan untuk semakan forensik.
 5. **Kiraan hari bekerja:** Deadline SPI ialah 14 hari bekerja (Isnin–Jumaat) tidak termasuk cuti umum Putrajaya. Senarai cuti dimuatkan dan dicache automatik oleh backend (`PUTRAJAYA_HOLIDAYS_<tahun>`, refresh 30 hari) daripada kalendar awam Google "Holidays in Malaysia" — utama ICS dengan cubaan semula, sandaran `CalendarApp`, dan override manual `PUTRAJAYA_HOLIDAYS_MANUAL`; hujung minggu dan cuti umum tidak dikira dan penghantaran emel queue hanya berlaku pada hari bekerja.
 6. **RAG Surat Arahan:** Hormati `needsIndex:true` dengan memaparkan arahan kepada admin. Jangan ulang `askSuratArahan` secara automatik apabila menerima `SA_RAG_RATE_LIMIT` atau ralat konfigurasi. Untuk reindex penuh, hadkan `saveSuratArahanDocText` kepada fail yang berjaya diproses dan hantar `fileIds` semasa `finalizeSuratArahanIndex`. Untuk **Indeks Pilihan**, hantar hanya ID yang dipilih bersama `merge:true` supaya dokumen lain kekal dalam indeks; pemilih admin menggunakan `indexedFileIds` daripada `getSuratArahanStatus` untuk mengenal pasti fail belum diindeks/gagal.
+7. **Menu bantuan:** Jika `getSuratArahanMenu` memulangkan `configured:false`, kekalkan cadangan soalan dan input teks sedia ada. Menu manual (`JAWAPAN`) dipaparkan segera; butang **Dapatkan jawapan penuh AI** hanya dihantar apabila pengguna memilihnya. Selepas admin mengedit tab `MENU_SOALAN`, panggil `refreshSuratArahanMenu` sebelum memuatkan semula menu.
 
 ---
 

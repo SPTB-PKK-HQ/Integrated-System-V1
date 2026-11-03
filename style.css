@@ -1641,6 +1641,74 @@
         }
         .sa-suggestion i { font-size: 0.58rem; transform: rotate(45deg); }
         .sa-suggestion:hover { background: #eff6ff; border-color: #93c5fd; }
+        .sa-menu {
+            flex-shrink: 0;
+            padding: 7px 24px 8px;
+            background: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+        }
+        .sa-menu-breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 6px;
+            color: #64748b;
+            font-size: 0.63rem;
+        }
+        .sa-menu-crumb {
+            border: 0;
+            background: transparent;
+            padding: 0;
+            color: #1d4ed8;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .sa-menu-crumb:hover { text-decoration: underline; }
+        .sa-menu-crumb-sep { color: #94a3b8; }
+        .sa-menu-options { display: flex; flex-wrap: wrap; gap: 6px; }
+        .sa-menu-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            max-width: 100%;
+            padding: 6px 9px;
+            border: 1px solid #dbeafe;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #1e40af;
+            font-family: inherit;
+            font-size: 0.66rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: left;
+            word-break: break-word;
+        }
+        .sa-menu-option:hover { background: #eff6ff; border-color: #93c5fd; }
+        .sa-menu-option-category { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+        .sa-menu-option-category:hover { background: #dbeafe; }
+        .sa-menu-option-leaf { color: #0f766e; border-color: #99f6e4; }
+        .sa-menu-option-leaf:hover { background: #f0fdfa; border-color: #5eead4; }
+        .sa-menu-nav {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 9px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 999px;
+            background: transparent;
+            color: #64748b;
+            font-family: inherit;
+            font-size: 0.63rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .sa-menu-nav:hover { background: #ffffff; color: #334155; }
+        .sa-menu-ask { border-color: #93c5fd; color: #1d4ed8; }
+        .sa-menu-empty { color: #94a3b8; font-size: 0.66rem; padding: 6px 0; }
+        .sa-menu-answer-actions { display: flex; justify-content: flex-end; padding-top: 6px; }
+        .sa-mode-menu { background: #ede9fe; color: #6d28d9; }
         .sa-chat-form {
             display: flex;
             align-items: flex-end;
@@ -1788,6 +1856,7 @@
             .sa-chat-top { padding: 10px 16px 8px; }
             .sa-chat-log { padding: 6px 16px 10px; }
             .sa-suggestions { padding: 0 16px 8px; }
+            .sa-menu { padding: 6px 16px 8px; }
             .sa-chat-form { padding: 8px 16px; }
             .sa-chat-note { padding: 0 16px 7px; }
             .sa-faq-head { padding: 11px 16px; }
@@ -1829,6 +1898,15 @@
         html[data-theme="dark"] .sa-source-chip { background: #111c33; border-color: #1e3a8a; color: #93c5fd; }
         html[data-theme="dark"] .sa-suggestion:hover,
         html[data-theme="dark"] .sa-source-chip:hover { background: #172554; }
+        html[data-theme="dark"] .sa-menu { background: #0b1220; border-color: #1e293b; }
+        html[data-theme="dark"] .sa-menu-crumb { color: #93c5fd; }
+        html[data-theme="dark"] .sa-menu-option { background: #111c33; border-color: #1e3a8a; color: #93c5fd; }
+        html[data-theme="dark"] .sa-menu-option-category { background: #172554; border-color: #1e40af; color: #bfdbfe; }
+        html[data-theme="dark"] .sa-menu-option-leaf { background: #0f2e2b; border-color: #115e59; color: #5eead4; }
+        html[data-theme="dark"] .sa-menu-option:hover { background: #172554; }
+        html[data-theme="dark"] .sa-menu-nav { border-color: #334155; color: #94a3b8; }
+        html[data-theme="dark"] .sa-menu-nav:hover { background: #111c33; color: #e2e8f0; }
+        html[data-theme="dark"] .sa-mode-menu { background: rgba(109,40,217,0.25); color: #ddd6fe; }
         html[data-theme="dark"] .sa-source-ref { background: #1e3a8a; color: #bfdbfe; }
         html[data-theme="dark"] .sa-faq-stale { background: rgba(146,64,14,0.3); color: #fcd34d; }
         html[data-theme="dark"] .sa-faq-stale-item { border-color: #92400e; }

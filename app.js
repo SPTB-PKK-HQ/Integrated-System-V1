@@ -61,6 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let suratArahanRagInitialised = false;
   let suratArahanChatOwnerEmail = '';
   let suratArahanSelectedIndexIds = new Set();
+  let suratArahanMenu = null;
+  let suratArahanMenuLoaded = false;
+  let suratArahanMenuLoading = false;
+  let suratArahanMenuPath = [];
+  let suratArahanMenuInputOpen = false;
 
   // URL APPSCRIPT
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzB8-2omeMVZfczcr4iKrrzaEgU5tj092bZe308yqCeA-4pIG2BbiYFERdoF8rS9u1U/exec';
@@ -9723,6 +9728,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       renderSuratArahanAdminDocPicker();
       loadSuratArahanRagStatus();
       loadSuratArahanFaq();
+      updateSuratArahanMenuAdminStatus(suratArahanMenu);
+    }
+    if ((suratArahanActiveTab === 'tanya' || suratArahanActiveTab === 'urus') && !suratArahanMenuLoaded && !suratArahanMenuLoading) {
+      loadSuratArahanMenu();
     }
     if (suratArahanActiveTab === 'dokumen') renderSuratArahanDocs();
   }
@@ -9745,6 +9754,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const chatLog = document.getElementById('suratArahanChatLog');
     const faqList = document.getElementById('suratArahanFaqList');
     const adminQaList = document.getElementById('suratArahanAdminQaList');
+    const menuEl = document.getElementById('suratArahanMenu');
 
     if (form) {
       form.addEventListener('submit', function(e) {
@@ -9779,6 +9789,60 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         askSuratArahanQuestion(btn.getAttribute('data-sa-ask-text') || '');
       });
     }
+    if (menuEl) {
+      menuEl.addEventListener('click', function(e) {
+        const crumb = e.target.closest('[data-sa-menu-crumb]');
+        if (crumb) {
+          e.preventDefault();
+          const index = parseInt(crumb.getAttribute('data-sa-menu-crumb'), 10);
+          suratArahanMenuPath = index < 0 ? [] : suratArahanMenuPath.slice(0, index + 1);
+          suratArahanMenuInputOpen = false;
+          renderSuratArahanMenu();
+          return;
+        }
+        const back = e.target.closest('[data-sa-menu-back]');
+        if (back) {
+          e.preventDefault();
+          suratArahanMenuPath.pop();
+          suratArahanMenuInputOpen = false;
+          renderSuratArahanMenu();
+          return;
+        }
+        const askOwn = e.target.closest('[data-sa-menu-ask]');
+        if (askOwn) {
+          e.preventDefault();
+          suratArahanMenuInputOpen = true;
+          renderSuratArahanMenu();
+          return;
+        }
+        const hideInput = e.target.closest('[data-sa-menu-hide-input]');
+        if (hideInput) {
+          e.preventDefault();
+          suratArahanMenuInputOpen = false;
+          renderSuratArahanMenu();
+          return;
+        }
+        const category = e.target.closest('[data-sa-menu-node]');
+        if (category) {
+          e.preventDefault();
+          suratArahanMenuPath.push(String(category.getAttribute('data-sa-menu-node') || ''));
+          suratArahanMenuInputOpen = false;
+          renderSuratArahanMenu();
+          return;
+        }
+        const leaf = e.target.closest('[data-sa-menu-leaf]');
+        if (leaf) {
+          e.preventDefault();
+          handleSuratArahanMenuLeaf(leaf.getAttribute('data-sa-menu-leaf') || '');
+          return;
+        }
+        const askText = e.target.closest('[data-sa-ask-text]');
+        if (askText) {
+          e.preventDefault();
+          askSuratArahanQuestion(askText.getAttribute('data-sa-ask-text') || '');
+        }
+      });
+    }
     if (faqList) {
       faqList.addEventListener('click', function(e) {
         const source = e.target.closest('[data-sa-source-file]');
@@ -9796,6 +9860,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     }
     if (chatLog) {
       chatLog.addEventListener('click', function(e) {
+        const askText = e.target.closest('[data-sa-ask-text]');
+        if (askText) {
+          e.preventDefault();
+          askSuratArahanQuestion(askText.getAttribute('data-sa-ask-text') || '');
+          return;
+        }
         const source = e.target.closest('[data-sa-source-file]');
         if (!source) return;
         e.preventDefault();
@@ -9817,6 +9887,40 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     if (adminRefresh) adminRefresh.addEventListener('click', function() { loadSuratArahanRagStatus(true); });
     const adminQaRefresh = document.getElementById('suratArahanAdminQaRefresh');
     if (adminQaRefresh) adminQaRefresh.addEventListener('click', function() { loadSuratArahanFaq(true); });
+    const menuRefresh = document.getElementById('suratArahanMenuRefresh');
+    if (menuRefresh) {
+      menuRefresh.addEventListener('click', async function() {
+        menuRefresh.disabled = true;
+        try {
+          const result = await suratArahanApi('refreshSuratArahanMenu');
+          if (!result.success) throw new Error(result.error || 'Gagal memuat semula menu.');
+          await loadSuratArahanMenu(true);
+          if (result.error) showToast('Menu: ' + escapeHtml(result.error), 'warning');
+          else if (result.warnings && result.warnings.length) showToast('Menu dimuat semula dengan ' + result.warnings.length + ' amaran. Semak Sheet MENU_SOALAN.', 'warning');
+          else showToast('Menu bantuan dimuat semula.', 'success');
+        } catch (error) {
+          showToast('Menu bantuan: ' + escapeHtml(error.message), 'error');
+        } finally {
+          menuRefresh.disabled = false;
+        }
+      });
+    }
+    const menuSetup = document.getElementById('suratArahanMenuSetup');
+    if (menuSetup) {
+      menuSetup.addEventListener('click', async function() {
+        menuSetup.disabled = true;
+        try {
+          const result = await suratArahanApi('setupSuratArahanMenuSheet');
+          if (!result.success) throw new Error(result.error || 'Gagal menyediakan menu.');
+          await loadSuratArahanMenu(true);
+          showToast(result.created ? 'Templat MENU_SOALAN dicipta.' : 'Sheet MENU_SOALAN sudah wujud.', 'success');
+        } catch (error) {
+          showToast('Menu bantuan: ' + escapeHtml(error.message), 'error');
+        } finally {
+          menuSetup.disabled = false;
+        }
+      });
+    }
     const reindexBtn = document.getElementById('suratArahanReindexBtn');
     if (reindexBtn) reindexBtn.addEventListener('click', function() { startSuratArahanReindex(); });
     const reindexSelectedBtn = document.getElementById('suratArahanReindexSelectedBtn');
@@ -9843,6 +9947,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const testBtn = document.getElementById('suratArahanTestBtn');
     if (testBtn) testBtn.addEventListener('click', testSuratArahanConnection);
     renderSuratArahanSuggestions();
+    renderSuratArahanMenu();
   }
 
   async function suratArahanApi(action, payload) {
@@ -10067,16 +10172,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const mode = opts.mode || 'ai';
       const badge = mode === 'cache'
         ? '<span class="sa-mode-badge sa-mode-cache"><i class="fa-solid fa-bolt"></i>Cache</span>'
-        : mode === 'no_match'
-          ? '<span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-magnifying-glass"></i>Tiada padanan</span>'
-          : '<span class="sa-mode-badge sa-mode-ai"><i class="fa-solid fa-wand-magic-sparkles"></i>AI</span>';
+        : mode === 'menu'
+          ? '<span class="sa-mode-badge sa-mode-menu"><i class="fa-solid fa-list-check"></i>Menu</span>'
+          : mode === 'no_match'
+            ? '<span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-magnifying-glass"></i>Tiada padanan</span>'
+            : '<span class="sa-mode-badge sa-mode-ai"><i class="fa-solid fa-wand-magic-sparkles"></i>AI</span>';
       const matched = opts.matchedQuestion && opts.mode === 'cache'
         ? '<span class="sa-match-note">Padanan: ' + escapeHtml(opts.matchedQuestion) + '</span>'
         : '';
       wrap.innerHTML = '<div class="sa-msg-avatar"><i class="fa-solid fa-file-shield"></i></div>'
         + '<div class="sa-msg-body"><div class="sa-msg-bubble">' + (opts.typing ? '<span class="sa-typing-dots"><span></span><span></span><span></span></span>' : suratArahanFormatText(content)) + '</div>'
         + '<div class="sa-msg-meta">' + badge + matched + '</div>'
-        + (opts.typing ? '' : suratArahanSourceButtons(opts.sources)) + '</div>';
+        + (opts.typing ? '' : suratArahanSourceButtons(opts.sources))
+        + (opts.typing || !opts.actionsHtml ? '' : opts.actionsHtml) + '</div>';
     }
 
     log.appendChild(wrap);
@@ -10122,6 +10230,186 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (sendBtn) sendBtn.disabled = false;
       if (input) input.disabled = false;
     }
+  }
+
+  function suratArahanMenuFindNode(nodeId, nodes) {
+    const list = nodes || (suratArahanMenu ? (suratArahanMenu.roots || []) : []);
+    for (let i = 0; i < list.length; i++) {
+      const node = list[i];
+      if (!node) continue;
+      if (String(node.id) === String(nodeId)) return node;
+      const found = suratArahanMenuFindNode(nodeId, node.children || []);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function suratArahanMenuPathNodes() {
+    const pathNodes = [];
+    let nodes = suratArahanMenu ? (suratArahanMenu.roots || []) : [];
+    for (let i = 0; i < suratArahanMenuPath.length; i++) {
+      let found = null;
+      for (let j = 0; j < nodes.length; j++) {
+        if (String(nodes[j].id) === String(suratArahanMenuPath[i])) {
+          found = nodes[j];
+          break;
+        }
+      }
+      if (!found) break;
+      pathNodes.push(found);
+      nodes = found.children || [];
+    }
+    return pathNodes;
+  }
+
+  function renderSuratArahanMenu() {
+    const wrap = document.getElementById('suratArahanMenu');
+    const breadcrumb = document.getElementById('suratArahanMenuBreadcrumb');
+    const options = document.getElementById('suratArahanMenuOptions');
+    const suggestions = document.getElementById('suratArahanSuggestions');
+    const form = document.getElementById('suratArahanChatForm');
+    if (!wrap || !breadcrumb || !options) return;
+
+    const configured = !!(suratArahanMenu && suratArahanMenu.configured && (suratArahanMenu.roots || []).length);
+    if (!configured) {
+      wrap.style.display = 'none';
+      if (suggestions) suggestions.style.display = '';
+      if (form) form.style.display = 'flex';
+      return;
+    }
+
+    wrap.style.display = '';
+    if (suggestions) suggestions.style.display = 'none';
+
+    const pathNodes = suratArahanMenuPathNodes();
+    if (pathNodes.length !== suratArahanMenuPath.length) {
+      suratArahanMenuPath = pathNodes.map(function(node) { return String(node.id); });
+    }
+    const currentNodes = pathNodes.length
+      ? (pathNodes[pathNodes.length - 1].children || [])
+      : (suratArahanMenu.roots || []);
+
+    const crumbs = ['<button type="button" class="sa-menu-crumb" data-sa-menu-crumb="-1">Menu utama</button>'];
+    pathNodes.forEach(function(node, index) {
+      crumbs.push('<span class="sa-menu-crumb-sep">›</span>');
+      crumbs.push('<button type="button" class="sa-menu-crumb" data-sa-menu-crumb="' + index + '">' + escapeHtml(node.label) + '</button>');
+    });
+    breadcrumb.innerHTML = crumbs.join('');
+    breadcrumb.style.display = pathNodes.length ? '' : 'none';
+
+    const buttons = [];
+    currentNodes.forEach(function(node) {
+      const hasChildren = !!(node.children && node.children.length);
+      const className = hasChildren ? 'sa-menu-option sa-menu-option-category' : 'sa-menu-option sa-menu-option-leaf';
+      const icon = hasChildren ? 'fa-folder-open' : (node.answer ? 'fa-circle-info' : 'fa-comment-dots');
+      const attr = hasChildren
+        ? 'data-sa-menu-node="' + escapeAttr(node.id) + '"'
+        : 'data-sa-menu-leaf="' + escapeAttr(node.id) + '"';
+      buttons.push('<button type="button" class="' + className + '" ' + attr + '><i class="fa-solid ' + icon + '"></i>' + escapeHtml(node.label) + '</button>');
+    });
+    if (!currentNodes.length) {
+      buttons.push('<span class="sa-menu-empty">Tiada pilihan pada peringkat ini.</span>');
+    }
+    if (pathNodes.length) {
+      buttons.push('<button type="button" class="sa-menu-nav" data-sa-menu-back="1"><i class="fa-solid fa-arrow-left"></i>Kembali</button>');
+    }
+    if (suratArahanMenuInputOpen) {
+      buttons.push('<button type="button" class="sa-menu-nav" data-sa-menu-hide-input="1"><i class="fa-solid fa-list"></i>Pilih menu</button>');
+    } else {
+      buttons.push('<button type="button" class="sa-menu-nav sa-menu-ask" data-sa-menu-ask="1"><i class="fa-solid fa-pen"></i>Tanya soalan sendiri</button>');
+    }
+    options.innerHTML = buttons.join('');
+
+    if (form) form.style.display = suratArahanMenuInputOpen ? 'flex' : 'none';
+    if (suratArahanMenuInputOpen) {
+      const input = document.getElementById('suratArahanChatInput');
+      if (input) setTimeout(function() { try { input.focus(); } catch (e) {} }, 0);
+    }
+  }
+
+  function handleSuratArahanMenuLeaf(nodeId) {
+    const node = suratArahanMenuFindNode(nodeId);
+    if (!node) return;
+    const question = String(node.question || '').trim();
+    const answer = String(node.answer || '').trim();
+    const label = String(node.label || question || 'Pilihan menu');
+
+    if (answer) {
+      appendSuratArahanMessage('user', label);
+      appendSuratArahanMessage('ai', answer, {
+        mode: 'menu',
+        sources: node.sources || [],
+        actionsHtml: question
+          ? '<div class="sa-menu-answer-actions"><button type="button" class="sa-btn sa-btn-primary sa-btn-small" data-sa-ask-text="' + escapeAttr(question) + '"><i class="fa-solid fa-wand-magic-sparkles"></i>Dapatkan jawapan penuh AI</button></div>'
+          : ''
+      });
+      return;
+    }
+
+    if (question) {
+      askSuratArahanQuestion(question);
+      return;
+    }
+
+    appendSuratArahanMessage('user', label);
+    appendSuratArahanMessage('error', 'Tiada jawapan disediakan untuk pilihan ini. Sila taip soalan anda di bawah.');
+    suratArahanMenuInputOpen = true;
+    renderSuratArahanMenu();
+  }
+
+  async function loadSuratArahanMenu(showError) {
+    if (suratArahanMenuLoading) return;
+    suratArahanMenuLoading = true;
+    try {
+      const result = await suratArahanApi('getSuratArahanMenu');
+      if (!result.success) throw new Error(result.error || 'Gagal memuatkan menu bantuan.');
+      suratArahanMenu = result;
+      suratArahanMenuLoaded = true;
+      suratArahanMenuPath = [];
+      suratArahanMenuInputOpen = false;
+      renderSuratArahanMenu();
+      updateSuratArahanMenuAdminStatus(result);
+    } catch (error) {
+      console.error('Surat Arahan menu error:', error);
+      suratArahanMenu = null;
+      suratArahanMenuLoaded = false;
+      renderSuratArahanMenu();
+      updateSuratArahanMenuAdminStatus(null);
+      if (showError) showToast('Menu bantuan: ' + escapeHtml(error.message), 'error');
+    } finally {
+      suratArahanMenuLoading = false;
+    }
+  }
+
+  function updateSuratArahanMenuAdminStatus(menu) {
+    const statusEl = document.getElementById('suratArahanMenuAdminStatus');
+    const openLink = document.getElementById('suratArahanMenuOpenSheet');
+    const setupBtn = document.getElementById('suratArahanMenuSetup');
+    if (!statusEl) return;
+
+    if (!menu) {
+      statusEl.textContent = 'Tidak dapat disemak';
+      statusEl.title = '';
+      if (openLink) openLink.style.display = 'none';
+      if (setupBtn) setupBtn.style.display = '';
+      return;
+    }
+
+    const counts = menu.counts || {};
+    const configured = !!menu.configured;
+    statusEl.textContent = configured
+      ? (counts.nodes || 0) + ' pilihan • ' + (counts.roots || 0) + ' kategori • ' + (counts.maxDepth || 0) + ' peringkat'
+      : (menu.sheetUrl ? 'Sheet wujud • belum ada pilihan aktif' : 'Belum disediakan');
+    statusEl.title = menu.error || '';
+    if (openLink) {
+      if (menu.sheetUrl) {
+        openLink.href = menu.sheetUrl;
+        openLink.style.display = '';
+      } else {
+        openLink.style.display = 'none';
+      }
+    }
+    if (setupBtn) setupBtn.style.display = configured ? 'none' : '';
   }
 
   function renderSuratArahanSuggestions() {
@@ -10267,7 +10555,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       + '<div class="sa-msg-meta"><span class="sa-mode-badge sa-mode-info"><i class="fa-solid fa-book-open"></i>Berasaskan dokumen</span></div></div></div>';
     suratArahanFaqCache = [];
     suratArahanRagStatus = null;
+    suratArahanMenuPath = [];
+    suratArahanMenuInputOpen = false;
     renderSuratArahanSuggestions();
+    renderSuratArahanMenu();
   }
 
   function suratArahanBase64ToArrayBuffer(base64) {
@@ -10546,6 +10837,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     loadSuratArahanRagStatus();
     loadSuratArahanFaq();
+    loadSuratArahanMenu();
     await loadSuratArahanDocs(false);
   }
 

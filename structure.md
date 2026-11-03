@@ -41,7 +41,7 @@ Pemilik sistem ialah **HQ (SPTB-PKK-HQ)**. Pentadbiran teknikal dilaksanakan mel
 | Pelulus | `PELULUS` | Membuat keputusan muktamad, mengesahkan atau menolak kes SIASAT ke SPI |
 | Pengarah | `PENGARAH` | Pemantauan dan kelulusan peringkat pengurusan |
 | Ketua Seksyen | `KETUA_SEKSYEN` | Pemantauan seksyen (normalisasi ejaan dikendalikan di backend) |
-| Pentadbir | `ADMIN` | Pengurusan pengguna, pengarkiban tahunan, pembersihan kod Firebase, pembinaan semula/indeks pilihan RAG Surat Arahan, padam cache jawapan, capaian penuh |
+| Pentadbir | `ADMIN` | Pengurusan pengguna, pengarkiban tahunan, pembersihan kod Firebase, pembinaan semula/indeks pilihan RAG Surat Arahan, pengurusan menu bantuan, padam cache jawapan, capaian penuh |
 | Pembantu Khidmat Pelanggan / SPI | `PKA` | Mengemaskini lawatan (`lawatan_tarikh`, `lawatan_submit_sptb`, `lawatan_syor`, `ulasan_spi`), menghubungi Pengesyor |
 
 ### 1.4 Status Sistem Sedia Ada
@@ -62,7 +62,7 @@ Penjelasan:
 
 * **Tiada lapisan `controllers/`, `models/`, `routes/`, `config/` fizikal.** Fungsi tersebut wujud secara logik tetapi diimplementasikan dalam dua fail utama:
   * Pengawal dan penghala logik = fungsi `doGet(e)` dan `doPost(e)` dalam `code.gs` yang membezakan tindakan melalui parameter `action`.
-  * Model data = hamparan Google Sheets (`Sheet1`, `Users`, `Logs`) serta koleksi Firestore untuk tapisan dan bakul.
+  * Model data = hamparan Google Sheets (`Sheet1`, `Users`, `Logs`, dan `MENU_SOALAN` pilihan) serta koleksi Firestore untuk tapisan dan bakul.
   * Paparan = `index.html` + `style.css` + DOM yang dimanipulasi oleh `app.js`.
 * **Sebab pemilihan:** Meminimumkan kos infrastruktur, memanfaatkan perkhidmatan Google Workspace kerajaan yang sedia ada, membolehkan capaian tanpa nama (anonymous) di peringkat Web App dengan kawalan akses di peringkat aplikasi, dan menyokong pembangunan pantas tanpa pengurusan pelayan.
 * **Bukan Microservices:** Semua logik backend berada dalam satu projek Apps Script dengan kunci konkurensi tunggal (`LockService.getScriptLock()`) bagi operasi tulis Sheet. Tindakan RAG Surat Arahan dikecualikan kerana menulis ke Firestore/Drive. Penskaleran adalah menegak melalui cache, bukan melalui perkhidmatan teragih.
@@ -85,7 +85,7 @@ flowchart LR
         BM25["RAG - BM25 + cache + DeepSeek"]
     end
     subgraph DATA["Storan Terurus"]
-        SHEET[("Google Sheets - Sheet1 / Users / Logs")]
+        SHEET[("Google Sheets - Sheet1 / Users / Logs / MENU_SOALAN")]
         FIRE[("Firestore - PROJEK_FIRESTORE_TAPISAN")]
         FIRERAG[("Firestore - surat_arahan_qa / meta / usage")]
         DRIVE[("Google Drive - STB MAIN FOLDER")]
@@ -207,7 +207,7 @@ Statistik saiz: `app.js` terbesar (~1.1MB), diikuti `jata.svg` (~373KB), `code.g
 | `tab-admin-dashboard` | Statistik admin + pengurusan pengguna | ADMIN |
 | `tab-history` | Sejarah keputusan | Dibenarkan |
 | `tab-pka-dashboard` | Inbox SPI, kemas kini lawatan | PKA |
-| Navbar: `btnSuratArahan` | Modal Surat Arahan: tab Tanya (RAG), Dokumen (Drive + pratonton PDF), Soalan Lazim (cache), dan Urus (reindex/status/OCR/padam cache) | PENGESYOR, PELULUS, KETUA_SEKSYEN, PENGARAH, ADMIN (tab Urus: ADMIN) |
+| Navbar: `btnSuratArahan` | Modal Surat Arahan: tab Tanya (RAG + menu bantuan), Dokumen (Drive + pratonton PDF), Soalan Lazim (cache), dan Urus (reindex/status/OCR/menu/padam cache) | PENGESYOR, PELULUS, KETUA_SEKSYEN, PENGARAH, ADMIN (tab Urus: ADMIN) |
 
 ---
 
@@ -249,7 +249,7 @@ flowchart TD
 
 | Integrasi | Mekanisme | Data Bertukar | Nota Operasi |
 |---|---|---|---|
-| Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, slot legasi (AD), ulasan SPI | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti |
+| Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, slot legasi (AD), ulasan SPI; `MENU_SOALAN` pilihan untuk menu bantuan | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti; `MENU_SOALAN` untuk menu bantuan |
 | Firestore (`[PROJEK_FIRESTORE_TAPISAN]`) | SDK Compat 9.21.0 di klien + kod Firebase per pengguna | Peraturan tapisan G4–G7, data bakul | Akses tanpa nama selepas log masuk GIS; kod disuntik dari Script Properties |
 | Google Drive | `DriveApp` | Struktur `STB MAIN FOLDER > [Pengesyor] > [SYARIKAT] > [JENIS - TARIKH]` + PDF berwarna + fail dimuat naik (base64) | Pencarian folder mengabaikan kurungan dan huruf besar/kecil |
 | Google Drive — Surat Arahan | `DriveApp` melalui `getSuratArahanDocs` | Dokumen rujukan pindaan/Surat Arahan SPTB daripada `STB MAIN FOLDER > SURAT ARAHAN` | Baca sahaja; akses 4 peranan + `ADMIN`; cache 5 minit; subfolder sebagai kategori; ringkasan daripada medan Description fail |
@@ -484,6 +484,19 @@ flowchart TD
 * **Belum dilaksanakan:** maklum balas/rating jawapan, perbualan berbilang giliran, penomboran penuh cache admin, dan pengesahan ID token pelayan.
 * **Operasi:** finalisasi indeks berjalan dalam had masa Apps Script; korpus yang sangat besar mungkin memerlukan pemecahan proses. Reindex dilakukan dari pelayar admin dan tidak diteruskan jika modal ditutup.
 
+#### 4.7.6 Menu Soalan Bantuan Berperingkat
+
+Menu bantuan membolehkan Pentadbir menyediakan pilihan soalan lebih awal dalam tab `MENU_SOALAN` spreadsheet sistem. Pengguna menekan pilihan mengikut peringkat (maksimum 3) sebelum sampai kepada jawapan; ruang taip bebas hanya dipaparkan apabila pengguna memilih **Tanya soalan sendiri** atau tiada jawapan disediakan.
+
+* **Lajur Sheet:** `ID`, `INDUK`, `TAJUK`, `SOALAN`, `JAWAPAN`, `SUMBER`, `SUSUNAN`, `AKTIF`.
+* **Struktur:** `INDUK` merujuk `ID` induk; kosong bermaksud menu utama. Rekod dengan `AKTIF` bernilai `TIDAK` atau yang mempunyai induk tidak aktif tidak dipaparkan.
+* **Jawapan:** `JAWAPAN` dipaparkan sebagai ringkasan manual. Jika `SOALAN` diisi, butang **Dapatkan jawapan penuh AI** menghantar soalan itu kepada aliran RAG sedia ada. Jika `JAWAPAN` kosong, soalan terus dihantar ke RAG.
+* **Sumber:** `SUMBER` menerima format `fileId|halaman;fileId|halaman`. Hanya PDF dalam folder `SURAT ARAHAN` diterima dan dipaparkan sebagai cip sumber.
+* **Endpoint:** `getSuratArahanMenu` (semua peranan Surat Arahan), `refreshSuratArahanMenu` dan `setupSuratArahanMenuSheet` (ADMIN).
+* **Cache:** menu dibina dan dicache selama 300 saat; Pentadbir boleh klik **Muat Semula Menu** di tab Urus selepas mengedit Sheet.
+* **Had:** maksimum 100 pilihan, 3 peringkat, 600 aksara soalan, 4,000 aksara jawapan, 5 sumber setiap pilihan.
+* **Kegagalan:** jika Sheet tiada, kosong, atau header tidak lengkap, sistem kembali kepada cadangan soalan dan input teks sedia ada.
+
 ---
 
 ## 5. Teknologi Stack (Technology Stack)
@@ -494,7 +507,7 @@ flowchart TD
 |---|---|---|---|
 | Bahasa Bahagian Hadapan | HTML5, CSS3, JavaScript (Vanilla, ES6+) | Tiada framework SPA; DOM + `fetch` | `index.html`, `app.js`, `style.css` |
 | Bahasa Backend | Google Apps Script (JavaScript V8) | `runtimeVersion: V8`, `timeZone: Asia/Singapore` | `appsscript.json`, `code.gs` |
-| Pangkalan Data Utama | Google Sheets | 3 helaian: `Sheet1`, `Users`, `Logs`; 32 lajur | `code.gs: SHEET_NAME` |
+| Pangkalan Data Utama | Google Sheets | 3 helaian teras: `Sheet1`, `Users`, `Logs`; 32 lajur; `MENU_SOALAN` pilihan untuk menu bantuan | `code.gs: SHEET_NAME`, `SURAT_ARAHAN_MENU_SHEET_NAME` |
 | Pangkalan Pelengkap | Cloud Firestore | Projek `[PROJEK_FIRESTORE_TAPISAN]` (nama sebenar dirahsiakan); koleksi RAG `surat_arahan_qa`, `surat_arahan_meta`, `surat_arahan_usage` | `app.js: firebaseConfig`, `code.gs: SA_RAG_*` |
 | Enjin RAG | BM25 vanilla + DeepSeek Chat Completions | 6 chunk teratas; JSON mode; OCR vision | `code.gs: saRagSearchIndex_`, `saRagDeepSeekAnswer_`, `saRagDeepSeekOcrPages_` |
 | Storan Klien | IndexedDB (`SPTB_Storage`) + `localStorage` | DB versi 1, stor `cache`; 7 kunci besar dialih ke IndexedDB | `app.js: storageWrapper` |
@@ -534,9 +547,11 @@ SPKK (Sijil Perolehan Kerja Kerajaan), STB (Sijil Taraf Bumiputera — konteks S
 ## Lampiran B — Rujukan Kod
 
 * Penghala GET: `code.gs:doGet`, Penghala POST: `code.gs:doPost`, Middleware: `verifyUserAccess`, Normalisasi peranan: `normalizeRoleKey`.
-* Cache: `APP_DATA_CHUNK_*`, `APP_DATA_REBUILD_KEY`, `STB_DASH_STATS_*`, `STB_USER_*`, `PUTRAJAYA_HOLIDAYS_*`, `SA_RAG_INDEX_*`, `SA_RAG_FS_TOKEN_*`.
+* Cache: `APP_DATA_CHUNK_*`, `APP_DATA_REBUILD_KEY`, `STB_DASH_STATS_*`, `STB_USER_*`, `PUTRAJAYA_HOLIDAYS_*`, `SA_RAG_INDEX_*`, `SA_RAG_FS_TOKEN_*`, `STB_SURAT_ARAHAN_MENU_V1`.
 * RAG Surat Arahan: `saRagSearchIndex_`, `saRagFindCachedAnswer_`, `saRagDeepSeekAnswer_`, `saRagDeepSeekOcrPages_`, `saRagSaveQaAnswer_`, `saRagSaveIndex_`, `saRagCachedAnswerStale_`.
+* Menu bantuan: `saMenuLoad_`, `saMenuBuildTree_`, `saMenuReadRows_`, `saMenuResolveSources_`.
 * Endpoint RAG: `askSuratArahan`, `listSuratArahanFaq`, `deleteSuratArahanQa`, `getSuratArahanStatus`, `getSuratArahanFileData`, `saveSuratArahanDocText`, `ocrSuratArahanPages`, `finalizeSuratArahanIndex`, `testSuratArahanFirebase`.
+* Endpoint menu: `getSuratArahanMenu`, `refreshSuratArahanMenu`, `setupSuratArahanMenuSheet`.
 * URL operasi sebenar dan kunci API hendaklah diperoleh melalui saluran rasmi HQ dan tidak disalin ke dalam repositori awam.
 
 *— Tamat `structure.md` —*
