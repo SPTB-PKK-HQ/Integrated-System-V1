@@ -1001,7 +1001,7 @@
         #customModalOverlay { z-index: 13000 !important; }
 
         /* =========================================================================
-           POSTER ALUAN Pn NOORAIN — auto-tutup 10 saat selepas login
+           POSTER ALUAN PEGAWAI — auto-tutup 10 saat selepas login
            ========================================================================= */
         .welcome-poster-overlay {
             position: fixed; inset: 0; z-index: 14000;

@@ -916,9 +916,9 @@ async function handleCredentialResponse(response) {
         hideLoading();
         // V6.5.2: Papar greeting harian sebelum masuk sistem
         await playSuccessSound();
-        // Poster aluan 10 saat untuk Pn Noorain — muncul serta-merta selepas loading;
+        // Poster aluan pegawai (10 saat) — muncul serta-merta selepas loading;
         // modal greeting di bawahnya akan kelihatan selepas poster tertutup.
-        try { showNoorainWelcomePoster(currentUser); } catch (e) { console.warn('Poster aluan gagal:', e); }
+        try { showWelcomePosterForUser(currentUser); } catch (e) { console.warn('Poster aluan gagal:', e); }
         const pic = currentUser.picture;
         const greetingMsg = pic
           ? `<div style="text-align:center;margin-bottom:15px;"><img src="${pic}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;border:3px solid #10b981;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>${getDailyGreeting()}`
@@ -1187,20 +1187,62 @@ async function handleCredentialResponse(response) {
   }
 
   // =========================================================================
-  // POSTER ALUAN — Pn Noorain binti Baharin (auto-tutup 10 saat)
+  // POSTER ALUAN PEGAWAI (auto-tutup 10 saat)
   // Dipanggil hanya selepas login baharu berjaya; bukan setiap refresh sesi.
   // =========================================================================
   const WELCOME_POSTER_DURATION_MS = 10000;
+  const WELCOME_POSTERS = [
+    {
+      match: 'NOORAIN',
+      src: 'assets/posters/poster-noorain.jpg',
+      alt: 'Poster motivasi — Noorain binti Baharin, Penolong Juruukur Bahan'
+    },
+    {
+      match: 'HAMIZI',
+      src: 'assets/posters/poster-norhamizi.jpg',
+      alt: 'Poster motivasi — Norhamizi bin Hamdzah, Pembantu Tadbir (Perkeranian/Operasi) N2'
+    },
+    {
+      match: 'ILYANADIA',
+      src: 'assets/posters/poster-nur-ilyanadia.jpg',
+      alt: 'Poster motivasi — Nur Ilyanadia binti Azmi, Pembantu Tadbir (Perkeranian/Operasi) N1'
+    },
+    {
+      match: 'KHAIRUL FITRI',
+      src: 'assets/posters/poster-wan-khairul.jpg',
+      alt: 'Poster motivasi — Wan Khairul Fitri bin Kamaruddin, Pembantu Tadbir (Perkeranian/Operasi) N1'
+    },
+    {
+      match: 'NOR AINI',
+      src: 'assets/posters/poster-nor-aini.jpg',
+      alt: 'Poster motivasi — Nor Aini binti Abd. Zaman, Pembantu Khidmat Am H1'
+    },
+    {
+      match: 'ZARIFF',
+      src: 'assets/posters/poster-zariff.jpg',
+      alt: 'Poster motivasi — Muhamad Zariff Fahmi bin Zainudin, Pembantu Tadbir (Perkeranian/Operasi) N1'
+    },
+    {
+      match: 'ROZAAN',
+      src: 'assets/posters/poster-rozaan.jpg',
+      alt: 'Poster motivasi — Rozaan bin Mat Isa, Penolong Pegawai Tadbir N6'
+    },
+    {
+      match: 'NORHAFIDAH',
+      src: 'assets/posters/poster-norhafidah.jpg',
+      alt: 'Poster motivasi — Norhafidah binti Rosli, Penolong Pegawai Tadbir N6'
+    }
+  ];
   let welcomePosterHideTimer = null;
   let welcomePosterCountdownTimer = null;
 
-  function isNoorainUser(user) {
-    if (!user) return false;
+  function welcomePosterForUser(user) {
+    if (!user) return null;
     const name = String(user.name || user.userName || '')
       .toUpperCase()
       .replace(/\s+/g, ' ')
       .trim();
-    return name.includes('NOORAIN');
+    return WELCOME_POSTERS.find(function(poster) { return name.includes(poster.match); }) || null;
   }
 
   function closeWelcomePoster() {
@@ -1213,10 +1255,17 @@ async function handleCredentialResponse(response) {
     document.body.style.overflow = '';
   }
 
-  function showNoorainWelcomePoster(user) {
-    if (!isNoorainUser(user)) return false;
+  function showWelcomePosterForUser(user) {
+    const poster = welcomePosterForUser(user);
+    if (!poster) return false;
     const overlay = document.getElementById('welcomePosterOverlay');
     if (!overlay) return false;
+
+    const posterImg = document.getElementById('welcomePosterImg');
+    if (posterImg) {
+      posterImg.src = poster.src;
+      posterImg.alt = poster.alt;
+    }
 
     if (overlay.classList.contains('show')) closeWelcomePoster();
 
