@@ -10091,9 +10091,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     } else if (mode === 'missing') {
       const status = suratArahanRagStatus || {};
       const indexedIds = new Set(((status.index && status.index.indexedFileIds) || []).map(String));
+      const staleNames = new Set((status.addedFiles || []).concat(status.changedFiles || []).map(String));
       pdfs.forEach(function(file) {
         const id = String(file.id || '');
-        if (!indexedIds.has(id)) suratArahanSelectedIndexIds.add(id);
+        const name = String(file.name || '');
+        if (!indexedIds.has(id) || staleNames.has(name)) suratArahanSelectedIndexIds.add(id);
       });
     }
     renderSuratArahanAdminDocPicker();
@@ -10779,13 +10781,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const finalize = await suratArahanApi('finalizeSuratArahanIndex', { fileIds: indexedIds, merge: selectedMode });
       if (!finalize.success) throw new Error(finalize.error || 'Gagal membina indeks.');
       suratArahanSetAdminProgress(100, 'Indeks selesai dibina.');
-      suratArahanLog('Indeks siap: ' + finalize.documentCount + ' dokumen, ' + finalize.chunkCount + ' chunk.', 'success');
+      suratArahanLog('Indeks siap: ' + finalize.documentCount + ' dokumen ('
+        + (finalize.preservedDocuments || 0) + ' dikekalkan, ' + (finalize.newDocuments || 0) + ' baru), '
+        + finalize.chunkCount + ' chunk.', 'success');
       if (failed) suratArahanLog(failed + ' dokumen gagal dan tidak dimasukkan ke dalam indeks.', 'error');
       await loadSuratArahanFaq();
       await loadSuratArahanRagStatus();
       await CustomAppModal.alert(
-        'Indeks AI berjaya dibina.<br><br>Dokumen: <strong>' + finalize.documentCount + '</strong><br>Chunk: <strong>' + finalize.chunkCount + '</strong>'
-        + (selectedMode ? '<br><br>Hanya dokumen yang dipilih diproses; indeks dokumen lain dikekalkan.' : '')
+        'Indeks AI berjaya dibina.<br><br>Jumlah dokumen: <strong>' + finalize.documentCount + '</strong><br>Chunk: <strong>' + finalize.chunkCount + '</strong>'
+        + (selectedMode
+          ? '<br><br>Dokumen lama dikekalkan: <strong>' + (finalize.preservedDocuments || 0) + '</strong>'
+            + '<br>Dokumen baru dikemas kini: <strong>' + (finalize.newDocuments || 0) + '</strong>'
+          : '')
         + (failed ? '<br>Gagal: <strong>' + failed + '</strong> dokumen (lihat log).' : ''),
         'Indeks Selesai',
         failed ? 'warning' : 'success'
@@ -15439,55 +15446,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     try { refreshInboxBell(); } catch (e) {}
   }
 
-  // V6.6.0: Modal pilihan undo - syor saja atau termasuk pelulus
-  async function showUndoChoiceModal(item) {
-    return new Promise((resolve) => {
-      const overlay = document.getElementById('undoChoiceModal') || createUndoChoiceModal();
-      const titleEl = document.getElementById('undoChoiceTitle');
-      const msgEl = document.getElementById('undoChoiceMsg');
-      const btnSyor = document.getElementById('undoChoiceSyor');
-      const btnSemua = document.getElementById('undoChoiceSemua');
-      const btnBatal = document.getElementById('undoChoiceBatal');
-      
-      if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Pilihan Undo';
-      if (msgEl) {
-        msgEl.innerHTML = `Permohonan <b>${item.syarikat}</b> sudah ada keputusan pelulus (<b>${item.kelulusan}</b>).<br><br>Sila pilih tindakan:`;
-      }
-      
-      overlay.style.display = 'flex';
-      overlay.classList.add('show');
-      
-      const cleanup = () => {
-        overlay.classList.remove('show');
-        setTimeout(() => { overlay.style.display = 'none'; }, 300);
-      };
-      
-      btnSyor.onclick = () => { cleanup(); resolve('syor_only'); };
-      btnSemua.onclick = () => { cleanup(); resolve('termasuk_pelulus'); };
-      btnBatal.onclick = () => { cleanup(); resolve(null); };
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } }, { once: true });
-    });
-  }
-
-  function createUndoChoiceModal() {
-    const div = document.createElement('div');
-    div.id = 'undoChoiceModal';
-    div.className = 'custom-modal-overlay';
-    div.innerHTML = `
-      <div class="custom-modal-card" style="max-width:420px; text-align:center;">
-        <div id="undoChoiceTitle" style="font-size:1.4rem; font-weight:800; color:#1e293b; margin-bottom:12px;"></div>
-        <div id="undoChoiceMsg" style="font-size:0.95rem; color:#64748b; margin-bottom:20px; line-height:1.6;"></div>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <button id="undoChoiceSyor" class="custom-modal-btn" style="background:#f59e0b; color:white; box-shadow:0 4px 12px rgba(245,158,11,0.3);"><i class="fa-solid fa-pen fa-ico"></i>Padam Pengesyor Sahaja</button>
-          <button id="undoChoiceSemua" class="custom-modal-btn" style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);"><i class="fa-solid fa-trash-can fa-ico"></i>Padam Termasuk Pelulus</button>
-          <button id="undoChoiceBatal" class="custom-modal-btn custom-modal-btn-cancel">Batal</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(div);
-    return div;
-  }
-
+  // Undo syor oleh pengesyor: hanya dibenarkan selagi pelulus belum membuat keputusan.
   async function deleteOrClearRecord(item, actionType) {
     if (!item || !item.row) {
       await CustomAppModal.alert("Rekod tidak sah.", "Ralat", "error");
@@ -15509,30 +15468,24 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       isDanger = true;
       modalType = "error"; 
     } else if (actionType === 'undo_syor') {
-      // V6.6.0: Jika sudah ada keputusan pelulus, bagi pilihan
-      if (item.kelulusan && item.kelulusan.trim() !== '') {
-        const choice = await showUndoChoiceModal(item);
-        if (!choice) return;
-        if (choice === 'termasuk_pelulus') {
-          actionType = 'undo_syor_dan_lulus';
-        }
+      // Undo pengesyor hanya dibenarkan selagi pelulus belum membuat keputusan.
+      // Jika pelulus sudah buat keputusan, pelulus perlu undo terlebih dahulu.
+      const pelulusSudahPutus = String(item.kelulusan || '').trim() !== '' || String(item.tarikh_lulus || '').trim() !== '';
+      if (pelulusSudahPutus) {
+        await CustomAppModal.alert(
+          `Pelulus telah membuat keputusan (<b>${escapeHtml(String(item.kelulusan || 'Telah dihantar'))}</b>) untuk <b>${escapeHtml(String(item.syarikat || ''))}</b>.<br><br>Pelulus perlu undo keputusan terlebih dahulu sebelum anda boleh undo syor ini.`,
+          'Undo Tidak Dibenarkan',
+          'warning'
+        );
+        return;
       }
-      
-      if (actionType === 'undo_syor_dan_lulus') {
-        message = `Anda pasti mahu UNDO syor dan PADAM keputusan pelulus untuk <b>${item.syarikat}</b>? Semua data akan dibuang.`;
-        action = 'undo_syor_dan_lulus';
-        modalTitle = "Padam Termasuk Pelulus";
-        btnText = "Ya, Padam Semua";
-        isDanger = true;
-        modalType = "error";
-      } else {
-        message = `Anda pasti mahu UNDO syor untuk <b>${item.syarikat}</b>? Rekod akan kembali ke "Belum Syor".`;
-        action = 'undo_syor';
-        modalTitle = "Pengesahan Undo";
-        btnText = "Ya, Undo";
-        isDanger = false;
-        modalType = "warning";
-      }
+
+      message = `Anda pasti mahu UNDO syor untuk <b>${item.syarikat}</b>? Rekod akan kembali ke "Belum Syor".`;
+      action = 'undo_syor';
+      modalTitle = "Pengesahan Undo";
+      btnText = "Ya, Undo";
+      isDanger = false;
+      modalType = "warning";
     } else if (actionType === 'undo_lulus') {
       message = `Anda pasti mahu UNDO kelulusan untuk <b>${item.syarikat}</b>? Rekod akan kembali ke Inbox Pelulus.`;
       action = 'undo_lulus';
@@ -15601,34 +15554,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       delete payload.pelulus;
       delete payload.alasan;
       
-    } else if (action === 'undo_syor_dan_lulus') {
-      // V6.6.0: Padam syor + pelulus (dari pengesyor undo)
-      let updatedBorangJson = item.borang_json;
-      if (updatedBorangJson) {
-          try {
-              let parsed = JSON.parse(updatedBorangJson);
-              parsed.catatan_pelulus = ''; // Kosongkan catatan
-              // WHATSAPP RESET: jadi macam tak hantar lagi
-              if (parsed.whatsapp_pelulus) {
-                parsed.whatsapp_pelulus.sent = false;
-                parsed.whatsapp_pelulus.tarikh_reset = new Date().toISOString().split('T')[0];
-              }
-              updatedBorangJson = JSON.stringify(parsed);
-          } catch(e) {}
-      }
-      payload = {
-        action: 'updateRecord',
-        ...item,
-        row: item.row,
-        syor_status: '',
-        tarikh_syor: '',
-        kelulusan: '',
-        alasan: '',
-        tarikh_lulus: '',
-        pelulus: '',
-        borang_json: updatedBorangJson,
-        email: currentUser ? currentUser.email : ''
-      };
     } else if (action === 'undo_lulus') {
       // 1. Buang catatan pelulus lama dari JSON supaya borang bersih semula
       let updatedBorangJson = item.borang_json;
@@ -15697,19 +15622,6 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               cachedData[index].alasan = '';
               cachedData[index].tarikh_lulus = '';
               // pelulus dikekalkan
-            } else if (action === 'undo_syor_dan_lulus') {
-              cachedData[index].syor_status = '';
-              cachedData[index].tarikh_syor = '';
-              cachedData[index].kelulusan = '';
-              cachedData[index].alasan = '';
-              cachedData[index].tarikh_lulus = '';
-              cachedData[index].pelulus = '';
-              try {
-                let _p = cachedData[index].borang_json ? JSON.parse(cachedData[index].borang_json) : {};
-                if (_p.whatsapp_pelulus) { _p.whatsapp_pelulus.sent = false; }
-                if (_p.catatan_pelulus !== undefined) _p.catatan_pelulus = '';
-                cachedData[index].borang_json = JSON.stringify(_p);
-              } catch (e) {}
             } else if (action === 'padam_syor') {
               cachedData[index].syor_status = '';
               cachedData[index].tarikh_syor = '';
@@ -16165,7 +16077,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         }
         // -----------------------------------------
         
-        if (currentUser.role === 'PENGESYOR') {
+        const pelulusSudahPutus = String(item.kelulusan || '').trim() !== '' || String(item.tarikh_lulus || '').trim() !== '';
+        if (currentUser.role === 'PENGESYOR' && !pelulusSudahPutus) {
           const btnUndo = document.createElement('button');
           btnUndo.className = 'btn-sm';
           btnUndo.innerText = 'Undo';
@@ -17012,6 +16925,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (!hasBorangVal(value)) return '';
       return `<div class="view-row${full ? ' full-width' : ''}"><span class="view-label">${label}</span><span class="view-value">${value}</span></div>`;
     };
+    // Teks panjang: escape kandungan dan kekalkan perenggan/jarak asal.
+    const bTextRow = (label, value, full) => {
+      if (!hasBorangVal(value)) return '';
+      return `<div class="view-row${full === false ? '' : ' full-width'}"><span class="view-label">${label}</span><span class="view-value multiline">${escapeHtml(String(value))}</span></div>`;
+    };
     const docLinkSmall = (meta) => {
       const list = Array.isArray(meta) ? meta.filter(function(m) { return m && m.url; }) : ((meta && meta.url) ? [meta] : []);
       if (list.length === 0) return '';
@@ -17063,10 +16981,10 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         asasInner += bRow('TEMPOH STB', hasBorangVal(bjRef.stbDuration) ? escapeHtml(String(bjRef.stbDuration)) : '');
         const ubahMak = bjRef.input_ubah_maklumat || bjRef.ubah_maklumat || '';
         const ubahGred = bjRef.input_ubah_gred || bjRef.ubah_gred || '';
-        if (String(jenisAppVal) === 'UBAH MAKLUMAT' && hasBorangVal(ubahMak)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
-        else if (hasBorangVal(ubahMak) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN MAKLUMAT', escapeHtml(String(ubahMak)), true);
-        if (String(jenisAppVal) === 'UBAH GRED' && hasBorangVal(ubahGred)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
-        else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bRow('PERUBAHAN GRED', escapeHtml(String(ubahGred)), true);
+        if (String(jenisAppVal) === 'UBAH MAKLUMAT' && hasBorangVal(ubahMak)) asasInner += bTextRow('PERUBAHAN MAKLUMAT', ubahMak);
+        else if (hasBorangVal(ubahMak) && !hasBorangVal(jenisAppVal)) asasInner += bTextRow('PERUBAHAN MAKLUMAT', ubahMak);
+        if (String(jenisAppVal) === 'UBAH GRED' && hasBorangVal(ubahGred)) asasInner += bTextRow('PERUBAHAN GRED', ubahGred);
+        else if (hasBorangVal(ubahGred) && !hasBorangVal(jenisAppVal)) asasInner += bTextRow('PERUBAHAN GRED', ubahGred);
         const syorBorangRef = String(bjRef.borang_syor_status || i.syor_status || '').trim().toUpperCase();
         // Rekod baharu guna satu ruangan (borang_justifikasi) dan mempunyai
         // borang_emel_syarikat. Rekod lama mungkin ada borang_catatan berasingan.
@@ -17080,7 +16998,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         const labelJustBorang = (syorBorangRef === 'SIASAT')
           ? 'JUSTIFIKASI LAWATAN (BORANG)'
           : 'CATATAN (BORANG)';
-        asasInner += bRow(labelJustBorang, hasBorangVal(justBorang) ? escapeHtml(String(justBorang)) : '', true);
+        asasInner += bTextRow(labelJustBorang, justBorang);
         if (asasInner) {
           borangHtml += `<div class="view-section"><div class="view-section-header"><i class="fa-solid fa-file-lines fa-ico"></i>MAKLUMAT BORANG SEMAKAN</div><div class="view-grid">${asasInner}</div></div>`;
         }
@@ -17252,7 +17170,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           else syorBadge = `<span class="status-badge bg-blue">${escapeHtml(String(i.lawatan_syor).trim())}</span>`;
           lawatanInner += `<div class="view-row"><span class="view-label">SYOR SPI</span><span class="view-value">${syorBadge}</span></div>`;
         }
-        if (hasBorangVal(i.ulasan_spi)) lawatanInner += `<div class="view-row full-width"><span class="view-label">ULASAN SPI</span><span class="view-value">${escapeHtml(String(i.ulasan_spi))}</span></div>`;
+        if (hasBorangVal(i.ulasan_spi)) lawatanInner += `<div class="view-row full-width"><span class="view-label">ULASAN SPI</span><span class="view-value multiline">${escapeHtml(String(i.ulasan_spi))}</span></div>`;
         if (laporanUrl) {
           const safeUrl = escapeHtml(laporanUrl);
           const titleTxt = laporanLabel ? escapeHtml(String(laporanLabel)) : 'Buka Laporan';
@@ -17331,7 +17249,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             </div>
             <div class="view-row full-width">
               <span class="view-label">${labelJustifikasiPengesyor}</span>
-              <span class="view-value">${safe(i.justifikasi)}</span>
+              <span class="view-value multiline">${escapeHtml(String(i.justifikasi || '-'))}</span>
             </div>
           </div>
         </div>
@@ -17354,7 +17272,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             </div>
             <div class="view-row">
               <span class="view-label">ALASAN/CATATAN</span>
-              <span class="view-value">${safe(i.alasan)}</span>
+              <span class="view-value multiline">${escapeHtml(String(i.alasan || '-'))}</span>
             </div>
           </div>
         </div>` : ''}

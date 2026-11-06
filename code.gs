@@ -50,6 +50,18 @@ const SURAT_ARAHAN_MENU_CACHE_TTL = 300;
 const SURAT_ARAHAN_MENU_MAX_DEPTH = 3;
 const SURAT_ARAHAN_MENU_MAX_NODES = 100;
 const SURAT_ARAHAN_MENU_HEADERS = ['ID', 'INDUK', 'TAJUK', 'SOALAN', 'JAWAPAN', 'SUMBER', 'SUSUNAN', 'AKTIF'];
+const SA_MENU_DEFAULT_ROWS = [
+  ['syarat', '', 'Syarat & Kelayakan', '', '', '', 1, 'YA'],
+  ['syarat_utama', 'syarat', 'Syarat utama permohonan', 'Apakah syarat utama permohonan Sijil Taraf Bumiputera (STB)?', '', '', 1, 'YA'],
+  ['dokumen', '', 'Dokumen & Istilah', '', '', '', 2, 'YA'],
+  ['dokumen_sokongan', 'dokumen', 'Dokumen sokongan', 'Dokumen apa yang perlu disediakan untuk permohonan STB?', '', '', 1, 'YA'],
+  ['dokumen_istilah', 'dokumen', 'Maksud SSM & BPLC', 'Apakah maksud SSM dan BPLC dalam dokumen Surat Arahan?', '', '', 2, 'YA'],
+  ['proses', '', 'Proses & Tempoh', '', '', '', 3, 'YA'],
+  ['proses_tempoh', 'proses', 'Tempoh kelulusan', 'Berapa lama tempoh proses kelulusan permohonan?', '', '', 1, 'YA'],
+  ['proses_pindaan', 'proses', 'Pindaan Surat Arahan', 'Bagaimana cara memohon pindaan Surat Arahan?', '', '', 2, 'YA'],
+  ['peranan', '', 'Peranan & Tanggungjawab', '', '', '', 4, 'YA'],
+  ['peranan_utama', 'peranan', 'Tugas Pengesyor, Pelulus & Pengarah', 'Apakah perbezaan tugas Pengesyor, Pelulus dan Pengarah?', '', '', 1, 'YA']
+];
 
 // Jumlah lajur dalam sheet (A hingga AF = 32 lajur)
 const TOTAL_COLUMNS = 32;
@@ -851,7 +863,7 @@ function doPost(e) {
       if (!sheet) {
         return createJSONOutput({ status: "error", message: "Sheet not found" });
       }
-      return handleUpdateRecord(data, sheet);
+      return handleUpdateRecord(data, sheet, accessCheck.userProfile);
     } 
     // ============================================================
     // LOGIK UTAMA: TAMBAH REKOD BARU (JIKA TIADA data.row)
@@ -1135,7 +1147,7 @@ function handleCetakDanSimpanPDF(data) {
 /**
  * FUNGSI KEMASKINI REKOD
  */
-function handleUpdateRecord(data, sheet) {
+function handleUpdateRecord(data, sheet, actorProfile) {
   try {
     const userName = data.pengesyor || data.pelulus || data.user || "System";
     const rowNum = parseInt(data.row);
@@ -1144,6 +1156,26 @@ function handleUpdateRecord(data, sheet) {
     
     const existingDataRange = sheet.getRange(rowNum, 1, 1, TOTAL_COLUMNS);
     const existingData = existingDataRange.getValues()[0];
+
+    // Pelulus mesti undo keputusan terlebih dahulu sebelum pengesyor boleh undo syor.
+    // Sekat cubaan pengesyor mengosongkan syor atau keputusan pelulus yang masih aktif.
+    const actorRole = normalizeRoleKey(actorProfile && actorProfile.role);
+    const existingSyorStatus = String(existingData[13] == null ? '' : existingData[13]).trim();
+    const existingKelulusan = String(existingData[23] == null ? '' : existingData[23]).trim();
+    const existingTarikhLulus = String(existingData[24] == null ? '' : existingData[24]).trim();
+    const isPengesyor = actorRole === normalizeRoleKey(ROLE_PENGESYOR);
+    if (isPengesyor && (existingKelulusan !== '' || existingTarikhLulus !== '')) {
+      const clearsSyor = data.syor_status !== undefined && String(data.syor_status).trim() === '' && existingSyorStatus !== '';
+      const clearsKelulusan = data.kelulusan !== undefined && String(data.kelulusan).trim() === '';
+      const clearsTarikhLulus = data.tarikh_lulus !== undefined && String(data.tarikh_lulus).trim() === '';
+      if (clearsSyor || clearsKelulusan || clearsTarikhLulus) {
+        return createJSONOutput({
+          status: "error",
+          success: false,
+          message: "Pelulus telah membuat keputusan. Pelulus perlu undo keputusan terlebih dahulu sebelum syor boleh di-undo."
+        });
+      }
+    }
     
     // BLOK 1 (A-O: Kolum 1-15)
     const rangePengesyor = sheet.getRange(rowNum, 1, 1, 15);
@@ -5802,16 +5834,16 @@ function saRagLoadIndex_() {
   return index;
 }
 
-function saRagBuildIndex_(parts) {
+function saRagBuildIndexFromDocs_(sourceDocs) {
   const docs = [];
   const df = Object.create(null);
   let chunkCount = 0;
   let totalLength = 0;
   const fileMap = {};
 
-  (parts || []).forEach(function(part) {
-    if (!part || !part.fileId || !Array.isArray(part.chunks) || !part.chunks.length) return;
-    const chunks = part.chunks.map(function(chunk) {
+  (sourceDocs || []).forEach(function(doc) {
+    if (!doc || !doc.fileId || !Array.isArray(doc.chunks) || !doc.chunks.length) return;
+    const chunks = doc.chunks.map(function(chunk) {
       const tokens = chunk.k || [];
       saRagUnique_(tokens).forEach(function(token) { df[token] = (df[token] || 0) + 1; });
       chunkCount++;
@@ -5819,16 +5851,16 @@ function saRagBuildIndex_(parts) {
       return { i: chunk.i, p: chunk.p, t: chunk.t, k: tokens, o: chunk.o || 0 };
     });
     docs.push({
-      fileId: part.fileId,
-      fileName: part.fileName,
-      category: part.category || 'Umum',
-      lastUpdated: part.lastUpdated || '',
+      fileId: doc.fileId,
+      fileName: doc.fileName || doc.name || 'Dokumen',
+      category: doc.category || 'Umum',
+      lastUpdated: doc.lastUpdated || '',
       chunks: chunks
     });
-    fileMap[part.fileId] = {
-      name: part.fileName || 'Dokumen',
-      category: part.category || 'Umum',
-      lastUpdated: part.lastUpdated || ''
+    fileMap[doc.fileId] = {
+      name: doc.fileName || doc.name || 'Dokumen',
+      category: doc.category || 'Umum',
+      lastUpdated: doc.lastUpdated || ''
     };
   });
 
@@ -5844,6 +5876,18 @@ function saRagBuildIndex_(parts) {
     fileMap: fileMap,
     docs: docs
   };
+}
+
+function saRagBuildIndex_(parts) {
+  return saRagBuildIndexFromDocs_((parts || []).map(function(part) {
+    return {
+      fileId: part && part.fileId,
+      fileName: part && part.fileName,
+      category: part && part.category,
+      lastUpdated: part && part.lastUpdated,
+      chunks: part && part.chunks
+    };
+  }));
 }
 
 function saRagSaveIndex_(index) {
@@ -6672,22 +6716,44 @@ function handleFinalizeSuratArahanIndex(data) {
 
     const requestedIds = Array.isArray(data.fileIds) ? data.fileIds.map(String) : [];
     let parts = saRagListParts_();
+    let existingDocs = [];
     if (requestedIds.length) {
       const allowed = {};
       requestedIds.forEach(function(id) { allowed[id] = 1; });
+
       if (data.merge) {
+        // Kekalkan dokumen daripada indeks sedia ada walaupun fail part_*.json
+        // lama tiada. Dokumen yang baru diproses akan menggantikan versi lama.
         try {
-          const existingMeta = saRagLoadMeta_();
-          Object.keys((existingMeta && existingMeta.fileMap) || {}).forEach(function(id) { allowed[id] = 1; });
-        } catch (e) {}
+          const selectedPartIds = {};
+          parts.forEach(function(part) {
+            if (part && part.fileId && allowed[part.fileId]) selectedPartIds[part.fileId] = 1;
+          });
+          const existingIndex = saRagLoadIndex_();
+          existingDocs = ((existingIndex && existingIndex.docs) || []).filter(function(doc) {
+            return doc && doc.fileId && !selectedPartIds[doc.fileId];
+          });
+        } catch (e) {
+          existingDocs = [];
+        }
       }
+
       parts = parts.filter(function(part) { return allowed[part.fileId]; });
     }
-    if (!parts.length) {
+    if (!parts.length && !existingDocs.length) {
       return createJSONOutput({ success: false, error: 'Tiada bahagian dokumen untuk dijadikan indeks.' });
     }
 
-    const index = saRagBuildIndex_(parts);
+    const newDocs = parts.map(function(part) {
+      return {
+        fileId: part.fileId,
+        fileName: part.fileName,
+        category: part.category,
+        lastUpdated: part.lastUpdated,
+        chunks: part.chunks
+      };
+    });
+    const index = saRagBuildIndexFromDocs_(existingDocs.concat(newDocs));
     if (!index.chunkCount) {
       return createJSONOutput({ success: false, error: 'Tiada teks yang boleh diindeks.' });
     }
@@ -6699,6 +6765,8 @@ function handleFinalizeSuratArahanIndex(data) {
       builtAt: index.builtAt,
       documentCount: index.documentCount,
       chunkCount: index.chunkCount,
+      preservedDocuments: existingDocs.length,
+      newDocuments: newDocs.length,
       indexedFileIds: Object.keys(index.fileMap)
     });
   } catch (error) {
@@ -7066,13 +7134,9 @@ function handleSetupSuratArahanMenuSheet(data) {
       sheet = ss.insertSheet(SURAT_ARAHAN_MENU_SHEET_NAME);
       created = true;
     }
+    const width = SURAT_ARAHAN_MENU_HEADERS.length;
     if (sheet.getLastRow() === 0) {
-      const width = SURAT_ARAHAN_MENU_HEADERS.length;
       sheet.getRange(1, 1, 1, width).setValues([SURAT_ARAHAN_MENU_HEADERS]);
-      sheet.getRange(2, 1, 2, width).setValues([
-        ['contoh_kategori', '', 'Contoh Kategori', '', '', '', 1, 'TIDAK'],
-        ['contoh_soalan', 'contoh_kategori', 'Contoh Soalan', 'Apakah syarat utama permohonan STB?', '', '', 1, 'TIDAK']
-      ]);
       sheet.getRange(1, 1, 1, width)
         .setFontWeight('bold')
         .setBackground('#1e3a8a')
@@ -7094,11 +7158,29 @@ function handleSetupSuratArahanMenuSheet(data) {
       } catch (e) {}
     }
 
+    // Isi menu siap sedia tanpa menduplikasi ID yang sudah ada dan tanpa
+    // menimpa baris tersuai yang telah ditambah oleh admin.
+    const existingIds = Object.create(null);
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().forEach(function(row) {
+        const id = String(row[0] || '').trim();
+        if (id) existingIds[id] = true;
+      });
+    }
+    const missingDefaults = SA_MENU_DEFAULT_ROWS.filter(function(row) {
+      return !existingIds[row[0]];
+    });
+    if (missingDefaults.length) {
+      const startRow = Math.max(sheet.getLastRow(), 1) + 1;
+      sheet.getRange(startRow, 1, missingDefaults.length, width).setValues(missingDefaults);
+    }
+
     CacheService.getScriptCache().remove(SURAT_ARAHAN_MENU_CACHE_KEY);
     return createJSONOutput({
       success: true,
       created: created,
       sheetUrl: saMenuSheetUrl_(sheet),
+      addedCount: missingDefaults.length,
       rowCount: Math.max(0, sheet.getLastRow() - 1)
     });
   } catch (error) {

@@ -2380,6 +2380,7 @@
         .view-row:last-child { border-bottom: none; }
         .view-label { font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.3px; }
         .view-value { font-size: 0.92rem; color: #0f172a; font-weight: 500; word-break: break-word; line-height: 1.5; }
+        .view-value.multiline { white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
         .person-neat { border-bottom: 1px solid #eef2f7 !important; }
         .person-neat:last-child { border-bottom: none !important; }
         /* Butang Dokumen moden (pill biru lembut + ikon mata dalam bulatan) */
