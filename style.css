@@ -2343,6 +2343,7 @@
 
         .conditional-input { display: none; width: 100%; margin-top: 5px; border: 2px solid #f59e0b !important; background-color: #fffbeb !important; }
         .app-item.blue-bg { background-color: #e0f2fe !important; border-left: 4px solid #0ea5e9 !important; }
+        .app-item .spkk-row-alert { display: inline-block; margin-top: 5px; padding: 4px 8px; font-size: 0.75rem; font-weight: 800; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 6px; line-height: 1.35; white-space: normal; max-width: 100%; box-sizing: border-box; }
         .btn-view-approved { background: #22c55e !important; }
         .btn-view-pending { background: #f59e0b !important; }
         .btn-view-rejected { background: #ef4444 !important; }
@@ -4000,6 +4001,7 @@ input[type="month"].flatpickr-input::-webkit-calendar-picker-indicator { display
   html[data-theme="dark"] .app-item[style*="background-color: #ecfdf5"] { background-color: #10332a !important; }
   html[data-theme="dark"] .blue-bg { background-color: #1e3a5f !important; }
   html[data-theme="dark"] .app-item-number { background: #1e293b; color: #94a3b8; }
+  html[data-theme="dark"] .app-item .spkk-row-alert { background: #3f1d1d; color: #fca5a5; border-color: #7f1d1d; border-left-color: #ef4444; }
 
   /* --- Jadual --- */
   html[data-theme="dark"] .monthly-table th { background: #1e293b; color: #cbd5e1; border-color: #334155; }

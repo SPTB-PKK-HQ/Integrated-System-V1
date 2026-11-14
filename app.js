@@ -8728,8 +8728,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const roles = [];
       card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
       const isCompany = card.querySelector('.is-company')?.checked || false;
-      const s_ic = card.querySelector('.status-ic')?.value.toUpperCase() || '';
-      const s_sb = card.querySelector('.status-sb')?.value.toUpperCase() || '';
+      const extraRoleOnly = isExtraRoleOnlyPersonnel(roles, isCompany);
+      const s_ic = extraRoleOnly ? '-' : (card.querySelector('.status-ic')?.value.toUpperCase() || '');
+      const s_sb = extraRoleOnly ? '-' : (card.querySelector('.status-sb')?.value.toUpperCase() || '');
       const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
       let roleBadge = '';
       const extraRoles = ['K.KEW','MAKER','CHECKER'].filter(r => roles.includes(r));
@@ -15915,6 +15916,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               ${dateInfo}
               ${spiDateInfo}
               ${sptbDateInfo}
+              ${inboxSpkkRowAlertHtml(item)}
               ${extraInfo}
               ${perubahanRowHtml}
             </div>
@@ -16320,6 +16322,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           ${dueDateInfo} ${dateInfo}
           ${spiDateInfo}
           ${sptbDateInfo}
+          ${inboxSpkkRowAlertHtml(item)}
           ${extraInfo}
           ${perubahanRowHtml}
         </div>
@@ -18651,6 +18654,45 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     cardEl.classList.toggle('baru-tambah-card', cb.checked);
   }
 
+  // Personel yang hanya ditanda K.KEW / MAKER / CHECKER (tanpa jawatan utama)
+  // tidak memerlukan semakan IC/SB — hanya EPF.
+  function isExtraRoleOnlyPersonnel(roles, isCompany) {
+    if (isCompany) return false;
+    const mainRoles = ['PENGARAH', 'P.EKUITI', 'P.SPKK', 'T.T CEK'];
+    const extraRoles = ['K.KEW', 'MAKER', 'CHECKER'];
+    const list = Array.isArray(roles)
+      ? roles.map(function(r) { return String(r || '').toUpperCase().trim(); })
+      : [];
+    const hasExtra = extraRoles.some(function(r) { return list.includes(r); });
+    const hasMain = mainRoles.some(function(r) { return list.includes(r); });
+    return hasExtra && !hasMain;
+  }
+
+  function personIsExtraRoleOnly(card) {
+    if (!card) return false;
+    const isCompany = !!(card.querySelector('.is-company')?.checked);
+    const roles = [];
+    card.querySelectorAll('.role-cb:checked').forEach(function(cb) { roles.push(cb.value); });
+    return isExtraRoleOnlyPersonnel(roles, isCompany);
+  }
+
+  // Sembunyikan medan IC/SB (termasuk slot muat naik) dan kekalkan EPF sahaja.
+  // Nilai IC/SB sedia ada tidak dipadam — ia muncul semula jika jawatan utama ditanda.
+  function syncPersonnelDocFields(card) {
+    if (!card) return;
+    const extraOnly = personIsExtraRoleOnly(card);
+    ['ic', 'sb'].forEach(function(type) {
+      const field = card.querySelector('.person-field-' + type);
+      if (field) field.style.display = extraOnly ? 'none' : '';
+    });
+    const fields = card.querySelector('.person-fields');
+    if (fields) {
+      fields.classList.toggle('extra-role-epf-only', extraOnly);
+      fields.style.gridTemplateColumns = extraOnly ? '1fr' : '';
+    }
+    card.classList.toggle('person-extra-role-only', extraOnly);
+  }
+
   // Selaraskan label tarikh & hint pada kad syarikat mengikut pilihan SSM/BCPLC/Badan Berkanun
   function syncCompanyDocUI(cardEl) {
     if (!cardEl) return;
@@ -18701,19 +18743,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       </div>
       <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
         <div class="person-fields grid-3">
-          <div>
+          <div class="person-field person-field-ic">
             <label>IC</label>
             <div class="status-input-container">
               <input type="text" class="status-ic status-input" maxlength="20" placeholder="-">
             </div>
           </div>
-          <div>
+          <div class="person-field person-field-sb">
             <label>SB</label>
             <div class="status-input-container">
               <input type="text" class="status-sb status-input" maxlength="20" placeholder="-">
             </div>
           </div>
-          <div>
+          <div class="person-field person-field-epf">
             <label>EPF</label>
             <div class="status-input-container">
               <input type="text" class="status-epf status-input" maxlength="20" placeholder="-">
@@ -18803,7 +18845,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       });
     }
 
-    div.querySelectorAll('.role-cb, .is-company, .baru-tambah-cb').forEach(cb => {
+    div.querySelectorAll('.role-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        syncPersonnelDocFields(div);
+        saveFormData();
+      });
+    });
+
+    div.querySelectorAll('.is-company, .baru-tambah-cb').forEach(cb => {
       cb.addEventListener('change', saveFormData);
     });
 
@@ -18828,6 +18877,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
           if (cFields) cFields.style.display = 'none';
         }
         syncCompanyDocUI(div);
+        syncPersonnelDocFields(div);
       });
     }
 
@@ -18953,6 +19003,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         setTimeout(function() { try { refreshDynamicDocSlots(); } catch (e) {} }, 60);
       } catch (e) {}
     }
+
+    syncPersonnelDocFields(div);
 
     const deleteBtn = div.querySelector('.delete-btn');
     if (deleteBtn) {
@@ -20134,8 +20186,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               const icInput = card.querySelector('.status-ic');
               const sbInput = card.querySelector('.status-sb');
               const epfInput = card.querySelector('.status-epf');
+              const extraRoleOnly = personIsExtraRoleOnly(card);
 
-              if (!icInput || !sbInput || !epfInput) return; 
+              if (!epfInput || (!extraRoleOnly && (!icInput || !sbInput))) return;
               
               const div = document.createElement('div');
               div.style.cssText = "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); position: relative;";
@@ -20152,8 +20205,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   </div>
 
                   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
-                      ${createQuickCheckFieldUI('IC', icInput.value, index, 'ic')}
-                      ${createQuickCheckFieldUI('SB', sbInput.value, index, 'sb')}
+                      ${extraRoleOnly ? '' : createQuickCheckFieldUI('IC', icInput.value, index, 'ic')}
+                      ${extraRoleOnly ? '' : createQuickCheckFieldUI('SB', sbInput.value, index, 'sb')}
                       ${createQuickCheckFieldUI('EPF', epfInput.value, index, 'epf')}
                   </div>
               `;
@@ -20193,6 +20246,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
                   const btnWrong = div.querySelector(`.qc-btn-wrong-${type}-${index}`);
                   const displayInput = div.querySelector(`.qc-input-${type}-${index}`);
                   const originalInput = card.querySelector(`.status-${type}`);
+                  if (!displayInput || !originalInput) return;
                   
                   // Benarkan pengguna menaip sendiri (contoh: "TIDAK BERKAITAN")
                   displayInput.addEventListener('input', (e) => {
@@ -21556,10 +21610,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       const icEl = card.querySelector('.status-ic');
       const sbEl = card.querySelector('.status-sb');
       const epfEl = card.querySelector('.status-epf');
+      const extraRoleOnly = personIsExtraRoleOnly(card);
       persons.push({
         name: escapeHtml(rawName || '(NAMA TIDAK DIISI)'),
-        ic: emailIsXMark(icEl ? icEl.value : ''),
-        sb: emailIsXMark(sbEl ? sbEl.value : ''),
+        ic: extraRoleOnly ? false : emailIsXMark(icEl ? icEl.value : ''),
+        sb: extraRoleOnly ? false : emailIsXMark(sbEl ? sbEl.value : ''),
         epf: emailIsXMark(epfEl ? epfEl.value : '')
       });
     });
@@ -23576,6 +23631,21 @@ function inboxWorkflowStage(item) {
   if (item.tarikh_syor && String(item.tarikh_syor).trim() !== '' &&
       item.pelulus && String(item.pelulus).trim() !== '') return 'PELULUS';
   return 'PENGESYOR';
+}
+
+// Baris amaran merah SPKK untuk senarai permohonan (Belum/Telah Syor & Inbox Pelulus).
+// Kekal dipaparkan walaupun rekod sudah dihantar ke SPI, selagi tarikh SPKK
+// berada dalam tetingkap peringatan.
+function inboxSpkkRowAlertHtml(item) {
+  if (!item || !item.syarikat) return '';
+  const info = inboxSpkkReminderInfo(item);
+  if (!info) return '';
+  return '<div class="spkk-row-alert">'
+    + '<i class="fa-solid fa-triangle-exclamation fa-ico"></i> '
+    + 'SPKK tamat <strong>' + info.endDisplay + '</strong>'
+    + ' &bull; Baki <strong>' + info.daysToCutoff + ' hari</strong> sebelum tarikh 180 hari'
+    + ' (<strong>' + info.cutoffDisplay + '</strong>)'
+    + '</div>';
 }
 
 // Susunan inbox: belum dibaca dulu, kemudian tarikh/masa terbaru.
