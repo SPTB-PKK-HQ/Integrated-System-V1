@@ -908,25 +908,44 @@ async function handleCredentialResponse(response) {
       }
       currentUser.picture = picUrl;
 
-      // Log masuk ke Firebase untuk SEMUA role supaya Firebase membenarkan akses (Rules)
-      authFirebase.signInAnonymously().then(() => {
-          console.log("Berjaya log masuk ke Firebase untuk fungsi YouTube/Cache.");
-          
-          // KOD LAMA: Sambungkan ke Firebase Bakul HANYA jika peranan adalah PENGESYOR
-          if (currentUser.role === 'PENGESYOR') {
-              currentUserFirebaseCode = result.user.firebaseCode || null; 
-              if (currentUserFirebaseCode) {
-                  console.log("Menyambung ke Firebase Bakul dengan kod:", currentUserFirebaseCode);
-                  dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
-                      if (doc.exists) {
-                          firebaseUserRules = doc.data();
-                          console.log("Peraturan Tapisan Firebase dimuatkan.");
-                          subscribeToBakulFirebase();
-                      }
-                  });
-              }
+      // V6.13.2: Log masuk Firebase menggunakan custom token (bukan anonymous).
+      // Custom claims (role/firebaseCode) digunakan oleh Firestore rules.
+      let firebaseReady = false;
+      try {
+          if (!result.firebaseToken) {
+              throw new Error(result.firebaseTokenError || 'Token Firebase tidak diterima daripada pelayan.');
           }
-      }).catch(err => console.error("Ralat Firebase Auth:", err));
+          await signInFirebaseWithToken_(result.firebaseToken);
+          firebaseReady = true;
+          console.log("Berjaya log masuk ke Firebase dengan custom token.");
+      } catch (err) {
+          console.error("Ralat Firebase Auth:", err);
+          try {
+              await CustomAppModal.alert(
+                  'Log masuk berjaya, tetapi fungsi Firebase (Bakul/YouTube cache) tidak tersedia.<br><br>' +
+                  escapeHtml(err.message || String(err)),
+                  'Amaran Firebase',
+                  'warning'
+              );
+          } catch (modalErr) {
+              console.error("Gagal papar amaran Firebase:", modalErr);
+          }
+      }
+
+      // Sambungkan ke Firebase Bakul HANYA jika peranan adalah PENGESYOR
+      if (firebaseReady && currentUser.role === 'PENGESYOR') {
+          currentUserFirebaseCode = String(result.user.firebaseCode || '').trim() || null;
+          if (currentUserFirebaseCode) {
+              console.log("Menyambung ke Firebase Bakul dengan kod:", currentUserFirebaseCode);
+              dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
+                  if (doc.exists) {
+                      firebaseUserRules = doc.data();
+                      console.log("Peraturan Tapisan Firebase dimuatkan.");
+                      subscribeToBakulFirebase();
+                  }
+              }).catch(err => console.error("Gagal baca peraturan Firebase:", err));
+          }
+      }
 
       // Simpan sesi dan tarikh hari ini ke storage
       const todayStr = new Date().toDateString();
@@ -1018,6 +1037,31 @@ async function handleCredentialResponse(response) {
     }
   }
   
+  // V6.13.2: Firebase custom token helpers.
+  async function signInFirebaseWithToken_(token) {
+    if (!authFirebase) throw new Error('Firebase Auth tidak tersedia.');
+    const firebaseToken = String(token || '').trim();
+    if (!firebaseToken) throw new Error('Token Firebase tidak diterima daripada pelayan.');
+    await authFirebase.signInWithCustomToken(firebaseToken);
+    return authFirebase.currentUser;
+  }
+
+  async function getFirebaseTokenFromBackend_() {
+    const response = await fetchWithRetry(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'getFirebaseToken',
+        email: currentUser && currentUser.email ? currentUser.email : ''
+      })
+    }, 2, 1000);
+    const result = await response.json();
+    if (!result || !result.firebaseToken) {
+      throw new Error((result && (result.message || result.error)) || 'Token Firebase tidak diterima.');
+    }
+    return result;
+  }
+
   // Fungsi untuk papar ralat autentikasi
   function handleAuthError(errorMsg) {
     if (loginLoadingText) {
@@ -7555,23 +7599,40 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       });
   } else {
       currentUser = storage.stb_session;
-
-      // Log masuk semula ke Firebase secara automatik untuk SEMUA role
       if (currentUser && currentUser.email) {
-          authFirebase.signInAnonymously().then(() => {
-              // Khusus untuk Pengesyor (Sambung ke fungsi Bakul)
-              if (currentUser.role === 'PENGESYOR') {
-                  currentUserFirebaseCode = currentUser.firebaseCode || null; 
-                  if (currentUserFirebaseCode) {
-                      dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
-                          if (doc.exists) {
-                              firebaseUserRules = doc.data();
-                              subscribeToBakulFirebase();
-                          }
-                      });
+          currentUser.email = String(currentUser.email).toLowerCase().trim();
+      }
+
+      // V6.13.2: Pulihkan sesi Firebase dengan custom token baru daripada backend.
+      // Ini juga menyegarkan custom claims jika role/firebaseCode telah berubah.
+      if (currentUser && currentUser.email) {
+          getFirebaseTokenFromBackend_()
+              .then(function(result) {
+                  // Selaraskan role/firebaseCode dengan claims terkini daripada pelayan.
+                  if (result.claims) {
+                      if (result.claims.role) currentUser.role = String(result.claims.role).toUpperCase().trim();
+                      currentUser.firebaseCode = result.claims.firebaseCode || '';
+                      storageWrapper.set({ 'stb_session': currentUser });
                   }
-              }
-          });
+                  return signInFirebaseWithToken_(result.firebaseToken);
+              })
+              .then(function() {
+                  console.log("Sesi Firebase dipulihkan dengan custom token.");
+                  if (currentUser.role === 'PENGESYOR') {
+                      currentUserFirebaseCode = String(currentUser.firebaseCode || '').trim() || null;
+                      if (currentUserFirebaseCode) {
+                          return dbFirestore.collection("users").doc(currentUserFirebaseCode).get().then(doc => {
+                              if (doc.exists) {
+                                  firebaseUserRules = doc.data();
+                                  subscribeToBakulFirebase();
+                              }
+                          });
+                      }
+                  }
+              })
+              .catch(function(err) {
+                  console.error("Gagal memulihkan sesi Firebase:", err);
+              });
       }
       setupUserUI();
   }
@@ -21311,6 +21372,8 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
               if (document.getElementById('tab-tapisan').classList.contains('active')) {
                   if (typeof renderExcelTable === 'function') renderExcelTable();
               }
+          }, (err) => {
+              console.error("Bakul Firestore listener error:", err);
           });
   }
 

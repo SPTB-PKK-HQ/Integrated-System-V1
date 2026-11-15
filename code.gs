@@ -186,6 +186,86 @@ function verifyGoogleIdToken_(idToken) {
   }
 }
 
+function getFirebaseServiceAccount_() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('FIREBASE_SERVICE_ACCOUNT_JSON') || '';
+    if (!raw) return null;
+    let jsonText = String(raw).trim();
+    if (jsonText.charAt(0) !== '{') {
+      jsonText = Utilities.newBlob(Utilities.base64Decode(jsonText)).getDataAsString();
+    }
+    const sa = JSON.parse(jsonText);
+    if (!sa || !sa.client_email || !sa.private_key) return null;
+    return sa;
+  } catch (e) {
+    return null;
+  }
+}
+
+function createFirebaseCustomToken_(uid, claims) {
+  const sa = getFirebaseServiceAccount_();
+  if (!sa) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON belum ditetapkan atau tidak sah dalam Script Properties.');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64UrlEncode_(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = base64UrlEncode_(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat: now,
+    exp: now + 3600,
+    uid: String(uid || '').toLowerCase().trim(),
+    claims: claims || {}
+  }));
+  const unsigned = header + '.' + payload;
+  const key = String(sa.private_key).replace(/\\n/g, '\n');
+  const signature = Utilities.computeRsaSha256Signature(unsigned, key);
+  return unsigned + '.' + Utilities.base64EncodeWebSafe(signature).replace(/=+$/g, '');
+}
+
+function buildFirebaseClaims_(email, user) {
+  const normalizedEmail = String(email || '').toLowerCase().trim();
+  let firebaseCode = '';
+  if (user && normalizeRoleKey(user.role) === normalizeRoleKey(ROLE_PENGESYOR)) {
+    firebaseCode = getScriptProp('FIREBASE_CODE_MAP_' + normalizedEmail) || '';
+  }
+  return {
+    role: String((user && user.role) || '').toUpperCase().trim(),
+    firebaseCode: String(firebaseCode || '').trim(),
+    userEmail: normalizedEmail,
+    name: String((user && user.name) || '')
+  };
+}
+
+function handleGetFirebaseToken(session) {
+  try {
+    const email = String((session && session.email) || '').toLowerCase().trim();
+    if (!email) {
+      return createJSONOutput({ status: 'error', code: 403, message: 'Sesi tidak sah. Sila log masuk semula.' });
+    }
+    const user = (session && session.user) || findUserByEmailCached(email);
+    if (!user) {
+      return createJSONOutput({ status: 'error', code: 403, message: 'Akaun ini tidak berdaftar dalam sistem.' });
+    }
+    const claims = buildFirebaseClaims_(email, user);
+    const firebaseToken = createFirebaseCustomToken_(email, claims);
+    return createJSONOutput({
+      status: 'success',
+      firebaseToken: firebaseToken,
+      uid: email,
+      claims: { role: claims.role, firebaseCode: claims.firebaseCode }
+    });
+  } catch (e) {
+    Logger.log('[FIREBASE] Gagal jana custom token: ' + e.toString());
+    return createJSONOutput({
+      status: 'error',
+      code: 500,
+      message: 'Gagal menjana token Firebase: ' + String(e.message || e)
+    });
+  }
+}
+
 function requireSession_(token, claimedEmail) {
   const claimed = String(claimedEmail || '').toLowerCase().trim();
   const payload = verifySessionToken_(token);
@@ -930,7 +1010,7 @@ function handleCheckAuth(email, credential) {
     // Firebase code disimpan di Script Properties dengan key format: FIREBASE_CODE_MAP_<email>
     if (userProfile.role === ROLE_PENGESYOR) {
       const propKey = 'FIREBASE_CODE_MAP_' + userProfile.email.toLowerCase();
-      const firebaseCode = getScriptProp(propKey);
+      const firebaseCode = String(getScriptProp(propKey) || '').trim();
       if (firebaseCode) {
         userProfile.firebaseCode = firebaseCode;
         Logger.log(`[V6.5.0] Firebase code disediakan untuk PENGESYOR: ${userProfile.email}`);
@@ -943,11 +1023,28 @@ function handleCheckAuth(email, credential) {
     const sessionToken = createSessionToken_(effectiveEmail);
     setActiveSession_({ ok: true, email: effectiveEmail, user: userProfile, error: null, legacy: !usedCredential });
 
+    // V6.13.2: Jana Firebase custom token dengan claims role/firebaseCode.
+    // Jika service account belum diset, log masuk tetap berjaya tetapi fungsi
+    // Firestore (Bakul/YouTube cache) tidak akan berfungsi sehingga dikonfigurasi.
+    let firebaseToken = '';
+    let firebaseTokenError = '';
+    try {
+      firebaseToken = createFirebaseCustomToken_(
+        effectiveEmail,
+        buildFirebaseClaims_(effectiveEmail, userProfile)
+      );
+    } catch (firebaseError) {
+      firebaseTokenError = String(firebaseError.message || firebaseError);
+      Logger.log('[FIREBASE] Custom token tidak dijana semasa checkAuth: ' + firebaseTokenError);
+    }
+
     // Auth berjaya
     return createJSONOutput({
       authenticated: true,
       user: userProfile,
       sessionToken: sessionToken,
+      firebaseToken: firebaseToken,
+      firebaseTokenError: firebaseTokenError,
       message: 'Log masuk berjaya'
     });
 
@@ -1011,6 +1108,10 @@ function doGet(e) {
     // Role/nama untuk penapisan data hanya dari profil server, bukan dari client.
     const effectiveRole = gate.user ? gate.user.role : claimedRole;
     const effectiveUserName = gate.user ? gate.user.name : claimedUserName;
+
+    if (action === "getFirebaseToken") {
+      return handleGetFirebaseToken(gate);
+    }
 
     if (action === "whoAmI") {
       return handleWhoAmI(gate);
@@ -1137,6 +1238,11 @@ function doPost(e) {
     }
     // Gunakan emel dari sesi yang sah untuk semua handler/log.
     data.email = gate.email;
+
+    // V6.13.2: Custom token Firebase untuk sesi semasa (refresh selepas reload).
+    if (data.action === 'getFirebaseToken') {
+      return handleGetFirebaseToken(gate);
+    }
 
     // 4. Senarai tindakan yang TIDAK perlukan lock (API Luar yang lama)
     const noLockActions = [

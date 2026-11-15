@@ -64,7 +64,7 @@ Penjelasan:
   * Pengawal dan penghala logik = fungsi `doGet(e)` dan `doPost(e)` dalam `code.gs` yang membezakan tindakan melalui parameter `action`.
   * Model data = hamparan Google Sheets (`Sheet1`, `Users`, `Logs`, dan `MENU_SOALAN` pilihan) serta koleksi Firestore untuk tapisan dan bakul.
   * Paparan = `index.html` + `style.css` + DOM yang dimanipulasi oleh `app.js`.
-* **Sebab pemilihan:** Meminimumkan kos infrastruktur, memanfaatkan perkhidmatan Google Workspace kerajaan yang sedia ada, membolehkan capaian tanpa nama (anonymous) di peringkat Web App dengan kawalan akses di peringkat aplikasi, dan menyokong pembangunan pantas tanpa pengurusan pelayan.
+* **Sebab pemilihan:** Meminimumkan kos infrastruktur, memanfaatkan perkhidmatan Google Workspace kerajaan yang sedia ada, membolehkan capaian Web App melalui pengesahan Google + session token HMAC, dan menyokong pembangunan pantas tanpa pengurusan pelayan.
 * **Bukan Microservices:** Semua logik backend berada dalam satu projek Apps Script dengan kunci konkurensi tunggal (`LockService.getScriptLock()`) bagi operasi tulis Sheet. Tindakan RAG Surat Arahan dikecualikan kerana menulis ke Firestore/Drive. Penskaleran adalah menegak melalui cache, bukan melalui perkhidmatan teragih.
 
 ### 2.2 Rajah Senibina Logik
@@ -90,7 +90,7 @@ flowchart LR
         FIRERAG[("Firestore - surat_arahan_qa / meta / usage")]
         DRIVE[("Google Drive - STB MAIN FOLDER")]
         INDEX[("Drive - _SURAT_ARAHAN_INDEX")]
-        AUTH["Firebase Auth - Tanpa Nama + GIS"]
+        AUTH["Firebase Auth - Custom Token + GIS"]
     end
     subgraph LUAR["Integrasi Luaran"]
         YT["YouTube Data API v3"]
@@ -250,13 +250,13 @@ flowchart TD
 | Integrasi | Mekanisme | Data Bertukar | Nota Operasi |
 |---|---|---|---|
 | Google Sheets (Pangkalan Utama) | `SpreadsheetApp` dalam GAS | 32 lajur A–AF: syarikat, CIDB, gred, jenis, negeri, tarikh, tatatertib, syor, SPI, lawatan, alamat, konsultansi, alasan, kelulusan, pelulus, JSON borang, slot legasi (AD), ulasan SPI; `MENU_SOALAN` pilihan untuk menu bantuan | Sumber kebenaran bagi permohonan; `Logs` untuk audit; `Users` untuk identiti; `MENU_SOALAN` untuk menu bantuan |
-| Firestore (`[PROJEK_FIRESTORE_TAPISAN]`) | SDK Compat 9.21.0 di klien + kod Firebase per pengguna | Peraturan tapisan G4–G7, data bakul | Akses tanpa nama selepas log masuk GIS; kod disuntik dari Script Properties |
+| Firestore (`[PROJEK_FIRESTORE_TAPISAN]`) | SDK Compat 9.21.0 di klien + custom token Firebase | Peraturan tapisan G4–G7, data bakul, cache YouTube | Custom token dengan claims `role`/`firebaseCode`/`userEmail` dijana oleh backend selepas pengesahan GIS; rules menolak anonymous dan akses luar skop |
 | Google Drive | `DriveApp` | Struktur `STB MAIN FOLDER > [Pengesyor] > [SYARIKAT] > [JENIS - TARIKH]` + PDF berwarna + fail dimuat naik (base64) | Pencarian folder mengabaikan kurungan dan huruf besar/kecil |
 | Google Drive — Surat Arahan | `DriveApp` melalui `getSuratArahanDocs` | Dokumen rujukan pindaan/Surat Arahan SPTB daripada `STB MAIN FOLDER > SURAT ARAHAN` | Baca sahaja; akses 4 peranan + `ADMIN`; cache 5 minit; subfolder sebagai kategori; ringkasan daripada medan Description fail |
 | Firestore — cache RAG | REST Firestore melalui akaun perkhidmatan (`FIREBASE_SERVICE_ACCOUNT_JSON`) | `surat_arahan_qa` (soalan/jawapan/sumber/versi), `surat_arahan_meta/current` (metadata indeks), `surat_arahan_usage` (kuota AI) | Ditulis oleh backend sahaja; pengesahan JWT RS256; cache exact/alias/fuzzy |
 | Google Drive — indeks RAG | `DriveApp` dari backend | Folder khas `_SURAT_ARAHAN_INDEX` di bawah `MAIN_FOLDER_ID`; `part_<fileId>.json` dan `index_<versi>.json.gz` | Indeks BM25 disimpan di luar folder dokumen; 3 versi terbaharu dikekalkan |
 | DeepSeek API | `UrlFetchApp` ke `https://api.deepseek.com/chat/completions` | Jawapan RAG (JSON mode, 6 chunk teratas) dan OCR imej halaman (sehingga 3 imej/permintaan) | Kunci `DEEPSEEK_API_KEY` di Script Properties; fallback JSON mode tanpa `response_format` jika API menolaknya |
-| Firebase Auth + GIS | `google.accounts.id` + `auth.signInAnonymously()` | `idToken` Google dihurai di klien, emel dihantar ke backend untuk pengesahan domain dan peranan | Domain dibenarkan: `@kuskop.gov.my`; endpoint RAG mempercayai `email` klien (lihat nota keselamatan) |
+| Firebase Auth + GIS | `google.accounts.id` + `auth.signInWithCustomToken()` | `idToken` Google dihantar ke backend untuk pengesahan domain/peranan; backend memulangkan custom token dengan claims `role`, `firebaseCode`, `userEmail` | Domain dibenarkan: `@kuskop.gov.my`; custom token sah 1 jam dan disegarkan pada setiap reload melalui `getFirebaseToken` |
 | Cuti Umum Putrajaya | `UrlFetchApp` (ICS kalendar awam Google "Holidays in Malaysia") | Senarai tarikh cuti umum yang terpakai untuk Putrajaya (~20 tarikh/tahun) | Di-cache dalam Script Properties (`PUTRAJAYA_HOLIDAYS_<tahun>`) dan di-refresh setiap 30 hari; sandaran senarai cuti tetap Persekutuan |
 | Emel dan Kalendar | `MailApp` + `CalendarApp` + queue berjadual | Emel SPI SIASAT/PEMUTIHAN, acara kalendar lawatan, peringatan backlog | Trigger harian; barisan disimpan dalam Script Properties |
 | WhatsApp | `wa.me` deep-link (notifikasi manual oleh pengguna) | Mesej notifikasi kepada Pelulus/Pengesyor | Jadual WhatsApp automatik (AUTO/CallMeBot) telah dibuang; lajur AD dikekalkan sebagai legasi |
@@ -536,7 +536,7 @@ Menu bantuan membolehkan Pentadbir menyediakan pilihan soalan lebih awal dalam t
 
 Direktori `android/` adalah kosong. Dokumen `design.md` dan `prompts-android.md` menghuraikan cadangan aplikasi Android Native (Kotlin, Jetpack Compose, MVVM + Clean, Room, Retrofit, Hilt, FCM, Biometrik) tetapi **tidak dilaksanakan** dan tidak dihuraikan lanjut dalam dokumen ini selaras dengan keputusan skop web sahaja.
 
-RAG Surat Arahan juga belum merangkumi maklum balas/rating jawapan, perbualan berbilang giliran, penomboran penuh senarai cache admin, dan peraturan Firestore yang disertakan dalam repositori. Pengesahan ID token Google di pelayan dan session token HMAC telah dilaksanakan dalam V6.13.0 (quick lockdown A); peraturan Firestore masih perlu disemak secara berasingan.
+RAG Surat Arahan juga belum merangkumi maklum balas/rating jawapan, perbualan berbilang giliran, dan penomboran penuh senarai cache admin. Pengesahan ID token Google, session token HMAC, dan Firebase custom token dengan claims telah dilaksanakan dalam V6.13.2; peraturan Firestore ketat disediakan dalam `Firebase_rule.txt` dan perlu diterbitkan melalui Firebase Console.
 
 ---
 

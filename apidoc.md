@@ -92,7 +92,7 @@ Sistem memenuhi standard keselamatan ICT sektor awam melalui empat lapisan:
 1. **Pengesahan Identiti (Google Identity Services):** Pengguna log masuk menggunakan akaun Google. Bahagian hadapan menerima `credential` (JWT ID Token), menghurai muatan untuk mendapatkan emel, dan menghantar emel tersebut ke backend untuk pengesahan. Kunci klien sebenar disorokkan sebagai `[GOOGLE_CLIENT_ID]`.
 2. **Pengesahan Domain:** Backend (`getAuthenticatedUserEmail`) menormalkan emel kepada huruf kecil dan membenarkan hanya domain `@kuskop.gov.my` (dan senarai tambahan yang diluluskan). Emel luar ditolak dengan mesej `Akses tidak dibenarkan`.
 3. **Pengesahan Peranan (RBAC):** Backend (`verifyUserAccess(email, allowedRoles[])`) memadankan emel kepada helaian `Users` (versi cache 10 minit) dan menyemak peranan. Perbandingan peranan dinormalkan (`KETUA SEKSYEN`, `KETUA_SEKSYEN`, huruf besar/kecil dianggap sama). Setiap handler kritikal menyenaraikan peranan yang dibenarkan.
-4. **Pengesahan Firebase (Fungsi Tapisan/Bakul):** Selepas log masuk GIS berjaya, klien log masuk tanpa nama ke Firebase (`signInAnonymously`) bagi memenuhi Peraturan Firestore. Pengesyor menerima `firebaseCode` tambahan yang disimpan dalam Script Properties (`FIREBASE_CODE_MAP_<emel>`).
+4. **Pengesahan Firebase (Fungsi Tapisan/Bakul):** Selepas log masuk GIS berjaya, pelayan menjana **Firebase custom token** yang ditandatangani dengan akaun perkhidmatan. Custom claims mengandungi `role`, `firebaseCode`, `userEmail`, dan `name`. Klien menggunakan `signInWithCustomToken` (bukan `signInAnonymously`) supaya Peraturan Firestore boleh mengenal pasti pengguna sebenar. Pengesyor menerima `firebaseCode` tambahan yang disimpan dalam Script Properties (`FIREBASE_CODE_MAP_<emel>`).
 
 Matriks peranan ringkas:
 
@@ -141,7 +141,7 @@ google.accounts.id.initialize({
 // handleCredentialResponse -> hurai JWT -> ekstrak emel -> POST {action:'checkAuth', email}
 ```
 
-**Peraturan Firestore (tapisan/bakul):** Token Firebase tanpa nama diperoleh selepas `checkAuth` berjaya. Tanpa token ini, bacaan Firestore ditolak oleh peraturan pelayan.
+**Peraturan Firestore (tapisan/bakul):** Firebase custom token diperoleh selepas `checkAuth` berjaya atau melalui `getFirebaseToken` menggunakan session token. Custom claims (`role`, `firebaseCode`, `userEmail`) digunakan oleh Peraturan Firestore; token tanpa claims yang sah ditolak.
 
 ### 2.3 Pengurusan Rahsia
 
@@ -166,7 +166,7 @@ RAG Surat Arahan menggunakan properti tambahan:
 
 Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`; jangan simpan akaun perkhidmatan atau kunci DeepSeek dalam repositori.
 
-> **Nota keselamatan RAG (V6.13.0):** endpoint RAG kini melalui session token yang disahkan dan `verifyUserAccess`. Namun, cache jawapan masih boleh dibaca oleh semua peranan Surat Arahan yang dibenarkan. Peraturan Firestore yang ketat masih perlu disemak dalam Firebase Console sebelum production penuh.
+> **Nota keselamatan RAG (V6.13.2):** endpoint RAG melalui session token yang disahkan dan `verifyUserAccess`. Cache jawapan masih boleh dibaca oleh semua peranan Surat Arahan yang dibenarkan melalui endpoint RAG, tetapi koleksi `surat_arahan_*` ditutup kepada client Firestore. Peraturan Firestore ketat dalam `Firebase_rule.txt` menggunakan custom claims untuk `users`, `applications`, dan `youtube_cache`; koleksi lain ditolak secara lalai.
 
 ---
 
@@ -175,13 +175,15 @@ Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitigno
 > Konvensyen: `GET /exec?action=X` bermaksud `GET [URL_PRODUKSI_KERAJAAN]/exec?action=X&...`. `POST /exec` bermaksud `POST [URL_PRODUKSI_KERAJAAN]/exec` dengan badan JSON dan header `text/plain;charset=utf-8`. Contoh respons menggunakan data fiksyen.
 
 > **V6.13.0 — Quick lockdown:** Semua endpoint **kecuali `checkAuth`** memerlukan `token` (session token HMAC yang ditandatangani pelayan) sebagai query parameter atau `sessionToken` dalam badan JSON POST. `checkAuth` memerlukan ID token Google (`credential`) yang disahkan di pelayan. `role` dan `userName` daripada klien tidak lagi dipercayai untuk kawalan akses; pelayan menggunakan profil dalam helaian `Users`. Endpoint `getLogs`, `getRow`, `getUserFirebaseCode`, `previewSpiBacklog` dan `sendSpiBacklogReminder` adalah ADMIN sahaja. Sesi tamat selepas 12 jam.
+>
+> **V6.13.2 — Firestore custom auth:** `checkAuth` turut memulangkan `firebaseToken` (custom token) dengan claims `role`, `firebaseCode`, `userEmail`, dan `name`. Endpoint `getFirebaseToken` memulangkan token baru untuk sesi yang sah (digunakan semasa reload). Custom token sah selama 1 jam; klien menyegarkannya semula pada setiap reload. Jika `FIREBASE_SERVICE_ACCOUNT_JSON` tiada, log masuk tetap berjaya tetapi fungsi Firestore (Bakul/YouTube cache) tidak tersedia.
 
 ### 3.1 Kumpulan A — Pengesahan
 
 #### A1. `checkAuth` (GET dan POST) — Pengesahan log masuk
 
 * **Kaedah & Path:** `GET /exec?action=checkAuth&email=<emel>&credential=<id_token>` atau `POST /exec` dengan `{"action":"checkAuth","email":"...","credential":"<id_token>"}`
-* **Deskripsi:** Mengesahkan ID token Google di pelayan (audience, issuer, tamat tempoh, `email_verified`, domain) dan pendaftaran pengguna. Mengembalikan profil (`name`, `email`, `role`, `color`, `phone`, `imageUrl`, `signUrl`, `copUrl`), `firebaseCode` bagi PENGESYOR jika wujud, dan `sessionToken` untuk panggilan seterusnya.
+* **Deskripsi:** Mengesahkan ID token Google di pelayan (audience, issuer, tamat tempoh, `email_verified`, domain) dan pendaftaran pengguna. Mengembalikan profil (`name`, `email`, `role`, `color`, `phone`, `imageUrl`, `signUrl`, `copUrl`), `firebaseCode` bagi PENGESYOR jika wujud, `sessionToken` untuk panggilan seterusnya, dan `firebaseToken` (custom token) untuk Firebase Auth/Firestore.
 * **Kawalan akses:** ID token Google yang sah untuk client ID aplikasi, emel berdomain dibenarkan dan berdaftar dalam `Users`. Tiada semakan peranan khusus.
 * **Request Headers:**
 
@@ -216,9 +218,30 @@ Content-Type: text/plain;charset=utf-8
     "firebaseCode": "[KOD_FIREBASE_PENGESYOR]"
   },
   "sessionToken": "[SESSION_TOKEN_HMAC]",
+  "firebaseToken": "[FIREBASE_CUSTOM_TOKEN]",
   "message": "Log masuk berjaya"
 }
 ```
+
+* **Response jika custom token gagal dijana:** `authenticated` tetap `true`, `firebaseToken` kosong, dan `firebaseTokenError` memuatkan sebab (contoh: `FIREBASE_SERVICE_ACCOUNT_JSON` tiada). Log masuk tidak gagal, tetapi fungsi Firestore tidak tersedia.
+
+#### A2. `getFirebaseToken` — Custom token Firebase untuk sesi semasa
+
+* **Kaedah & Path:** `GET /exec?action=getFirebaseToken&email=<emel>&token=<session_token>` atau `POST /exec` dengan `{"action":"getFirebaseToken","email":"...","sessionToken":"..."}`
+* **Deskripsi:** Menjana Firebase custom token baru untuk pengguna yang sesinya sah. Digunakan oleh klien semasa reload untuk menyegarkan custom claims (`role`, `firebaseCode`, `userEmail`) tanpa memaksa log masuk Google semula.
+* **Kawalan akses:** Session token HMAC yang sah; pengguna mesti masih berdaftar dalam `Users`.
+* **Response Success:**
+
+```json
+{
+  "status": "success",
+  "firebaseToken": "[FIREBASE_CUSTOM_TOKEN]",
+  "uid": "ali@[DOMAIN_KERAJAAN]",
+  "claims": { "role": "PENGESYOR", "firebaseCode": "[KOD_FIREBASE_PENGESYOR]" }
+}
+```
+
+* **Response Error:** `403` jika sesi tidak sah/tidak berdaftar; `500` jika akaun perkhidmatan Firebase tidak dikonfigurasi.
 
 * **Response Error (403 Ditolak — token/domain/tidak berdaftar):**
 
@@ -1415,7 +1438,7 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 * **Model:** DeepSeek Chat Completions (lalai `deepseek-flash`), JSON mode dengan cubaan semula tanpa `response_format` jika API menolak JSON mode.
 * **Kesegaran cache:** jawapan cache yang sumbernya telah berubah atau dipadam tidak digunakan semula dan tidak dipaparkan kepada pengguna bukan admin.
 * **Belum dilaksanakan:** maklum balas/rating jawapan, perbualan berbilang giliran, dan penomboran penuh senarai cache admin (had 100).
-* **Keselamatan (V6.13.0):** semua endpoint RAG memerlukan session token yang sah dan menyemak peranan melalui `verifyUserAccess`; `email` daripada klien tidak lagi dipercayai. Peraturan Firestore yang ketat masih perlu disemak secara berasingan dalam Firebase Console.
+* **Keselamatan (V6.13.2):** semua endpoint RAG memerlukan session token yang sah dan menyemak peranan melalui `verifyUserAccess`; `email` daripada klien tidak lagi dipercayai. Akses client Firestore ke koleksi `surat_arahan_*` ditutup oleh peraturan default-deny; hanya akaun perkhidmatan pelayan boleh mengaksesnya.
 
 #### F3. `uploadDriveFile` — Muat naik fail (base64)
 
