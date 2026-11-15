@@ -37,6 +37,225 @@ const ROLE_KETUA_SEKSYEN = "KETUA_SEKSYEN";
 const ROLE_ADMIN = "ADMIN";
 const ROLE_PKA = "PKA";
 
+// =========================================================================
+// V6.13.0: QUICK LOCKDOWN (A) - SESI TOKEN + PENGESAHAN ID TOKEN GOOGLE
+// =========================================================================
+// LOCKDOWN_MODE:
+//   'enforce' (lalai) -> semua endpoint (kecuali checkAuth) wajib session token
+//   'legacy'          -> rollback sementara ke semakan emel lama (TIDAK SELAMAT)
+const LOCKDOWN_MODE_PROPERTY = 'LOCKDOWN_MODE';
+const LOCKDOWN_DEFAULT_MODE = 'enforce';
+const SESSION_SECRET_PROPERTY = 'SESSION_SECRET';
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 jam
+const DEFAULT_GOOGLE_CLIENT_ID = '758579492428-rnfev1nkkf2e6qduhujgtfbhudl2j9td.apps.googleusercontent.com';
+
+let __ACTIVE_SESSION__ = null;
+
+function getLockdownMode_() {
+  const raw = PropertiesService.getScriptProperties().getProperty(LOCKDOWN_MODE_PROPERTY);
+  return String(raw || LOCKDOWN_DEFAULT_MODE).toLowerCase().trim();
+}
+
+function isLockdownActive_() {
+  return getLockdownMode_() !== 'legacy';
+}
+
+function setActiveSession_(session) {
+  __ACTIVE_SESSION__ = session || null;
+}
+
+function getActiveSession_() {
+  return __ACTIVE_SESSION__;
+}
+
+function maskEmail_(email) {
+  const value = String(email || '').trim();
+  const at = value.indexOf('@');
+  if (at < 1) return value ? '***' : '';
+  return value.substring(0, 1) + '***@' + value.substring(at + 1);
+}
+
+function safeEqual_(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) {
+    diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+function getSessionSecret_() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty(SESSION_SECRET_PROPERTY);
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty(SESSION_SECRET_PROPERTY, secret);
+  }
+  return secret;
+}
+
+function base64UrlEncode_(value) {
+  return Utilities.base64EncodeWebSafe(String(value || '')).replace(/=+$/g, '');
+}
+
+function base64UrlDecode_(value) {
+  let normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (normalized.length % 4) normalized += '=';
+  return Utilities.newBlob(Utilities.base64Decode(normalized)).getDataAsString();
+}
+
+function signSessionPayload_(encodedPayload) {
+  const signature = Utilities.computeHmacSha256Signature(encodedPayload, getSessionSecret_());
+  return Utilities.base64EncodeWebSafe(signature).replace(/=+$/g, '');
+}
+
+function createSessionToken_(email) {
+  const now = Date.now();
+  const payload = JSON.stringify({
+    v: 1,
+    email: String(email || '').toLowerCase().trim(),
+    iat: now,
+    exp: now + SESSION_TTL_MS
+  });
+  const encoded = base64UrlEncode_(payload);
+  return encoded + '.' + signSessionPayload_(encoded);
+}
+
+function verifySessionToken_(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    const expected = signSessionPayload_(parts[0]);
+    if (!safeEqual_(parts[1], expected)) return null;
+    const payload = JSON.parse(base64UrlDecode_(parts[0]));
+    if (!payload || !payload.email || !payload.exp) return null;
+    if (Number(payload.exp) < Date.now()) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getGoogleClientId_() {
+  return getScriptProp('GOOGLE_CLIENT_ID') || DEFAULT_GOOGLE_CLIENT_ID;
+}
+
+function verifyGoogleIdToken_(idToken) {
+  const token = String(idToken || '').trim();
+  if (!token) {
+    return { ok: false, email: null, error: 'Token Google diperlukan. Sila log masuk semula.' };
+  }
+  try {
+    const response = UrlFetchApp.fetch(
+      'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token),
+      { muteHttpExceptions: true }
+    );
+    if (response.getResponseCode() !== 200) {
+      return { ok: false, email: null, error: 'Token Google tidak sah atau telah tamat.' };
+    }
+    const payload = JSON.parse(response.getContentText() || '{}');
+    if (String(payload.aud || '') !== getGoogleClientId_()) {
+      return { ok: false, email: null, error: 'Token Google bukan untuk aplikasi ini.' };
+    }
+    const issuer = String(payload.iss || '');
+    if (issuer !== 'accounts.google.com' && issuer !== 'https://accounts.google.com') {
+      return { ok: false, email: null, error: 'Penerbit token Google tidak sah.' };
+    }
+    if (Number(payload.exp || 0) * 1000 < Date.now()) {
+      return { ok: false, email: null, error: 'Token Google telah tamat.' };
+    }
+    if (String(payload.email_verified) !== 'true') {
+      return { ok: false, email: null, error: 'Emel Google belum disahkan.' };
+    }
+    const email = String(payload.email || '').toLowerCase().trim();
+    const domain = email.split('@')[1] || '';
+    const allowedDomains = [AUTHORIZED_DOMAIN, ...ADDITIONAL_AUTHORIZED_DOMAINS].map(function(d) {
+      return String(d || '').toLowerCase();
+    });
+    if (!email || allowedDomains.indexOf(domain) === -1) {
+      return { ok: false, email: null, error: 'Hanya akaun @' + AUTHORIZED_DOMAIN + ' dibenarkan.' };
+    }
+    if (payload.hd && String(payload.hd).toLowerCase() !== AUTHORIZED_DOMAIN.toLowerCase()) {
+      return { ok: false, email: null, error: 'Domain Google Workspace tidak dibenarkan.' };
+    }
+    return { ok: true, email: email, error: null };
+  } catch (e) {
+    return { ok: false, email: null, error: 'Ralat mengesahkan token Google: ' + e.toString() };
+  }
+}
+
+function requireSession_(token, claimedEmail) {
+  const claimed = String(claimedEmail || '').toLowerCase().trim();
+  const payload = verifySessionToken_(token);
+
+  if (payload && payload.email) {
+    if (claimed && claimed !== payload.email) {
+      return {
+        ok: false,
+        email: payload.email,
+        user: null,
+        error: 'Akses Ditolak: Emel tidak sepadan dengan sesi yang sah.'
+      };
+    }
+    const user = findUserByEmailCached(payload.email);
+    if (!user) {
+      return {
+        ok: false,
+        email: payload.email,
+        user: null,
+        error: 'Akses Ditolak: Akaun Google ini tidak berdaftar dalam sistem.'
+      };
+    }
+    const session = { ok: true, email: payload.email, user: user, error: null, legacy: false };
+    setActiveSession_(session);
+    return session;
+  }
+
+  if (isLockdownActive_()) {
+    return {
+      ok: false,
+      email: '',
+      user: null,
+      error: 'Akses Ditolak: Sesi tidak sah atau telah tamat. Sila log masuk semula.'
+    };
+  }
+
+  // Rollback legacy sahaja - TIDAK SELAMAT
+  if (!claimed) {
+    const session = { ok: true, email: '', user: null, error: null, legacy: true };
+    setActiveSession_(session);
+    return session;
+  }
+  const legacyUser = findUserByEmailCached(claimed);
+  if (!legacyUser) {
+    return {
+      ok: false,
+      email: claimed,
+      user: null,
+      error: 'Akses Ditolak: Pengguna tidak berdaftar dalam sistem.'
+    };
+  }
+  const legacySession = { ok: true, email: claimed, user: legacyUser, error: null, legacy: true };
+  setActiveSession_(legacySession);
+  return legacySession;
+}
+
+function requireAdminSession_(token, claimedEmail) {
+  const session = requireSession_(token, claimedEmail);
+  if (!session.ok) return session;
+  if (!session.user || normalizeRoleKey(session.user.role) !== normalizeRoleKey(ROLE_ADMIN)) {
+    return {
+      ok: false,
+      email: session.email,
+      user: session.user,
+      error: 'Akses Ditolak: Tindakan ini hanya untuk ADMIN.'
+    };
+  }
+  return session;
+}
+
 const SURAT_ARAHAN_FOLDER_NAME = 'SURAT ARAHAN';
 const SURAT_ARAHAN_FOLDER_ID_PROPERTY = 'SURAT_ARAHAN_FOLDER_ID';
 const SURAT_ARAHAN_ALLOWED_ROLES = [ROLE_PENGESYOR, ROLE_PELULUS, ROLE_KETUA_SEKSYEN, ROLE_PENGARAH, ROLE_ADMIN];
@@ -65,6 +284,63 @@ const SA_MENU_DEFAULT_ROWS = [
 
 // Jumlah lajur dalam sheet (A hingga AF = 32 lajur)
 const TOTAL_COLUMNS = 32;
+
+// =========================================================================
+// V6.13.0: HAD OPERASI DRIVE KEPADA STB MAIN FOLDER
+// =========================================================================
+function isFolderWithinMain_(folderId) {
+  try {
+    const mainId = String(getMainFolderId() || '').trim();
+    const targetId = String(folderId || '').trim();
+    if (!mainId || !targetId) return false;
+    if (targetId === mainId) return true;
+
+    let folder;
+    try {
+      folder = DriveApp.getFolderById(targetId);
+    } catch (e) {
+      return false;
+    }
+
+    let current = folder;
+    for (let depth = 0; depth < 25; depth++) {
+      if (current.getId() === mainId) return true;
+      const parents = current.getParents();
+      if (!parents.hasNext()) return false;
+      current = parents.next();
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function isFolderAllowed_(folderId) {
+  const targetId = String(folderId || '').trim();
+  if (!targetId) return false;
+  if (targetId === String(getMainFolderId() || '').trim()) return true;
+
+  // Benarkan folder Surat Arahan jika ia dikonfigurasi di luar MAIN_FOLDER_ID.
+  const saFolderId = String(
+    PropertiesService.getScriptProperties().getProperty(SURAT_ARAHAN_FOLDER_ID_PROPERTY) || ''
+  ).trim();
+  if (saFolderId && targetId === saFolderId) return true;
+
+  return isFolderWithinMain_(targetId);
+}
+
+function isFileAllowed_(fileId) {
+  try {
+    const file = DriveApp.getFileById(String(fileId || '').trim());
+    const parents = file.getParents();
+    while (parents.hasNext()) {
+      if (isFolderAllowed_(parents.next().getId())) return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
 
 // === CACHE CONFIG ===
 const APP_DATA_CACHE_KEY = 'STB_APP_DATA_V3';
@@ -185,45 +461,65 @@ function verifyUserAccess(email, allowedRolesArray) {
  */
 function getAuthenticatedUserEmail(email) {
   try {
-    // Semak jika email disediakan oleh frontend
-    if (!email || email.toString().trim() === '') {
-      return { 
-        email: null, 
-        isValid: false, 
+    const claimedEmail = String(email || '').toLowerCase().trim();
+    const session = getActiveSession_();
+
+    // V6.13.0: Identiti hanya dari session token yang telah disahkan.
+    if (session && session.ok && session.email) {
+      if (claimedEmail && claimedEmail !== session.email) {
+        return {
+          email: session.email,
+          isValid: false,
+          error: 'Akses Ditolak: Emel tidak sepadan dengan sesi yang sah.'
+        };
+      }
+      return { email: session.email, isValid: true, error: null };
+    }
+
+    if (isLockdownActive_()) {
+      return {
+        email: null,
+        isValid: false,
+        error: 'Akses Ditolak: Sesi tidak sah. Sila log masuk semula.'
+      };
+    }
+
+    // Rollback legacy sahaja - TIDAK SELAMAT
+    if (!claimedEmail) {
+      return {
+        email: null,
+        isValid: false,
         error: 'Emel tidak disediakan. Sila pastikan anda telah log masuk dan menghantar emel yang sah.'
       };
     }
-    
-    const normalizedEmail = email.toString().trim().toLowerCase();
 
-    // Semak domain
-    const emailDomain = normalizedEmail.split('@')[1];
+    const emailDomain = claimedEmail.split('@')[1];
     if (!emailDomain) {
-      return { 
-        email: normalizedEmail, 
-        isValid: false, 
+      return {
+        email: claimedEmail,
+        isValid: false,
         error: 'Format emel tidak sah. Sila semak alamat emel anda.'
       };
     }
-    
+
     const allAuthorizedDomains = [AUTHORIZED_DOMAIN, ...ADDITIONAL_AUTHORIZED_DOMAINS];
     const isAuthorized = allAuthorizedDomains.some(domain => emailDomain === domain.toLowerCase());
-    
+
     if (!isAuthorized) {
-      return { 
-        email: normalizedEmail, 
-        isValid: false, 
-        error: `Akses tidak dibenarkan. Hanya akaun dengan domain @${AUTHORIZED_DOMAIN} dibenarkan. Emel anda: ${normalizedEmail}`
+      return {
+        email: claimedEmail,
+        isValid: false,
+        error: `Akses tidak dibenarkan. Hanya akaun dengan domain @${AUTHORIZED_DOMAIN} dibenarkan. Emel anda: ${claimedEmail}`
       };
     }
-    
-    return { email: normalizedEmail, isValid: true, error: null };
+
+    return { email: claimedEmail, isValid: true, error: null };
 
   } catch (error) {
-    Logger.log(`[V6.5.0] Ralat mendapatkan email pengguna: ${error.toString()}`);
-    return { 
-      email: null, 
-      isValid: false, 
+    Logger.log(`[V6.13.0] Ralat mendapatkan emel pengguna: ${error.toString()}`);
+    return {
+      email: null,
+      isValid: false,
       error: 'Ralat mendapatkan sesi pengguna. Sila muat semula halaman dan log masuk ke akaun Google anda.'
     };
   }
@@ -355,31 +651,60 @@ function invalidateUserCache(email) {
  * @param {string} email - Alamat emel dari frontend
  * @returns {ContentService.TextOutput} - Respons JSON dengan status pengesahan
  */
-function handleCheckAuth(email) {
+function handleCheckAuth(email, credential) {
   try {
-    // Dapatkan email pengguna dari parameter frontend dan validasi domain
-    const authResult = getAuthenticatedUserEmail(email);
+    let effectiveEmail = String(email || '').toLowerCase().trim();
+    let usedCredential = false;
 
-    if (!authResult.isValid) {
+    // V6.13.0: Sahkan ID token Google di pelayan. Jangan percaya emel dari client.
+    if (credential) {
+      const verified = verifyGoogleIdToken_(credential);
+      if (!verified.ok) {
+        return createJSONOutput({
+          authenticated: false,
+          error: verified.error,
+          code: 403
+        });
+      }
+      if (effectiveEmail && effectiveEmail !== verified.email) {
+        return createJSONOutput({
+          authenticated: false,
+          error: 'Akses Ditolak: Emel tidak sepadan dengan token Google.',
+          code: 403
+        });
+      }
+      effectiveEmail = verified.email;
+      usedCredential = true;
+    } else if (isLockdownActive_()) {
       return createJSONOutput({
         authenticated: false,
-        error: authResult.error,
+        error: 'Akses Ditolak: Token Google diperlukan. Sila log masuk semula.',
         code: 403
       });
+    } else {
+      const legacyAuth = getAuthenticatedUserEmail(effectiveEmail);
+      if (!legacyAuth.isValid) {
+        return createJSONOutput({
+          authenticated: false,
+          error: legacyAuth.error,
+          code: 403
+        });
+      }
+      effectiveEmail = legacyAuth.email;
     }
-    
+
     // Cari profil pengguna dari Sheet 'Users' (V6.9.0: guna versi cache)
-    const userProfile = findUserByEmailCached(authResult.email);
+    const userProfile = findUserByEmailCached(effectiveEmail);
 
     if (!userProfile) {
       return createJSONOutput({
         authenticated: false,
-        email: authResult.email,
-        error: 'Akaun Google anda (' + authResult.email + ') tidak berdaftar dalam sistem. Sila hubungi Pentadbir.',
+        email: effectiveEmail,
+        error: 'Akaun Google anda (' + effectiveEmail + ') tidak berdaftar dalam sistem. Sila hubungi Pentadbir.',
         code: 403
       });
     }
-    
+
     // V6.5.0: Jika role adalah PENGESYOR, semak dan masukkan Firebase code
     // Firebase code disimpan di Script Properties dengan key format: FIREBASE_CODE_MAP_<email>
     if (userProfile.role === ROLE_PENGESYOR) {
@@ -393,22 +718,46 @@ function handleCheckAuth(email) {
         // Tidak perlu gagalkan auth jika tiada Firebase code, cuma tidak disertakan
       }
     }
-    
+
+    const sessionToken = createSessionToken_(effectiveEmail);
+    setActiveSession_({ ok: true, email: effectiveEmail, user: userProfile, error: null, legacy: !usedCredential });
+
     // Auth berjaya
     return createJSONOutput({
       authenticated: true,
       user: userProfile,
+      sessionToken: sessionToken,
       message: 'Log masuk berjaya'
     });
 
   } catch (error) {
-    Logger.log(`[V6.5.0] Ralat dalam handleCheckAuth: ${error.toString()}`);
+    Logger.log(`[V6.13.0] Ralat dalam handleCheckAuth: ${error.toString()}`);
     return createJSONOutput({
       authenticated: false,
       error: 'Ralat sistem semasa pengesahan: ' + error.toString(),
       code: 500
     });
   }
+}
+
+function handleWhoAmI(session) {
+  const active = getActiveSession_() || session || {};
+  const user = active.user || null;
+  let effectiveEmail = '';
+  try {
+    effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase().trim();
+  } catch (e) {}
+  return createJSONOutput({
+    status: 'success',
+    lockdownMode: getLockdownMode_(),
+    sessionValid: !!active.ok,
+    emailMasked: maskEmail_(active.email || ''),
+    effectiveEmailMasked: maskEmail_(effectiveEmail),
+    activeIsEffective: !!active.email && active.email === effectiveEmail,
+    registered: !!user,
+    role: user ? user.role : '',
+    name: user ? user.name : ''
+  });
 }
 
 // =========================================================================
@@ -418,17 +767,34 @@ function handleCheckAuth(email) {
 function doGet(e) {
   // doGet hanya membaca data, tidak memerlukan ScriptLock yang melambatkan sistem
   try {
-    const action = e.parameter ? e.parameter.action : "";
-    const role = e.parameter ? e.parameter.role : "";
-    const userName = e.parameter ? e.parameter.userName : "";
-    const email = e.parameter ? e.parameter.email : "";
-    const clientVersion = e.parameter ? e.parameter.v : "";
+    const params = e.parameter || {};
+    const action = params.action || "";
+    const claimedEmail = params.email || "";
+    const token = params.token || "";
+    const clientVersion = params.v || "";
 
-    // V6.4.9: Handler untuk checkAuth - kini menerima email dari parameter
+    // checkAuth mesti boleh diakses tanpa session token; ia mengesahkan credential Google.
     if (action === "checkAuth") {
-      return handleCheckAuth(email);
+      return handleCheckAuth(claimedEmail, params.credential || '');
     }
-    
+
+    // V6.13.0: Semua action lain wajib session token yang sah.
+    const gate = requireSession_(token, claimedEmail);
+    if (!gate.ok) {
+      return createJSONOutput({ status: "error", code: 403, message: gate.error });
+    }
+
+    const email = gate.email;
+    const claimedRole = params.role || "";
+    const claimedUserName = params.userName || "";
+    // Role/nama untuk penapisan data hanya dari profil server, bukan dari client.
+    const effectiveRole = gate.user ? gate.user.role : claimedRole;
+    const effectiveUserName = gate.user ? gate.user.name : claimedUserName;
+
+    if (action === "whoAmI") {
+      return handleWhoAmI(gate);
+    }
+
     // V6.5.0: Handler untuk getQueueData
     if (action === "getQueueData") {
       if (!email) {
@@ -453,21 +819,33 @@ function doGet(e) {
       return getSpiQueueData(email);
     }
 
-    // V6.8.0: Preview backlog tanpa hantar emel
+    // V6.8.0: Preview backlog tanpa hantar emel - ADMIN sahaja
     if (action === "previewSpiBacklog") {
+      const admin = requireAdminSession_(token, email);
+      if (!admin.ok) {
+        return createJSONOutput({ success: false, error: admin.error });
+      }
       return getSpiBacklogData();
     }
 
-    // V6.8.0: Trigger manual sendSpiBacklogReminder
+    // V6.8.0: Trigger manual sendSpiBacklogReminder - ADMIN sahaja
     if (action === "sendSpiBacklogReminder") {
+      const admin = requireAdminSession_(token, email);
+      if (!admin.ok) {
+        return createJSONOutput({ success: false, error: admin.error });
+      }
       return sendSpiBacklogReminder();
     }
 
-    // V6.8.0: Dapatkan Firebase code untuk email tertentu
+    // V6.8.0: Dapatkan Firebase code untuk email tertentu - ADMIN sahaja
     if (action === "getUserFirebaseCode") {
-      const fbEmail = e.parameter ? e.parameter.email : '';
-      if (fbEmail) {
-        const propKey = 'FIREBASE_CODE_MAP_' + fbEmail.toLowerCase().trim();
+      const admin = requireAdminSession_(token, email);
+      if (!admin.ok) {
+        return createJSONOutput({ status: "error", firebaseCode: '', message: admin.error });
+      }
+      const targetEmail = String(params.targetEmail || params.email || '').toLowerCase().trim();
+      if (targetEmail) {
+        const propKey = 'FIREBASE_CODE_MAP_' + targetEmail;
         const code = PropertiesService.getScriptProperties().getProperty(propKey) || '';
         return createJSONOutput({ status: "success", firebaseCode: code });
       }
@@ -480,23 +858,28 @@ function doGet(e) {
     } else if (action === "refreshData") {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
-      result = getApplicationsData(role, userName, '', true, '', DEFAULT_MONTHS_WINDOW, '', '');
+      result = getApplicationsData(effectiveRole, effectiveUserName, '', true, '', DEFAULT_MONTHS_WINDOW, '', '');
     } else if (action === "getRow") {
-      const rowNum = parseInt(e.parameter.row);
+      // V6.13.0: getRow penuh hanya untuk ADMIN.
+      const admin = requireAdminSession_(token, email);
+      if (!admin.ok) {
+        return createJSONOutput({ status: "error", message: admin.error });
+      }
+      const rowNum = parseInt(params.row);
       result = getSingleRowData(rowNum);
     } else if (action === "getData") {
       // V6.10.0: refresh=true paksa baca semula sheet; months lalai 3 (window bulan semasa);
       // from/to untuk data bulan lama (mod sejarah); w = windowStart client untuk version check.
-      const forceRefresh = e.parameter.refresh === 'true' || e.parameter.refresh === '1';
-      result = getApplicationsData(role, userName, clientVersion, forceRefresh,
-        e.parameter.w || '', e.parameter.months || DEFAULT_MONTHS_WINDOW,
-        e.parameter.from || '', e.parameter.to || '');
+      const forceRefresh = params.refresh === 'true' || params.refresh === '1';
+      result = getApplicationsData(effectiveRole, effectiveUserName, clientVersion, forceRefresh,
+        params.w || '', params.months || DEFAULT_MONTHS_WINDOW,
+        params.from || '', params.to || '');
     } else if (action === "getDashboardStats") {
       // V6.10.0: Agregat kecil untuk dashboard (12 bulan, <50KB, cache ScriptCache)
-      result = getDashboardStats(role, userName);
+      result = getDashboardStats(effectiveRole, effectiveUserName);
     } else {
-      result = getApplicationsData(role, userName, clientVersion, false,
-        e.parameter.w || '', DEFAULT_MONTHS_WINDOW, '', '');
+      result = getApplicationsData(effectiveRole, effectiveUserName, clientVersion, false,
+        params.w || '', DEFAULT_MONTHS_WINDOW, '', '');
     }
     
     return result;
@@ -519,10 +902,24 @@ function doPost(e) {
   try {
     // 1. Parse data terlebih dahulu untuk mengetahui jenis 'action'
     const data = JSON.parse(e.postData.contents);
-    
-    // 2. Senarai tindakan yang TIDAK perlukan lock (Log masuk & API Luar yang lama)
+    const postToken = (e.parameter && e.parameter.token) || data.sessionToken || data.token || '';
+
+    // 2. checkAuth tiada session token; ia mengesahkan credential Google.
+    if (data.action === 'checkAuth') {
+      return handleCheckAuth(data.email || '', data.credential || '');
+    }
+
+    // 3. V6.13.0: Semua action lain wajib session token yang sah.
+    const gate = requireSession_(postToken, data.email || '');
+    if (!gate.ok) {
+      return createJSONOutput({ status: "error", code: 403, message: gate.error });
+    }
+    // Gunakan emel dari sesi yang sah untuk semua handler/log.
+    data.email = gate.email;
+
+    // 4. Senarai tindakan yang TIDAK perlukan lock (API Luar yang lama)
     const noLockActions = [
-      'checkAuth', 'searchYoutube', 'cetak_dan_simpan_pdf', 'refreshData',
+      'searchYoutube', 'cetak_dan_simpan_pdf', 'refreshData',
       'listDriveFiles', 'getSuratArahanDocs', 'pkaGetPengesyorContact',
       'askSuratArahan', 'listSuratArahanFaq', 'deleteSuratArahanQa',
       'getSuratArahanStatus', 'getSuratArahanFileData',
@@ -531,7 +928,7 @@ function doPost(e) {
       'getSuratArahanMenu', 'refreshSuratArahanMenu'
     ];
     
-    // 3. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
+    // 5. Hanya lock jika ia adalah operasi menulis (write) ke dalam Google Sheet
     if (!noLockActions.includes(data.action)) {
       lock.waitLock(28000);
       locked = true;
@@ -543,14 +940,6 @@ function doPost(e) {
     // handleInsertNewRecord).
     // Action seperti checkAuth tidak lagi membazir masa buka sheet.
     // =====================================================================
-    // V6.4.9: HANDLER UNTUK CHECK AUTH MELALUI POST
-    // Frontend boleh menghantar { action: 'checkAuth', email: '...' }
-    // =====================================================================
-    if (data.action === 'checkAuth') {
-      return handleCheckAuth(data.email || '');
-    }
-    
-    // =====================================================================
     // HANDLER UNTUK YOUTUBE CUSTOM PLAYER
     // =====================================================================
     if (data.action === 'searchYoutube') {
@@ -561,8 +950,12 @@ function doPost(e) {
     // V6.5.0: PENGESAHAN UNTUK SEMUA TINDAKAN KRITIKAL
     // =====================================================================
     
-    // Handler untuk dapatkan log
+    // Handler untuk dapatkan log - ADMIN sahaja
     if (data.action === 'getLogs') {
+      const admin = requireAdminSession_(postToken, data.email || '');
+      if (!admin.ok) {
+        return createJSONOutput({ status: "error", message: admin.error, logs: [] });
+      }
       return handleGetLogs();
     }
     
@@ -595,6 +988,16 @@ function doPost(e) {
       if (!accessCheck.isAuthorized) {
         return createJSONOutput({ status: "error", message: accessCheck.error });
       }
+      // V6.13.0: PENGESYOR hanya boleh cipta folder untuk dirinya sendiri.
+      const requestedUserName = String(data.user_name || '').trim();
+      const profileName = String(accessCheck.userProfile.name || '').trim();
+      const isAdmin = normalizeRoleKey(accessCheck.userProfile.role) === normalizeRoleKey(ROLE_ADMIN);
+      if (!isAdmin && requestedUserName && requestedUserName.toUpperCase() !== profileName.toUpperCase()) {
+        return createJSONOutput({ status: "error", message: "Akses Ditolak: Anda hanya boleh mencipta folder untuk diri sendiri." });
+      }
+      if (!requestedUserName) data.user_name = profileName;
+      // Jangan percaya main_folder_id dari client.
+      data.main_folder_id = getMainFolderId();
       return handleCreateDriveFolderAction(data);
     }
     
@@ -3044,7 +3447,8 @@ function handleCreateDriveFolderAction(data) {
   try {
     const companyName = data.company_name;
     const userName = data.user_name;
-    const mainFolderId = data.main_folder_id || getMainFolderId();
+    // V6.13.0: Jangan percaya main_folder_id dari client.
+    const mainFolderId = getMainFolderId();
     const appType = data.application_type || data.subfolder_name;
 
     let mainFolder;
@@ -3138,6 +3542,9 @@ function createUserFolderStructure(syarikat, startDate, jenisPermohonan, pengesy
 
 // =========================================================================
 // TEST FUNCTIONS
+// NOTA V6.13.0: Fungsi ujian di bawah tidak melalui session token. Ia hanya
+// berfungsi dalam LOCKDOWN_MODE=legacy atau selepas setActiveSession_() dipanggil.
+// Jangan gunakan fungsi ini sebagai ujian keselamatan production.
 // =========================================================================
 function testCheckAuth() {
   const testEmail = "pengesyor@kuskop.gov.my";
@@ -4012,6 +4419,11 @@ function handleListDriveFiles(data) {
     if (!folderId) {
       return createJSONOutput({ success: false, error: "folderId diperlukan." });
     }
+
+    // V6.13.0: Jangan benarkan akses ke folder luar STB MAIN FOLDER.
+    if (!isFolderAllowed_(folderId)) {
+      return createJSONOutput({ success: false, error: "Akses Ditolak: Folder bukan dalam STB MAIN FOLDER." });
+    }
     
     const folder = DriveApp.getFolderById(folderId);
     const folderName = folder.getName();
@@ -4278,6 +4690,11 @@ function handleUploadDriveFile(data) {
     if (!folderId || !fileName || !fileData) {
       return createJSONOutput({ success: false, error: "folderId, fileName, dan fileData diperlukan." });
     }
+
+    // V6.13.0: Muat naik hanya ke folder dalam STB MAIN FOLDER.
+    if (!isFolderAllowed_(folderId)) {
+      return createJSONOutput({ success: false, error: "Akses Ditolak: Folder bukan dalam STB MAIN FOLDER." });
+    }
     
     const folder = DriveApp.getFolderById(folderId);
     const bytes = Utilities.base64Decode(fileData);
@@ -4356,6 +4773,11 @@ function handleFinalizeDriveUpload(data) {
     if (!sessionId || !folderId || !fileName) {
       return createJSONOutput({ success: false, error: 'sessionId, folderId dan fileName diperlukan.' });
     }
+
+    // V6.13.0: Finalize muat naik hanya ke folder dalam STB MAIN FOLDER.
+    if (!isFolderAllowed_(folderId)) {
+      return createJSONOutput({ success: false, error: 'Akses Ditolak: Folder bukan dalam STB MAIN FOLDER.' });
+    }
     const cache = CacheService.getScriptCache();
     const metaVal = cache.get('UPL_' + sessionId + '_meta');
     if (!metaVal) {
@@ -4422,6 +4844,11 @@ function handleDeleteDriveFile(data) {
     if (!fileId) {
       return createJSONOutput({ success: false, error: "fileId diperlukan." });
     }
+
+    // V6.13.0: Hanya fail dalam STB MAIN FOLDER / folder Surat Arahan.
+    if (!isFileAllowed_(fileId)) {
+      return createJSONOutput({ success: false, error: "Akses Ditolak: Fail bukan dalam STB MAIN FOLDER." });
+    }
     
     const file = DriveApp.getFileById(fileId);
     const fileName = file.getName();
@@ -4461,6 +4888,11 @@ function handleRenameDriveFile(data) {
     const newName = data.newName;
     if (!fileId || !newName) {
       return createJSONOutput({ success: false, error: "fileId dan newName diperlukan." });
+    }
+
+    // V6.13.0: Hanya fail dalam STB MAIN FOLDER / folder Surat Arahan.
+    if (!isFileAllowed_(fileId)) {
+      return createJSONOutput({ success: false, error: "Akses Ditolak: Fail bukan dalam STB MAIN FOLDER." });
     }
     
     const file = DriveApp.getFileById(fileId);

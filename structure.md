@@ -536,7 +536,7 @@ Menu bantuan membolehkan Pentadbir menyediakan pilihan soalan lebih awal dalam t
 
 Direktori `android/` adalah kosong. Dokumen `design.md` dan `prompts-android.md` menghuraikan cadangan aplikasi Android Native (Kotlin, Jetpack Compose, MVVM + Clean, Room, Retrofit, Hilt, FCM, Biometrik) tetapi **tidak dilaksanakan** dan tidak dihuraikan lanjut dalam dokumen ini selaras dengan keputusan skop web sahaja.
 
-RAG Surat Arahan juga belum merangkumi maklum balas/rating jawapan, perbualan berbilang giliran, penomboran penuh senarai cache admin, pengesahan ID token Google di pelayan, dan peraturan Firestore yang disertakan dalam repositori.
+RAG Surat Arahan juga belum merangkumi maklum balas/rating jawapan, perbualan berbilang giliran, penomboran penuh senarai cache admin, dan peraturan Firestore yang disertakan dalam repositori. Pengesahan ID token Google di pelayan dan session token HMAC telah dilaksanakan dalam V6.13.0 (quick lockdown A); peraturan Firestore masih perlu disemak secara berasingan.
 
 ---
 

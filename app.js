@@ -688,6 +688,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // END V6.5.2 DAILY GREETING & LOGOUT QUOTES
   // =========================================================================
   
+  // V6.13.0: Lampirkan session token pada setiap panggilan Apps Script.
+  // Token dihantar sebagai query param supaya tidak mencetuskan preflight CORS.
+  function appendSessionToken_(url) {
+    try {
+      if (!currentSessionToken) return url;
+      if (String(url).indexOf(SCRIPT_URL) !== 0) return url;
+      if (/[?&]token=/.test(url)) return url;
+      return url + (url.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(currentSessionToken);
+    } catch (e) {
+      return url;
+    }
+  }
+
+  // V6.13.0: Untuk POST, sertakan token dalam body JSON juga supaya token tidak
+  // hilang jika redirect Apps Script tidak mengekalkan query param.
+  function attachSessionTokenToBody_(options) {
+    try {
+      if (!currentSessionToken) return options;
+      const method = String(options.method || 'GET').toUpperCase();
+      if (method === 'GET' || method === 'HEAD') return options;
+      if (!options.body || typeof options.body !== 'string') return options;
+      const raw = options.body.trim();
+      if (!raw || raw.charAt(0) !== '{') return options;
+      let payload;
+      try { payload = JSON.parse(raw); } catch (e) { return options; }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return options;
+      if (payload.sessionToken) return options;
+      payload.sessionToken = currentSessionToken;
+      options.body = JSON.stringify(payload);
+      return options;
+    } catch (e) {
+      return options;
+    }
+  }
+
   // --- FETCH WITH RETRY MECHANISM ---
   // V6.11.0: Panggilan BACA (method GET, tidak menulis) guna retry lembut
   // (maxRetries=2, delay=3000, backoff 6s/12s) untuk tahan 404/redirect sementara
@@ -705,7 +740,11 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         console.log(`V6.5.2 Fetch attempt ${attempt} for ${url.substring(0, 100)}...`);
         
-        const response = await fetch(url, options);
+        const isAppsScriptCall = String(url).indexOf(SCRIPT_URL) === 0;
+        const requestOptions = isAppsScriptCall
+          ? attachSessionTokenToBody_(Object.assign({}, options))
+          : options;
+        const response = await fetch(appendSessionToken_(url), requestOptions);
         
         if (response.ok) {
           console.log(`V6.5.2 Fetch successful on attempt ${attempt}`);
@@ -833,11 +872,17 @@ async function handleCredentialResponse(response) {
     const userEmail = decodedToken.email;
     console.log("V6.5.2 Email extracted from Google token:", userEmail);
     
-    // Hantar email ke backend GAS untuk pengesahan
-    const result = await verifyEmailWithBackend(userEmail);
+    // Hantar email + ID token Google ke backend GAS untuk pengesahan
+    const result = await verifyEmailWithBackend(userEmail, response.credential);
     
     if (result.authenticated && result.user) {
       console.log("V6.5.2 GIS Authentication successful for:", result.user.email);
+
+      // V6.13.0: Wajib ada session token yang ditandatangani oleh pelayan.
+      if (!result.sessionToken) {
+        throw new Error('Pelayan tidak memulangkan token sesi. Sila log masuk semula.');
+      }
+      currentSessionToken = result.sessionToken;
       
       currentUser = result.user;
       currentUser.role = result.user.role ? result.user.role.toUpperCase().trim() : "";
@@ -887,7 +932,8 @@ async function handleCredentialResponse(response) {
       const todayStr = new Date().toDateString();
       await storageWrapper.set({ 
         'stb_session': currentUser,
-        'stb_login_date': todayStr
+        'stb_login_date': todayStr,
+        'stb_session_token': currentSessionToken
       });
 
       // --- KOD PENYELAMAT: Tukar paparan di belakang tabir loading ---
@@ -930,7 +976,7 @@ async function handleCredentialResponse(response) {
     } else {
       // Jika emel salah/tidak berdaftar, barulah panggil error
       hideLoading();
-      const errorMsg = result.message || 'Akses Ditolak: E-mel tidak didaftarkan dalam sistem.';
+      const errorMsg = result.error || result.message || 'Akses Ditolak: E-mel tidak didaftarkan dalam sistem.';
       handleAuthError(errorMsg);
     }
    
@@ -943,7 +989,7 @@ async function handleCredentialResponse(response) {
 }
   
   // Fungsi untuk menghantar email ke backend
-  async function verifyEmailWithBackend(email) {
+  async function verifyEmailWithBackend(email, credential) {
     console.log("V6.5.2 Verifying email with backend:", email);
     
     try {
@@ -952,7 +998,8 @@ async function handleCredentialResponse(response) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'checkAuth',
-          email: email
+          email: email,
+          credential: credential || ''
         })
       }, 3, 1500);
       
@@ -1605,6 +1652,7 @@ async function handleCredentialResponse(response) {
   
   let usersList = []; 
   let currentUser = null;
+  let currentSessionToken = null;
   let cachedData = [];
   let pelulusActiveItem = null;
   let isRestoring = false; 
@@ -7449,6 +7497,7 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       const storage = await storageWrapper.get([
         'stb_session', 
         'stb_login_date',
+        'stb_session_token',
         'stb_last_active_tab',
         'stb_last_active_element',
         'stb_form_states',
@@ -7480,11 +7529,28 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
         'stb_sfx_volume'
       ]);
       
+      // V6.13.0: Muatkan session token yang disimpan semasa log masuk.
+      currentSessionToken = storage.stb_session_token || null;
+
+      // V6.13.0: Sesi lama (sebelum lockdown) tiada token - paksa log masuk semula.
+      if (storage.stb_session && !storage.stb_session_token) {
+        console.log("V6.13.0 Sesi lama tiada token keselamatan - perlu log masuk semula.");
+        currentUser = null;
+        storage.stb_session = null;
+        storageWrapper.remove(['stb_session', 'stb_login_date', 'stb_session_token']);
+      }
+
+      // Tiada sesi sah -> jangan simpan token yatim dalam memori.
+      if (!storage.stb_session) {
+        currentSessionToken = null;
+      }
+
       if (storage.stb_session) {
   const todayStr = new Date().toDateString();
   if (storage.stb_login_date && storage.stb_login_date !== todayStr) {
       console.log("V6.5.2 Sesi dibatalkan kerana pertukaran hari.");
-      storageWrapper.remove(['stb_session', 'stb_login_date']).then(() => {
+      currentSessionToken = null;
+      storageWrapper.remove(['stb_session', 'stb_login_date', 'stb_session_token']).then(() => {
           currentUser = null;
       });
   } else {
@@ -13307,8 +13373,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     );
     
     cleanupStorage();
+    currentSessionToken = null;
     await storageWrapper.remove([
-      'stb_session', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
+      'stb_session', 'stb_session_token', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
       'stb_last_active_element', 'stb_form_states', 'stb_search_state', 'stb_search_history_state',
       'stb_has_printed', 'stb_drive_folder_url', 'stb_user_folder_url', 'stb_filter_pengesyor',
       'stb_dashboard_data', 'stb_form_persistence', 'stb_database_persistence',
@@ -13347,8 +13414,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       );
       
       cleanupStorage();
+      currentSessionToken = null;
       await storageWrapper.remove([
-        'stb_session', 'stb_login_date', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
+        'stb_session', 'stb_login_date', 'stb_session_token', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
         'stb_last_active_element', 'stb_form_states', 'stb_search_state', 'stb_search_history_state',
         'stb_has_printed', 'stb_drive_folder_url', 'stb_user_folder_url', 'stb_filter_pengesyor',
         'stb_dashboard_data', 'stb_form_persistence', 'stb_database_persistence',
@@ -14596,8 +14664,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
       if(isConfirmed) {
         cleanupStorage();
+        currentSessionToken = null;
         await storageWrapper.remove([
-          'stb_session', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
+          'stb_session', 'stb_session_token', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
           'stb_last_active_element', 'stb_form_states', 'stb_search_state',
           // ... array pemadaman seperti asal ...
           'stb_current_draft_filter', 'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume'
@@ -24749,7 +24818,7 @@ function showUserModal(user) {
   if (user && user.role === 'PENGESYOR') {
     (async () => {
       try {
-        const res = await fetchWithRetry(SCRIPT_URL + '?action=getUserFirebaseCode&email=' + encodeURIComponent(user.email) + '&t=' + Date.now(), {
+        const res = await fetchWithRetry(SCRIPT_URL + '?action=getUserFirebaseCode&email=' + encodeURIComponent(currentUser ? currentUser.email : '') + '&targetEmail=' + encodeURIComponent(user.email) + '&t=' + Date.now(), {
           method: 'GET', redirect: 'follow'
         }, 3, 1000);
         const data = await res.json();

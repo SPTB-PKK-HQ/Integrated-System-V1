@@ -166,7 +166,7 @@ RAG Surat Arahan menggunakan properti tambahan:
 
 Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitignore`; jangan simpan akaun perkhidmatan atau kunci DeepSeek dalam repositori.
 
-> **Nota keselamatan RAG:** endpoint RAG menggunakan model prinsipal `email` yang sama seperti endpoint lain (bukan pengesahan ID token). Jawapan cache boleh dibaca oleh semua peranan Surat Arahan yang dibenarkan. Laksanakan pengesahan token pelayan dan peraturan Firestore yang ketat sebelum penggunaan production penuh.
+> **Nota keselamatan RAG (V6.13.0):** endpoint RAG kini melalui session token yang disahkan dan `verifyUserAccess`. Namun, cache jawapan masih boleh dibaca oleh semua peranan Surat Arahan yang dibenarkan. Peraturan Firestore yang ketat masih perlu disemak dalam Firebase Console sebelum production penuh.
 
 ---
 
@@ -174,13 +174,15 @@ Fail `stb-pkk-firestore-firebase-adminsdk-*.json` dikecualikan melalui `.gitigno
 
 > Konvensyen: `GET /exec?action=X` bermaksud `GET [URL_PRODUKSI_KERAJAAN]/exec?action=X&...`. `POST /exec` bermaksud `POST [URL_PRODUKSI_KERAJAAN]/exec` dengan badan JSON dan header `text/plain;charset=utf-8`. Contoh respons menggunakan data fiksyen.
 
+> **V6.13.0 — Quick lockdown:** Semua endpoint **kecuali `checkAuth`** memerlukan `token` (session token HMAC yang ditandatangani pelayan) sebagai query parameter atau `sessionToken` dalam badan JSON POST. `checkAuth` memerlukan ID token Google (`credential`) yang disahkan di pelayan. `role` dan `userName` daripada klien tidak lagi dipercayai untuk kawalan akses; pelayan menggunakan profil dalam helaian `Users`. Endpoint `getLogs`, `getRow`, `getUserFirebaseCode`, `previewSpiBacklog` dan `sendSpiBacklogReminder` adalah ADMIN sahaja. Sesi tamat selepas 12 jam.
+
 ### 3.1 Kumpulan A — Pengesahan
 
 #### A1. `checkAuth` (GET dan POST) — Pengesahan log masuk
 
-* **Kaedah & Path:** `GET /exec?action=checkAuth&email=<emel>` atau `POST /exec` dengan `{"action":"checkAuth","email":"..."}`
-* **Deskripsi:** Mengesahkan domain dan pendaftaran pengguna. Mengembalikan profil (`name`, `email`, `role`, `color`, `phone`, `imageUrl`, `signUrl`, `copUrl`) dan `firebaseCode` bagi PENGESYOR jika wujud.
-* **Kawalan akses:** Emel berdomain dibenarkan dan berdaftar dalam `Users`. Tiada semakan peranan khusus.
+* **Kaedah & Path:** `GET /exec?action=checkAuth&email=<emel>&credential=<id_token>` atau `POST /exec` dengan `{"action":"checkAuth","email":"...","credential":"<id_token>"}`
+* **Deskripsi:** Mengesahkan ID token Google di pelayan (audience, issuer, tamat tempoh, `email_verified`, domain) dan pendaftaran pengguna. Mengembalikan profil (`name`, `email`, `role`, `color`, `phone`, `imageUrl`, `signUrl`, `copUrl`), `firebaseCode` bagi PENGESYOR jika wujud, dan `sessionToken` untuk panggilan seterusnya.
+* **Kawalan akses:** ID token Google yang sah untuk client ID aplikasi, emel berdomain dibenarkan dan berdaftar dalam `Users`. Tiada semakan peranan khusus.
 * **Request Headers:**
 
 ```http
@@ -192,7 +194,8 @@ Content-Type: text/plain;charset=utf-8
 ```json
 {
   "action": "checkAuth",
-  "email": "ali@[DOMAIN_KERAJAAN]"
+  "email": "ali@[DOMAIN_KERAJAAN]",
+  "credential": "[GOOGLE_ID_TOKEN]"
 }
 ```
 
@@ -212,17 +215,26 @@ Content-Type: text/plain;charset=utf-8
     "copUrl": "[URL_COP]",
     "firebaseCode": "[KOD_FIREBASE_PENGESYOR]"
   },
+  "sessionToken": "[SESSION_TOKEN_HMAC]",
   "message": "Log masuk berjaya"
 }
 ```
 
-* **Response Error (403 Ditolak — domain atau tidak berdaftar):**
+* **Response Error (403 Ditolak — token/domain/tidak berdaftar):**
+
+```json
+{
+  "authenticated": false,
+  "error": "Token Google tidak sah atau telah tamat.",
+  "code": 403
+}
+```
 
 ```json
 {
   "authenticated": false,
   "email": "luar@example.com",
-  "error": "Akses tidak dibenarkan. Hanya akaun dengan domain @[DOMAIN_KERAJAAN] dibenarkan.",
+  "error": "Hanya akaun @[DOMAIN_KERAJAAN] dibenarkan.",
   "code": 403
 }
 ```
@@ -1402,7 +1414,7 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 * **Model:** DeepSeek Chat Completions (lalai `deepseek-flash`), JSON mode dengan cubaan semula tanpa `response_format` jika API menolak JSON mode.
 * **Kesegaran cache:** jawapan cache yang sumbernya telah berubah atau dipadam tidak digunakan semula dan tidak dipaparkan kepada pengguna bukan admin.
 * **Belum dilaksanakan:** maklum balas/rating jawapan, perbualan berbilang giliran, dan penomboran penuh senarai cache admin (had 100).
-* **Keselamatan:** endpoint mempercayai `email` yang dihantar klien; pengesahan ID token Google di pelayan dan peraturan Firestore yang ketat masih menjadi prasyarat production.
+* **Keselamatan (V6.13.0):** semua endpoint RAG memerlukan session token yang sah dan menyemak peranan melalui `verifyUserAccess`; `email` daripada klien tidak lagi dipercayai. Peraturan Firestore yang ketat masih perlu disemak secara berasingan dalam Firebase Console.
 
 #### F3. `uploadDriveFile` — Muat naik fail (base64)
 
