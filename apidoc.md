@@ -811,6 +811,7 @@ Semua endpoint dalam kumpulan ini menggunakan `POST /exec` dengan header `text/p
 
 * **Kaedah & Path:** `POST /exec` (dikecualikan kunci)
 * **Deskripsi:** Menyenaraikan fail dan subfolder dalam folder Drive beserta pautan lakaran kecil dan maklumat pemuat naik.
+* **Keselamatan Drive:** Hanya folder dalam `MAIN_FOLDER_ID` atau `SURAT_ARAHAN_FOLDER_ID` dibenarkan. Untuk rekod lama, folder yang sudah dirujuk dalam kolum `pautan` Sheet (dan subfoldernya) dibenarkan **baca/tulis** sebagai fallback legasi. Folder lama milik akaun sistem yang sama juga dibenarkan **baca** walaupun tiada dalam `pautan`. Folder baru kekal terhad kepada `STB MAIN FOLDER`. Selepas semua rekod lama dimigrasikan, set `LEGACY_DRIVE_READ_ENABLED=false` dan `LEGACY_DRIVE_WRITE_ENABLED=false` untuk menutup fallback ini sepenuhnya.
 * **Request Body:**
 
 ```json

@@ -287,24 +287,41 @@ const TOTAL_COLUMNS = 32;
 
 // =========================================================================
 // V6.13.0: HAD OPERASI DRIVE KEPADA STB MAIN FOLDER
+// V6.13.1: Fallback untuk folder legasi yang sudah dirujuk dalam Sheet.
+//          Folder lama masih boleh dibaca; folder baru kekal di bawah MAIN.
 // =========================================================================
-function isFolderWithinMain_(folderId) {
-  try {
-    const mainId = String(getMainFolderId() || '').trim();
-    const targetId = String(folderId || '').trim();
-    if (!mainId || !targetId) return false;
-    if (targetId === mainId) return true;
+const LEGACY_DRIVE_ROOTS_CACHE_KEY = 'STB_LEGACY_DRIVE_ROOTS_V1';
+const LEGACY_DRIVE_ROOT_IDS_PROPERTY = 'LEGACY_DRIVE_ROOT_IDS';
+const LEGACY_DRIVE_READ_PROPERTY = 'LEGACY_DRIVE_READ_ENABLED';
+const LEGACY_DRIVE_WRITE_PROPERTY = 'LEGACY_DRIVE_WRITE_ENABLED';
 
-    let folder;
+function getBooleanProp_(key, defaultValue) {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(key);
+    if (raw === null || raw === undefined || String(raw).trim() === '') return defaultValue;
+    const v = String(raw).trim().toLowerCase();
+    return !(v === 'false' || v === '0' || v === 'off' || v === 'no');
+  } catch (e) {
+    return defaultValue;
+  }
+}
+
+function isFolderWithinRoot_(folderId, rootId) {
+  try {
+    const targetId = String(folderId || '').trim();
+    const root = String(rootId || '').trim();
+    if (!targetId || !root) return false;
+    if (targetId === root) return true;
+
+    let current;
     try {
-      folder = DriveApp.getFolderById(targetId);
+      current = DriveApp.getFolderById(targetId);
     } catch (e) {
       return false;
     }
 
-    let current = folder;
     for (let depth = 0; depth < 25; depth++) {
-      if (current.getId() === mainId) return true;
+      if (current.getId() === root) return true;
       const parents = current.getParents();
       if (!parents.hasNext()) return false;
       current = parents.next();
@@ -315,18 +332,222 @@ function isFolderWithinMain_(folderId) {
   }
 }
 
+function isFolderWithinMain_(folderId) {
+  return isFolderWithinRoot_(folderId, getMainFolderId());
+}
+
+function isFolderWithinSuratArahan_(folderId) {
+  const saFolderId = String(
+    PropertiesService.getScriptProperties().getProperty(SURAT_ARAHAN_FOLDER_ID_PROPERTY) || ''
+  ).trim();
+  return saFolderId ? isFolderWithinRoot_(folderId, saFolderId) : false;
+}
+
+function getLegacyDriveRootIds_() {
+  const readEnabled = getBooleanProp_(LEGACY_DRIVE_READ_PROPERTY, true);
+  const writeEnabled = getBooleanProp_(LEGACY_DRIVE_WRITE_PROPERTY, true);
+  if (!readEnabled && !writeEnabled) return [];
+
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(LEGACY_DRIVE_ROOTS_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) {}
+  }
+
+  const seen = {};
+  const ids = [];
+  function addId(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return;
+    const id = extractFolderIdFromUrl(raw) || raw;
+    if (!/^[a-zA-Z0-9_-]{10,}$/.test(id)) return;
+    if (seen[id]) return;
+    seen[id] = true;
+    ids.push(id);
+  }
+
+  // 1. Folder yang sudah dirujuk dalam kolum "pautan" Sheet.
+  try {
+    const sheet = getMainSheet();
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        const values = sheet.getRange(2, 11, lastRow - 1, 1).getDisplayValues();
+        values.forEach(function(row) { addId(row[0]); });
+      }
+    }
+  } catch (e) {
+    Logger.log('[DRIVE] Gagal baca folder legasi dari Sheet: ' + e);
+  }
+
+  // 2. Folder legasi yang didaftarkan secara manual (ID atau URL, dipisah koma).
+  try {
+    const manual = PropertiesService.getScriptProperties().getProperty(LEGACY_DRIVE_ROOT_IDS_PROPERTY) || '';
+    manual.split(/[\s,;]+/).forEach(addId);
+  } catch (e) {}
+
+  try { cache.put(LEGACY_DRIVE_ROOTS_CACHE_KEY, JSON.stringify(ids), 300); } catch (e) {}
+  return ids;
+}
+
+function isFolderWithinLegacyRoot_(folderId) {
+  const targetId = String(folderId || '').trim();
+  if (!targetId) return false;
+
+  const roots = getLegacyDriveRootIds_();
+  if (!roots.length) return false;
+
+  const rootSet = {};
+  roots.forEach(function(id) { rootSet[id] = true; });
+  if (rootSet[targetId]) return true;
+
+  let current;
+  try {
+    current = DriveApp.getFolderById(targetId);
+  } catch (e) {
+    return false;
+  }
+
+  for (let depth = 0; depth < 25; depth++) {
+    let parents;
+    try { parents = current.getParents(); } catch (e) { return false; }
+    if (!parents.hasNext()) return false;
+    current = parents.next();
+    if (rootSet[current.getId()]) return true;
+  }
+  return false;
+}
+
 function isFolderAllowed_(folderId) {
   const targetId = String(folderId || '').trim();
   if (!targetId) return false;
   if (targetId === String(getMainFolderId() || '').trim()) return true;
+  if (isFolderWithinMain_(targetId)) return true;
 
-  // Benarkan folder Surat Arahan jika ia dikonfigurasi di luar MAIN_FOLDER_ID.
-  const saFolderId = String(
-    PropertiesService.getScriptProperties().getProperty(SURAT_ARAHAN_FOLDER_ID_PROPERTY) || ''
-  ).trim();
-  if (saFolderId && targetId === saFolderId) return true;
+  // Benarkan folder Surat Arahan (dan subfoldernya) jika dikonfigurasi di luar MAIN_FOLDER_ID.
+  return isFolderWithinSuratArahan_(targetId);
+}
 
-  return isFolderWithinMain_(targetId);
+let __mainFolderOwnerEmailCache = null;
+
+function getMainFolderOwnerEmail_() {
+  if (__mainFolderOwnerEmailCache !== null) return __mainFolderOwnerEmailCache;
+  try {
+    const mainFolder = DriveApp.getFolderById(getMainFolderId());
+    __mainFolderOwnerEmailCache = String(mainFolder.getOwner().getEmail() || '').toLowerCase().trim();
+  } catch (e) {
+    __mainFolderOwnerEmailCache = '';
+  }
+  return __mainFolderOwnerEmailCache;
+}
+
+function isFolderOwnedByMainOwner_(folderId) {
+  try {
+    const folder = DriveApp.getFolderById(String(folderId || '').trim());
+    const owner = String(folder.getOwner().getEmail() || '').toLowerCase().trim();
+    const mainOwner = getMainFolderOwnerEmail_();
+    return !!owner && !!mainOwner && owner === mainOwner;
+  } catch (e) {
+    return false;
+  }
+}
+
+function isFolderAllowedForRead_(folderId) {
+  if (isFolderAllowed_(folderId)) return true;
+  if (!getBooleanProp_(LEGACY_DRIVE_READ_PROPERTY, true)) return false;
+  if (isFolderWithinLegacyRoot_(folderId)) return true;
+  // Fallback terakhir: folder lama yang dicipta oleh akaun sistem yang sama,
+  // walaupun pautannya tiada dalam Sheet. Baca sahaja; tulis kekal terhad.
+  return isFolderOwnedByMainOwner_(folderId);
+}
+
+function isFolderAllowedForWrite_(folderId) {
+  if (isFolderAllowed_(folderId)) return true;
+  if (!getBooleanProp_(LEGACY_DRIVE_WRITE_PROPERTY, true)) return false;
+  return isFolderWithinLegacyRoot_(folderId);
+}
+
+function findLegacyMainFolder_() {
+  try {
+    const roots = getLegacyDriveRootIds_();
+    if (!roots.length) return null;
+    const max = Math.min(roots.length, 20);
+    for (let i = 0; i < max; i++) {
+      let current;
+      try { current = DriveApp.getFolderById(roots[i]); } catch (e) { continue; }
+      let top = current;
+      for (let depth = 0; depth < 25; depth++) {
+        let parents;
+        try { parents = top.getParents(); } catch (e) { parents = null; }
+        if (!parents || !parents.hasNext()) break;
+        top = parents.next();
+      }
+      const name = String(top.getName() || '').toUpperCase().replace(/\s+/g, ' ').trim();
+      if (name === MAIN_FOLDER_NAME.toUpperCase()) return top;
+    }
+  } catch (e) {
+    Logger.log('[DRIVE] Gagal cari folder induk legasi: ' + e);
+  }
+  return null;
+}
+
+let __resolvedMainFolderCache = null;
+
+/**
+ * Pastikan folder induk yang digunakan untuk cipta folder/PDF adalah sama
+ * dengan folder yang digunakan oleh semakan allowlist. Jika MAIN_FOLDER_ID
+ * rosak/tidak boleh dibuka, cari folder legasi atau STB MAIN FOLDER yang sedia
+ * ada, kemudian simpan semula ID tersebut dalam Script Properties.
+ */
+function resolveMainFolder_(createIfMissing) {
+  if (__resolvedMainFolderCache) return __resolvedMainFolderCache;
+  const allowCreate = createIfMissing !== false;
+
+  const configuredId = String(getMainFolderId() || '').trim();
+  if (configuredId) {
+    try {
+      const folder = DriveApp.getFolderById(configuredId);
+      __resolvedMainFolderCache = folder;
+      return folder;
+    } catch (e) {
+      Logger.log('[DRIVE] MAIN_FOLDER_ID tidak dapat dibuka: ' + configuredId + ' — ' + e);
+    }
+  }
+
+  let mainFolder = findLegacyMainFolder_();
+
+  if (!mainFolder) {
+    // Pilih folder STB MAIN FOLDER yang paling awal dicipta (biasanya yang asal).
+    let oldest = null;
+    let oldestTime = null;
+    try {
+      const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
+      while (folders.hasNext()) {
+        const folder = folders.next();
+        let created = null;
+        try { created = folder.getDateCreated().getTime(); } catch (e) {}
+        if (!oldest || (created !== null && (oldestTime === null || created < oldestTime))) {
+          oldest = folder;
+          oldestTime = created;
+        }
+      }
+    } catch (e) {}
+    mainFolder = oldest;
+  }
+
+  if (!mainFolder) {
+    if (!allowCreate) return null;
+    mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
+    Logger.log('[DRIVE] Folder ' + MAIN_FOLDER_NAME + ' dicipta: ' + mainFolder.getId());
+  }
+
+  try {
+    PropertiesService.getScriptProperties().setProperty('MAIN_FOLDER_ID', mainFolder.getId());
+    Logger.log('[DRIVE] MAIN_FOLDER_ID dikemas kini: ' + mainFolder.getId());
+  } catch (e) {}
+
+  __resolvedMainFolderCache = mainFolder;
+  return mainFolder;
 }
 
 function isFileAllowed_(fileId) {
@@ -334,7 +555,7 @@ function isFileAllowed_(fileId) {
     const file = DriveApp.getFileById(String(fileId || '').trim());
     const parents = file.getParents();
     while (parents.hasNext()) {
-      if (isFolderAllowed_(parents.next().getId())) return true;
+      if (isFolderAllowedForWrite_(parents.next().getId())) return true;
     }
     return false;
   } catch (e) {
@@ -1408,33 +1629,34 @@ function handleCetakDanSimpanPDF(data) {
     if (!data.company_name) return createJSONOutput({ success: false, message: "Nama syarikat tidak disediakan" });
     if (!data.user_name) return createJSONOutput({ success: false, message: "Nama pengguna tidak disediakan" });
     
+    // V6.13.1: Selaraskan MAIN_FOLDER_ID sebelum semakan folder sedia ada.
+    resolveMainFolder_();
     const appType = data.application_type || data.subfolder_name;
     
     let targetFolder = null;
     let folderPath = '';
     
     // V6.8.0: Guna folder sedia ada jika diberikan (Kemaskini Drive)
+    // V6.13.1: Jangan tulis PDF ke folder luar STB MAIN FOLDER / folder legasi
+    // yang tidak dibenarkan. Jika ditolak, cipta folder baru di bawah MAIN.
     if (data.existing_folder_url) {
       const existingId = extractFolderIdFromUrl(data.existing_folder_url);
       if (existingId) {
-        try {
-          targetFolder = DriveApp.getFolderById(existingId);
-          folderPath = targetFolder.getName();
-        } catch (e) {
-          // Folder dah tak wujud, teruskan cipta baru
+        if (isFolderAllowedForWrite_(existingId)) {
+          try {
+            targetFolder = DriveApp.getFolderById(existingId);
+            folderPath = targetFolder.getName();
+          } catch (e) {
+            // Folder dah tak wujud, teruskan cipta baru
+          }
+        } else {
+          Logger.log('[DRIVE] Folder PDF ditolak: ' + existingId + ' — fallback ke folder MAIN.');
         }
       }
     }
     
     if (!targetFolder) {
-      let mainFolder;
-      try {
-        mainFolder = DriveApp.getFolderById(getMainFolderId());
-      } catch (e) {
-        const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
-        if (folders.hasNext()) mainFolder = folders.next();
-        else mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
-      }
+      const mainFolder = resolveMainFolder_();
       
       let userFolder = findFolderInParent(mainFolder, data.user_name);
       if (!userFolder) userFolder = mainFolder.createFolder(data.user_name);
@@ -3363,7 +3585,11 @@ function formatJenisJustifikasi(jenis, justifikasi) {
 
 function extractFolderIdFromUrl(url) {
   if (!url) return null;
-  var match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  var text = String(url).trim();
+  var match = text.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  // Sokong pautan format https://drive.google.com/open?id=FOLDER_ID
+  match = text.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
 }
 
@@ -3424,6 +3650,7 @@ function getMainSheet() {
 function invalidateDataCache() {
   const cache = CacheService.getScriptCache();
   cache.remove(APP_DATA_CACHE_KEY);
+  cache.remove(LEGACY_DRIVE_ROOTS_CACHE_KEY);
   // V6.10.0: Buang chunked cache versi/window lama (best effort)
   try {
     const docCache = CacheService.getDocumentCache();
@@ -3448,16 +3675,10 @@ function handleCreateDriveFolderAction(data) {
     const companyName = data.company_name;
     const userName = data.user_name;
     // V6.13.0: Jangan percaya main_folder_id dari client.
-    const mainFolderId = getMainFolderId();
+    // V6.13.1: Selesaikan dan simpan MAIN_FOLDER_ID yang sah supaya folder
+    // yang dicipta konsisten dengan semakan allowlist.
+    const mainFolder = resolveMainFolder_();
     const appType = data.application_type || data.subfolder_name;
-
-    let mainFolder;
-    try { mainFolder = DriveApp.getFolderById(mainFolderId); } 
-    catch (e) {
-      const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
-      if (folders.hasNext()) mainFolder = folders.next();
-      else mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
-    }
     
     let userFolder = findFolderInParent(mainFolder, userName);
     if (!userFolder) userFolder = mainFolder.createFolder(userName);
@@ -3514,13 +3735,7 @@ function createUserFolderStructure(syarikat, startDate, jenisPermohonan, pengesy
     const typeFolderName = `${jenisPermohonan.toUpperCase()} - ${formattedDate}`;
     const companyFolderName = syarikat.toUpperCase();
     
-    let mainFolder;
-    try { mainFolder = DriveApp.getFolderById(getMainFolderId()); } 
-    catch (e) {
-      const folders = DriveApp.getFoldersByName(MAIN_FOLDER_NAME);
-      if (folders.hasNext()) mainFolder = folders.next();
-      else mainFolder = DriveApp.createFolder(MAIN_FOLDER_NAME);
-    }
+    const mainFolder = resolveMainFolder_();
     
     let userFolder = findFolderInParent(mainFolder, pengesyor);
     if (!userFolder) userFolder = mainFolder.createFolder(pengesyor);
@@ -4420,9 +4635,20 @@ function handleListDriveFiles(data) {
       return createJSONOutput({ success: false, error: "folderId diperlukan." });
     }
 
+    // V6.13.1: Betulkan MAIN_FOLDER_ID jika rosak, tanpa mencipta folder baru
+    // semasa operasi baca. Ini elak folder baru dicipta di luar folder induk
+    // yang digunakan oleh semakan allowlist.
+    resolveMainFolder_(false);
+
     // V6.13.0: Jangan benarkan akses ke folder luar STB MAIN FOLDER.
+    // V6.13.1: Folder legasi yang sudah dirujuk dalam Sheet dibenarkan BACA
+    // supaya rekod lama masih boleh dibuka. Muat naik/padam kekal ketat.
+    if (!isFolderAllowedForRead_(folderId)) {
+      Logger.log('[DRIVE] Baca folder ditolak: ' + folderId + ' oleh ' + (data.email || ''));
+      return createJSONOutput({ success: false, error: "Akses Ditolak: Folder ini bukan dalam STB MAIN FOLDER dan tiada dalam pautan rekod lama." });
+    }
     if (!isFolderAllowed_(folderId)) {
-      return createJSONOutput({ success: false, error: "Akses Ditolak: Folder bukan dalam STB MAIN FOLDER." });
+      Logger.log('[DRIVE] Folder legasi dibenarkan (baca): ' + folderId + ' oleh ' + (data.email || ''));
     }
     
     const folder = DriveApp.getFolderById(folderId);
@@ -4692,7 +4918,8 @@ function handleUploadDriveFile(data) {
     }
 
     // V6.13.0: Muat naik hanya ke folder dalam STB MAIN FOLDER.
-    if (!isFolderAllowed_(folderId)) {
+    // V6.13.1: Folder legasi hanya dibenarkan jika LEGACY_DRIVE_WRITE_ENABLED=true.
+    if (!isFolderAllowedForWrite_(folderId)) {
       return createJSONOutput({ success: false, error: "Akses Ditolak: Folder bukan dalam STB MAIN FOLDER." });
     }
     
@@ -4775,7 +5002,8 @@ function handleFinalizeDriveUpload(data) {
     }
 
     // V6.13.0: Finalize muat naik hanya ke folder dalam STB MAIN FOLDER.
-    if (!isFolderAllowed_(folderId)) {
+    // V6.13.1: Folder legasi hanya dibenarkan jika LEGACY_DRIVE_WRITE_ENABLED=true.
+    if (!isFolderAllowedForWrite_(folderId)) {
       return createJSONOutput({ success: false, error: 'Akses Ditolak: Folder bukan dalam STB MAIN FOLDER.' });
     }
     const cache = CacheService.getScriptCache();
@@ -5896,11 +6124,13 @@ function saRagIndexFolder_() {
     try { return DriveApp.getFolderById(configuredId); } catch (e) {}
   }
 
-  let parent;
-  try {
-    parent = DriveApp.getFolderById(getMainFolderId());
-  } catch (e) {
-    parent = DriveApp.getRootFolder();
+  let parent = resolveMainFolder_(true);
+  if (!parent) {
+    try {
+      parent = DriveApp.getRootFolder();
+    } catch (e) {
+      throw e;
+    }
   }
 
   const folders = parent.getFoldersByName(SA_RAG_INDEX_FOLDER_NAME);
