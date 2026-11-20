@@ -723,6 +723,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // V6.13.5: Baca masa luput (exp) daripada payload token sesi.
+  function getSessionTokenExpiryMs_(token) {
+    try {
+      const encoded = String(token || '').split('.')[0];
+      if (!encoded) return 0;
+      let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) base64 += '=';
+      const payload = JSON.parse(atob(base64));
+      return Number(payload && payload.exp) || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   // --- FETCH WITH RETRY MECHANISM ---
   // V6.11.0: Panggilan BACA (method GET, tidak menulis) guna retry lembut
   // (maxRetries=2, delay=3000, backoff 6s/12s) untuk tahan 404/redirect sementara
@@ -741,6 +755,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`V6.5.2 Fetch attempt ${attempt} for ${url.substring(0, 100)}...`);
         
         const isAppsScriptCall = String(url).indexOf(SCRIPT_URL) === 0;
+        if (isAppsScriptCall && currentSessionToken && getSessionTokenExpiryMs_(currentSessionToken) <= Date.now()) {
+          handleSessionExpired_();
+          return Promise.reject(new Error('Sesi telah tamat. Sila log masuk semula.'));
+        }
         const requestOptions = isAppsScriptCall
           ? attachSessionTokenToBody_(Object.assign({}, options))
           : options;
@@ -1057,7 +1075,11 @@ async function handleCredentialResponse(response) {
     }, 2, 1000);
     const result = await response.json();
     if (!result || !result.firebaseToken) {
-      throw new Error((result && (result.message || result.error)) || 'Token Firebase tidak diterima.');
+      const message = (result && (result.message || result.error)) || 'Token Firebase tidak diterima.';
+      if (result && (result.code === 403 || /sesi|log masuk semula/i.test(message))) {
+        handleSessionExpired_();
+      }
+      throw new Error(message);
     }
     return result;
   }
@@ -7576,6 +7598,20 @@ Sila semak sistem SPTB untuk tindakan selanjutnya.`)}`;
       // V6.13.0: Muatkan session token yang disimpan semasa log masuk.
       currentSessionToken = storage.stb_session_token || null;
 
+      // V6.13.5: Token sesi yang telah tamat tidak boleh dipulihkan.
+      if (currentSessionToken) {
+        const storedTokenExpiry = getSessionTokenExpiryMs_(currentSessionToken);
+        if (!storedTokenExpiry || storedTokenExpiry <= Date.now()) {
+          console.log("V6.13.5 Token sesi telah tamat - perlu log masuk semula.");
+          currentSessionToken = null;
+          currentUser = null;
+          storage.stb_session = null;
+          try {
+            await storageWrapper.remove(['stb_session', 'stb_login_date', 'stb_session_token']);
+          } catch (e) {}
+        }
+      }
+
       // V6.13.0: Sesi lama (sebelum lockdown) tiada token - paksa log masuk semula.
       if (storage.stb_session && !storage.stb_session_token) {
         console.log("V6.13.0 Sesi lama tiada token keselamatan - perlu log masuk semula.");
@@ -13479,8 +13515,105 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     userBadge.style.cursor = "default";  // Tukar kursor tetikus
   }
 
+  // V6.13.5: Pemantau luput token sesi — auto logout & paksa log masuk semula.
+  let sessionExpiryTimer = null;
+  let sessionExpiryLogoutInProgress = false;
+
+  function stopSessionExpiryWatcher_() {
+    if (sessionExpiryTimer) {
+      clearInterval(sessionExpiryTimer);
+      sessionExpiryTimer = null;
+    }
+  }
+
+  function startSessionExpiryWatcher_() {
+    stopSessionExpiryWatcher_();
+    if (!currentSessionToken || !currentUser) return;
+    const expiryMs = getSessionTokenExpiryMs_(currentSessionToken);
+    if (!expiryMs) return;
+    if (Date.now() >= expiryMs) {
+      handleSessionExpired_();
+      return;
+    }
+    sessionExpiryTimer = setInterval(function() {
+      if (!currentSessionToken || !currentUser) {
+        stopSessionExpiryWatcher_();
+        return;
+      }
+      const exp = getSessionTokenExpiryMs_(currentSessionToken);
+      if (!exp || Date.now() >= exp) {
+        handleSessionExpired_();
+      }
+    }, 15000);
+  }
+
+  function checkSessionExpiryNow_() {
+    if (sessionExpiryLogoutInProgress) return;
+    if (!currentSessionToken || !currentUser) return;
+    const exp = getSessionTokenExpiryMs_(currentSessionToken);
+    if (!exp || Date.now() >= exp) {
+      handleSessionExpired_();
+    }
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) checkSessionExpiryNow_();
+  });
+  window.addEventListener('focus', checkSessionExpiryNow_);
+
+  async function handleSessionExpired_() {
+    if (sessionExpiryLogoutInProgress) return;
+    if (!currentUser && !currentSessionToken) return;
+    sessionExpiryLogoutInProgress = true;
+    stopSessionExpiryWatcher_();
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = null;
+    }
+    const message = 'Sesi anda telah tamat tempoh. Anda telah dilog keluar secara automatik. Sila log masuk semula.';
+    let expiryAlertPromise = null;
+    try {
+      if (typeof CustomAppModal !== 'undefined' && CustomAppModal.alert) {
+        expiryAlertPromise = CustomAppModal.alert(message, 'Sesi Tamat', 'warning');
+      } else {
+        window.alert(message);
+      }
+    } catch (e) {}
+    if (expiryAlertPromise) {
+      // Tunggu OK pengguna, tetapi jangan halang auto logout lebih daripada 5 saat.
+      await Promise.race([
+        expiryAlertPromise.catch(function() {}),
+        new Promise(function(resolve) { setTimeout(resolve, 5000); })
+      ]);
+    }
+    cleanupStorage();
+    currentSessionToken = null;
+    currentUser = null;
+    try {
+      await storageWrapper.remove([
+        'stb_session', 'stb_login_date', 'stb_session_token', 'stb_form_data', 'stb_pelulus_state', 'stb_last_active_tab',
+        'stb_last_active_element', 'stb_form_states', 'stb_search_state', 'stb_search_history_state',
+        'stb_has_printed', 'stb_drive_folder_url', 'stb_user_folder_url', 'stb_filter_pengesyor',
+        'stb_dashboard_data', 'stb_form_persistence', 'stb_database_persistence',
+        'stb_current_submitted_status_filter', 'stb_current_submitted_jenis_filter',
+        'stb_current_history_status_filter', 'stb_current_history_jenis_filter',
+        'stb_current_draft_filter', 'stb_music_playing', 'stb_bgm_volume', 'stb_sfx_volume'
+      ]);
+    } catch (e) {}
+    location.reload();
+  }
+
+  // V6.13.5: Hook ujian manual — buka ?testSessionExpiry=1 dan jalankan stbTestSessionExpiry() di console.
+  try {
+    if (new URLSearchParams(window.location.search).get('testSessionExpiry') === '1') {
+      window.stbTestSessionExpiry = handleSessionExpired_;
+    }
+  } catch (e) {}
+
  async function logoutUserOnTimeout() {
     if (!currentUser) return; 
+    if (sessionExpiryLogoutInProgress) return;
+    stopSessionExpiryWatcher_();
     
     // PENGGUNAAN MODAL BARU
     await CustomAppModal.alert(
@@ -13517,12 +13650,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   // KOD BARU: Fungsi semak jika hari dah bertukar
   async function checkDayChangeLogout() {
     if (!currentUser) return false;
+    if (sessionExpiryLogoutInProgress) return true;
     
     const storage = await storageWrapper.get(['stb_login_date']);
     const loginDate = storage.stb_login_date;
     const todayStr = new Date().toDateString();
     
     if (loginDate && loginDate !== todayStr) {
+      stopSessionExpiryWatcher_();
       // PENGGUNAAN MODAL BARU
       await CustomAppModal.alert(
           "Sesi anda telah tamat tempoh kerana pertukaran hari. Sila log masuk semula demi keselamatan.", 
@@ -13549,6 +13684,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
   function setupUserUI() {
     if (!currentUser || !appContainer || !userBadge) return;
+
+    // V6.13.5: Pantau tempoh luput token sesi.
+    try { startSessionExpiryWatcher_(); } catch (e) { console.warn('V6.13.5 Gagal memulakan pemantau sesi:', e); }
 
     // MIGRASI: upgrade cache lama s256/s512 -> s1024-c supaya sesi sedia ada terus jadi tajam tanpa perlu login semula
     try {
@@ -14780,6 +14918,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       );
 
       if(isConfirmed) {
+        stopSessionExpiryWatcher_();
         cleanupStorage();
         currentSessionToken = null;
         await storageWrapper.remove([
