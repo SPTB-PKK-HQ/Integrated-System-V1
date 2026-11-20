@@ -8209,6 +8209,14 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         opacity: 0.5;
       }
       
+      .print-lampiran-label {
+        text-align: right;
+        font-weight: 900;
+        font-size: 12pt;
+        letter-spacing: 1px;
+        margin-bottom: 2px;
+      }
+
       .print-header-strip {
         height: 6px;
         background-color: ${themeColor};
@@ -8741,7 +8749,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       if (el) el.innerText = '';
     });
 
-    // Sembunyikan baris CATATAN cetakan (dipaparkan semula jika syor SOKONG/TIDAK DISOKONG & ada catatan)
+    // Sembunyikan baris CATATAN cetakan sementara (dipaparkan semula untuk syor selain SIASAT; '-' jika tiada isi)
     const printCatatanContainer = document.getElementById('print_catatan_container');
     if (printCatatanContainer) printCatatanContainer.style.display = 'none';
 
@@ -8762,18 +8770,34 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       }
     }
 
-    const setTxt = (id, val) => { 
-      const el = document.getElementById(id); 
-      if(el) el.innerText = val; 
+    const setTxt = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) {
+        const text = (val === undefined || val === null) ? '' : String(val).trim();
+        el.innerText = text === '' ? '-' : text;
+      }
     };
 
-    const combinedNameCidb = `${val('borang_syarikat')} (${val('borang_cidb')})`;
+    const namaSyarikatCetak = (val('borang_syarikat') || '').trim();
+    const noCidbCetak = (val('borang_cidb') || '').trim();
+    const combinedNameCidb = namaSyarikatCetak
+      ? `${namaSyarikatCetak} (${noCidbCetak || '-'})`
+      : (noCidbCetak ? `- (${noCidbCetak})` : '-');
     setTxt('print_companyDetails', combinedNameCidb);
 
     setTxt('print_spkkDuration', val('spkkDuration'));
     setTxt('print_stbDuration', val('stbDuration'));
-    setTxt('print_text_ubah_maklumat', val('input_ubah_maklumat'));
-    setTxt('print_text_ubah_gred', val('input_ubah_gred'));
+
+    // Satu ruangan perubahan sahaja: teks jenis berkaitan, atau '-' jika tiada.
+    const teksUbahCetak = selectedType === 'ubah_gred'
+      ? val('input_ubah_gred')
+      : (selectedType === 'ubah_maklumat' ? val('input_ubah_maklumat') : '');
+    setTxt('print_text_ubah_maklumat', teksUbahCetak);
+    const printUbahGredEl = document.getElementById('print_text_ubah_gred');
+    if (printUbahGredEl) {
+      printUbahGredEl.innerText = '';
+      printUbahGredEl.style.display = 'none';
+    }
     setTxt('print_grade_display', val('borang_gred'));
     setTxt('print_tatatertib', val('borang_tatatertib'));
     // Satu ruangan fleksibel: SIASAT -> Justifikasi Lawatan; selainnya -> Catatan.
@@ -8809,11 +8833,11 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     setTxt('print_kwsp_3', kwsp3);
     
     const tMohon = document.getElementById('borang_tarikh_mohon')?.value || '';
-    setTxt('print_tarikh_mohon', tMohon ? formatDateDisplay(tMohon) : '_____________');
+    setTxt('print_tarikh_mohon', tMohon ? formatDateDisplay(tMohon) : '');
     // KOD BARU: Set Tarikh Tambahan
-    setTxt('print_tarikh_lengkap', val('borang_tarikh_lengkap') ? formatDateDisplay(val('borang_tarikh_lengkap')) : '_____________');
-    setTxt('print_tarikh_siasatan', val('borang_tarikh_siasatan') ? formatDateDisplay(val('borang_tarikh_siasatan')) : '_____________');
-    setTxt('print_tarikh_proses', val('borang_tarikh_proses') ? formatDateDisplay(val('borang_tarikh_proses')) : '_____________');
+    setTxt('print_tarikh_lengkap', val('borang_tarikh_lengkap') ? formatDateDisplay(val('borang_tarikh_lengkap')) : '');
+    setTxt('print_tarikh_siasatan', val('borang_tarikh_siasatan') ? formatDateDisplay(val('borang_tarikh_siasatan')) : '');
+    setTxt('print_tarikh_proses', val('borang_tarikh_proses') ? formatDateDisplay(val('borang_tarikh_proses')) : '');
 
     // Kemaskini Highlight Syor untuk PDF
     const elSokong = document.getElementById('print_syor_sokong');
@@ -8836,7 +8860,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
 
     // CATATAN — selain SIASAT, teks ruangan fleksibel dipaparkan di bawah baris syor.
     if (printCatatanContainer) {
-        const showCatatanCetak = syorPilihan !== 'SIASAT' && teksFlexCetak !== '';
+        const showCatatanCetak = syorPilihan !== 'SIASAT';
         printCatatanContainer.style.display = showCatatanCetak ? 'block' : 'none';
         if (showCatatanCetak) setTxt('print_catatan_borang', teksFlexCetak);
     }
@@ -8856,9 +8880,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       card.querySelectorAll('.role-cb:checked').forEach(cb => roles.push(cb.value));
       const isCompany = card.querySelector('.is-company')?.checked || false;
       const extraRoleOnly = isExtraRoleOnlyPersonnel(roles, isCompany);
-      const s_ic = extraRoleOnly ? '-' : (card.querySelector('.status-ic')?.value.toUpperCase() || '');
-      const s_sb = extraRoleOnly ? '-' : (card.querySelector('.status-sb')?.value.toUpperCase() || '');
-      const s_epf = card.querySelector('.status-epf')?.value.toUpperCase() || '';
+      const s_ic = extraRoleOnly ? '-' : (card.querySelector('.status-ic')?.value.toUpperCase().trim() || '-');
+      const s_sb = extraRoleOnly ? '-' : (card.querySelector('.status-sb')?.value.toUpperCase().trim() || '-');
+      const s_epf = card.querySelector('.status-epf')?.value.toUpperCase().trim() || '-';
       let roleBadge = '';
       const extraRoles = ['K.KEW','MAKER','CHECKER'].filter(r => roles.includes(r));
       if (!isCompany && extraRoles.length > 0) {
@@ -8872,13 +8896,13 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         baruBadge = ` <span style="background:#fde047; font-weight:bold; padding:0 4px; border-radius:3px;">(BARU TAMBAH)</span>`;
       }
     
-    const tick = (role) => roles.includes(role) ? '✓' : '';
+    const tick = (role) => roles.includes(role) ? '✓' : '-';
     
     if (isCompany) {
         const cDate = card.querySelector('.comp-date')?.value || '';
-        const cStatus = card.querySelector('.status-comp')?.value.toUpperCase() || '';
+        const cStatus = card.querySelector('.status-comp')?.value.toUpperCase().trim() || '-';
         const cType = (card.querySelector('.comp-doc-type')?.value || '').toUpperCase();
-        const displayDate = cDate ? formatDateDisplay(cDate) : '';
+        const displayDate = cDate ? (formatDateDisplay(cDate) || '-') : '-';
         let combinedText;
         if (cType === 'BADAN_BERKANUN') {
           combinedText = `Badan Berkanun | Status: ${cStatus}`;
@@ -8910,6 +8934,18 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         </tr>`;
     }
     });
+    if (!rowsHtml) {
+      rowsHtml = `<tr>
+        <td style="padding:2px; font-weight:bold;">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+        <td class="col-tick">-</td>
+      </tr>`;
+    }
     tbody.innerHTML = rowsHtml;
 
     // =========================================================================
@@ -8945,9 +8981,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     });
 
     // RESET PENTING 2: Kosongkan Teks, Tarikh & Highlight Pelulus kepada format asal (kosong)
-    setTxt('print_tarikh_lulus', '________________');
+    setTxt('print_tarikh_lulus', '');
     setTxt('print_catatan_pelulus', '');
-    setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
+    setTxt('print_nama_pelulus', val('pelulus_nama') || '');
     
     const elLulus = document.getElementById('print_lulus');
     const elLulusSyarat = document.getElementById('print_lulus_syarat');
@@ -8971,9 +9007,9 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         if (!catatan) {
             catatan = document.getElementById('pelulus_catatan')?.value || document.getElementById('pelulus_alasan')?.value || (pelulusActiveItem ? pelulusActiveItem.alasan : '');
         }
-        setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '________________');
+        setTxt('print_tarikh_lulus', tLulus ? formatDateDisplay(tLulus) : '');
         setTxt('print_catatan_pelulus', catatan);
-        setTxt('print_nama_pelulus', val('pelulus_nama') || '________________');
+        setTxt('print_nama_pelulus', val('pelulus_nama') || '');
         
         // Highlight Keputusan Pelulus di PDF (guna semula dari reset atas)
         [elLulus, elLulusSyarat, elPemutihan, elTolak].forEach(el => { 
@@ -19524,15 +19560,20 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     banks.forEach((b, i) => {
       const modeCek = Array.isArray(b.mode) ? b.mode.indexOf('CEK') !== -1 : String(b.mode || '').indexOf('CEK') !== -1;
       const modeOnline = Array.isArray(b.mode) ? b.mode.indexOf('ONLINE') !== -1 : String(b.mode || '').indexOf('ONLINE') !== -1;
-      const bankName = esc(b.bank || '—');
-      const account = esc(b.account || '—');
-      const dateStr = b.bank_date ? esc(formatDateDisplay(b.bank_date)) : '—';
-      const cekCell = modeCek ? `${esc(b.sign_syarat || '—')} (${esc(b.sign_status || '—')})` : '—';
+      const bankName = esc(b.bank || '-');
+      const account = esc(b.account || '-');
+      const dateStr = b.bank_date ? (esc(formatDateDisplay(b.bank_date)) || '-') : '-';
+      const cekCell = modeCek
+        ? ((b.sign_syarat || b.sign_status) ? `${esc(b.sign_syarat || '-')} (${esc(b.sign_status || '-')})` : '-')
+        : '-';
       const onlineCell = modeOnline
-        ? `<td style="text-align:center; border-right:1px solid #94a3b8;">${esc(b.online_maker || '—')}</td><td style="text-align:center;">${esc(b.online_checker || '—')}</td>`
-        : `<td colspan="2" style="text-align:center;">—</td>`;
+        ? `<td style="text-align:center; border-right:1px solid #94a3b8;">${esc(b.online_maker || '-')}</td><td style="text-align:center;">${esc(b.online_checker || '-')}</td>`
+        : `<td colspan="2" style="text-align:center;">-</td>`;
       rowsHtml += `<tr><td>${i + 1}</td><td>${bankName}</td><td>${account}</td><td>${dateStr}</td><td>${cekCell}</td>${onlineCell}</tr>`;
     });
+    if (banks.length === 0) {
+      rowsHtml = `<tr><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td colspan="2" style="text-align:center;">-</td></tr>`;
+    }
     tbody.innerHTML = rowsHtml;
   }
 
@@ -19610,15 +19651,17 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   }
 
   function formatKWSP(dateStr, status) {
-    if (!dateStr && !status) return '';
-    if (!dateStr && status) return `(${status})`;
+    const statusRaw = String(status || '').trim();
+    const statusCetak = statusRaw || '-';
+    if (!dateStr && !statusRaw) return '-';
+    if (!dateStr) return `- (${statusCetak})`;
     if (dateStr.includes('-')) {
       const parts = dateStr.split('-');
       if (parts.length === 2) {
-        return `${parts[1]}/${parts[0].slice(-2)} (${status || ''})`;
+        return `${parts[1]}/${parts[0].slice(-2)} (${statusCetak})`;
       }
     }
-    return dateStr;
+    return `${dateStr} (${statusCetak})`;
   }
 
   function formatDateDisplay(isoStr) {
