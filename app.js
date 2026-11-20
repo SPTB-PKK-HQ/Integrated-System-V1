@@ -8236,6 +8236,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         border-bottom: 1px dotted #ccc;
         padding-bottom: 5px;
         margin-bottom: 5px;
+        min-height: 26px;
       }
       
       .jenis-permohonan-row-2 {
@@ -8251,6 +8252,21 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       .checkbox-large {
         transform: scale(1.2);
         margin: 0 5px;
+      }
+
+      .print-type-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        font-size: 13pt;
+        line-height: 1.4;
+      }
+
+      .print-type-option .checkbox-large {
+        transform: scale(1.5);
+        margin: 0;
+        flex: 0 0 auto;
       }
       
       .print-fill-text {
@@ -8753,15 +8769,19 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     const printCatatanContainer = document.getElementById('print_catatan_container');
     if (printCatatanContainer) printCatatanContainer.style.display = 'none';
 
-    // Kemaskini Checkbox untuk PDF
+    // Kemaskini Checkbox untuk PDF — hanya jenis permohonan yang dipilih dipaparkan
     const selectedType = document.querySelector('input[name="jenisApp"]:checked')?.value;
     ['baru', 'pembaharuan', 'ubah_maklumat', 'ubah_gred'].forEach(type => {
       const cb = document.getElementById(`print_type_${type}`);
+      const wrap = document.getElementById(`print_type_wrap_${type}`);
+      if (wrap) wrap.style.display = selectedType === type ? '' : 'none';
       if(cb) {
           cb.checked = false;
           cb.removeAttribute('checked');
       }
     });
+    const printTypeNoneWrap = document.getElementById('print_type_wrap_none');
+    if (printTypeNoneWrap) printTypeNoneWrap.style.display = selectedType ? 'none' : '';
     if(selectedType) {
       const targetCb = document.getElementById(`print_type_${selectedType}`);
       if(targetCb) {
