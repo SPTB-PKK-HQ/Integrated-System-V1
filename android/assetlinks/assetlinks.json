@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "my.gov.kuskop.sptb",
+      "sha256_cert_fingerprints": [
+        "7E:BE:FB:98:E8:32:94:C2:B5:44:7B:1A:22:A7:53:FB:E5:29:A0:0A:8B:24:CC:A1:CD:0D:6B:E1:57:0C:60:89"
+      ]
+    }
+  }
+]

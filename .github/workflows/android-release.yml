@@ -1,0 +1,202 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - "android-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION_CODE=$(grep -E '^VERSION_CODE=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          VERSION_NAME=$(grep -E '^VERSION_NAME=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          MIN_SUPPORTED=$(grep -E '^MIN_SUPPORTED_VERSION_CODE=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "VERSION_CODE tidak sah: $VERSION_CODE"
+            exit 1
+          fi
+          if ! [[ "$VERSION_NAME" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "VERSION_NAME tidak sah: $VERSION_NAME"
+            exit 1
+          fi
+          if ! [[ "$MIN_SUPPORTED" =~ ^[0-9]+$ ]]; then
+            echo "MIN_SUPPORTED_VERSION_CODE tidak sah: $MIN_SUPPORTED"
+            exit 1
+          fi
+
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "min=$MIN_SUPPORTED" >> "$GITHUB_OUTPUT"
+          echo "Versi: $VERSION_NAME ($VERSION_CODE), min supported: $MIN_SUPPORTED"
+
+      - name: Verify tag matches version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ "$GITHUB_REF_NAME" != "android-v${{ steps.version.outputs.name }}" ]; then
+            echo "Tag $GITHUB_REF_NAME tidak sepadan dengan VERSION_NAME ${{ steps.version.outputs.name }}"
+            exit 1
+          fi
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Secret ANDROID_KEYSTORE_BASE64 belum ditetapkan."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/release.jks
+
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/android/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Verify APK signature
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs \
+            android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Prepare release files
+        run: |
+          VERSION_NAME="${{ steps.version.outputs.name }}"
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/sptb-hq-${VERSION_NAME}.apk"
+          cp "dist/sptb-hq-${VERSION_NAME}.apk" dist/sptb-hq-latest.apk
+
+          SHA256=$(sha256sum "dist/sptb-hq-${VERSION_NAME}.apk" | awk '{print $1}')
+          SIZE=$(stat -c%s "dist/sptb-hq-${VERSION_NAME}.apk")
+
+          echo "$SHA256  sptb-hq-${VERSION_NAME}.apk" > "dist/sptb-hq-${VERSION_NAME}.apk.sha256"
+          echo "$SHA256  sptb-hq-latest.apk" > dist/sptb-hq-latest.apk.sha256
+
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/android-v${VERSION_NAME}/sptb-hq-${VERSION_NAME}.apk"
+
+          jq -n \
+            --argjson versionCode "${{ steps.version.outputs.code }}" \
+            --arg versionName "$VERSION_NAME" \
+            --arg apkUrl "$APK_URL" \
+            --arg sha256 "$SHA256" \
+            --argjson apkSizeBytes "$SIZE" \
+            --argjson minSupportedVersionCode "${{ steps.version.outputs.min }}" \
+            --rawfile changelog android/release-notes.md \
+            --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              versionCode: $versionCode,
+              versionName: $versionName,
+              apkUrl: $apkUrl,
+              sha256: $sha256,
+              apkSizeBytes: $apkSizeBytes,
+              minSupportedVersionCode: $minSupportedVersionCode,
+              changelog: $changelog,
+              publishedAt: $publishedAt
+            }' > dist/version.json
+
+          echo "--- version.json ---"
+          cat dist/version.json
+          echo "--- checksum ---"
+          cat "dist/sptb-hq-${VERSION_NAME}.apk.sha256"
+
+      - name: Ensure versionCode is greater than previous
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="android-v${{ steps.version.outputs.name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG sudah wujud; semakan versionCode dilangkau untuk retry."
+            exit 0
+          fi
+          if gh release view android-latest >/dev/null 2>&1; then
+            mkdir -p previous
+            if gh release download android-latest -p version.json -D previous --clobber; then
+              PREV=$(jq -r '.versionCode // 0' previous/version.json)
+              NEW=${{ steps.version.outputs.code }}
+              echo "versionCode sebelumnya: $PREV, baharu: $NEW"
+              if [ "$NEW" -le "$PREV" ]; then
+                echo "versionCode $NEW mesti lebih besar daripada $PREV"
+                exit 1
+              fi
+            fi
+          fi
+
+      - name: Publish versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION_NAME="${{ steps.version.outputs.name }}"
+          TAG="android-v${VERSION_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Kemas kini aset release $TAG."
+            gh release upload "$TAG" \
+              "dist/sptb-hq-${VERSION_NAME}.apk" \
+              "dist/sptb-hq-${VERSION_NAME}.apk.sha256" \
+              dist/version.json \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "dist/sptb-hq-${VERSION_NAME}.apk" \
+              "dist/sptb-hq-${VERSION_NAME}.apk.sha256" \
+              dist/version.json \
+              --target "$GITHUB_SHA" \
+              --title "SPTB HQ Android v${VERSION_NAME}" \
+              --notes-file android/release-notes.md
+          fi
+
+      - name: Update android-latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release upload android-latest \
+              dist/sptb-hq-latest.apk \
+              dist/sptb-hq-latest.apk.sha256 \
+              dist/version.json \
+              --clobber
+          else
+            gh release create android-latest \
+              dist/sptb-hq-latest.apk \
+              dist/sptb-hq-latest.apk.sha256 \
+              dist/version.json \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "Android Latest Build" \
+              --notes "APK Android terkini untuk Sistem Bersepadu SPTB (HQ)."
+          fi

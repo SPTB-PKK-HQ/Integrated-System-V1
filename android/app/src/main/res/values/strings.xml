@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SPTB HQ</string>
+    <string name="app_full_name">Sistem Bersepadu SPTB (HQ)</string>
+    <string name="app_subtitle">Pusat Khidmat Kontraktor · KUSKOP</string>
+
+    <string name="checking_update">Menyemak kemas kini…</string>
+    <string name="update_available_short">Kemas kini tersedia</string>
+    <string name="update_available_title">Kemas Kini Tersedia</string>
+    <string name="update_version_label">Versi %1$s tersedia untuk dipasang.</string>
+    <string name="update_size_label">Saiz muat turun: %1$s</string>
+    <string name="update_now">Kemas Kini Sekarang</string>
+    <string name="later">Nanti</string>
+
+    <string name="downloading_update">Memuat turun kemas kini…</string>
+    <string name="downloading_title">Memuat Turun Kemas Kini</string>
+    <string name="downloading_unknown">Memuat turun…</string>
+    <string name="download_percent">%1$d%% selesai</string>
+    <string name="download_starting">Menyediakan muat turun…</string>
+    <string name="cancel">Batal</string>
+
+    <string name="ready_to_install">Membuka pemasang…</string>
+    <string name="installer_opened">Pemasang dibuka. Tekan Update/Install untuk meneruskan.</string>
+    <string name="install_permission_title">Benarkan Pemasangan</string>
+    <string name="install_permission_message">Android memerlukan kebenaran untuk memasang kemas kini dari app ini. Tekan Buka Tetapan, hidupkan “Benarkan dari sumber ini”, kemudian kembali ke app.</string>
+    <string name="open_settings">Buka Tetapan</string>
+    <string name="install_failed_title">Pemasangan Gagal</string>
+    <string name="install_failed_message">Tidak dapat membuka pemasang APK.</string>
+    <string name="install_incomplete_title">Pemasangan Belum Selesai</string>
+    <string name="install_incomplete_message">Kemas kini belum dipasang. Tekan Cuba Lagi untuk membuka pemasang semula, atau teruskan tanpa kemas kini.</string>
+    <string name="install_incomplete_forced_message">Kemas kini ini diperlukan untuk meneruskan. Tekan Cuba Lagi untuk membuka pemasang semula.</string>
+
+    <string name="download_failed_title">Muat Turun Gagal</string>
+    <string name="retry">Cuba Lagi</string>
+    <string name="open_release_page">Buka Halaman Release</string>
+    <string name="continue_without_update">Teruskan Tanpa Kemas Kini</string>
+    <string name="offline_continue">Tidak dapat menyemak kemas kini. Membuka sistem…</string>
+    <string name="close">Tutup</string>
+</resources>
