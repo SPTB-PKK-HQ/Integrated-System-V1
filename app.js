@@ -11,7 +11,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
-  console.log("BUILD TAG: 20260926-siasat-tolak-fix");
+  console.log("BUILD TAG: 20261126-gmail-mobile");
   
   // =========================================================================
   // =========================================================================
@@ -22512,12 +22512,40 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return blocks.join('\n\n');
   }
 
-  // Tulis emel berwarna (rich text) ke clipboard — pulangkan true jika berjaya
-  async function emailWriteRichToClipboard() {
+  // V6.13.6: Kesan telefon/tablet — URL compose Gmail desktop tidak berfungsi
+  // di mobile web (ia buka inbox, bukan compose). Di telefon kita guna mailto:.
+  function isMobileMailBrowser() {
+    const ua = navigator.userAgent || '';
+    if (/Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua)) return true;
+    // iPadOS 13+ melaporkan dirinya sebagai Macintosh
+    return /Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+  }
+
+  // Tulis emel berwarna (rich text) ke clipboard — pulangkan true jika berjaya.
+  // preferExecCommand: Chrome Android kadang-kadang "berjaya" tulis text/html
+  // melalui Clipboard API tetapi clipboard sebenarnya kosong; execCommand lebih
+  // dipercayai di telefon.
+  async function emailWriteRichToClipboard(preferExecCommand) {
     const previewEl = document.getElementById('emailGenPreview');
     if (!previewEl) return false;
     const htmlOut = '<div>' + previewEl.innerHTML + '</div>';
     const plainOut = emailPreviewPlainText(previewEl);
+
+    const copyViaExecCommand = function() {
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(previewEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const ok = document.execCommand('copy');
+        sel.removeAllRanges();
+        return ok;
+      } catch (e) { return false; }
+    };
+
+    if (preferExecCommand && copyViaExecCommand()) return true;
+
     let ok = false;
     try {
       if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
@@ -22528,17 +22556,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
         ok = true;
       }
     } catch (e) { ok = false; }
-    if (!ok) {
-      try {
-        const range = document.createRange();
-        range.selectNodeContents(previewEl);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        ok = document.execCommand('copy');
-        sel.removeAllRanges();
-      } catch (e2) { ok = false; }
-    }
+    if (!ok && !preferExecCommand) ok = copyViaExecCommand();
     return ok;
   }
 
@@ -22547,15 +22565,28 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   async function copyEmailAyatToClipboard() {
     const copyGuardBtn = document.getElementById('emailGenCopyBtn');
     if (copyGuardBtn && copyGuardBtn.disabled) return;
-    const ok = await emailWriteRichToClipboard();
+    const isMobile = isMobileMailBrowser();
+    const ok = await emailWriteRichToClipboard(isMobile);
     if (ok) {
-      CustomAppModal.alert('Emel berjaya disalin!<br><br>Buka emel dan paste (<strong>Ctrl+V</strong>) — format &amp; warna akan kekal.', 'Berjaya Disalin', 'success');
+      CustomAppModal.alert(
+        isMobile
+          ? 'Emel berjaya disalin!<br><br>Buka app emel, kemudian <strong>tekan &amp; tahan</strong> pada badan emel dan pilih <strong>Tampal</strong> — format &amp; warna akan kekal.'
+          : 'Emel berjaya disalin!<br><br>Buka emel dan paste (<strong>Ctrl+V</strong>) — format &amp; warna akan kekal.',
+        'Berjaya Disalin',
+        'success'
+      );
     } else {
-      CustomAppModal.alert('Gagal menyalin secara automatik. Sila klik dalam kotak pratonton, pilih semua teks (Ctrl+A) dan salin (Ctrl+C).', 'Ralat Salin', 'error');
+      CustomAppModal.alert(
+        isMobile
+          ? 'Gagal menyalin secara automatik. Tekan &amp; tahan dalam kotak pratonton, pilih semua teks, kemudian pilih <strong>Salin</strong>.'
+          : 'Gagal menyalin secara automatik. Sila klik dalam kotak pratonton, pilih semua teks (Ctrl+A) dan salin (Ctrl+C).',
+        'Ralat Salin',
+        'error'
+      );
     }
   }
 
-  // URL Gmail compose: to = penerima, su = subjek, body = sandaran teks biasa (jika salinan gagal)
+  // URL Gmail compose (PC): to = penerima, su = subjek, body = sandaran teks biasa
   function buildGmailComposeUrl(to, subject, bodyText) {
     const params = ['view=cm', 'fs=1'];
     if (to) params.push('to=' + encodeURIComponent(to));
@@ -22564,8 +22595,23 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
     return 'https://mail.google.com/mail/?' + params.join('&');
   }
 
-  // Buka Gmail: salin emel berwarna dahulu, kemudian buka tetingkap compose
-  // (penerima + subjek auto-isi; badan emel tinggal tekan Ctrl+V)
+  // URL mailto (telefon): buka app emel default dengan penerima + subjek.
+  // Badan emel tidak dimasukkan kerana Chrome had ~2000 aksara; badan diambil
+  // daripada clipboard (tekan & tahan → Tampal).
+  function buildGmailMailtoUrl(to, subject) {
+    const recipients = String(to || '')
+      .split(/[,;]+/)
+      .map(function(addr) { return addr.trim(); })
+      .filter(Boolean)
+      .map(function(addr) { return encodeURIComponent(addr).replace(/%40/g, '@'); })
+      .join(',');
+    let url = 'mailto:' + recipients;
+    if (subject) url += '?subject=' + encodeURIComponent(subject);
+    return url;
+  }
+
+  // Buka Gmail: salin emel berwarna dahulu, kemudian buka compose.
+  // PC: URL compose Gmail (tab baru). Telefon: mailto: (app Gmail) + tampal.
   async function openGmailCompose() {
     const gmailBtn = document.getElementById('emailGenGmailBtn');
     if (gmailBtn && gmailBtn.disabled) return;
@@ -22576,17 +22622,37 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
       return;
     }
 
-    // 1) Salin versi berwarna (mesti selesai sebelum tetingkap Gmail mengambil fokus)
+    const isMobile = isMobileMailBrowser();
     const previewEl = document.getElementById('emailGenPreview');
-    const copied = await emailWriteRichToClipboard();
+    const copied = await emailWriteRichToClipboard(isMobile);
 
-    // 2) Buka Gmail compose — jika salinan gagal, badan diisi teks biasa sebagai sandaran
+    // Telefon: mailto: buka app Gmail dengan penerima + subjek.
+    if (isMobile) {
+      if (!copied) {
+        const proceed = await CustomAppModal.confirm(
+          'Salinan automatik gagal. Gmail akan dibuka dengan <strong>penerima</strong> &amp; <strong>subjek</strong>, tetapi badan emel perlu disalin manual dari kotak pratonton.<br><br>Teruskan?',
+          'Salinan Gagal',
+          'warning',
+          'Buka Gmail'
+        );
+        if (!proceed) return;
+      }
+      const mailtoUrl = buildGmailMailtoUrl(kepada, emailGenSubjectPlain());
+      try {
+        window.location.href = mailtoUrl;
+      } catch (e) {
+        CustomAppModal.alert('Gagal membuka app emel. Pastikan Gmail dipasang dan ditetapkan sebagai app emel default.', 'Ralat Gmail', 'error');
+      }
+      return;
+    }
+
+    // PC: kekal guna URL compose Gmail — jika salinan gagal, badan diisi teks biasa.
     const bodyFallback = copied ? '' : (previewEl ? emailPreviewPlainText(previewEl) : '');
     const url = buildGmailComposeUrl(kepada, emailGenSubjectPlain(), bodyFallback);
     let win = null;
     try { win = window.open(url, '_blank'); } catch (e) { win = null; }
 
-    // 3) Arahan untuk pengguna
+    // Arahan untuk pengguna
     if (!win) {
       if (copied) {
         CustomAppModal.alert('Popup disekat oleh pelayar.<br><br>Emel berwarna sudah <strong>disalin</strong> — buka Gmail anda sendiri, isi penerima/subjek, kemudian tekan <strong>Ctrl+V</strong>.', 'Popup Disekat', 'warning');
@@ -22669,6 +22735,12 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const emailGenKepadaEl = document.getElementById('emailGenKepada');
   if (emailGenKepadaEl) {
       emailGenKepadaEl.addEventListener('input', () => { updateEmailGenCopyState(); });
+  }
+
+  // V6.13.6: Arahan tampal khas telefon (Ctrl+V tidak sesuai di mobile)
+  const emailGenGmailMobileHint = document.getElementById('emailGenGmailMobileHint');
+  if (emailGenGmailMobileHint) {
+      emailGenGmailMobileHint.style.display = isMobileMailBrowser() ? 'block' : 'none';
   }
 
   // Butang Buka Gmail — salin emel berwarna, kemudian buka compose Gmail (penerima + subjek auto)
