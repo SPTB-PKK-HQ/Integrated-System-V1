@@ -1,6 +1,5 @@
-Versi pertama APK Android Sistem Bersepadu SPTB (HQ).
+Kemas kini v1.0.1.
 
-- Aplikasi Android rasmi untuk Sistem Bersepadu SPTB (HQ).
-- Memuatkan sistem web yang sama melalui Chrome (TWA).
-- Semakan kemas kini APK dibuat secara automatik semasa aplikasi dibuka.
-- Muat turun dan pasang kemas kini terus dari dalam aplikasi.
+- Ujian aliran kemas kini dalam aplikasi.
+- Dialog kemas kini, muat turun APK, semakan SHA-256 dan pemasangan melalui pemasang Android.
+- Tiada perubahan pada sistem web; kandungan web dikemas kini secara automatik.
