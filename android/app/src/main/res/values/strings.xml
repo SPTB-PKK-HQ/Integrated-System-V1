@@ -36,4 +36,8 @@
     <string name="continue_without_update">Teruskan Tanpa Kemas Kini</string>
     <string name="offline_continue">Tidak dapat menyemak kemas kini. Membuka sistem…</string>
     <string name="close">Tutup</string>
+    <string name="twa_failed_title">Sistem Tidak Dapat Dibuka</string>
+    <string name="twa_failed_message">Chrome tidak dapat memaparkan sistem buat masa ini. Anda boleh cuba membukanya dalam pelayar biasa.</string>
+    <string name="open_in_browser">Buka dalam Pelayar</string>
+    <string name="no_browser_found">Tiada pelayar ditemui pada peranti ini.</string>
 </resources>
