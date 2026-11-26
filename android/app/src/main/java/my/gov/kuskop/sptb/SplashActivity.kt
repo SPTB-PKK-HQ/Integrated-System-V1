@@ -296,7 +296,13 @@ class SplashActivity : AppCompatActivity() {
     private fun launchTwa() {
         if (launchedTwa) return
         launchedTwa = true
-        startActivity(Intent(this, TwaActivity::class.java))
+        // NEW_TASK penting: tanpa flag ini, LauncherActivity akan mencipta instance
+        // kedua melalui restartInNewTask(). Pada MIUI/HyperOS kedua-dua instance
+        // boleh finish serentak, menyebabkan app terus keluar.
+        val intent = Intent(this, TwaActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
         finish()
     }
 
