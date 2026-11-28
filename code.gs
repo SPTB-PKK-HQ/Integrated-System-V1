@@ -648,6 +648,14 @@ const APP_DATA_CACHE_KEY = 'STB_APP_DATA_V3';
 const APP_DATA_VERSION_KEY = 'STB_APP_DATA_VERSION';
 const APP_DATA_CACHE_TTL = 600; // 10 minit
 
+// V6.14.0: Cache masa untuk dashboard admin/PKA (tidak ikut version).
+// 5 minit: cukup segar untuk dashboard agregat, tetapi tidak scan 6k baris
+// pada setiap loading selepas ada tulis.
+const DASHBOARD_ADMIN_TIME_CACHE_KEY = 'STB_DASH_STATS_ADMIN_TIME';
+const DASHBOARD_PKA_TIME_CACHE_KEY = 'STB_DASH_STATS_PKA_TIME';
+const DASHBOARD_TIME_CACHE_TTL = 300; // 5 minit
+const DASHBOARD_TIME_CACHE_MS = 5 * 60 * 1000;
+
 // V6.9.3: Chunked cache untuk getData - DocumentCache had 10MB/doc, 100KB/key.
 // Data JSON ~7.4MB dimampatkan gzip + base64 dan dipecah kepada beberapa chunk.
 // CHUNK 45KB: selamat di bawah had 100KB per entry dalam kedua-dua kiraan
@@ -1180,6 +1188,12 @@ function doGet(e) {
     } else if (action === "refreshData") {
       // V6.6.0: Paksa refresh dengan increment version
       invalidateDataCache();
+      // V6.14.0: Refresh eksplisit juga buang cache masa dashboard admin/PKA.
+      try {
+        const dashCache = CacheService.getScriptCache();
+        dashCache.remove(DASHBOARD_ADMIN_TIME_CACHE_KEY);
+        dashCache.remove(DASHBOARD_PKA_TIME_CACHE_KEY);
+      } catch (e) {}
       result = getApplicationsData(effectiveRole, effectiveUserName, '', true, '', DEFAULT_MONTHS_WINDOW, '', '');
     } else if (action === "getRow") {
       // V6.13.0: getRow penuh hanya untuk ADMIN.
@@ -1195,7 +1209,7 @@ function doGet(e) {
       const forceRefresh = params.refresh === 'true' || params.refresh === '1';
       result = getApplicationsData(effectiveRole, effectiveUserName, clientVersion, forceRefresh,
         params.w || '', params.months || DEFAULT_MONTHS_WINDOW,
-        params.from || '', params.to || '');
+        params.from || '', params.to || '', params.slim === '1');
     } else if (action === "getDashboardStats") {
       // V6.10.0: Agregat kecil untuk dashboard (12 bulan, <50KB, cache ScriptCache)
       result = getDashboardStats(effectiveRole, effectiveUserName);
@@ -2963,6 +2977,152 @@ function filterRowsByMonthRange(rows, fromKey, toKey) {
   });
 }
 
+// =========================================================================
+// V6.14.0: BACA BARIS AKTIF SAHAJA (PRESTASI)
+// Sebelum ini setiap getData/getDashboardStats membaca seluruh Sheet1
+// (6k+ baris x 32 kolum). Fungsi di bawah membaca kolum penapis dahulu,
+// kemudian hanya baris yang berkaitan.
+// =========================================================================
+
+function readSheetColumnValues_(sheet, column, lastRow) {
+  const total = lastRow - 1;
+  if (total <= 0) return [];
+  return sheet.getRange(2, column, total, 1).getDisplayValues();
+}
+
+// Baris aktif untuk window semasa: start_date >= windowStart ATAU belum lulus.
+function getWindowRowNumbers_(sheet, windowStart) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const startDates = readSheetColumnValues_(sheet, 8, lastRow);   // H
+  const tarikhLulus = readSheetColumnValues_(sheet, 25, lastRow); // Y
+  const rowNumbers = [];
+  for (let i = 0; i < startDates.length; i++) {
+    const sd = String(startDates[i][0] || '').trim();
+    const tl = String(tarikhLulus[i][0] || '').trim();
+    if (!windowStart || !tl || sd >= windowStart) rowNumbers.push(i + 2);
+  }
+  return rowNumbers;
+}
+
+// Baris untuk mod sejarah: start_date dalam julat bulan.
+function getMonthRangeRowNumbers_(sheet, fromDate, toDate) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const startDates = readSheetColumnValues_(sheet, 8, lastRow); // H
+  const rowNumbers = [];
+  for (let i = 0; i < startDates.length; i++) {
+    const sd = String(startDates[i][0] || '').trim();
+    if (sd >= fromDate && sd <= toDate) rowNumbers.push(i + 2);
+  }
+  return rowNumbers;
+}
+
+// Baris mengikut peranan, selaras dengan penapis dalam getDashboardStats()
+// supaya hasil dashboard kekal sama.
+function getRoleRowNumbers_(sheet, role, userName) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const roleNorm = normalizeRoleKey(role || '');
+  const userUpper = String(userName || '').toUpperCase().trim();
+
+  if (roleNorm === normalizeRoleKey(ROLE_PENGESYOR)) {
+    if (!userUpper) return [];
+    const values = readSheetColumnValues_(sheet, 13, lastRow); // M - pengesyor
+    const rowNumbers = [];
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').toUpperCase().trim() === userUpper) rowNumbers.push(i + 2);
+    }
+    return rowNumbers;
+  }
+
+  if (roleNorm === normalizeRoleKey(ROLE_PELULUS)) {
+    if (!userUpper) return [];
+    const values = readSheetColumnValues_(sheet, 26, lastRow); // Z - pelulus
+    const rowNumbers = [];
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').toUpperCase().trim() === userUpper) rowNumbers.push(i + 2);
+    }
+    return rowNumbers;
+  }
+
+  if (roleNorm === normalizeRoleKey(ROLE_PKA)) {
+    const values = readSheetColumnValues_(sheet, 9, lastRow); // I - syor_lawatan
+    const rowNumbers = [];
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').toUpperCase().trim() !== 'PEMUTIHAN') rowNumbers.push(i + 2);
+    }
+    return rowNumbers;
+  }
+
+  // ADMIN / KETUA SEKSYEN / PENGARAH: semua baris.
+  const rowNumbers = [];
+  for (let i = 2; i <= lastRow; i++) rowNumbers.push(i);
+  return rowNumbers;
+}
+
+// Baca hanya baris yang diberi. Jika baris padat dalam julat, baca sekali
+// gus kemudian tapis; jika bertaburan, baca blok berturutan.
+function readSheetRowsByNumbers_(sheet, rowNumbers, totalColumns) {
+  const rows = [];
+  if (!rowNumbers || rowNumbers.length === 0) return rows;
+
+  const sorted = rowNumbers.slice().sort(function (a, b) { return a - b; });
+  const cols = totalColumns || TOTAL_COLUMNS;
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const span = last - first + 1;
+
+  // Kira bilangan blok berturutan. Jika terlalu banyak, lebih baik baca
+  // seluruh julat sekali gus daripada membuat ratusan panggilan getRange.
+  let groupCount = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) groupCount++;
+  }
+
+  if (span <= sorted.length * 4 || groupCount > 50) {
+    const values = sheet.getRange(first, 1, span, cols).getDisplayValues();
+    const wanted = {};
+    for (let i = 0; i < sorted.length; i++) wanted[sorted[i]] = true;
+    for (let i = 0; i < values.length; i++) {
+      if (wanted[first + i]) rows.push(values[i]);
+    }
+    return rows;
+  }
+
+  let rangeStart = sorted[0];
+  let rangeEnd = sorted[0];
+  function flushRange() {
+    const count = rangeEnd - rangeStart + 1;
+    const values = sheet.getRange(rangeStart, 1, count, cols).getDisplayValues();
+    for (let i = 0; i < values.length; i++) rows.push(values[i]);
+  }
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    if (current === rangeEnd + 1) {
+      rangeEnd = current;
+    } else {
+      flushRange();
+      rangeStart = current;
+      rangeEnd = current;
+    }
+  }
+  flushRange();
+  return rows;
+}
+
+function readSheetRowsForWindow_(sheet, windowStart) {
+  const rowNumbers = getWindowRowNumbers_(sheet, windowStart);
+  const rows = readSheetRowsByNumbers_(sheet, rowNumbers, TOTAL_COLUMNS);
+  return transformSheetRows(rows, rowNumbers);
+}
+
+function readSheetRowsForMonthRange_(sheet, fromDate, toDate) {
+  const rowNumbers = getMonthRangeRowNumbers_(sheet, fromDate, toDate);
+  const rows = readSheetRowsByNumbers_(sheet, rowNumbers, TOTAL_COLUMNS);
+  return transformSheetRows(rows, rowNumbers);
+}
+
 // Baca sheet penuh dan transform ke objek rekod (V6.10.0).
 function readSheetRows(sheet) {
   const lastRow = sheet.getLastRow();
@@ -2975,7 +3135,8 @@ function readSheetRows(sheet) {
 
 // Transform baris mentah (selepas header) ke objek rekod.
 // Diekstrak daripada getApplicationsData - logik sama seperti V6.9.3.
-function transformSheetRows(data) {
+// V6.14.0: rowNumbers (pilihan) membolehkan baca separa kekalkan nombor baris asal.
+function transformSheetRows(data, rowNumbers) {
   const allRows = [];
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
@@ -2992,7 +3153,7 @@ function transformSheetRows(data) {
     }
 
     allRows.push({
-      row: i + 2,
+      row: (rowNumbers && rowNumbers[i]) ? rowNumbers[i] : (i + 2),
       syarikat: row[0], cidb: row[1], gred: row[2], jenis: row[3], negeri: row[4],
       tarikh_surat_terdahulu: row[5], tatatertib: row[6], start_date: row[7],
       syor_lawatan: row[8], date_submit: row[9], pautan: row[10], justifikasi: row[11],
@@ -3100,7 +3261,7 @@ function readChunkedAppDataCache(version, windowStart) {
 // - months=N (atau tiada) -> window server-side: start_date >= windowStart ATAU rekod
 //   belum selesai (tarikh_lulus kosong). Filter bulan server-side SEBELUM role filter.
 // - cache chunked ikut window (key: <version>_<windowStart>); data lama SKIP cache.
-function getApplicationsData(role, userName, clientVersion, forceRefresh, clientWindowStart, months, from, to) {
+function getApplicationsData(role, userName, clientVersion, forceRefresh, clientWindowStart, months, from, to, slim) {
   const props = PropertiesService.getScriptProperties();
   const currentVersion = props.getProperty(APP_DATA_VERSION_KEY) || '0';
 
@@ -3112,11 +3273,14 @@ function getApplicationsData(role, userName, clientVersion, forceRefresh, client
   if (fromKey && toKey) {
     const sheet = getMainSheet();
     if (!sheet) return createJSONOutput([]);
-    const rangeRows = filterRowsByMonthRange(readSheetRows(sheet).rows, fromKey.key, toKey.key);
+    const tRead = Date.now();
+    const rangeRows = readSheetRowsForMonthRange_(sheet, monthStartDate(fromKey.key), monthEndDate(toKey.key));
     const filtered = filterRowsByRole(rangeRows, role, userName);
+    const output = slim ? filtered.map(slimApplicationForDashboard_) : filtered;
+    Logger.log('[PERF] getData history rows=' + rangeRows.length + ' from=' + fromKey.key + ' to=' + toKey.key + ' slim=' + (!!slim) + ' ms=' + (Date.now() - tRead));
     return createJSONOutput({
       mode: 'history', from: fromKey.key, to: toKey.key,
-      data: filtered, version: currentVersion, engine: 'v610',
+      data: output, version: currentVersion, engine: 'v610',
       windowStart: '', months: 0
     });
   }
@@ -3188,10 +3352,9 @@ function getApplicationsData(role, userName, clientVersion, forceRefresh, client
     
     try { cache.put("firstEmptyRow_" + SHEET_NAME, firstEmptyRow.toString(), 300); } catch (e) {}
 
-    const allRows = readSheetRows(sheet).rows;
-
-    // V6.10.0: Filter bulan server-side (window + rekod belum selesai) sebelum cache & role filter
-    const windowRows = filterRowsByWindow(allRows, windowStart);
+    const tRead = Date.now();
+    const windowRows = filterRowsByWindow(readSheetRowsForWindow_(sheet, windowStart), windowStart);
+    Logger.log('[PERF] getData current rows=' + windowRows.length + ' lastRow=' + lastRow + ' window=' + windowStart + ' ms=' + (Date.now() - tRead));
 
     // V6.10.0: Simpan chunked cache untuk window semasa sahaja
     try {
@@ -3255,10 +3418,39 @@ function filterRowsByRole(rows, role, userName) {
   return rows;
 }
 
+// V6.14.0: Versi ringan borang_json untuk widget dashboard sahaja.
+// Dashboard tidak perlukan signature/cop/gambar base64; hanya medan dokumen
+// dan personel yang digunakan oleh countIncompleteInRecord()/chart.
+function slimApplicationForDashboard_(item) {
+  if (!item || !item.borang_json || String(item.borang_json).trim() === '') return item;
+  try {
+    const parsed = JSON.parse(item.borang_json);
+    const slim = {};
+    const keys = [
+      'borang_syor_status', 'tarikh_masuk_sheet',
+      'doc_carta_status', 'doc_peta_status', 'doc_gambar_status', 'doc_sewa_status',
+      'ssm_status', 'bank_status_input',
+      'kwsp_s1', 'kwsp_s2', 'kwsp_s3',
+      'borang_syarikat', 'borang_cidb'
+    ];
+    keys.forEach(function (k) { if (parsed[k] !== undefined) slim[k] = parsed[k]; });
+    if (Array.isArray(parsed.personnel)) {
+      slim.personnel = parsed.personnel.map(function (p) {
+        return { isCompany: !!p.isCompany, s_ic: p.s_ic, s_sb: p.s_sb, s_epf: p.s_epf };
+      });
+    }
+    item.borang_json = JSON.stringify(slim);
+  } catch (e) {
+    item.borang_json = '{}';
+  }
+  return item;
+}
+
 // =========================================================================
 // V6.10.0: GETDASHBOARDSTATS - Agregat kecil untuk dashboard
-// Baca sheet penuh, kira kiraan per bulan (start_date = bulan permohonan)
-// untuk 12 bulan terkini. Output <50KB walaupun 20k rekod.
+// V6.14.0: Baca baris mengikut peranan (Pengesyor/Pelulus/PKA) atau semua
+// baris untuk ADMIN, bukan seluruh Sheet. Kira kiraan per bulan (start_date).
+// Output <50KB walaupun 20k rekod.
 // Cache: ScriptCache (bawah 100KB) - bukan DocumentCache/Chunked.
 // Status: tiada tarikh_lulus = menunggu; tarikh_lulus + kelulusan LULUS = lulus;
 //         tarikh_lulus + TOLAK/SIASAT = tolak; tarikh_lulus tanpa kelulusan = menunggu.
@@ -3276,13 +3468,40 @@ function getDashboardStats(role, userName) {
       try { return createJSONOutput(JSON.parse(cached)); } catch (e) {}
     }
 
+    // V6.14.0: Dashboard admin/Ketua Seksyen/Pengarah/PKA guna cache masa (5 min)
+    // yang TIDAK ikut version. Jadi selepas ada tulis, dashboard kekal laju
+    // dan tidak scan 6k baris pada setiap loading. Senarai tetap segar.
+    const isAdminStatsView = roleNorm !== normalizeRoleKey(ROLE_PENGESYOR) &&
+      roleNorm !== normalizeRoleKey(ROLE_PELULUS) &&
+      roleNorm !== normalizeRoleKey(ROLE_PKA);
+    const isPKAStatsView = roleNorm === normalizeRoleKey(ROLE_PKA);
+    const timeCacheKey = isAdminStatsView ? DASHBOARD_ADMIN_TIME_CACHE_KEY
+      : (isPKAStatsView ? DASHBOARD_PKA_TIME_CACHE_KEY : '');
+    if (timeCacheKey) {
+      const timeCached = cache.get(timeCacheKey);
+      if (timeCached) {
+        try {
+          const parsedTime = JSON.parse(timeCached);
+          const age = Date.now() - (parsedTime.last_updated || 0);
+          if (age >= 0 && age < DASHBOARD_TIME_CACHE_MS) {
+            return createJSONOutput(parsedTime);
+          }
+        } catch (e) {}
+      }
+    }
+
     const sheet = getMainSheet();
     if (!sheet) return createJSONOutput({ error: "Sheet not found" });
     const lastRow = sheet.getLastRow();
     const empty = { months: [], years: [], grand: { total: 0, lulus: 0, tolak: 0, menunggu: 0, sokong: 0, tidakSokong: 0, pkaSpi: 0, pkaSelesai: 0 }, pengesyorStats: {}, pelulusStats: {} };
     if (lastRow < 2) return createJSONOutput(empty);
 
-    const data = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLUMNS).getDisplayValues();
+    // V6.14.0: Baca hanya baris milik peranan/pengguna ini, bukan seluruh Sheet.
+    // ADMIN/KETUA SEKSYEN/PENGARAH masih perlukan semua baris (agregat penuh).
+    const tRead = Date.now();
+    const rowNumbers = getRoleRowNumbers_(sheet, roleNorm, userName);
+    const data = readSheetRowsByNumbers_(sheet, rowNumbers, TOTAL_COLUMNS);
+    Logger.log('[PERF] dashboard role=' + roleNorm + ' user=' + userKey + ' rows=' + data.length + ' lastRow=' + lastRow + ' ms=' + (Date.now() - tRead));
 
     // Indeks kolum (A=0): jenis 3, start_date 7, syor_lawatan 8, date_submit 9,
     // pengesyor 12, syor_status 13, alasan 22, kelulusan 23, tarikh_lulus 24, pelulus 25.
@@ -3313,7 +3532,7 @@ function getDashboardStats(role, userName) {
     const isPengesyor = roleNorm === 'PENGESYOR';
     const isPelulus = roleNorm === 'PELULUS';
     const isPKA = roleNorm === 'PKA';
-    const isAdminView = !isPengesyor && !isPelulus && !isPKA;
+    const isAdminView = isAdminStatsView;
     const userUpper = String(userName || '').toUpperCase().trim();
 
     const JENIS_KEYS = ['BARU', 'PEMBAHARUAN', 'UBAH MAKLUMAT', 'UBAH GRED'];
@@ -3411,11 +3630,16 @@ function getDashboardStats(role, userName) {
       years: Array.from(years).sort(function (a, b) { return b - a; }),
       grand: grand,
       pengesyorStats: pengesyorStats,
-      pelulusStats: pelulusStats
+      pelulusStats: pelulusStats,
+      last_updated: Date.now()
     };
     // V6.11.0: TTL 3600 saat (1 jam) - stats jarang berubah, key guna versi data
     // jadi auto-invalid bila data dikemas kini. Kurangkan kekerapan baca sheet penuh.
     try { cache.put(cacheKey, JSON.stringify(payload), 3600); } catch (e) {}
+    // V6.14.0: Cache masa untuk admin/PKA - kekal panas walaupun version berubah.
+    if (timeCacheKey) {
+      try { cache.put(timeCacheKey, JSON.stringify(payload), DASHBOARD_TIME_CACHE_TTL); } catch (e) {}
+    }
     return createJSONOutput(payload);
   } catch (e) {
     return createJSONOutput({ error: e.toString() });

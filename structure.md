@@ -244,6 +244,9 @@ flowchart TD
 3. **Cache Chunked:** Data JSON dimampatkan gzip+base64, dipecah 45KB setiap chunk (`STB_APP_DATA_CHUNK_*`, TTL 10 minit). Had selamat di bawah 100KB setiap kunci DocumentCache.
 4. **Kunci Bina Semula:** Jika cache tamat dan banyak permintaan serentak, hanya satu eksekusi membaca hamparan; lain menerima `rebuilding:true` dan mencuba semula selepas 5–8 saat (maksimum 3 cubaan, pemasa tunggal).
 5. **Mod Sejarah:** `from/to` (YYYY-MM) memintas cache tetingkap dan membaca hamparan terus dengan tapisan peranan.
+6. **Baca Separa (V6.14.0):** `getData` membaca kolum H/Y dahulu untuk mengenal pasti baris aktif, kemudian hanya baris tersebut (bukan 6k baris penuh). `getDashboardStats` membaca kolum M/Z/I mengikut peranan. Log `[PERF]` merekod bilangan baris dan masa baca dalam Apps Script Executions.
+7. **Cache Masa Dashboard (V6.14.0):** Dashboard ADMIN/KETUA SEKSYEN/PENGARAH dan PKA menggunakan cache masa 5 minit yang tidak terikat pada `APP_DATA_VERSION_KEY`; ini mengelakkan imbasan penuh selepas setiap tulis. Butang **Refresh Data** membersihkan cache masa ini. Dashboard Pengesyor/Pelulus masih menggunakan cache versi + bacaan separa mengikut nama.
+8. **Payload Dashboard Ringan + Dedupe (V6.14.0):** `getData` mod sejarah menerima `slim=1`; `borang_json` dikurangkan kepada medan dokumen/personel yang digunakan widget dashboard sahaja (signature/cop/gambar base64 dibuang). Frontend juga berkongsi permintaan `getDashboardStats`/`loadDashboardPeriodData` yang serentak dan tidak lagi mencetus auto-refresh dashboard serta-merta selepas initial load.
 
 ### 4.3 Integrasi Sub-Sistem dan Pangkalan Data Kerajaan
 

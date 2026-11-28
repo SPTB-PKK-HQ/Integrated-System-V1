@@ -11,7 +11,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("STB Web App V6.5.2 Loaded - Auto Email Auth, Separated History Search, Dynamic Routing, Anonymous Access, Mobile Menu, Pemutihan Email & Ketua Seksyen Fixes, GIS Integration");
-  console.log("BUILD TAG: 20261126-gmail-mobile");
+  console.log("BUILD TAG: 20261128-dashboard-slim2");
   
   // =========================================================================
   // =========================================================================
@@ -1768,6 +1768,11 @@ async function handleCredentialResponse(response) {
   // V6.10.0: Agregat dashboard dari getDashboardStats (12 bulan, server-side)
   let dashboardStatsData = null;
   let dashboardStatsLoadedAt = 0;
+  // V6.14.0: Permintaan yang sedang berjalan - elak panggilan duplicate bila
+  // initializeDashboard/switchTab dipanggil serentak.
+  let dashboardStatsInFlight = null;
+  let dashboardPeriodInFlight = null; // { key, promise }
+  let dashboardPeriodRequestSeq = 0;
   // V6.10.1: Rekod tempoh dipilih (from/to) - untuk modal kad, jadual terperinci &
   // dokumen tak lengkap supaya sepadan dengan nombor agregat.
   let dashboardPeriodData = null; // { key, rows }
@@ -2712,22 +2717,30 @@ async function handleCredentialResponse(response) {
   async function loadDashboardStats(force = false) {
     if (!currentUser) return null;
     if (!force && dashboardStatsData && (Date.now() - dashboardStatsLoadedAt) < 120000) return dashboardStatsData;
-    try {
-      const url = SCRIPT_URL + '?action=getDashboardStats&t=' + Date.now()
-        + '&role=' + encodeURIComponent(currentUser.role || '')
-        + '&userName=' + encodeURIComponent(currentUser.name || '');
-      const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
-      const data = await res.json();
-      if (data && !data.error && Array.isArray(data.months)) {
-        dashboardStatsData = data;
-        dashboardStatsLoadedAt = Date.now();
-        return data;
+    // V6.14.0: Kongsi permintaan yang sama jika dipanggil serentak.
+    if (dashboardStatsInFlight) return dashboardStatsInFlight;
+    const promise = (async () => {
+      try {
+        const url = SCRIPT_URL + '?action=getDashboardStats&t=' + Date.now()
+          + '&role=' + encodeURIComponent(currentUser.role || '')
+          + '&userName=' + encodeURIComponent(currentUser.name || '');
+        const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
+        const data = await res.json();
+        if (data && !data.error && Array.isArray(data.months)) {
+          dashboardStatsData = data;
+          dashboardStatsLoadedAt = Date.now();
+          return data;
+        }
+        console.warn('V6.10.0 getDashboardStats respons tidak sah:', data);
+      } catch (e) {
+        console.error('V6.10.0 loadDashboardStats error:', e);
       }
-      console.warn('V6.10.0 getDashboardStats respons tidak sah:', data);
-    } catch (e) {
-      console.error('V6.10.0 loadDashboardStats error:', e);
+      return null;
+    })();
+    dashboardStatsInFlight = promise;
+    try { return await promise; } finally {
+      if (dashboardStatsInFlight === promise) dashboardStatsInFlight = null;
     }
-    return null;
   }
 
   // (V6.10.1: getAggregateForPeriod dipindahkan ke blok bawah - versi zero-fill)
@@ -2840,24 +2853,35 @@ async function handleCredentialResponse(response) {
       key = from;
     }
     if (!force && dashboardPeriodData && dashboardPeriodData.key === key) return dashboardPeriodData;
-    try {
-      // V6.10.2: Hantar role/userName supaya rekod tempoh ditapis server
-      // (selaras dengan kad agregat yang per-pengguna untuk PENGESYOR/PELULUS).
-      const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
-        + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
-        + '&role=' + encodeURIComponent(currentUser.role || '')
-        + '&userName=' + encodeURIComponent(currentUser.name || '');
-      const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
-      const data = await res.json();
-      const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
-      dashboardPeriodData = { key: key, rows: rows };
-      return dashboardPeriodData;
-    } catch (e) {
-      console.error('V6.10.1 loadDashboardPeriodData error:', e);
-      // V6.10.2: Fallback jangan guna window (bukan bulan dipilih) - papar kosong
-      // supaya jadual tidak menunjukkan bulan yang salah.
-      dashboardPeriodData = { key: key, rows: [] };
-      return dashboardPeriodData;
+    // V6.14.0: Kongsi permintaan yang sama jika dipanggil serentak.
+    if (dashboardPeriodInFlight && dashboardPeriodInFlight.key === key) return dashboardPeriodInFlight.promise;
+    const seq = ++dashboardPeriodRequestSeq;
+    const promise = (async () => {
+      try {
+        // V6.10.2: Hantar role/userName supaya rekod tempoh ditapis server
+        // (selaras dengan kad agregat yang per-pengguna untuk PENGESYOR/PELULUS).
+        const url = SCRIPT_URL + '?action=getData&t=' + Date.now()
+          + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)
+          + '&role=' + encodeURIComponent(currentUser.role || '')
+          + '&userName=' + encodeURIComponent(currentUser.name || '')
+          + '&slim=1';
+        const res = await fetchWithRetry(url, { method: 'GET', redirect: 'follow' }, 2, 1000);
+        const data = await res.json();
+        const rows = Array.isArray(data) ? data : (Array.isArray(data && data.data) ? data.data : []);
+        // Jangan timpa data yang lebih baru jika pengguna sudah tukar bulan/tahun.
+        if (seq === dashboardPeriodRequestSeq) dashboardPeriodData = { key: key, rows: rows };
+        return { key: key, rows: rows };
+      } catch (e) {
+        console.error('V6.10.1 loadDashboardPeriodData error:', e);
+        // V6.10.2: Fallback jangan guna window (bukan bulan dipilih) - papar kosong
+        // supaya jadual tidak menunjukkan bulan yang salah.
+        if (seq === dashboardPeriodRequestSeq) dashboardPeriodData = { key: key, rows: [] };
+        return { key: key, rows: [] };
+      }
+    })();
+    dashboardPeriodInFlight = { key: key, promise: promise };
+    try { return await promise; } finally {
+      if (dashboardPeriodInFlight && dashboardPeriodInFlight.promise === promise) dashboardPeriodInFlight = null;
     }
   }
 
@@ -19965,7 +19989,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             <td style="padding:8px;">${formatDate(item.start_date)}</td>
             <td style="padding:8px;">${jenisBadge}</td>
             <td style="padding:8px; text-align:left; color:#dc2626; font-size:0.85rem;">${docLabels}</td>
-            <td style="padding:8px;"><button class="btn-sm view-inc-doc-btn" data-index="${cachedData.indexOf(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
+            <td style="padding:8px;"><button class="btn-sm view-inc-doc-btn" data-index="${findCachedIndexByRow_(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
           </tr>`;
         });
       }
@@ -20077,6 +20101,15 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
   const dashboardCardFilterBtns = [filterDashCardAll, filterDashCardBaru, filterDashCardPembaharuan, filterDashCardUbahMaklumat, filterDashCardUbahGred];
   const dashCardFilterJenisMap = { filterDashCardAll: 'ALL', filterDashCardBaru: 'BARU', filterDashCardPembaharuan: 'PEMBAHARUAN', filterDashCardUbahMaklumat: 'UBAH MAKLUMAT', filterDashCardUbahGred: 'UBAH GRED' };
 
+  // V6.14.0: Cari rekod dalam cachedData ikut nombor baris. Data modal dashboard
+  // datang dari dashboardPeriodData (objek berasingan), jadi indexOf() tidak sah.
+  function findCachedIndexByRow_(item) {
+    if (!item || !Array.isArray(cachedData)) return -1;
+    const rowNum = Number(item.row);
+    if (!isFinite(rowNum)) return -1;
+    return cachedData.findIndex(function (c) { return Number(c.row) === rowNum; });
+  }
+
   function getDashStatusLabel(item) {
     if (item.kelulusan && item.kelulusan.trim() !== '') return item.kelulusan;
     if (item.syor_status && item.syor_status.trim() !== '') return item.syor_status;
@@ -20136,7 +20169,7 @@ Sila semak semula permohonan dan hantar semula SIASAT di sistem STB.`;
             <td style="padding:8px;">${formatDate(item.start_date)}</td>
             <td style="padding:8px;">${jenisBadge}</td>
             <td style="padding:8px;">${getDashStatusBadge(getDashStatusLabel(item))}</td>
-            <td style="padding:8px;"><button class="btn-sm view-dash-card-btn" data-index="${cachedData.indexOf(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
+            <td style="padding:8px;"><button class="btn-sm view-dash-card-btn" data-index="${findCachedIndexByRow_(item)}" style="background:#2563eb; color:white; border:none; cursor:pointer; border-radius:6px;">Lihat</button></td>
           </tr>`;
         });
       }
@@ -24961,8 +24994,10 @@ let tabAutoRefreshInterval = null;
 function startTabAutoRefresh() {
   if (tabAutoRefreshInterval) clearInterval(tabAutoRefreshInterval);
   
-  let lastInboxRefresh = 0;
-  let lastDashboardRefresh = 0;
+  // V6.14.0: Mulakan dari masa sekarang supaya auto-refresh tidak mencetus
+  // panggilan kedua serta-merta selepas initial load (setiap 5s semakan).
+  let lastInboxRefresh = Date.now();
+  let lastDashboardRefresh = Date.now();
   
   tabAutoRefreshInterval = setInterval(async () => {
     if (!currentUser || (currentUser.role !== 'PELULUS' && currentUser.role !== 'PENGESYOR')) return;

@@ -277,9 +277,9 @@ Content-Type: text/plain;charset=utf-8
 
 #### B1. `getData` — Ambil permohonan (tetingkap semasa atau sejarah)
 
-* **Kaedah & Path:** `GET /exec?action=getData&role=<ROLE>&userName=<NAMA>&v=<VERSION>&w=<WINDOW>&months=<N>&refresh=<true|1>&from=<YYYY-MM>&to=<YYYY-MM>&t=<timestamp>`
+* **Kaedah & Path:** `GET /exec?action=getData&role=<ROLE>&userName=<NAMA>&v=<VERSION>&w=<WINDOW>&months=<N>&refresh=<true|1>&from=<YYYY-MM>&to=<YYYY-MM>&slim=<0|1>&t=<timestamp>`
 * **Deskripsi:** Endpoint bacaan utama. Lalai memulangkan tetingkap 3 bulan terkini dari sisi pelayan. Jika `v` sama dengan versi pelayan dan `w` sama dengan `windowStart`, memulangkan `cached:true`. Jika `from` dan `to` dibekalkan, mod sejarah diaktifkan (bacaan terus hamparan, tiada cache tetingkap).
-* **Parameter:** `role` (cth `PENGESYOR`), `userName` (nama paparan penuh), `v` (versi klien), `w` (windowStart klien `YYYY-MM-DD`), `months` (lalai `3`), `refresh` (paksa baca hamparan), `from`/`to` (`YYYY-MM`).
+* **Parameter:** `role` (cth `PENGESYOR`), `userName` (nama paparan penuh), `v` (versi klien), `w` (windowStart klien `YYYY-MM-DD`), `months` (lalai `3`), `refresh` (paksa baca hamparan), `from`/`to` (`YYYY-MM`), `slim` (`1` = mod sejarah memulangkan `borang_json` ringan untuk widget dashboard sahaja; medan dokumen/personel dipilih, signature/cop/gambar base64 dibuang).
 * **Response Success — data baharu:**
 
 ```json
